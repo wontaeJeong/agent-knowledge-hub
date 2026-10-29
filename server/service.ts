@@ -80,6 +80,13 @@ export class KnowledgeService {
           [ctx.workspaceId, id, version ?? null],
         );
         if (!p.rowCount || !v.rowCount) throw Error("NOT_FOUND");
+        // Current titles must not leak through an older, otherwise readable version.
+        const latest = await db.query(
+          "SELECT data FROM versions WHERE workspace_id=$1 AND page_id=$2 ORDER BY number DESC LIMIT 1",
+          [ctx.workspaceId, id],
+        );
+        for (const sourceId of latest.rows[0].data.sourceIds)
+          await requireRead(db, ctx, "source", sourceId);
         for (const sourceId of v.rows[0].data.sourceIds)
           await requireRead(db, ctx, "source", sourceId);
         return {

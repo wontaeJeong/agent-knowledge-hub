@@ -33,9 +33,9 @@
 
 **Interfaces:** `migrate(pool: Pool): Promise<void>`, `transaction<T>(pool, workspaceId, operation): Promise<T>`. 풀은 호출자가 소유한다. migration은 명시 실행하며 app 기동에 묶지 않는다.
 
-- [ ] RED: 실제 DB에서 두 번 migration 후 원본/페이지 버전 unique/FK 및 rollback 검증.
-- [ ] GREEN: workspace, membership, resource ACL, sources, pages, versions, batches, approvals, publications, requests, audit 테이블과 migration checksum/잠금 구현.
-- [ ] `npm run test:server` 통과 후 커밋.
+- [x] RED: 실제 DB에서 반복 migration과 rollback, 이후 도메인 시험에서 원본/버전 제약 검증.
+- [x] GREEN: workspace, membership, resource ACL, sources, pages, versions, batches, approvals, publications, requests, audit 테이블과 migration checksum/잠금 구현.
+- [x] `npm run test:server` 통과 후 커밋.
 
 ## Task 2: 서버 권한·원본·조회
 
@@ -43,9 +43,9 @@
 
 **Interfaces:** `KnowledgeService(pool)`; 모든 메서드는 `Context {workspaceId, principalId}`를 받는다. `registerSource(ctx, source, readers)`, `readPage(ctx, id, version?)`를 제공한다. membership 역할은 `reader|editor|reviewer`; reader 집합은 서버 DB에 저장한 명시적 사용자 ID 집합이다.
 
-- [ ] RED: 다른 workspace/미등록 주체 접근 거부, 원본 덮어쓰기 거부, 과거 버전의 현재 원본 권한 검사.
-- [ ] GREEN: DB membership/ACL 검사, 원본 등록, 현재/고정 버전 조회 구현. 원본 독자는 workspace 구성원만 허용한다. 원본·페이지별 allowlist는 초기 계약이며 조직 그룹/상속/철회 전파는 후속이다.
-- [ ] `npm run test:server` 통과 후 커밋.
+- [x] RED: 다른 workspace/미등록 주체 접근 거부, 원본 덮어쓰기 거부, 과거 버전의 현재 원본 권한 검사.
+- [x] GREEN: DB membership/ACL 검사, 원본 등록, 현재/고정 버전 조회 구현. 원본 독자는 workspace 구성원만 허용한다. 원본·페이지별 allowlist는 초기 계약이며 조직 그룹/상속/철회 전파는 후속이다.
+- [x] `npm run test:server` 통과 후 커밋.
 
 ## Task 3: 변경 제안·승인·원자 발행
 
@@ -53,17 +53,17 @@
 
 **Interfaces:** `propose(ctx, updates: Draft[], sourceIds: string[]): Promise<{id, hash}>`, `approve(ctx, id, hash): Promise<void>`, `publish(ctx, id, hash, idempotencyKey): Promise<{batchId, versions}>`. hash는 SHA-256 승인 내용 식별자다. 기존 `createBatch/enqueueBatch/decideBatch` 검사를 재사용하되 신원/감사/권한은 서버가 결정한다.
 
-- [ ] RED: 주제+개념 일괄 발행, 승인 내용/기준/원본 변경 거부, 비검토자 거부, source reader 교집합 및 관계 권한, 동시 발행/재시작 후 replay, 키 재사용 충돌, SQL 실패 rollback.
-- [ ] GREEN: workspace 잠금 아래 정본 로드 → 권한 재확인 → 도메인 검사 → 모든 페이지/버전/근거·감사·영수증 commit. 변경 집합 hash/승인/멱등 요청을 DB에 보존한다. 현재 권한 검사는 replay에도 적용한다.
-- [ ] `npm run test:server` 통과 후 커밋.
+- [x] RED: 주제+개념 일괄 발행, 승인 내용/기준/원본 변경 거부, 비검토자 거부, source reader 교집합 및 관계 권한, 동시 발행/재시작 후 replay, 키 재사용 충돌, SQL 실패 rollback.
+- [x] GREEN: workspace 잠금 아래 정본 로드 → 권한 재확인 → 도메인 검사 → 모든 페이지/버전/근거·감사·영수증 commit. 변경 집합 hash/승인/멱등 요청을 DB에 보존한다. 현재 권한 검사는 replay에도 적용한다.
+- [x] `npm run test:server` 통과 후 커밋.
 
 ## Task 4: 문서·검증·리뷰·PR
 
 **Files:** `docs/SERVER_FOUNDATION.md`, `docs/AGENT_HANDOFF.md`, `docs/ARCHITECTURE.md`, README, 본 계획.
 
-- [ ] 실제 실행법·연결 경계·DB 직렬화 한계·후속 릴리즈 게이트와 요구사항 CORE-002~004/ACL-001~005/REV-004~006/VER-005/SEC-009/OPS-004를 기록한다. 전체 요구사항 완료 상태는 올리지 않는다.
-- [ ] `npm test`, `npm run test:server`, `npm run check:requirements`, `npm run build`, `npm run check:server`, `git diff --check` 실행.
-- [ ] 독립 전체 변경 리뷰 후 중요 지적은 RED→GREEN으로 수정한다.
+- [x] 실제 실행법·연결 경계·DB 직렬화 한계·후속 릴리즈 게이트와 요구사항 CORE-002~004/ACL-001~005/REV-004~006/VER-005/SEC-009/OPS-004를 기록한다. 전체 요구사항 완료 상태는 올리지 않는다.
+- [x] `npm test`, `npm run test:server`, `npm run check:requirements`, `npm run build`, `npm run check:server`, `git diff --check` 실행.
+- [x] 독립 전체 변경 리뷰 후 중요 지적은 RED→GREEN으로 수정한다.
 - [ ] UI diff 확인. UI 변경 시 캡처, 미변경 시 PR에 명시. 검증 결과를 포함해 커밋/푸시/PR 생성. 사용자 승인 전 병합하지 않는다.
 
 ## 추가 승인 범위: 사용 기록과 사용량 대시보드
@@ -78,3 +78,6 @@
 
 - 사용자 재지시: 추가 승인 대기 대신 구현을 진행하고 PR을 생성한다. 현재 세션에서 직접 구현한다.
 - 사전 확인: Docker daemon 29.2.1 사용 가능. 호스트 기본 PostgreSQL은 응답 없음. 시험 전용 컨테이너를 사용하고 기존 데모 compose는 유지한다.
+- 최종 검증: Node 24.22.2/PostgreSQL 17.6, 클라이언트 35+Node 6+서버 26개 통과, 251개 요구사항/서버 타입/빌드/마이그레이션 재실행 통과. 주 청크 511.15 kB 경고 유지.
+- 독립 리뷰 3개 중요 지적 RED→GREEN으로 수정. 과거 버전은 현재 제목 근거도 읽을 수 있어야 반환하는 보수적 정책을 적용했다. 그 때문에 과거 조회 가용성이 더 엄격할 수 있으며 전체 과거 메타데이터 모델은 후속이다.
+- UI 캡처 19개와 실제 표시 크기/미수집 범위는 `docs/SERVER_FOUNDATION.md`에 기록했다. 실제 운영 릴리즈 완료 선언이 아니다.

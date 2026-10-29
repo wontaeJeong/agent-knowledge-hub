@@ -7,6 +7,9 @@ Direct package metadata at the packaged lockfile versions. Preserve original not
 | dompurify | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
 | lucide-react | 1.61.0 | ISC |
 | marked | 18.1.2 | MIT |
+| pg | 8.23.1 | MIT |
+| @types/pg | 8.23.1 | MIT |
+| @types/node | 26.6.6 | MIT |
 | react | 19.3.1 | MIT |
 | react-dom | 19.3.1 | MIT |
 | @types/react | 19.3.0 | MIT |

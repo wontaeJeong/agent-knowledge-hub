@@ -44,14 +44,23 @@ async function permissions(
   updates: Draft[],
   sourceIds: string[],
 ) {
+  const acl: Record<string, unknown> = {};
+  const audienceOf = async (kind: string, id: string) => {
+    const list = (await readers(db, ctx.workspaceId, kind, id)).sort();
+    acl[`${kind}:${id}`] = list;
+    return list;
+  };
   const allSources = [
     ...new Set([...sourceIds, ...updates.flatMap((d) => d.sourceIds)]),
   ];
-  for (const id of allSources) await requireRead(db, ctx, "source", id);
+  for (const id of allSources) {
+    if (!(await audienceOf("source", id)).includes(ctx.principalId))
+      throw Error("NOT_FOUND");
+  }
   const audiences = new Map<string, string[]>();
   for (const d of updates) {
     const sourceAudiences = await Promise.all(
-      d.sourceIds.map((id) => readers(db, ctx.workspaceId, "source", id)),
+      d.sourceIds.map((id) => audienceOf("source", id)),
     );
     const intersection =
       sourceAudiences[0]?.filter((who) =>
@@ -63,7 +72,7 @@ async function permissions(
     );
     if (exists.rowCount) {
       await requireRead(db, ctx, "page", d.id);
-      const audience = await readers(db, ctx.workspaceId, "page", d.id);
+      const audience = await audienceOf("page", d.id);
       if (audience.some((p) => !intersection.includes(p)))
         throw Error("SOURCE_SCOPE_CONFLICT");
       audiences.set(d.id, audience);
@@ -72,15 +81,26 @@ async function permissions(
   }
   for (const d of updates) {
     for (const link of d.links) {
-      const audience =
-        audiences.get(link) ??
-        (await readers(db, ctx.workspaceId, "page", link));
+      let audience = audiences.get(link);
+      if (!audience) {
+        audience = await audienceOf("page", link);
+        const target = await db.query(
+          "SELECT data,number FROM versions WHERE workspace_id=$1 AND page_id=$2 ORDER BY number DESC LIMIT 1",
+          [ctx.workspaceId, link],
+        );
+        if (!target.rowCount) throw Error("NOT_FOUND");
+        acl[`dependency:${link}`] = target.rows[0].number;
+        for (const sourceId of target.rows[0].data.sourceIds) {
+          const sourceAudience = await audienceOf("source", sourceId);
+          audience = audience.filter((p) => sourceAudience.includes(p));
+        }
+      }
       if (!audience.includes(ctx.principalId)) throw Error("NOT_FOUND");
       if (audiences.get(d.id)!.some((p) => !audience.includes(p)))
         throw Error("SOURCE_SCOPE_CONFLICT");
     }
   }
-  return audiences;
+  return { audiences, hash: digest(acl) };
 }
 
 export async function propose(
@@ -162,13 +182,19 @@ export async function approve(
         throw Error("APPROVAL_STALE");
       }
       if (batch.status !== "approved") throw Error("STALE_VERSION");
+      const permissionSnapshot = await permissions(
+        db,
+        ctx,
+        batch.updates,
+        batch.snapshots.map((s) => s.id),
+      );
       await db.query(
         "UPDATE batches SET data=$3 WHERE workspace_id=$1 AND id=$2",
         [ctx.workspaceId, id, batch],
       );
       await db.query(
-        "INSERT INTO approvals(workspace_id,batch_id,principal_id,hash) VALUES($1,$2,$3,$4)",
-        [ctx.workspaceId, id, ctx.principalId, hash],
+        "INSERT INTO approvals(workspace_id,batch_id,principal_id,hash,acl_hash) VALUES($1,$2,$3,$4,$5)",
+        [ctx.workspaceId, id, ctx.principalId, hash, permissionSnapshot.hash],
       );
       await audit(db, ctx, "batch.approve", id);
     },
@@ -207,17 +233,19 @@ export async function publish(
       if (receipt.rowCount) result = receipt.rows[0].result;
       else {
         const approval = await db.query(
-          "SELECT hash FROM approvals WHERE workspace_id=$1 AND batch_id=$2",
+          "SELECT hash,acl_hash FROM approvals WHERE workspace_id=$1 AND batch_id=$2",
           [ctx.workspaceId, id],
         );
         if (!approval.rowCount || approval.rows[0].hash !== hash)
           throw Error("APPROVAL_STALE");
-        const audiences = await permissions(
+        const permissionSnapshot = await permissions(
           db,
           ctx,
           batch.updates,
           batch.snapshots.map((s) => s.id),
         );
+        if (permissionSnapshot.hash !== approval.rows[0].acl_hash)
+          throw Error("APPROVAL_STALE");
         const state = await loadState(db, ctx.workspaceId);
         let next;
         try {
@@ -238,7 +266,7 @@ export async function publish(
               ctx.workspaceId,
               "page",
               d.id,
-              audiences.get(d.id)!,
+              permissionSnapshot.audiences.get(d.id)!,
             );
           await db.query(
             "INSERT INTO pages(workspace_id,id,data) VALUES($1,$2,$3) ON CONFLICT(workspace_id,id) DO UPDATE SET data=excluded.data",

@@ -311,3 +311,94 @@ test("idempotency keys cannot be reused for a different publication request", as
     "VALIDATION_FAILED",
   );
 });
+
+test("source audience expansion after approval requires reapproval before publication", async () => {
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reader'",
+    [f.workspaceId],
+  );
+  const b = await service.propose(
+    f.editor,
+    drafts()
+      .slice(1)
+      .map((d) => ({ ...d, links: [] })),
+    [source.id],
+  );
+  await service.approve(f.ctx, b.id, b.hash);
+  await f.pool.query(
+    "INSERT INTO resource_readers VALUES($1,'source','source-a','reader')",
+    [f.workspaceId],
+  );
+  await expect(
+    service.publish(f.ctx, b.id, b.hash, "expanded"),
+  ).rejects.toThrow("APPROVAL_STALE");
+  expect(
+    (
+      await f.pool.query(
+        "SELECT * FROM pages WHERE workspace_id=$1 AND id='concept'",
+        [f.workspaceId],
+      )
+    ).rowCount,
+  ).toBe(0);
+});
+
+test("linked pages require effective current source access for caller and publication audience", async () => {
+  await service.registerSource(f.editor, { ...source, id: "second" }, [
+    "editor",
+    "reviewer",
+    "reader",
+  ]);
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id='source-a' AND principal_id='editor'",
+    [f.workspaceId],
+  );
+  await expect(service.readPage(f.editor, "topic")).rejects.toThrow(
+    "NOT_FOUND",
+  );
+  const next = drafts()
+    .slice(1)
+    .map((d) => ({ ...d, sourceIds: ["second"] }));
+  await expect(service.propose(f.editor, next, ["second"])).rejects.toThrow(
+    "NOT_FOUND",
+  );
+  await expect(service.propose(f.ctx, next, ["second"])).rejects.toThrow(
+    "SOURCE_SCOPE_CONFLICT",
+  );
+});
+
+test("old version does not expose current title derived from an inaccessible source", async () => {
+  await service.registerSource(f.editor, { ...source, id: "secret" }, [
+    "editor",
+    "reviewer",
+  ]);
+  await f.pool.query(
+    "UPDATE pages SET data=jsonb_set(data,'{title}','\"Secret acquisition target: Acme\"') WHERE workspace_id=$1 AND id='topic'",
+    [f.workspaceId],
+  );
+  await f.pool.query("INSERT INTO versions VALUES($1,'topic',2,$2)", [
+    f.workspaceId,
+    { id: "v2", number: 2, content: "secret", sourceIds: ["secret"] },
+  ]);
+  await expect(service.readPage(f.reader, "topic", 1)).rejects.toThrow(
+    "NOT_FOUND",
+  );
+});
+
+test("multiple source readers intersect rather than union", async () => {
+  await service.registerSource(f.editor, { ...source, id: "restricted" }, [
+    "editor",
+    "reviewer",
+  ]);
+  const updates = drafts()
+    .slice(1)
+    .map((d) => ({ ...d, links: [], sourceIds: [source.id, "restricted"] }));
+  const b = await service.propose(f.editor, updates, [source.id, "restricted"]);
+  await service.approve(f.ctx, b.id, b.hash);
+  await service.publish(f.ctx, b.id, b.hash, "intersection");
+  await expect(service.readPage(f.reader, "concept")).rejects.toThrow(
+    "NOT_FOUND",
+  );
+  expect(await service.readPage(f.editor, "concept")).toMatchObject({
+    id: "concept",
+  });
+});

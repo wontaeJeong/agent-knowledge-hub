@@ -1538,6 +1538,7 @@ export default function App() {
             "manager",
             "compile",
             "activity",
+            "usage",
             "roadmap",
             "settings",
             "shared",

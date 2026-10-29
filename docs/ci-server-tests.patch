@@ -1,0 +1,29 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -3,6 +3,19 @@ on: [push, pull_request]
+ jobs:
+   check:
+     runs-on: ubuntu-latest
++    services:
++      postgres:
++        image: postgres:17.6-alpine
++        env:
++          POSTGRES_USER: knowledge_test
++          POSTGRES_PASSWORD: test-only-not-for-deployment
++          POSTGRES_DB: knowledge_test
++        ports: ['5432:5432']
++        options: >-
++          --health-cmd "pg_isready -U knowledge_test -d knowledge_test"
++          --health-interval 5s --health-timeout 3s --health-retries 10
++    env:
++      TEST_DATABASE_URL: postgres://knowledge_test:test-only-not-for-deployment@127.0.0.1:5432/knowledge_test
+     steps:
+       - uses: actions/checkout@v4
+       - uses: actions/setup-node@v4
+@@ -13,3 +26,5 @@ jobs:
+       - run: npm test
++      - run: npm run test:server
++      - run: npm run check:server
+       - run: npm run check:requirements
+       - run: npm run build
