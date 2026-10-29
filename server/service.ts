@@ -2,7 +2,14 @@ import type { Pool } from "pg";
 import type { Source } from "../src/domain/types";
 import type { Draft } from "../src/domain/wiki";
 import { transaction } from "./database";
-import { addResource, audit, membership, requireRead } from "./repository";
+import {
+  addResource,
+  audit,
+  membership,
+  requireRead,
+  loadState,
+} from "./repository";
+import { visiblePageIds } from "./provenance";
 import * as publication from "./publication";
 
 export interface Context {
@@ -70,6 +77,12 @@ export class KnowledgeService {
       ctx.workspaceId,
       async (db) => {
         await membership(db, ctx);
+        if (
+          !(
+            await visiblePageIds(db, ctx, await loadState(db, ctx.workspaceId))
+          ).has(id)
+        )
+          throw Error("NOT_FOUND");
         await requireRead(db, ctx, "page", id);
         const p = await db.query(
           "SELECT data FROM pages WHERE workspace_id=$1 AND id=$2",

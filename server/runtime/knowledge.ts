@@ -21,6 +21,12 @@ import { KnowledgeService, type Context } from "../service";
 import { digest, propose } from "../publication";
 import { answerOutput, drafts } from "./schema";
 import { callModel, type ModelCall } from "./model";
+import {
+  captureEnvelope,
+  assertEnvelope,
+  visiblePageIds,
+  type InputEnvelope,
+} from "../provenance";
 
 export class RuntimeService {
   readonly core: KnowledgeService;
@@ -64,11 +70,12 @@ export class RuntimeService {
       if (next.length === visible.length) break;
       visible = next;
     }
+    const visibleIds = await visiblePageIds(db, ctx, state);
     const filtered: State = {
       ...state,
       role: "editor",
       sources,
-      pages: visible,
+      pages: visible.filter((p) => visibleIds.has(p.id)),
       knowledge: { batches: [], answers: [], issues: [] },
     };
     return { state: filtered, fingerprint };
@@ -102,6 +109,10 @@ export class RuntimeService {
         .filter(
           (r) =>
             (r.data as Batch).snapshots.every((s) => ids.has(s.id)) &&
+            (
+              (r.data as Batch & { contextDependencyIds?: string[] })
+                .contextDependencyIds ?? []
+            ).every((id) => pageIds.has(id)) &&
             (r.data as Batch).updates.every(
               (d) =>
                 d.sourceIds.every((id) => ids.has(id)) &&
@@ -172,6 +183,7 @@ export class RuntimeService {
         throw Error("SOURCE_SCOPE_CONFLICT");
       let updates: Draft[];
       let dependencyIds: string[] = [];
+      let inputEnvelope: InputEnvelope | undefined;
       if (mode === "model") {
         if (new Set(sources.map((s) => s!.scope)).size !== 1)
           throw Error("SOURCE_SCOPE_CONFLICT");
@@ -179,6 +191,9 @@ export class RuntimeService {
           (p) => p.scope === sources[0]!.scope,
         );
         dependencyIds = contextPages.map((p) => p.id);
+        inputEnvelope = await transaction(this.pool, ctx.workspaceId, (db) =>
+          captureEnvelope(db, ctx, state, dependencyIds, sourceIds),
+        );
         const data = await this.model("ingest", {
           sources,
           pages: contextPages.map((p) => ({
@@ -190,7 +205,10 @@ export class RuntimeService {
         });
         updates = drafts.parse((data as { updates: unknown }).updates);
         // All supplied context can influence prose. Preserve its source lineage even when the model omits it.
-        const lineage = contextPages.flatMap((p) => current(p).sourceIds);
+        const lineage = [
+          ...sourceIds,
+          ...contextPages.flatMap((p) => current(p).sourceIds),
+        ];
         updates = updates.map((d) => ({
           ...d,
           sourceIds: [...new Set([...d.sourceIds, ...lineage])],
@@ -235,12 +253,29 @@ export class RuntimeService {
         expectedStateHash: fingerprint,
         mode,
         dependencyIds,
+        inputEnvelope,
       });
     });
   }
   async query(ctx: Context, question: string, mode: Mode) {
     return this.job(ctx, "query", async () => {
-      const { state } = await this.snapshot(ctx);
+      const { state, envelope } = await transaction(
+        this.pool,
+        ctx.workspaceId,
+        async (db) => {
+          const { state } = await this.view(db, ctx);
+          const pages = retrieve(state, question);
+          return {
+            state,
+            envelope: await captureEnvelope(
+              db,
+              ctx,
+              state,
+              pages.map((p) => p.id),
+            ),
+          };
+        },
+      );
       let answer: Answer;
       if (mode === "model") {
         const pages = retrieve(state, question);
@@ -265,6 +300,7 @@ export class RuntimeService {
       } else answer = answerOffline(state, question);
       await transaction(this.pool, ctx.workspaceId, async (db) => {
         const fresh = (await this.view(db, ctx)).state;
+        await assertEnvelope(db, ctx, fresh, envelope);
         for (const citation of answer.citations) {
           const p = fresh.pages.find((p) => p.id === citation.pageId);
           if (
@@ -279,7 +315,7 @@ export class RuntimeService {
           ctx.workspaceId,
           answer.id,
           ctx.principalId,
-          answer,
+          { ...answer, inputEnvelope: envelope },
         ]);
         await audit(db, ctx, "query", answer.id);
       });
@@ -293,7 +329,15 @@ export class RuntimeService {
       [ctx.workspaceId, id, ctx.principalId],
     );
     if (!row.rowCount) throw Error("NOT_FOUND");
-    const answer = row.rows[0].data as Answer;
+    const answer = row.rows[0].data as Answer & {
+      inputEnvelope?: InputEnvelope;
+    };
+    if (answer.mode === "model" && !answer.inputEnvelope)
+      throw Error("STALE_VERSION");
+    if (answer.inputEnvelope)
+      await transaction(this.pool, ctx.workspaceId, (db) =>
+        assertEnvelope(db, ctx, state, answer.inputEnvelope!),
+      );
     saveAnswer(state, answer);
     state.knowledge!.answers = [answer];
     const next = fileAnswer(state, id);
@@ -301,12 +345,30 @@ export class RuntimeService {
     return propose(
       this.pool,
       ctx,
-      drafts.parse(batch.updates),
-      batch.snapshots.map((s) => s.id),
+      drafts.parse(
+        batch.updates.map((d) => ({
+          ...d,
+          sourceIds: [
+            ...new Set([
+              ...d.sourceIds,
+              ...(answer.inputEnvelope?.sourceIds ?? []),
+            ]),
+          ],
+        })),
+      ),
+      [
+        ...new Set([
+          ...batch.snapshots.map((s) => s.id),
+          ...(answer.inputEnvelope?.sourceIds ?? []),
+        ]),
+      ],
       {
         expectedStateHash: fingerprint,
         mode: answer.mode,
-        dependencyIds: answer.citations.map((c) => c.pageId),
+        dependencyIds:
+          answer.inputEnvelope?.pageIds ??
+          answer.citations.map((c) => c.pageId),
+        inputEnvelope: answer.inputEnvelope,
         answerId: answer.id,
       },
     );
