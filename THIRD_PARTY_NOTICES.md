@@ -1,0 +1,21 @@
+# Third party notices
+
+Direct package metadata at the packaged lockfile versions. Preserve original notices and review transitive dependencies under your corporate OSS process. This list is not a complete legal or vulnerability audit.
+
+| Package | Version | License metadata |
+| --- | --- | --- |
+| dompurify | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
+| lucide-react | 1.61.0 | ISC |
+| marked | 18.1.2 | MIT |
+| react | 19.3.1 | MIT |
+| react-dom | 19.3.1 | MIT |
+| @types/react | 19.3.0 | MIT |
+| @types/react-dom | 19.3.0 | MIT |
+| @vitejs/plugin-react | 6.1.2 | MIT |
+| prettier | 3.9.10 | MIT |
+| sharp | 0.35.5 | Apache-2.0 |
+| typescript | 7.0.2 | Apache-2.0 |
+| vite | 8.3.5 | MIT |
+| vitest | 5.0.5 | MIT |
+
+Original available direct-package license texts are included under third-party-licenses/. Transitive packages retain their npm notices. No upstream wiki product or Enterprise Edition source was copied into this repository.

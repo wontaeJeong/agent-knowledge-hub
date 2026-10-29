@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-26",
+  "document_validation": "passed",
+  "requirements": 239,
+  "domains": 21,
+  "priority_counts": {
+    "필수": 224,
+    "확장": 12,
+    "선택": 3
+  },
+  "acceptance_scenarios": 35,
+  "all_requirements_linked": true,
+  "dependency_cycle": false,
+  "repositories_reviewed": 6,
+  "source_files_read": 36,
+  "runtime_or_production_tests_performed": false,
+  "page_visual_preview_performed": false,
+  "checks": [
+    "unique IDs",
+    "valid dependencies",
+    "acyclic dependencies",
+    "bidirectional requirement scenario traceability",
+    "acceptance fields present",
+    "scenario reference validity",
+    "Markdown table column consistency",
+    "balanced fences"
+  ]
+}

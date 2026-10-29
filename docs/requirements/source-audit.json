@@ -1,0 +1,314 @@
+{
+  "review_date": "2026-10-26",
+  "scope": "설계 검토 및 공개 저장소 표본 정적 검토",
+  "runtime_validation_performed": false,
+  "repositories": [
+    {
+      "repository": "Pratiyush/llm-wiki",
+      "commit": "b1088890ee0743810a92577aecad946c6b3eb2d2",
+      "default_branch": "master",
+      "tree_truncated": false,
+      "files": [
+        {
+          "path": "LICENSE",
+          "status": "read",
+          "blob_sha": "b45d3b6bdb02bba2a55de0d6bc29a7708f1471ee",
+          "url": "https://github.com/Pratiyush/llm-wiki/blob/b1088890ee0743810a92577aecad946c6b3eb2d2/LICENSE",
+          "line_count": 22
+        },
+        {
+          "path": "llmwiki/adapters/base.py",
+          "status": "read",
+          "blob_sha": "2b8132146fbfc689ade36bb7ea5d379b1e15965e",
+          "url": "https://github.com/Pratiyush/llm-wiki/blob/b1088890ee0743810a92577aecad946c6b3eb2d2/llmwiki/adapters/base.py",
+          "line_count": 192
+        },
+        {
+          "path": "llmwiki/adapters/contrib/opencode.py",
+          "status": "read",
+          "blob_sha": "9193ca1b786799140c4ffac53e463a28c936b31a",
+          "url": "https://github.com/Pratiyush/llm-wiki/blob/b1088890ee0743810a92577aecad946c6b3eb2d2/llmwiki/adapters/contrib/opencode.py",
+          "line_count": 166
+        },
+        {
+          "path": "llmwiki/synth/pipeline.py",
+          "status": "read",
+          "blob_sha": "7db607abd15be21da4945af97366623bccaa8a69",
+          "url": "https://github.com/Pratiyush/llm-wiki/blob/b1088890ee0743810a92577aecad946c6b3eb2d2/llmwiki/synth/pipeline.py",
+          "line_count": 754
+        },
+        {
+          "path": "pyproject.toml",
+          "status": "read",
+          "blob_sha": "f08daeede71d61d7c0e3f8c3a7add87f7724fea9",
+          "url": "https://github.com/Pratiyush/llm-wiki/blob/b1088890ee0743810a92577aecad946c6b3eb2d2/pyproject.toml",
+          "line_count": 132
+        },
+        {
+          "path": "llmwiki/lint/rules/contradiction_detection.py",
+          "status": "read",
+          "blob_sha": "57cefd74b54c7024898edd83bde82a492b2ddbc8",
+          "url": "https://github.com/Pratiyush/llm-wiki/blob/b1088890ee0743810a92577aecad946c6b3eb2d2/llmwiki/lint/rules/contradiction_detection.py",
+          "line_count": 46
+        },
+        {
+          "path": "llmwiki/lint/rules/claim_verification.py",
+          "status": "read",
+          "blob_sha": "e07b90059fb5962b0d1fa6b10fb43ce4c52ef483",
+          "url": "https://github.com/Pratiyush/llm-wiki/blob/b1088890ee0743810a92577aecad946c6b3eb2d2/llmwiki/lint/rules/claim_verification.py",
+          "line_count": 45
+        },
+        {
+          "path": "docs/adapters/opencode.md",
+          "status": "read",
+          "blob_sha": "18766a4732ab2c2b88b82df0e2af811b06754e10",
+          "url": "https://github.com/Pratiyush/llm-wiki/blob/b1088890ee0743810a92577aecad946c6b3eb2d2/docs/adapters/opencode.md",
+          "line_count": 71
+        }
+      ]
+    },
+    {
+      "repository": "hugogu/next-wiki",
+      "commit": "453e9255d3f88028b08658b7fa55e09f5e15dcd9",
+      "default_branch": "main",
+      "tree_truncated": false,
+      "files": [
+        {
+          "path": "LICENSE",
+          "status": "read",
+          "blob_sha": "d3e07ebdd24d439fbd6f211c0e7fa6759a23f259",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/LICENSE",
+          "line_count": 202
+        },
+        {
+          "path": "apps/web/src/server/permissions/index.ts",
+          "status": "read",
+          "blob_sha": "c058c345bc5417a8db15536fdaa1ba92f168673d",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/apps/web/src/server/permissions/index.ts",
+          "line_count": 378
+        },
+        {
+          "path": "apps/web/src/server/services/ai-tool-proposals.ts",
+          "status": "read",
+          "blob_sha": "57a118654af3ffa314e57258d114d103ad17d71a",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/apps/web/src/server/services/ai-tool-proposals.ts",
+          "line_count": 453
+        },
+        {
+          "path": "apps/web/src/server/jobs/scheduled-ai-jobs.ts",
+          "status": "read",
+          "blob_sha": "0c4fcb812f0a70882fffa85f59825a9b6fbf108a",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/apps/web/src/server/jobs/scheduled-ai-jobs.ts",
+          "line_count": 124
+        },
+        {
+          "path": "docker-compose.prod.yml",
+          "status": "read",
+          "blob_sha": "5cc946659fc3e382649f492cdc160675df1c9db8",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/docker-compose.prod.yml",
+          "line_count": 57
+        },
+        {
+          "path": "apps/web/package.json",
+          "status": "read",
+          "blob_sha": "b7e42d0530f2796bcbb138680eafd992039846c7",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/apps/web/package.json",
+          "line_count": 109
+        },
+        {
+          "path": "apps/web/src/server/services/scheduled-ai-jobs.ts",
+          "status": "read",
+          "blob_sha": "8284fe5563790f115c87c79fba8f93d596b66597",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/apps/web/src/server/services/scheduled-ai-jobs.ts",
+          "line_count": 540
+        },
+        {
+          "path": "apps/web/src/server/services/revisions.ts",
+          "status": "read",
+          "blob_sha": "35c27d0f8286b769c66592757d5715e33b266e12",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/apps/web/src/server/services/revisions.ts",
+          "line_count": 188
+        },
+        {
+          "path": "apps/web/src/server/services/auth.ts",
+          "status": "read",
+          "blob_sha": "e33175799f68719264ec6d8a130d166469cf183d",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/apps/web/src/server/services/auth.ts",
+          "line_count": 295
+        },
+        {
+          "path": "apps/web/src/server/services/ai-tool-proposals.test.ts",
+          "status": "read",
+          "blob_sha": "08d3321495d1109031e832bb08bdacf43bd072ad",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/apps/web/src/server/services/ai-tool-proposals.test.ts",
+          "line_count": 164
+        },
+        {
+          "path": "docs/deployment.md",
+          "status": "read",
+          "blob_sha": "05a1cb510915c19eddc6eec667e928d596f43610",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/docs/deployment.md",
+          "line_count": 315
+        },
+        {
+          "path": "apps/web/src/server/jobs/runtime.ts",
+          "status": "read",
+          "blob_sha": "6bdc0f809ffb432ab9bc896fba9df560b4c5a146",
+          "url": "https://github.com/hugogu/next-wiki/blob/453e9255d3f88028b08658b7fa55e09f5e15dcd9/apps/web/src/server/jobs/runtime.ts",
+          "line_count": 109
+        }
+      ]
+    },
+    {
+      "repository": "lucasastorian/llmwiki",
+      "commit": "9dc372f7970754b7d0f5cd0b5d1fa706fa738a78",
+      "default_branch": "master",
+      "tree_truncated": false,
+      "files": [
+        {
+          "path": "LICENSE",
+          "status": "read",
+          "blob_sha": "d645695673349e3947e8e5ae42332d0ac3164cd7",
+          "url": "https://github.com/lucasastorian/llmwiki/blob/9dc372f7970754b7d0f5cd0b5d1fa706fa738a78/LICENSE",
+          "line_count": 203
+        },
+        {
+          "path": "api/infra/auth/local.py",
+          "status": "read",
+          "blob_sha": "3f49c5fa5d9dd690c4821a16c53f6a66c41c7a73",
+          "url": "https://github.com/lucasastorian/llmwiki/blob/9dc372f7970754b7d0f5cd0b5d1fa706fa738a78/api/infra/auth/local.py",
+          "line_count": 12
+        },
+        {
+          "path": "supabase/migrations/006_kb_sharing.sql",
+          "status": "read",
+          "blob_sha": "ee29927cce74e5f9c0ff697e7bba7984ea0f2ebc",
+          "url": "https://github.com/lucasastorian/llmwiki/blob/9dc372f7970754b7d0f5cd0b5d1fa706fa738a78/supabase/migrations/006_kb_sharing.sql",
+          "line_count": 44
+        },
+        {
+          "path": "docker-compose.yml",
+          "status": "read",
+          "blob_sha": "f6cff36a3c7c88f701daf143e4c4119fe9511a4c",
+          "url": "https://github.com/lucasastorian/llmwiki/blob/9dc372f7970754b7d0f5cd0b5d1fa706fa738a78/docker-compose.yml",
+          "line_count": 16
+        },
+        {
+          "path": "README.md",
+          "status": "read",
+          "blob_sha": "71fd840998da498377a010548d23bf10afec975c",
+          "url": "https://github.com/lucasastorian/llmwiki/blob/9dc372f7970754b7d0f5cd0b5d1fa706fa738a78/README.md",
+          "line_count": 195
+        }
+      ]
+    },
+    {
+      "repository": "ddsyasas/llm-wiki",
+      "commit": "e8dd69ebba0dc7c395c1b8217bb1c30c14e8c84c",
+      "default_branch": "main",
+      "tree_truncated": false,
+      "files": [
+        {
+          "path": "LICENSE",
+          "status": "read",
+          "blob_sha": "4a2b25821a39970c6d693e6dfc615ea1cf11a145",
+          "url": "https://github.com/ddsyasas/llm-wiki/blob/e8dd69ebba0dc7c395c1b8217bb1c30c14e8c84c/LICENSE",
+          "line_count": 22
+        },
+        {
+          "path": "packages/core/src/lint.ts",
+          "status": "read",
+          "blob_sha": "3849314e0d7517228a292becf7f66376dc02237c",
+          "url": "https://github.com/ddsyasas/llm-wiki/blob/e8dd69ebba0dc7c395c1b8217bb1c30c14e8c84c/packages/core/src/lint.ts",
+          "line_count": 284
+        },
+        {
+          "path": "apps/web/src/app/api/lint/fix/route.ts",
+          "status": "read",
+          "blob_sha": "72890d69426cfd01d66bd35a29e3ed375cdfd38f",
+          "url": "https://github.com/ddsyasas/llm-wiki/blob/e8dd69ebba0dc7c395c1b8217bb1c30c14e8c84c/apps/web/src/app/api/lint/fix/route.ts",
+          "line_count": 273
+        },
+        {
+          "path": "docs/02-architecture.md",
+          "status": "read",
+          "blob_sha": "d03bf0559bf05e5477a97d9007b5e2c36c38851e",
+          "url": "https://github.com/ddsyasas/llm-wiki/blob/e8dd69ebba0dc7c395c1b8217bb1c30c14e8c84c/docs/02-architecture.md",
+          "line_count": 143
+        }
+      ]
+    },
+    {
+      "repository": "docmost/docmost",
+      "commit": "6d117f8c52e54e810d5931f153eb2d31c904efb3",
+      "default_branch": "main",
+      "tree_truncated": false,
+      "files": [
+        {
+          "path": "LICENSE",
+          "status": "read",
+          "blob_sha": "0ad25db4bd1d86c452db3f9602ccdbe172438f52",
+          "url": "https://github.com/docmost/docmost/blob/6d117f8c52e54e810d5931f153eb2d31c904efb3/LICENSE",
+          "line_count": 662
+        },
+        {
+          "path": "apps/server/src/core/share/share.service.ts",
+          "status": "read",
+          "blob_sha": "00dbd0caacd39dbf72c46176edb310cce05c2747",
+          "url": "https://github.com/docmost/docmost/blob/6d117f8c52e54e810d5931f153eb2d31c904efb3/apps/server/src/core/share/share.service.ts",
+          "line_count": 501
+        },
+        {
+          "path": "apps/server/src/ee/LICENSE",
+          "status": "unavailable",
+          "blob_sha": null,
+          "url": "https://github.com/docmost/docmost/blob/6d117f8c52e54e810d5931f153eb2d31c904efb3/apps/server/src/ee/LICENSE",
+          "line_count": null
+        },
+        {
+          "path": "apps/client/src/ee/LICENSE",
+          "status": "read",
+          "blob_sha": "fabacae0647ff92dca8cfe38582de1c9be48707b",
+          "url": "https://github.com/docmost/docmost/blob/6d117f8c52e54e810d5931f153eb2d31c904efb3/apps/client/src/ee/LICENSE",
+          "line_count": 40
+        },
+        {
+          "path": "README.md",
+          "status": "read",
+          "blob_sha": "f09680e14205fbcd14e9ec75167534c72a5b546a",
+          "url": "https://github.com/docmost/docmost/blob/6d117f8c52e54e810d5931f153eb2d31c904efb3/README.md",
+          "line_count": 63
+        }
+      ]
+    },
+    {
+      "repository": "onyx-dot-app/onyx",
+      "commit": "616a4b1a9c75cc07e9645069c672f3e8fb029ca8",
+      "default_branch": "main",
+      "tree_truncated": false,
+      "files": [
+        {
+          "path": "LICENSE",
+          "status": "read",
+          "blob_sha": "adedc9c96af1a84fa0eeb35361cd4e04c8611b83",
+          "url": "https://github.com/onyx-dot-app/onyx/blob/616a4b1a9c75cc07e9645069c672f3e8fb029ca8/LICENSE",
+          "line_count": 29
+        },
+        {
+          "path": "backend/ee/LICENSE",
+          "status": "read",
+          "blob_sha": "1352aacb64c4a1cc38d81bb50a963dfbfea8472c",
+          "url": "https://github.com/onyx-dot-app/onyx/blob/616a4b1a9c75cc07e9645069c672f3e8fb029ca8/backend/ee/LICENSE",
+          "line_count": 37
+        },
+        {
+          "path": "backend/ee/onyx/configs/license_enforcement_config.py",
+          "status": "read",
+          "blob_sha": "6b953b3389d70754c4637edf875bb41e4e6ba89d",
+          "url": "https://github.com/onyx-dot-app/onyx/blob/616a4b1a9c75cc07e9645069c672f3e8fb029ca8/backend/ee/onyx/configs/license_enforcement_config.py",
+          "line_count": 95
+        }
+      ]
+    }
+  ]
+}

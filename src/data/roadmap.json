@@ -1,0 +1,5012 @@
+[
+  {
+    "id": "GOV-001",
+    "domain": "제품 범위와 책임",
+    "title": "서비스 목적",
+    "priority": "필수",
+    "requirement": "LLM 업무 산출물이 근거 있는 사내 지식으로 편입되고 다음 업무에 재사용되도록 제공한다.",
+    "acceptance": "서로 다른 두 사용자가 생성 등록 검토 발행 재사용 피드백을 한 흐름으로 완료한다.",
+    "owner_role": "제품 책임자",
+    "verification_scenarios": [
+      "AT01",
+      "AT29"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": true
+  },
+  {
+    "id": "GOV-002",
+    "domain": "제품 범위와 책임",
+    "title": "산출물과 위키 분리",
+    "priority": "필수",
+    "requirement": "개별 작업의 결과물과 여러 결과를 통합한 위키 페이지를 별도 개체로 관리한다.",
+    "acceptance": "산출물 세 개가 한 페이지를 뒷받침하고 원본별 기여 위치를 확인할 수 있다.",
+    "owner_role": "제품 책임자",
+    "verification_scenarios": [
+      "AT01",
+      "AT29"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": true
+  },
+  {
+    "id": "GOV-003",
+    "domain": "제품 범위와 책임",
+    "title": "개인 팀 전사 공간",
+    "priority": "필수",
+    "requirement": "개인 초안과 팀 공유 지식 및 전사 공식 지식의 책임과 접근 범위를 구분한다.",
+    "acceptance": "개인 자료를 등록해도 별도 공유 행위 전 다른 사용자에게 노출되지 않는다.",
+    "owner_role": "제품 책임자",
+    "verification_scenarios": [
+      "AT01",
+      "AT29"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": true
+  },
+  {
+    "id": "GOV-004",
+    "domain": "제품 범위와 책임",
+    "title": "공식성 구분",
+    "priority": "필수",
+    "requirement": "개인 해석 팀 결정 공식 기준을 표시하고 정해진 권한으로만 공식성을 변경한다.",
+    "acceptance": "AI 생성물과 작성자 확인만으로 공식 기준 표시가 생기지 않는다.",
+    "owner_role": "제품 책임자",
+    "verification_scenarios": [
+      "AT01",
+      "AT29"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": true
+  },
+  {
+    "id": "GOV-005",
+    "domain": "제품 범위와 책임",
+    "title": "업무 담당자",
+    "priority": "필수",
+    "requirement": "문서 공간 관리 규칙에 책임자와 대체 담당자를 지정할 수 있어야 한다.",
+    "acceptance": "담당자 비활성화 시 인계 대상과 미처리 검토가 운영함에 표시된다.",
+    "owner_role": "제품 책임자",
+    "verification_scenarios": [
+      "AT01",
+      "AT29"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "GOV-006",
+    "domain": "제품 범위와 책임",
+    "title": "수집 목적과 고지",
+    "priority": "필수",
+    "requirement": "무엇을 수집하고 누가 볼 수 있는지 직원이 확인하고 수집 제외를 지정할 수 있어야 한다.",
+    "acceptance": "도구 연동 전 수집 단위와 공개 범위가 표시되고 제외한 작업이 업로드되지 않는다.",
+    "owner_role": "제품 책임자",
+    "verification_scenarios": [
+      "AT01",
+      "AT29"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "GOV-007",
+    "domain": "제품 범위와 책임",
+    "title": "기능 범위 통제",
+    "priority": "필수",
+    "requirement": "미제공 기능은 숨김뿐 아니라 API와 작업 실행도 차단하고 전체 요구사항에 남긴다.",
+    "acceptance": "기능 비활성 상태에서 직접 URL API MCP 예약 작업으로도 실행되지 않는다.",
+    "owner_role": "제품 책임자",
+    "verification_scenarios": [
+      "AT01",
+      "AT29"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "GOV-008",
+    "domain": "제품 범위와 책임",
+    "title": "운영 책임 분담",
+    "priority": "필수",
+    "requirement": "서비스 운영 지식 검토 보안 모델 및 데이터 복구의 책임과 대응 경로를 정한다.",
+    "acceptance": "각 주요 장애와 검토 지연에 실제 담당 역할 및 대체 경로가 지정된다.",
+    "owner_role": "제품 책임자",
+    "verification_scenarios": [
+      "AT01",
+      "AT29"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "GOV-009",
+    "domain": "제품 범위와 책임",
+    "title": "성과 측정",
+    "priority": "필수",
+    "requirement": "생성 문서 수와 별도로 재사용 성공 검토 대기 지식 최신성 및 비용을 집계한다.",
+    "acceptance": "분모 기간 제외 조건을 명시하고 직원 개인의 생산성 순위를 기본 제공하지 않는다.",
+    "owner_role": "제품 책임자",
+    "verification_scenarios": [
+      "AT01",
+      "AT29"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "GOV-010",
+    "domain": "제품 범위와 책임",
+    "title": "요구사항 변경관리",
+    "priority": "필수",
+    "requirement": "요구사항 정책 및 인수 기준 변경 이유와 영향을 기록한다.",
+    "acceptance": "필수 항목을 미충족한 채 완료 처리하거나 근거 없이 삭제할 수 없다.",
+    "owner_role": "제품 책임자",
+    "verification_scenarios": [
+      "AT01",
+      "AT29"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "IAM-001",
+    "domain": "인증과 사용자 생애주기",
+    "title": "사내 로그인",
+    "priority": "필수",
+    "requirement": "사내 IdP와 연동하고 서버에서 토큰 발급자 대상 만료 및 서명을 검증한다.",
+    "acceptance": "정상 로그인은 성공하고 위조 만료 및 다른 대상 토큰은 거부한다.",
+    "owner_role": "인증 담당자",
+    "verification_scenarios": [
+      "AT02",
+      "AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "IAM-002",
+    "domain": "인증과 사용자 생애주기",
+    "title": "안정적인 사용자 식별",
+    "priority": "필수",
+    "requirement": "이메일 이름 변경과 무관한 IdP 식별자로 사용자 계정을 연결한다.",
+    "acceptance": "이메일 변경 후 문서 기여 이력과 권한이 같은 사용자에 유지된다.",
+    "owner_role": "인증 담당자",
+    "verification_scenarios": [
+      "AT02",
+      "AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "IAM-003",
+    "domain": "인증과 사용자 생애주기",
+    "title": "가입 정책",
+    "priority": "필수",
+    "requirement": "허용 조직과 초대 정책을 적용하며 공개 회원가입을 기본 차단한다.",
+    "acceptance": "허용되지 않은 계정은 로그인 성공 여부와 무관하게 가입되지 않는다.",
+    "owner_role": "인증 담당자",
+    "verification_scenarios": [
+      "AT02",
+      "AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "IAM-004",
+    "domain": "인증과 사용자 생애주기",
+    "title": "세션 관리",
+    "priority": "필수",
+    "requirement": "세션 조회 철회 유휴 만료 절대 만료와 전역 로그아웃을 지원한다.",
+    "acceptance": "철회 후 다음 보호 요청과 활성 연결의 후속 전송이 거부된다.",
+    "owner_role": "인증 담당자",
+    "verification_scenarios": [
+      "AT02",
+      "AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "IAM-005",
+    "domain": "인증과 사용자 생애주기",
+    "title": "사용자 비활성화",
+    "priority": "필수",
+    "requirement": "퇴사자 비활성화 시 세션 API 토큰 공유 권한 및 실행 소유권을 회수한다.",
+    "acceptance": "이미 대기 중인 작업과 활성 에이전트 호출도 새 권한 검사에서 차단된다.",
+    "owner_role": "인증 담당자",
+    "verification_scenarios": [
+      "AT02",
+      "AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "IAM-006",
+    "domain": "인증과 사용자 생애주기",
+    "title": "그룹 동기화",
+    "priority": "필수",
+    "requirement": "사내 그룹과 서비스 그룹을 동기화하고 제거도 반영한다.",
+    "acceptance": "그룹에서 빠진 사용자의 접근이 동기화 목표 시간 안에 회수된다.",
+    "owner_role": "인증 담당자",
+    "verification_scenarios": [
+      "AT02",
+      "AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "IAM-007",
+    "domain": "인증과 사용자 생애주기",
+    "title": "프로비저닝 확장",
+    "priority": "확장",
+    "requirement": "조직에서 사용하는 SCIM 또는 디렉터리 이벤트로 생성 변경 비활성화를 자동 반영한다.",
+    "acceptance": "중복 이벤트와 순서가 바뀐 이벤트가 중복 계정이나 권한 부활을 만들지 않는다.",
+    "owner_role": "인증 담당자",
+    "verification_scenarios": [
+      "AT02",
+      "AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "IAM-008",
+    "domain": "인증과 사용자 생애주기",
+    "title": "운영자 계정",
+    "priority": "필수",
+    "requirement": "운영자와 일반 사용자 권한을 구분하고 긴급 계정 사용을 기록한다.",
+    "acceptance": "긴급 접근에는 사유 만료 감사 기록이 있으며 상시 우회 수단이 되지 않는다.",
+    "owner_role": "인증 담당자",
+    "verification_scenarios": [
+      "AT02",
+      "AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "IAM-009",
+    "domain": "인증과 사용자 생애주기",
+    "title": "토큰 관리",
+    "priority": "필수",
+    "requirement": "API 토큰의 범위 만료 철회 마지막 사용을 관리하고 원문을 재노출하지 않는다.",
+    "acceptance": "유출 대응 시 한 토큰만 철회할 수 있고 로그에 원문이 남지 않는다.",
+    "owner_role": "인증 담당자",
+    "verification_scenarios": [
+      "AT02",
+      "AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "IAM-010",
+    "domain": "인증과 사용자 생애주기",
+    "title": "서비스 실행 주체",
+    "priority": "필수",
+    "requirement": "매니저와 커넥터는 명시적인 서비스 주체와 허용 범위로 실행한다.",
+    "acceptance": "사용자 이름만 전달하거나 전역 관리자 키를 공유해 권한을 얻지 않는다.",
+    "owner_role": "인증 담당자",
+    "verification_scenarios": [
+      "AT02",
+      "AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "IAM-011",
+    "domain": "인증과 사용자 생애주기",
+    "title": "IdP 장애 대응",
+    "priority": "필수",
+    "requirement": "인증 장애 시 신규 권한을 임의 부여하지 않고 정책에 정한 기존 세션 처리와 안내를 제공한다.",
+    "acceptance": "IdP 중단 및 복구 훈련에서 권한 우회가 없고 운영자가 영향 범위를 파악한다.",
+    "owner_role": "인증 담당자",
+    "verification_scenarios": [
+      "AT02",
+      "AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-001",
+    "domain": "권한과 파생 지식 접근",
+    "title": "서버 권한 검사",
+    "priority": "필수",
+    "requirement": "웹 API MCP 작업자 다운로드가 같은 권한 판단을 사용한다.",
+    "acceptance": "권한 없는 사용자가 직접 ID를 넣어 호출해도 접근이 거부된다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-002",
+    "domain": "권한과 파생 지식 접근",
+    "title": "공간 역할",
+    "priority": "필수",
+    "requirement": "공간별 읽기 댓글 편집 검토 발행 관리 권한을 분리한다.",
+    "acceptance": "다른 공간에서 편집자인 사용자가 현재 공간의 편집 권한을 얻지 않는다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-003",
+    "domain": "권한과 파생 지식 접근",
+    "title": "문서별 제한",
+    "priority": "필수",
+    "requirement": "문서별 사용자 및 그룹 제한을 지원하고 상속 여부를 표시한다.",
+    "acceptance": "부모가 공개돼도 제한된 자식은 접근되지 않으며 이동 시 변경을 미리 보여준다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-004",
+    "domain": "권한과 파생 지식 접근",
+    "title": "원본 파생 관계",
+    "priority": "필수",
+    "requirement": "파생 페이지와 주장에 사용한 원본 및 원본 당시 접근 범위를 기록한다.",
+    "acceptance": "임의 원본에서 파생된 페이지 요약 답변 내역을 역추적할 수 있다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-005",
+    "domain": "권한과 파생 지식 접근",
+    "title": "다중 원본 권한",
+    "priority": "필수",
+    "requirement": "초기에는 페이지가 사용한 모든 근거를 볼 수 있는 사용자에게만 파생 내용을 제공한다.",
+    "acceptance": "A와 B 원본의 독자 교집합 밖 사용자에게 합성 본문이 노출되지 않는다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "ACL-004",
+      "ACL-001"
+    ],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-006",
+    "domain": "권한과 파생 지식 접근",
+    "title": "공개 범위 확대",
+    "priority": "필수",
+    "requirement": "제한 원본에서 더 넓은 범위로 지식을 공개할 때 별도의 정제본 검토와 공개 결정을 기록한다.",
+    "acceptance": "원본 링크 숨김이나 LLM의 민감정보 제거 판단만으로 범위가 넓어지지 않는다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-007",
+    "domain": "권한과 파생 지식 접근",
+    "title": "권한 철회 전파",
+    "priority": "필수",
+    "requirement": "원본 및 조직 권한 변경을 파생 페이지 인덱스 캐시 답변에 전파한다.",
+    "acceptance": "철회 이후 보호 응답이 나가기 전에 최신 정책을 확인하고 불명확하면 제한한다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "ACL-004",
+      "ACL-005",
+      "ACL-012"
+    ],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-008",
+    "domain": "권한과 파생 지식 접근",
+    "title": "검색 측면 정보",
+    "priority": "필수",
+    "requirement": "제목 검색 개수 태그 추천 그래프 알림에 제한 자료 존재가 드러나지 않도록 한다.",
+    "acceptance": "권한 없는 테스트 계정의 검색과 링크 미리보기에서 제한 자료 정보가 나오지 않는다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-009",
+    "domain": "권한과 파생 지식 접근",
+    "title": "과거 버전 권한",
+    "priority": "필수",
+    "requirement": "이전 버전 원본 스냅샷 댓글 첨부에도 현재 권한을 적용한다.",
+    "acceptance": "과거 링크와 버전 복원으로 회수된 접근 권한이 되살아나지 않는다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-010",
+    "domain": "권한과 파생 지식 접근",
+    "title": "권한 표시",
+    "priority": "필수",
+    "requirement": "문서와 공유 화면에서 실제 독자와 상속 및 제한 사유를 확인할 수 있어야 한다.",
+    "acceptance": "관리자가 특정 사용자의 접근 허용 경로와 거부 이유를 설명할 수 있다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-011",
+    "domain": "권한과 파생 지식 접근",
+    "title": "접근 요청",
+    "priority": "필수",
+    "requirement": "권한 없는 사용자는 내용 노출 없이 접근을 요청하고 담당자는 승인 반려할 수 있다.",
+    "acceptance": "요청 승인 이전에는 본문이 제공되지 않으며 결정 이력이 남는다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-012",
+    "domain": "권한과 파생 지식 접근",
+    "title": "권한 서비스 장애",
+    "priority": "필수",
+    "requirement": "권한 확인 실패나 오래된 정책 상태에서 보호 내용을 제공하지 않는다.",
+    "acceptance": "정책 저장소와 권한 캐시 장애 주입 시 안전한 거부 또는 제한 모드가 동작한다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-013",
+    "domain": "권한과 파생 지식 접근",
+    "title": "외부 권한 최신성",
+    "priority": "필수",
+    "requirement": "원본 시스템 동기화 시각과 허용 지연을 기록하고 지연 초과 시 해당 지식 제공을 제한한다.",
+    "acceptance": "동기화가 멈추면 경고만 표시한 채 제한 자료를 계속 제공하지 않는다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "ACL-014",
+    "domain": "권한과 파생 지식 접근",
+    "title": "기존 답변 재열람",
+    "priority": "필수",
+    "requirement": "저장된 답변과 대화 공유는 참조 원본의 현재 접근 권한을 재평가한다.",
+    "acceptance": "권한 회수 후 새 조회와 재공유에서 제한된 답변 부분이 제공되지 않는다.",
+    "owner_role": "보안 및 백엔드",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT05",
+      "AT06",
+      "AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "ACL-007",
+      "QNA-005"
+    ],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SHR-001",
+    "domain": "링크와 공유",
+    "title": "문서 고유 링크",
+    "priority": "필수",
+    "requirement": "문서 이동과 이름 변경 후에도 고유 링크를 유지한다.",
+    "acceptance": "기존 링크가 같은 문서로 연결되고 권한 검사를 유지한다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "SHR-002",
+    "domain": "링크와 공유",
+    "title": "문단 댓글 링크",
+    "priority": "필수",
+    "requirement": "제목 문단 댓글과 특정 발행 버전으로 바로 이동할 수 있어야 한다.",
+    "acceptance": "편집으로 대상이 사라지면 다른 내용으로 오인 이동하지 않고 변경 상태를 알린다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "SHR-003",
+    "domain": "링크와 공유",
+    "title": "최신과 고정 버전",
+    "priority": "필수",
+    "requirement": "최신 발행본 링크와 특정 버전 고정 링크를 구분한다.",
+    "acceptance": "다음 발행 후 최신 링크만 바뀌고 고정 링크는 당시 버전을 보여준다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "SHR-004",
+    "domain": "링크와 공유",
+    "title": "수신자 지정 공유",
+    "priority": "필수",
+    "requirement": "사용자 그룹과 권한을 지정해 공유하고 기존 접근과 새 권한 부여를 구분한다.",
+    "acceptance": "링크 복사만으로 편집 권한이나 공개 범위가 확대되지 않는다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "SHR-005",
+    "domain": "링크와 공유",
+    "title": "공유 만료와 철회",
+    "priority": "필수",
+    "requirement": "공유 권한과 활성화된 공유 링크를 만료 또는 즉시 철회할 수 있어야 한다.",
+    "acceptance": "만료 및 철회 후 다음 요청과 파일 다운로드가 거부된다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "ACL-001",
+      "IAM-004"
+    ],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "SHR-006",
+    "domain": "링크와 공유",
+    "title": "공유 현황",
+    "priority": "필수",
+    "requirement": "문서 및 공간별 활성 공유와 권한 부여 경로를 관리자가 조회한다.",
+    "acceptance": "관리자가 장기간 공유와 만료 예정 공유를 찾아 회수할 수 있다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "SHR-007",
+    "domain": "링크와 공유",
+    "title": "하위 페이지 공유",
+    "priority": "필수",
+    "requirement": "공유 시 자식 포함 여부와 접근 범위 변화를 미리 표시한다.",
+    "acceptance": "신규 하위 페이지가 생겨도 제한 정책을 무시한 자동 공개가 발생하지 않는다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "SHR-008",
+    "domain": "링크와 공유",
+    "title": "링크 미리보기",
+    "priority": "필수",
+    "requirement": "메신저 및 외부 크롤러에 비공개 제목 본문 썸네일이 노출되지 않게 한다.",
+    "acceptance": "익명 요청의 메타태그와 미리보기 응답에서 보호 정보가 나오지 않는다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "SHR-009",
+    "domain": "링크와 공유",
+    "title": "첨부 공유",
+    "priority": "필수",
+    "requirement": "첨부 원본 변환본 썸네일에도 문서 권한을 적용하고 URL 유효기간을 제한한다.",
+    "acceptance": "파일 ID 추측 과거 URL 및 철회된 문서에서 다운로드가 허용되지 않는다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "SHR-010",
+    "domain": "링크와 공유",
+    "title": "사내 링크 공개",
+    "priority": "선택",
+    "requirement": "회사 정책이 허용하면 모든 사내 로그인 사용자를 독자로 지정할 수 있다.",
+    "acceptance": "익명 및 허용 조직 밖 계정은 같은 링크로 접근하지 못한다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "SHR-011",
+    "domain": "링크와 공유",
+    "title": "외부 게스트",
+    "priority": "선택",
+    "requirement": "외부 게스트는 초대 범위 만료 및 재공유 제한으로 격리한다.",
+    "acceptance": "다른 공간 검색 사용자 목록 원본 및 하위 페이지에 우회 접근하지 못한다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "SHR-012",
+    "domain": "링크와 공유",
+    "title": "익명 공개 링크",
+    "priority": "선택",
+    "requirement": "익명 공개는 조직 정책이 허용할 때만 별도 발행과 폐기 절차로 제공한다.",
+    "acceptance": "기본 비활성 상태의 모든 공개 경로가 거부되고 활성 시 정제본만 공개된다.",
+    "owner_role": "제품 및 보안",
+    "verification_scenarios": [
+      "AT04",
+      "AT06",
+      "AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "EDT-001",
+    "domain": "문서 작성과 구조",
+    "title": "편집 형식",
+    "priority": "필수",
+    "requirement": "기술 문서의 Markdown 표 코드 이미지와 서식 편집을 일관된 문서 모델로 제공한다.",
+    "acceptance": "읽기 편집 내보내기를 반복해도 코드 표 내부 링크의 의미가 보존된다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "EDT-002",
+    "domain": "문서 작성과 구조",
+    "title": "저장과 복구",
+    "priority": "필수",
+    "requirement": "자동 저장 상태 저장 실패 알림과 브라우저 재시작 후 초안 복구를 지원한다.",
+    "acceptance": "연결 중단 후 입력한 내용이 사라지지 않고 재연결 충돌을 안내한다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "EDT-003",
+    "domain": "문서 작성과 구조",
+    "title": "초안 분리",
+    "priority": "필수",
+    "requirement": "편집 중인 초안과 현재 발행본을 분리한다.",
+    "acceptance": "저장만 한 내용은 일반 검색 답변 및 공유 링크에 노출되지 않는다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "EDT-004",
+    "domain": "문서 작성과 구조",
+    "title": "페이지 트리",
+    "priority": "필수",
+    "requirement": "페이지 생성 정렬 이동 복제와 경로 탐색을 지원한다.",
+    "acceptance": "순환 부모 관계를 거부하고 이동 후 링크 및 권한을 다시 확인한다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "EDT-005",
+    "domain": "문서 작성과 구조",
+    "title": "문서 속성",
+    "priority": "필수",
+    "requirement": "유형 요약 태그 담당자 검토일 적용 환경을 구조적으로 관리한다.",
+    "acceptance": "필수 속성 미기재를 발행 정책에 따라 경고 또는 차단한다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "EDT-006",
+    "domain": "문서 작성과 구조",
+    "title": "템플릿",
+    "priority": "필수",
+    "requirement": "조사 설계 실험 장애 분석 가이드 유형별 템플릿을 제공한다.",
+    "acceptance": "유형별 근거 검증 조건과 결과를 빠뜨리지 않고 작성할 수 있다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "EDT-007",
+    "domain": "문서 작성과 구조",
+    "title": "내부 링크",
+    "priority": "필수",
+    "requirement": "문서 검색 자동완성과 백링크 관련 문서 탐색을 지원한다.",
+    "acceptance": "권한 없는 문서는 자동완성 백링크 및 그래프에서 제외된다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "EDT-008",
+    "domain": "문서 작성과 구조",
+    "title": "첨부 관리",
+    "priority": "필수",
+    "requirement": "파일 업로드 미리보기 교체 버전 크기 및 형식 제한을 제공한다.",
+    "acceptance": "초과 파일을 거부하고 업로드 실패가 본문에 깨진 공개 URL을 남기지 않는다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "EDT-009",
+    "domain": "문서 작성과 구조",
+    "title": "수식 다이어그램",
+    "priority": "확장",
+    "requirement": "업무에 필요한 수식 Mermaid 및 승인된 다이어그램 형식을 제공한다.",
+    "acceptance": "지원 형식을 명시하고 임의 스크립트나 외부 자원 자동 실행을 차단한다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "EDT-010",
+    "domain": "문서 작성과 구조",
+    "title": "문서 내 검색",
+    "priority": "필수",
+    "requirement": "긴 문서의 목차와 본문 검색을 제공한다.",
+    "acceptance": "코드 및 표를 포함한 문서에서 검색 위치로 이동할 수 있다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "EDT-011",
+    "domain": "문서 작성과 구조",
+    "title": "수동 내용 보호",
+    "priority": "필수",
+    "requirement": "작성자가 보호한 문단과 수동 보완 내용을 매니저가 존중한다.",
+    "acceptance": "보호 부분은 자동 변경되지 않고 보완 필요 시 제안으로만 남는다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "EDT-012",
+    "domain": "문서 작성과 구조",
+    "title": "일괄 편집",
+    "priority": "확장",
+    "requirement": "여러 문서의 태그 이동 보관 변경을 미리보기와 결과 목록으로 제공한다.",
+    "acceptance": "권한 없는 대상은 반영되지 않고 부분 결과와 재시도 대상이 구분된다.",
+    "owner_role": "프론트엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT09",
+      "AT10",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "VER-001",
+    "domain": "버전과 변경 추적",
+    "title": "문서 버전",
+    "priority": "필수",
+    "requirement": "본문 속성 근거가 포함된 버전을 보존하고 작성자 시각 이유를 기록한다.",
+    "acceptance": "두 버전의 본문뿐 아니라 근거 및 적용 환경 차이를 확인할 수 있다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "VER-002",
+    "domain": "버전과 변경 추적",
+    "title": "사람과 AI 구분",
+    "priority": "필수",
+    "requirement": "수정 주체 도구 실행 ID 및 사람의 후속 수정을 구분한다.",
+    "acceptance": "AI가 작성자 본인인 것처럼 기록되지 않고 책임 사용자와 실행 주체가 구분된다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "VER-003",
+    "domain": "버전과 변경 추적",
+    "title": "원본 버전",
+    "priority": "필수",
+    "requirement": "파생 문서가 사용한 산출물 및 참고 원본의 정확한 버전을 연결한다.",
+    "acceptance": "원본 변경 이후에도 당시 근거를 권한 내에서 재현할 수 있다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "VER-004",
+    "domain": "버전과 변경 추적",
+    "title": "버전 비교",
+    "priority": "필수",
+    "requirement": "임의 두 버전과 변경 묶음의 차이를 읽기 쉬운 형태로 제공한다.",
+    "acceptance": "긴 코드 표 문서 이동을 포함한 변경에서 삭제 추가와 대상 위치가 구분된다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "VER-005",
+    "domain": "버전과 변경 추적",
+    "title": "동시 수정 제어",
+    "priority": "필수",
+    "requirement": "사람과 AI의 쓰기에 기준 버전 검사와 충돌 처리를 적용한다.",
+    "acceptance": "같은 기준으로 만든 두 변경 중 늦은 변경이 조용히 앞 변경을 덮어쓰지 않는다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "VER-006",
+    "domain": "버전과 변경 추적",
+    "title": "이전 버전 복원",
+    "priority": "필수",
+    "requirement": "복원은 기존 이력을 삭제하지 않고 새로운 버전으로 기록한다.",
+    "acceptance": "복원 후 원본 버전과 복원 수행자 및 이유를 확인할 수 있다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "VER-007",
+    "domain": "버전과 변경 추적",
+    "title": "변경 묶음",
+    "priority": "필수",
+    "requirement": "하나의 작업에서 여러 문서를 수정한 변경을 공통 식별자로 묶는다.",
+    "acceptance": "8개 문서 변경의 근거 기준 버전 검토 반영 결과를 한곳에서 확인한다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "VER-001",
+      "VER-005"
+    ],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "VER-008",
+    "domain": "버전과 변경 추적",
+    "title": "의존 변경 복원",
+    "priority": "필수",
+    "requirement": "묶음 복원 시 이후 변경 및 다른 문서 의존성과 충돌을 검사한다.",
+    "acceptance": "이후 사람 수정이 있으면 전체 덮어쓰기 대신 충돌 및 선택 복원을 제공한다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "VER-009",
+    "domain": "버전과 변경 추적",
+    "title": "현재 권한 유지",
+    "priority": "필수",
+    "requirement": "버전 복원과 내용 복사로 과거 공개 범위와 철회된 권한을 복구하지 않는다.",
+    "acceptance": "비공개 전환 후 과거 공개 버전을 복원해도 비공개가 유지된다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "VER-010",
+    "domain": "버전과 변경 추적",
+    "title": "문단 식별과 댓글",
+    "priority": "필수",
+    "requirement": "버전 변경에도 문단 및 댓글 연결을 보존하거나 대상 변경을 명시한다.",
+    "acceptance": "삭제된 문단 댓글이 다른 문단에 잘못 붙지 않는다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "VER-011",
+    "domain": "버전과 변경 추적",
+    "title": "실시간 공동 편집",
+    "priority": "확장",
+    "requirement": "실시간 편집 시 접속자와 저장 상태를 표시하고 서버 권한 변경을 반영한다.",
+    "acceptance": "공동 편집 중 권한이 철회되면 연결을 제한하며 편집 이력이 손상되지 않는다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "VER-012",
+    "domain": "버전과 변경 추적",
+    "title": "버전 보존 정책",
+    "priority": "필수",
+    "requirement": "초안 발행본 원본 버전별 보존 및 삭제 정책을 구분한다.",
+    "acceptance": "발행본을 보존하는 동안 근거를 임의 정리해 추적이 끊어지지 않는다.",
+    "owner_role": "백엔드 및 콘텐츠",
+    "verification_scenarios": [
+      "AT10",
+      "AT11",
+      "AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "REV-001",
+    "domain": "검토와 발행",
+    "title": "검토 상태",
+    "priority": "필수",
+    "requirement": "초안 검토 대기 수정 요청 승인 반려 적용 실패 발행 상태를 구분한다.",
+    "acceptance": "승인 상태와 실제 발행 상태가 혼동되지 않고 허용 상태 전이만 실행된다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "REV-002",
+    "domain": "검토와 발행",
+    "title": "변경안 검토",
+    "priority": "필수",
+    "requirement": "변경 전후 근거 적용 조건 영향 문서 및 비용을 검토 화면에 제시한다.",
+    "acceptance": "검토자가 원문을 열고 문서별 반영 여부와 이유를 기록할 수 있다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "REV-003",
+    "domain": "검토와 발행",
+    "title": "검토자 지정",
+    "priority": "필수",
+    "requirement": "공간과 문서 유형별 검토자 및 대체자를 지정한다.",
+    "acceptance": "검토 권한 없는 사용자의 승인 API 요청이 거부된다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "REV-004",
+    "domain": "검토와 발행",
+    "title": "승인 무효화",
+    "priority": "필수",
+    "requirement": "승인은 변경안 내용과 대상 기준 버전에 묶고 수정 시 재검토한다.",
+    "acceptance": "승인 뒤 본문 또는 근거를 바꾸면 기존 승인으로 발행되지 않는다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "VER-001",
+      "VER-005"
+    ],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "REV-005",
+    "domain": "검토와 발행",
+    "title": "반영 직전 재검사",
+    "priority": "필수",
+    "requirement": "발행 직전에 대상 버전 원본 권한 및 승인 권한을 다시 검사한다.",
+    "acceptance": "승인 후 문서가 수정되거나 권한이 회수되면 충돌 또는 차단한다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "REV-006",
+    "domain": "검토와 발행",
+    "title": "발행 일관성",
+    "priority": "필수",
+    "requirement": "의존하는 여러 문서는 하나의 발행 집합으로 일관되게 공개한다.",
+    "acceptance": "중간 실패 시 독자에게 절반만 적용된 모순 상태가 노출되지 않는다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "VER-007",
+      "REV-004",
+      "REV-005",
+      "JOB-007"
+    ],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "REV-007",
+    "domain": "검토와 발행",
+    "title": "선택 반영",
+    "priority": "필수",
+    "requirement": "독립 변경은 선택 반영하고 의존 변경은 묶어서 검토한다.",
+    "acceptance": "일부 반려가 연결 페이지 및 인덱스를 깨뜨리면 반영을 차단한다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "REV-008",
+    "domain": "검토와 발행",
+    "title": "발행과 인덱스",
+    "priority": "필수",
+    "requirement": "검색과 답변은 발행된 동일 버전을 기준으로 하고 인덱스는 재구축 가능한 파생 데이터로 둔다.",
+    "acceptance": "인덱스가 늦어도 미발행 또는 접근 불가 내용이 검색되지 않는다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "REV-009",
+    "domain": "검토와 발행",
+    "title": "공식 기준 검토",
+    "priority": "필수",
+    "requirement": "공식 기준의 생성 변경에는 담당 부서의 명시적 검토를 요구한다.",
+    "acceptance": "매니저 자동 실행이나 일반 작성자 확인으로 공식 기준이 바뀌지 않는다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "REV-010",
+    "domain": "검토와 발행",
+    "title": "시행일과 발행일",
+    "priority": "필수",
+    "requirement": "정책의 시행일 유예 대상과 문서 발행일을 구분한다.",
+    "acceptance": "아직 시행 전인 내용을 현재 정책인 것처럼 답하지 않는다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "REV-011",
+    "domain": "검토와 발행",
+    "title": "예약 발행",
+    "priority": "확장",
+    "requirement": "예약 발행 취소와 시각 도래 시 권한 및 기준 버전 재검사를 제공한다.",
+    "acceptance": "예약 후 권한이 바뀌면 예정 시각에 무조건 공개하지 않는다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "REV-012",
+    "domain": "검토와 발행",
+    "title": "긴급 발행 중지",
+    "priority": "필수",
+    "requirement": "잘못된 지식의 신규 제공을 즉시 중지하고 재검토로 전환한다.",
+    "acceptance": "중지된 버전은 새 검색 답변 공유 및 캐시 응답에서 제외된다.",
+    "owner_role": "지식 담당자 및 백엔드",
+    "verification_scenarios": [
+      "AT11",
+      "AT12",
+      "AT13"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "COL-001",
+    "domain": "LLM 산출물 수집",
+    "title": "공통 산출물 계약",
+    "priority": "필수",
+    "requirement": "도구와 무관한 산출물 ID 작성자 프로젝트 종류 본문 근거 검증 결과 접근 범위 스키마를 제공한다.",
+    "acceptance": "서로 다른 도구 결과가 같은 편입 처리로 들어가고 미지원 스키마는 명시적으로 거부된다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "COL-002",
+    "domain": "LLM 산출물 수집",
+    "title": "수동 등록 경로",
+    "priority": "필수",
+    "requirement": "대화 결과 선택 붙여넣기 파일 업로드 API MCP 등록을 지원한다.",
+    "acceptance": "자동 연동이 없어도 산출물과 근거를 갖춘 등록을 끝낼 수 있다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "COL-003",
+    "domain": "LLM 산출물 수집",
+    "title": "최초 도구 연동",
+    "priority": "필수",
+    "requirement": "첫 운영 대상 LLM 도구 하나 이상을 실제 버전과 저장 형식에 맞게 연동한다.",
+    "acceptance": "익명화한 실제 세션 fixture로 누락 중복 도구 결과 및 한글 처리를 검증한다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "COL-004",
+    "domain": "LLM 산출물 수집",
+    "title": "추가 도구 연동",
+    "priority": "확장",
+    "requirement": "도구별 어댑터와 지원 버전 표를 유지하고 계약 검증을 통과한 도구만 지원으로 표시한다.",
+    "acceptance": "미검증 도구 이름을 지원 목록에 넣지 않으며 포맷 변경을 탐지한다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "COL-005",
+    "domain": "LLM 산출물 수집",
+    "title": "선택 수집과 제외",
+    "priority": "필수",
+    "requirement": "사용자가 프로젝트 세션 답변 또는 산출물만 선택하고 제외 규칙을 설정한다.",
+    "acceptance": "자격증명 저장소 숨은 추론 및 제외 프로젝트가 수집되지 않는다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "COL-006",
+    "domain": "LLM 산출물 수집",
+    "title": "로컬 수집 경계",
+    "priority": "필수",
+    "requirement": "개인 장비 수집기는 허용 경로와 최소 권한으로 읽고 공유 전 필터링한다.",
+    "acceptance": "루트 디렉터리 탐색이나 인증 파일 업로드 없이 허용된 산출물만 전송한다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "COL-007",
+    "domain": "LLM 산출물 수집",
+    "title": "게이트웨이 한계",
+    "priority": "필수",
+    "requirement": "모델 요청 응답만 관찰한 결과를 업무 완료나 실행 검증으로 간주하지 않는다.",
+    "acceptance": "검증 이벤트가 없으면 실행 성공 및 테스트 통과 상태가 자동 부여되지 않는다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "COL-008",
+    "domain": "LLM 산출물 수집",
+    "title": "사용자와 원본 식별",
+    "priority": "필수",
+    "requirement": "작성자 신원과 프로젝트 연결은 인증된 호출 및 검증된 매핑으로 결정한다.",
+    "acceptance": "요청 본문에 다른 사용자 ID를 넣어도 해당 사용자 산출물로 등록되지 않는다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "COL-009",
+    "domain": "LLM 산출물 수집",
+    "title": "중복과 순서",
+    "priority": "필수",
+    "requirement": "원본 식별자 버전 해시를 이용해 재전송 중복 및 순서 변경을 처리한다.",
+    "acceptance": "같은 이벤트 반복과 오래된 버전 도착이 중복 문서나 최신본 후퇴를 만들지 않는다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "COL-010",
+    "domain": "LLM 산출물 수집",
+    "title": "원본 스냅샷",
+    "priority": "필수",
+    "requirement": "편입 시점의 원본 및 파일 해시를 보존하되 보존 기간과 삭제 예외를 적용한다.",
+    "acceptance": "수정된 원본과 이전 스냅샷을 구분하고 삭제 정책을 실행할 수 있다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "COL-011",
+    "domain": "LLM 산출물 수집",
+    "title": "검증 증거",
+    "priority": "필수",
+    "requirement": "실제 실행 로그와 작성자의 성공 진술을 별도 근거 유형으로 기록한다.",
+    "acceptance": "LLM이 성공했다고 쓴 문장만으로 실행 검증 표시가 생기지 않는다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "COL-012",
+    "domain": "LLM 산출물 수집",
+    "title": "변환 처리",
+    "priority": "필수",
+    "requirement": "허용된 파일 형식에 한해 변환하고 추출 오류 용량 초과와 누락을 알린다.",
+    "acceptance": "실패 파일을 성공 처리하지 않고 원본과 부분 추출 범위를 확인할 수 있다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "COL-013",
+    "domain": "LLM 산출물 수집",
+    "title": "수집함과 처리 상태",
+    "priority": "필수",
+    "requirement": "개인 수집함에서 미리보기 수정 공유 범위 처리 상태 재시도 철회를 제공한다.",
+    "acceptance": "실패 이유 및 재처리 결과를 확인하며 공유 전 결과는 개인 범위에 남는다.",
+    "owner_role": "연동 및 데이터",
+    "verification_scenarios": [
+      "AT14",
+      "AT15",
+      "AT16"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "KNO-001",
+    "domain": "지식의 근거와 품질",
+    "title": "지식 편입 분류",
+    "priority": "필수",
+    "requirement": "신규 보완 중복 상충과 편입 불필요를 구분하고 이유를 남긴다.",
+    "acceptance": "대표 평가 사례에서 각 분류의 변경안과 원본 연결을 확인한다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "KNO-002",
+    "domain": "지식의 근거와 품질",
+    "title": "주장 단위 근거",
+    "priority": "필수",
+    "requirement": "핵심 주장과 수치에는 원본 버전 및 해당 위치를 연결한다.",
+    "acceptance": "문장 클릭으로 실제로 그 주장을 뒷받침하는 근거 위치를 열 수 있다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "KNO-003",
+    "domain": "지식의 근거와 품질",
+    "title": "원본과 파생 구분",
+    "priority": "필수",
+    "requirement": "AI 요약 위키와 일차 자료를 구분하고 근거 계보를 유지한다.",
+    "acceptance": "같은 원본을 재요약한 여러 페이지가 독립 근거 수를 늘리지 않는다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "KNO-004",
+    "domain": "지식의 근거와 품질",
+    "title": "검증 상태",
+    "priority": "필수",
+    "requirement": "미검증 작성자 확인 실행 검증 검토 완료 공식 채택을 별도로 표시한다.",
+    "acceptance": "상태별 근거와 변경 주체가 기록되고 LLM 자기평가로 검증 상태가 올라가지 않는다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "KNO-005",
+    "domain": "지식의 근거와 품질",
+    "title": "적용 조건",
+    "priority": "필수",
+    "requirement": "환경 버전 프로젝트 기간 및 예외를 지식의 일부로 관리한다.",
+    "acceptance": "다른 OS의 실패가 기존 성공 사례를 무조건 지우지 않고 조건별로 구분된다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "KNO-006",
+    "domain": "지식의 근거와 품질",
+    "title": "상충 정보",
+    "priority": "필수",
+    "requirement": "상반된 근거와 해석을 보존하고 확인 질문과 담당자를 제시한다.",
+    "acceptance": "최신 문서라는 이유만으로 이전 주장을 근거 없이 덮어쓰지 않는다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "KNO-007",
+    "domain": "지식의 근거와 품질",
+    "title": "권위 기준",
+    "priority": "필수",
+    "requirement": "공식 정책 팀 결정 실험 및 의견의 우선 적용 규칙을 도메인별로 설정한다.",
+    "acceptance": "다수의 비공식 요약이 한 공식 기준을 자동 대체하지 못한다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "KNO-008",
+    "domain": "지식의 근거와 품질",
+    "title": "의사결정 맥락",
+    "priority": "필수",
+    "requirement": "결정의 이유 대안 기각 사유 및 당시 제약을 보존한다.",
+    "acceptance": "최종 선택뿐 아니라 왜 선택했는지와 적용 한계를 확인할 수 있다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "KNO-009",
+    "domain": "지식의 근거와 품질",
+    "title": "실패 사례 보존",
+    "priority": "필수",
+    "requirement": "실패 및 적용 불가 사례를 조건과 함께 재사용 가능한 지식으로 남긴다.",
+    "acceptance": "성공 사례만 남겨 같은 실패를 반복하도록 정리되지 않는다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "KNO-010",
+    "domain": "지식의 근거와 품질",
+    "title": "중복 통합",
+    "priority": "필수",
+    "requirement": "문서 통합 시 원본 기여자 버전 및 기존 링크를 보존한다.",
+    "acceptance": "이전 링크는 권한 확인 후 통합 대상과 통합 이유를 안내한다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "KNO-011",
+    "domain": "지식의 근거와 품질",
+    "title": "지식 공백",
+    "priority": "필수",
+    "requirement": "근거가 부족한 질문과 미정의 개념을 조사 후보로 수집한다.",
+    "acceptance": "답을 만들지 못한 경우 빈칸을 추정으로 채우지 않고 미해결로 표시한다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "KNO-012",
+    "domain": "지식의 근거와 품질",
+    "title": "후속 검증",
+    "priority": "필수",
+    "requirement": "재사용 성공 부분 성공 실패와 적용 조건을 원래 지식에 연결한다.",
+    "acceptance": "한 사용자의 실패가 검토 대상으로 올라가고 전사 공식 지식은 자동 변경되지 않는다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "KNO-013",
+    "domain": "지식의 근거와 품질",
+    "title": "정보의 시점",
+    "priority": "필수",
+    "requirement": "발생 시점 수집 시점 검증 시점 및 현재 유효성을 구분한다.",
+    "acceptance": "과거 실험이 현재 버전 결과인 것처럼 표시되지 않는다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "KNO-014",
+    "domain": "지식의 근거와 품질",
+    "title": "사람의 수정 존중",
+    "priority": "필수",
+    "requirement": "반려 수정 및 보호 이유를 매니저의 후속 판단에 반영한다.",
+    "acceptance": "새 근거 없이 같은 제안을 반복하거나 보호된 내용을 자동 원복하지 않는다.",
+    "owner_role": "지식 담당자 및 AI",
+    "verification_scenarios": [
+      "AT01",
+      "AT17",
+      "AT18",
+      "AT19"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "MGR-001",
+    "domain": "정기 위키 매니저",
+    "title": "이벤트 기반 처리",
+    "priority": "필수",
+    "requirement": "새 산출물 등록 수정 철회를 관련 페이지 정리 작업으로 연결한다.",
+    "acceptance": "새 자료 하나가 관련 주제와 인덱스에 반영할 제안으로 이어진다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "MGR-002",
+    "domain": "정기 위키 매니저",
+    "title": "Daily 작업",
+    "priority": "필수",
+    "requirement": "증분 자료 편입 링크 정비 인덱스 갱신 및 충돌 후보를 점검한다.",
+    "acceptance": "변경이 없는 날은 의미 없는 버전 생성 없이 점검 결과만 남긴다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "COL-001",
+      "KNO-001",
+      "VER-007",
+      "REV-001",
+      "JOB-001"
+    ],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "MGR-003",
+    "domain": "정기 위키 매니저",
+    "title": "Weekly 작업",
+    "priority": "필수",
+    "requirement": "주제별 통합 중복 후보 지식 공백 오래된 내용을 검토한다.",
+    "acceptance": "새로운 근거와 실제 차이를 포함한 변경 묶음과 검토 목록을 만든다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "MGR-002",
+      "KNO-006",
+      "KNO-010",
+      "KNO-011"
+    ],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "MGR-004",
+    "domain": "정기 위키 매니저",
+    "title": "월간 운영 점검",
+    "priority": "확장",
+    "requirement": "담당자 없는 지식 보존 정책 분류 및 비용 추세를 점검한다.",
+    "acceptance": "자동 폐기 대신 근거와 영향 범위가 있는 처리 후보를 제시한다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "MGR-005",
+    "domain": "정기 위키 매니저",
+    "title": "일정과 시간대",
+    "priority": "필수",
+    "requirement": "공간별 일정 시간대 휴일 처리 및 누락 실행 정책을 설정한다.",
+    "acceptance": "시간 변경과 중단 후 재개에서도 같은 회차가 중복 실행되지 않는다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "MGR-006",
+    "domain": "정기 위키 매니저",
+    "title": "관리 규칙",
+    "priority": "필수",
+    "requirement": "작업 범위 자동 반영 정책 모델 및 한도를 버전으로 관리한다.",
+    "acceptance": "실행 기록에서 정확한 규칙 버전과 변경 승인자를 확인한다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "MGR-007",
+    "domain": "정기 위키 매니저",
+    "title": "수동 실행과 미리보기",
+    "priority": "필수",
+    "requirement": "다음 실행 미리보기 즉시 실행 일시정지 및 취소를 제공한다.",
+    "acceptance": "미리보기는 본문을 바꾸지 않고 실제 실행의 대상과 예상 비용을 보여준다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "MGR-008",
+    "domain": "정기 위키 매니저",
+    "title": "최소 변경",
+    "priority": "필수",
+    "requirement": "의미 변화 없는 재서술 불필요한 이동 및 대량 자동 분류 변경을 억제한다.",
+    "acceptance": "동일 입력 두 번째 점검에서 근거 없는 수정안과 버전 증가가 없다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "MGR-009",
+    "domain": "정기 위키 매니저",
+    "title": "자동 반영 제한",
+    "priority": "필수",
+    "requirement": "의미를 바꾸는 수정은 기본 검토 대상으로 두고 허용 작업만 자동 반영한다.",
+    "acceptance": "공식 내용 공개 범위 삭제 및 근거 변경이 자동 승인되지 않는다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "REV-004",
+      "REV-005",
+      "ACL-001"
+    ],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "MGR-010",
+    "domain": "정기 위키 매니저",
+    "title": "변경 근거 설명",
+    "priority": "필수",
+    "requirement": "각 변경에 새 근거 영향 문서와 필요 이유를 제공한다.",
+    "acceptance": "검토자가 문서별로 왜 지금 바꾸는지 확인하고 반려할 수 있다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "MGR-011",
+    "domain": "정기 위키 매니저",
+    "title": "문서 보호",
+    "priority": "필수",
+    "requirement": "잠금 보호 구간 제외 공간 및 수동 편집 우선 정책을 지킨다.",
+    "acceptance": "관리자 범위로 실행해도 정책상 보호 문서를 임의 수정하지 않는다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "MGR-012",
+    "domain": "정기 위키 매니저",
+    "title": "작업 예산",
+    "priority": "필수",
+    "requirement": "문서 수 토큰 비용 시간 변경량에 한도를 설정한다.",
+    "acceptance": "한도 도달 시 새 호출을 중단하고 부분 결과와 후속 대상을 보존한다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "MGR-013",
+    "domain": "정기 위키 매니저",
+    "title": "긴급 중지",
+    "priority": "필수",
+    "requirement": "전체 매니저와 특정 규칙 모델 공간의 변경을 즉시 중지한다.",
+    "acceptance": "중지 이후 이미 대기 중인 작업도 반영 직전 검사에서 차단된다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "MGR-014",
+    "domain": "정기 위키 매니저",
+    "title": "운영 결과",
+    "priority": "필수",
+    "requirement": "실행별 발견 제안 자동 반영 검토 대기 실패 비용을 연결해서 보여준다.",
+    "acceptance": "단순 성공 배지가 아니라 실제 반영 문서와 제외 실패 사유를 확인한다.",
+    "owner_role": "AI 및 지식 운영",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT20",
+      "AT21"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "JOB-001",
+    "domain": "작업 실행과 일관성",
+    "title": "지속 작업 저장",
+    "priority": "필수",
+    "requirement": "수집 편입 인덱싱 및 관리 작업을 재시작에도 남는 작업 기록으로 관리한다.",
+    "acceptance": "요청이 수락됐다는 응답 후 프로세스가 종료돼도 작업이 사라지지 않는다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "JOB-002",
+    "domain": "작업 실행과 일관성",
+    "title": "멱등 실행",
+    "priority": "필수",
+    "requirement": "중복 전달과 재시도를 전제로 동일 작업의 부작용을 한 번만 반영한다.",
+    "acceptance": "같은 메시지를 반복 전달해도 중복 발행 알림 및 비용 집계가 생기지 않는다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "JOB-001",
+      "COL-009"
+    ],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "JOB-003",
+    "domain": "작업 실행과 일관성",
+    "title": "실행 임대",
+    "priority": "필수",
+    "requirement": "작업 점유 심박 만료 복구를 제공하고 동시 소유자의 중복 반영을 막는다.",
+    "acceptance": "작업자 강제 종료 후 다른 작업자가 이어받아도 한 결과만 발행된다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "JOB-004",
+    "domain": "작업 실행과 일관성",
+    "title": "재시도 정책",
+    "priority": "필수",
+    "requirement": "일시 오류와 영구 오류를 구분하고 지수 지연 최대 횟수와 재처리함을 제공한다.",
+    "acceptance": "잘못된 인증과 포맷 오류를 무한 재시도하지 않는다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "JOB-005",
+    "domain": "작업 실행과 일관성",
+    "title": "부분 실패",
+    "priority": "필수",
+    "requirement": "단계별 결과와 체크포인트를 저장하고 실패 단위로 재처리한다.",
+    "acceptance": "LLM 호출 이후 인덱스 실패가 같은 발행을 중복 생성하지 않는다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "JOB-006",
+    "domain": "작업 실행과 일관성",
+    "title": "기준 버전 고정",
+    "priority": "필수",
+    "requirement": "작업 입력 문서 근거 권한 및 규칙 버전을 기록하고 쓰기 직전 재검사한다.",
+    "acceptance": "오래된 결과가 새 수동 수정을 덮어쓰지 않는다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "JOB-007",
+    "domain": "작업 실행과 일관성",
+    "title": "트랜잭션과 이벤트",
+    "priority": "필수",
+    "requirement": "발행 기록과 후속 인덱싱 알림 이벤트를 누락 없이 연결한다.",
+    "acceptance": "DB 커밋 직후 작업자 중단 상황에서도 후속 작업이 복구된다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "JOB-008",
+    "domain": "작업 실행과 일관성",
+    "title": "실행 취소",
+    "priority": "필수",
+    "requirement": "취소 요청과 실제 중단 상태를 구분하고 이후 새 부작용을 제한한다.",
+    "acceptance": "이미 완료된 변경을 취소 성공으로 표시하지 않고 필요한 복원 경로를 제공한다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "JOB-009",
+    "domain": "작업 실행과 일관성",
+    "title": "대기열 분리",
+    "priority": "필수",
+    "requirement": "대화 검색과 대량 수집 정기 정리를 분리해 상호 자원 고갈을 막는다.",
+    "acceptance": "대량 수집 부하에서도 읽기 검색의 합의된 지연 목표를 지킨다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "JOB-010",
+    "domain": "작업 실행과 일관성",
+    "title": "역압과 공정성",
+    "priority": "필수",
+    "requirement": "팀별 동시 실행 할당량과 전체 대기 한도를 적용한다.",
+    "acceptance": "한 팀의 대량 제출이 다른 팀의 작업을 무기한 대기시키지 않는다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "JOB-011",
+    "domain": "작업 실행과 일관성",
+    "title": "중지와 재개",
+    "priority": "필수",
+    "requirement": "운영자가 작업별 전체별 중지 상태를 확인하고 안전하게 재개한다.",
+    "acceptance": "재개 시 최신 권한과 정책을 다시 검사하고 이전 성공 단계를 중복 적용하지 않는다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "JOB-012",
+    "domain": "작업 실행과 일관성",
+    "title": "외부 부작용 범위",
+    "priority": "필수",
+    "requirement": "위키 매니저는 허용된 위키 작업만 수행하고 외부 전송 및 코드 실행을 기본 금지한다.",
+    "acceptance": "문서 속 지시로 외부 URL 전송 파일 탐색 및 비허용 도구 실행이 발생하지 않는다.",
+    "owner_role": "백엔드 및 운영",
+    "verification_scenarios": [
+      "AT13",
+      "AT20",
+      "AT21",
+      "AT22"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "SRH-001",
+    "domain": "검색과 탐색",
+    "title": "검색 방식",
+    "priority": "필수",
+    "requirement": "한글 키워드 코드 식별자 의미 검색을 함께 평가해 제공한다.",
+    "acceptance": "오류 코드 약어 한국어 질의가 포함된 기준 질문에서 관련 문서를 찾는다.",
+    "owner_role": "검색 및 프론트엔드",
+    "verification_scenarios": [
+      "AT05",
+      "AT23",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "SRH-002",
+    "domain": "검색과 탐색",
+    "title": "조건 필터",
+    "priority": "필수",
+    "requirement": "공간 유형 담당자 태그 상태 검토일 및 기간별 필터를 제공한다.",
+    "acceptance": "필터 조합과 페이지 이동 후에도 검색 범위가 일관된다.",
+    "owner_role": "검색 및 프론트엔드",
+    "verification_scenarios": [
+      "AT05",
+      "AT23",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "SRH-003",
+    "domain": "검색과 탐색",
+    "title": "발행본 우선",
+    "priority": "필수",
+    "requirement": "기본 검색은 현재 발행된 유효 지식만 대상으로 한다.",
+    "acceptance": "초안 철회 버전 및 접근 불가 문서가 결과에 나오지 않는다.",
+    "owner_role": "검색 및 프론트엔드",
+    "verification_scenarios": [
+      "AT05",
+      "AT23",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "SRH-004",
+    "domain": "검색과 탐색",
+    "title": "과거 검색",
+    "priority": "필수",
+    "requirement": "권한 있는 사용자는 과거 버전을 명시적으로 검색할 수 있어야 한다.",
+    "acceptance": "과거 검색 상태가 표시되고 현재 기준으로 오인되지 않는다.",
+    "owner_role": "검색 및 프론트엔드",
+    "verification_scenarios": [
+      "AT05",
+      "AT23",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "SRH-005",
+    "domain": "검색과 탐색",
+    "title": "결과 문맥",
+    "priority": "필수",
+    "requirement": "일치 구간 요약 공식 여부 적용 조건과 검토 시점을 보여준다.",
+    "acceptance": "제목만 같은 문서라도 적용 환경과 최신성을 비교할 수 있다.",
+    "owner_role": "검색 및 프론트엔드",
+    "verification_scenarios": [
+      "AT05",
+      "AT23",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "SRH-006",
+    "domain": "검색과 탐색",
+    "title": "인덱스 최신성",
+    "priority": "필수",
+    "requirement": "색인 상태 지연 및 마지막 성공 시점을 관리한다.",
+    "acceptance": "새 발행과 철회가 목표 시간 내 반영되고 지연이 운영자에게 보인다.",
+    "owner_role": "검색 및 프론트엔드",
+    "verification_scenarios": [
+      "AT05",
+      "AT23",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "SRH-007",
+    "domain": "검색과 탐색",
+    "title": "권한 있는 재평가",
+    "priority": "필수",
+    "requirement": "검색 후보 선택 이후 최종 출력 직전까지 접근 권한을 재확인한다.",
+    "acceptance": "오래된 인덱스가 권한 철회된 본문 스니펫을 노출하지 않는다.",
+    "owner_role": "검색 및 프론트엔드",
+    "verification_scenarios": [
+      "AT05",
+      "AT23",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "SRH-008",
+    "domain": "검색과 탐색",
+    "title": "인덱스 재구축",
+    "priority": "필수",
+    "requirement": "원본 저장소에서 검색 인덱스를 재구축하고 안전하게 교체할 수 있어야 한다.",
+    "acceptance": "재구축 실패 시 기존 안전한 인덱스를 유지하고 중간 결과를 노출하지 않는다.",
+    "owner_role": "검색 및 프론트엔드",
+    "verification_scenarios": [
+      "AT05",
+      "AT23",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "SRH-009",
+    "domain": "검색과 탐색",
+    "title": "즐겨찾기와 최근 문서",
+    "priority": "필수",
+    "requirement": "개인별 즐겨찾기 최근 방문과 구독을 제공한다.",
+    "acceptance": "문서 권한 회수 후 제목 미리보기가 개인 목록에 남아 새로 노출되지 않는다.",
+    "owner_role": "검색 및 프론트엔드",
+    "verification_scenarios": [
+      "AT05",
+      "AT23",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "SRH-010",
+    "domain": "검색과 탐색",
+    "title": "관계 탐색",
+    "priority": "확장",
+    "requirement": "관련 페이지와 주제 주변 관계를 탐색하되 대규모 전체 그래프를 강제하지 않는다.",
+    "acceptance": "선택한 주제 주변만 지연 로딩하고 권한 없는 연결을 제외한다.",
+    "owner_role": "검색 및 프론트엔드",
+    "verification_scenarios": [
+      "AT05",
+      "AT23",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "QNA-001",
+    "domain": "질의 응답과 지식 재사용",
+    "title": "근거 기반 답변",
+    "priority": "필수",
+    "requirement": "위키 질문에 현재 접근 가능한 근거와 인용을 제공한다.",
+    "acceptance": "인용한 문서 버전과 위치가 답변의 주장에 실제로 대응한다.",
+    "owner_role": "AI 및 검색",
+    "verification_scenarios": [
+      "AT05",
+      "AT17",
+      "AT19",
+      "AT24"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "ACL-001",
+      "SRH-003",
+      "KNO-002"
+    ],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "QNA-002",
+    "domain": "질의 응답과 지식 재사용",
+    "title": "근거 부족 처리",
+    "priority": "필수",
+    "requirement": "근거가 부족하면 모름 추가 질문 조사 필요를 명확하게 표현한다.",
+    "acceptance": "답이 없는 평가 질문에 존재하지 않는 정책과 출처를 생성하지 않는다.",
+    "owner_role": "AI 및 검색",
+    "verification_scenarios": [
+      "AT05",
+      "AT17",
+      "AT19",
+      "AT24"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "QNA-003",
+    "domain": "질의 응답과 지식 재사용",
+    "title": "상충과 적용 조건",
+    "priority": "필수",
+    "requirement": "상충하는 결과와 환경 시점을 답변에 반영한다.",
+    "acceptance": "조건이 다른 실험을 단일한 보편적 결론으로 합치지 않는다.",
+    "owner_role": "AI 및 검색",
+    "verification_scenarios": [
+      "AT05",
+      "AT17",
+      "AT19",
+      "AT24"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "QNA-004",
+    "domain": "질의 응답과 지식 재사용",
+    "title": "질의 범위 선택",
+    "priority": "필수",
+    "requirement": "사용자가 공간 주제 현재 및 과거 기준을 확인하고 선택할 수 있어야 한다.",
+    "acceptance": "질문에 사용된 범위와 현재 시점을 결과에서 확인한다.",
+    "owner_role": "AI 및 검색",
+    "verification_scenarios": [
+      "AT05",
+      "AT17",
+      "AT19",
+      "AT24"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "QNA-005",
+    "domain": "질의 응답과 지식 재사용",
+    "title": "후속 대화",
+    "priority": "필수",
+    "requirement": "대화 이력을 유지하되 매 요청에서 원본 권한과 모델 전송 정책을 재검사한다.",
+    "acceptance": "앞 대화에서 허용된 자료라도 권한 회수 후 다시 전송되지 않는다.",
+    "owner_role": "AI 및 검색",
+    "verification_scenarios": [
+      "AT05",
+      "AT17",
+      "AT19",
+      "AT24"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "QNA-006",
+    "domain": "질의 응답과 지식 재사용",
+    "title": "에이전트 도구",
+    "priority": "필수",
+    "requirement": "외부 LLM 도구에 사용자 범위 검색 읽기 산출물 등록 변경 제안을 제공한다.",
+    "acceptance": "에이전트도 UI와 동일한 권한 및 발행 규칙을 적용받는다.",
+    "owner_role": "AI 및 검색",
+    "verification_scenarios": [
+      "AT05",
+      "AT17",
+      "AT19",
+      "AT24"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "QNA-007",
+    "domain": "질의 응답과 지식 재사용",
+    "title": "답변의 지식화",
+    "priority": "필수",
+    "requirement": "답변을 위키 후보로 저장할 때 원래 근거 계보를 유지한다.",
+    "acceptance": "답변 자체가 새 독립 근거로 세어지거나 자동 공식화되지 않는다.",
+    "owner_role": "AI 및 검색",
+    "verification_scenarios": [
+      "AT05",
+      "AT17",
+      "AT19",
+      "AT24"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "QNA-008",
+    "domain": "질의 응답과 지식 재사용",
+    "title": "피드백",
+    "priority": "필수",
+    "requirement": "유용성 적용 성공 오류 및 근거 문제를 신고할 수 있어야 한다.",
+    "acceptance": "신고가 해당 답변 버전 문서와 검토 담당자에게 연결된다.",
+    "owner_role": "AI 및 검색",
+    "verification_scenarios": [
+      "AT05",
+      "AT17",
+      "AT19",
+      "AT24"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "QNA-009",
+    "domain": "질의 응답과 지식 재사용",
+    "title": "응답 중단과 실패",
+    "priority": "필수",
+    "requirement": "생성 중단 시간 초과 모델 오류를 표시하고 저장 결과와 재시도를 구분한다.",
+    "acceptance": "부분 답변을 완성된 검증 결과로 표시하지 않는다.",
+    "owner_role": "AI 및 검색",
+    "verification_scenarios": [
+      "AT05",
+      "AT17",
+      "AT19",
+      "AT24"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "QNA-010",
+    "domain": "질의 응답과 지식 재사용",
+    "title": "장애 시 읽기 유지",
+    "priority": "필수",
+    "requirement": "모델 장애 동안 발행 위키와 일반 검색을 계속 제공한다.",
+    "acceptance": "모델 연결을 끊어도 문서 열람 키워드 검색과 수동 편집이 동작한다.",
+    "owner_role": "AI 및 검색",
+    "verification_scenarios": [
+      "AT05",
+      "AT17",
+      "AT19",
+      "AT24"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "CLB-001",
+    "domain": "협업과 알림",
+    "title": "댓글과 해결",
+    "priority": "필수",
+    "requirement": "문서 문단 변경안에 스레드 댓글과 해결 재열기 상태를 제공한다.",
+    "acceptance": "댓글 대상 버전과 문단을 추적하고 변경 후 대상 상태를 확인한다.",
+    "owner_role": "프론트엔드 및 지식 운영",
+    "verification_scenarios": [
+      "AT06",
+      "AT25"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "CLB-002",
+    "domain": "협업과 알림",
+    "title": "멘션",
+    "priority": "필수",
+    "requirement": "권한을 가진 사용자와 그룹에만 내용을 포함한 멘션 알림을 보낸다.",
+    "acceptance": "멘션으로 권한이 자동 확대되거나 제한 제목이 전송되지 않는다.",
+    "owner_role": "프론트엔드 및 지식 운영",
+    "verification_scenarios": [
+      "AT06",
+      "AT25"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "CLB-003",
+    "domain": "협업과 알림",
+    "title": "검토함",
+    "priority": "필수",
+    "requirement": "담당 검토 미해결 충돌 인계 대상을 하나의 작업함에서 관리한다.",
+    "acceptance": "검토 지연과 담당자 부재를 구분하고 재배정할 수 있다.",
+    "owner_role": "프론트엔드 및 지식 운영",
+    "verification_scenarios": [
+      "AT06",
+      "AT25"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "CLB-004",
+    "domain": "협업과 알림",
+    "title": "구독",
+    "priority": "필수",
+    "requirement": "문서 주제 공간별 구독과 구독 해제를 제공한다.",
+    "acceptance": "원하지 않는 공간 알림이 계속 발송되지 않고 권한 회수 시 중단된다.",
+    "owner_role": "프론트엔드 및 지식 운영",
+    "verification_scenarios": [
+      "AT06",
+      "AT25"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "CLB-005",
+    "domain": "협업과 알림",
+    "title": "알림함",
+    "priority": "필수",
+    "requirement": "변경 검토 요청 만료 실패 알림의 읽음과 처리 상태를 관리한다.",
+    "acceptance": "같은 이벤트 재시도가 중복 알림을 생성하지 않는다.",
+    "owner_role": "프론트엔드 및 지식 운영",
+    "verification_scenarios": [
+      "AT06",
+      "AT25"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "CLB-006",
+    "domain": "협업과 알림",
+    "title": "일간 주간 알림",
+    "priority": "필수",
+    "requirement": "매니저 결과를 중요도와 담당 범위에 맞춰 묶어 제공한다.",
+    "acceptance": "변경 없는 회차는 불필요한 메일을 만들지 않고 발송 직전 권한을 검사한다.",
+    "owner_role": "프론트엔드 및 지식 운영",
+    "verification_scenarios": [
+      "AT06",
+      "AT25"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "CLB-007",
+    "domain": "협업과 알림",
+    "title": "개인 알림 설정",
+    "priority": "필수",
+    "requirement": "채널 빈도 방해 금지 시간과 필수 운영 알림 정책을 제공한다.",
+    "acceptance": "사용자 시간대와 설정대로 발송되며 필수 알림의 예외를 명시한다.",
+    "owner_role": "프론트엔드 및 지식 운영",
+    "verification_scenarios": [
+      "AT06",
+      "AT25"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "CLB-008",
+    "domain": "협업과 알림",
+    "title": "외부 채널 연동",
+    "priority": "확장",
+    "requirement": "사내 메일 메신저에 승인된 채널로만 알림을 전송한다.",
+    "acceptance": "본문 노출 범위와 링크 접근을 검증하고 발송 실패를 추적한다.",
+    "owner_role": "프론트엔드 및 지식 운영",
+    "verification_scenarios": [
+      "AT06",
+      "AT25"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "CLB-009",
+    "domain": "협업과 알림",
+    "title": "기여와 인계",
+    "priority": "필수",
+    "requirement": "작성자 후속 기여자와 미완료 업무의 인계를 지원한다.",
+    "acceptance": "퇴사자 삭제가 문서 근거와 기여 이력을 조용히 제거하지 않는다.",
+    "owner_role": "프론트엔드 및 지식 운영",
+    "verification_scenarios": [
+      "AT06",
+      "AT25"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "LIF-001",
+    "domain": "보존과 삭제 및 이관",
+    "title": "문서 생애주기",
+    "priority": "필수",
+    "requirement": "활성 검토 필요 대체됨 보관 삭제 상태를 구분한다.",
+    "acceptance": "보관 문서를 최신 공식 기준으로 답하지 않는다.",
+    "owner_role": "데이터 및 운영",
+    "verification_scenarios": [
+      "AT07",
+      "AT26",
+      "AT27"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "LIF-002",
+    "domain": "보존과 삭제 및 이관",
+    "title": "검토 기한",
+    "priority": "필수",
+    "requirement": "문서 유형별 검토 주기와 기한 초과 담당자 알림을 제공한다.",
+    "acceptance": "기한이 지난 날짜만으로 내용이 거짓이라고 판정하지 않고 상태를 표시한다.",
+    "owner_role": "데이터 및 운영",
+    "verification_scenarios": [
+      "AT07",
+      "AT26",
+      "AT27"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "LIF-003",
+    "domain": "보존과 삭제 및 이관",
+    "title": "대체 문서",
+    "priority": "필수",
+    "requirement": "대체됨 상태와 후속 문서 및 변경 이유를 연결한다.",
+    "acceptance": "이전 링크에서 권한을 지키며 현재 유효 문서를 안내한다.",
+    "owner_role": "데이터 및 운영",
+    "verification_scenarios": [
+      "AT07",
+      "AT26",
+      "AT27"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "LIF-004",
+    "domain": "보존과 삭제 및 이관",
+    "title": "휴지통과 복구",
+    "priority": "필수",
+    "requirement": "삭제 유예 기간 및 복원 기능을 제공하고 고유 ID와 이력을 보존한다.",
+    "acceptance": "복구 시 현재 권한을 적용하고 경로 충돌을 명시적으로 처리한다.",
+    "owner_role": "데이터 및 운영",
+    "verification_scenarios": [
+      "AT07",
+      "AT26",
+      "AT27"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "LIF-005",
+    "domain": "보존과 삭제 및 이관",
+    "title": "영구 삭제",
+    "priority": "필수",
+    "requirement": "정책에 따라 원본 파생 문서 첨부 색인 캐시 및 내보내기 보관본을 정리한다.",
+    "acceptance": "대상 범위와 완료 실패를 추적하고 보존 의무와 충돌하면 처리 보류를 기록한다.",
+    "owner_role": "데이터 및 운영",
+    "verification_scenarios": [
+      "AT07",
+      "AT26",
+      "AT27"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "LIF-006",
+    "domain": "보존과 삭제 및 이관",
+    "title": "삭제와 백업",
+    "priority": "필수",
+    "requirement": "백업 보존 기간과 삭제 기록을 관리하고 복구 후 삭제 상태를 재적용한다.",
+    "acceptance": "삭제 전 백업 복구로 지워진 보호 자료가 다시 사용자에게 노출되지 않는다.",
+    "owner_role": "데이터 및 운영",
+    "verification_scenarios": [
+      "AT07",
+      "AT26",
+      "AT27"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "LIF-005",
+      "OPS-008",
+      "OPS-009"
+    ],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "LIF-007",
+    "domain": "보존과 삭제 및 이관",
+    "title": "원본 철회 영향",
+    "priority": "필수",
+    "requirement": "원본 철회 변경 및 권한 변경이 어떤 주장에 영향을 주는지 확인한다.",
+    "acceptance": "대체 근거가 없는 주장은 검토 또는 제공 중지 상태로 전환된다.",
+    "owner_role": "데이터 및 운영",
+    "verification_scenarios": [
+      "AT07",
+      "AT26",
+      "AT27"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "LIF-008",
+    "domain": "보존과 삭제 및 이관",
+    "title": "내보내기",
+    "priority": "필수",
+    "requirement": "권한 범위 안에서 문서 근거 버전 첨부와 메타데이터를 내보낸다.",
+    "acceptance": "내보낸 파일만으로 구조를 복원할 수 있고 권한 밖 자료가 섞이지 않는다.",
+    "owner_role": "데이터 및 운영",
+    "verification_scenarios": [
+      "AT07",
+      "AT26",
+      "AT27"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": true
+  },
+  {
+    "id": "LIF-009",
+    "domain": "보존과 삭제 및 이관",
+    "title": "가져오기",
+    "priority": "필수",
+    "requirement": "허용 형식의 문서 첨부 링크를 검증 후 가져오고 중복 및 오류를 보고한다.",
+    "acceptance": "다시 가져와도 중복이 통제되고 임의 경로 파일 쓰기가 발생하지 않는다.",
+    "owner_role": "데이터 및 운영",
+    "verification_scenarios": [
+      "AT07",
+      "AT26",
+      "AT27"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "LIF-010",
+    "domain": "보존과 삭제 및 이관",
+    "title": "반출 이후 한계",
+    "priority": "필수",
+    "requirement": "내보낸 사본은 서비스 내 권한 철회로 회수할 수 없음을 공유 화면과 정책에 반영한다.",
+    "acceptance": "다운로드 금지 표시를 완전한 복사 방지나 사후 회수 보장으로 표현하지 않는다.",
+    "owner_role": "데이터 및 운영",
+    "verification_scenarios": [
+      "AT07",
+      "AT26",
+      "AT27"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "INT-001",
+    "domain": "API와 외부 연동",
+    "title": "API 계약",
+    "priority": "필수",
+    "requirement": "공개 API의 버전 스키마 오류 코드 페이지네이션과 호환 정책을 제공한다.",
+    "acceptance": "예제 및 계약 검증으로 UI 외 클라이언트가 같은 기능을 사용할 수 있다.",
+    "owner_role": "연동 담당자",
+    "verification_scenarios": [
+      "AT14",
+      "AT16",
+      "AT28"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "INT-002",
+    "domain": "API와 외부 연동",
+    "title": "MCP 계약",
+    "priority": "필수",
+    "requirement": "MCP 도구의 인증 권한 입력 제한 및 읽기 쓰기 영향을 문서화한다.",
+    "acceptance": "변경 제안 도구가 발행 승인 도구로 몰래 동작하지 않는다.",
+    "owner_role": "연동 담당자",
+    "verification_scenarios": [
+      "AT14",
+      "AT16",
+      "AT28"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "INT-003",
+    "domain": "API와 외부 연동",
+    "title": "호출 제한",
+    "priority": "필수",
+    "requirement": "사용자 서비스 계정과 조직별 요청 및 용량 제한을 적용한다.",
+    "acceptance": "한도 초과 시 재시도 시각을 알려주고 서버 자원 고갈을 방지한다.",
+    "owner_role": "연동 담당자",
+    "verification_scenarios": [
+      "AT14",
+      "AT16",
+      "AT28"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "INT-004",
+    "domain": "API와 외부 연동",
+    "title": "Webhook",
+    "priority": "확장",
+    "requirement": "Webhook 서명 재전송 중복 순서 오류와 재처리함을 지원한다.",
+    "acceptance": "재전송 공격과 중복 이벤트가 중복 지식 및 발행을 만들지 않는다.",
+    "owner_role": "연동 담당자",
+    "verification_scenarios": [
+      "AT14",
+      "AT16",
+      "AT28"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "INT-005",
+    "domain": "API와 외부 연동",
+    "title": "커넥터 상태",
+    "priority": "필수",
+    "requirement": "자격증명 만료 범위 마지막 성공 및 권한 동기화 지연을 보여준다.",
+    "acceptance": "본문 동기화 성공만으로 권한 동기화까지 정상으로 표시하지 않는다.",
+    "owner_role": "연동 담당자",
+    "verification_scenarios": [
+      "AT14",
+      "AT16",
+      "AT28"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "INT-006",
+    "domain": "API와 외부 연동",
+    "title": "자격증명 교체",
+    "priority": "필수",
+    "requirement": "서비스 중단을 최소화하며 커넥터와 모델 비밀키를 교체한다.",
+    "acceptance": "원문 키를 조회할 수 없고 교체 실패 시 기존 연결 및 회수 정책을 명확히 처리한다.",
+    "owner_role": "연동 담당자",
+    "verification_scenarios": [
+      "AT14",
+      "AT16",
+      "AT28"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "INT-007",
+    "domain": "API와 외부 연동",
+    "title": "도구 변경 감지",
+    "priority": "필수",
+    "requirement": "지원 도구 버전 및 저장 포맷 변경을 탐지하고 안전하게 중단한다.",
+    "acceptance": "알 수 없는 포맷을 빈 성공으로 처리하거나 불완전한 내용을 발행하지 않는다.",
+    "owner_role": "연동 담당자",
+    "verification_scenarios": [
+      "AT14",
+      "AT16",
+      "AT28"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "INT-008",
+    "domain": "API와 외부 연동",
+    "title": "원본 시스템 연동",
+    "priority": "확장",
+    "requirement": "Git 문서 메신저 등 필요한 자료원에 내용 삭제 및 권한 변경을 함께 동기화한다.",
+    "acceptance": "원본 삭제 및 그룹 권한 철회 사례가 파생 데이터까지 반영된다.",
+    "owner_role": "연동 담당자",
+    "verification_scenarios": [
+      "AT14",
+      "AT16",
+      "AT28"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P3 조직 확대",
+    "demoCoverage": false
+  },
+  {
+    "id": "INT-009",
+    "domain": "API와 외부 연동",
+    "title": "내부 네트워크",
+    "priority": "필수",
+    "requirement": "사내 프록시 CA DNS 외부 통신 제한과 내부 URL 보안 정책을 지원한다.",
+    "acceptance": "TLS 검증을 끄지 않고 허용된 사내 엔드포인트에 연결한다.",
+    "owner_role": "연동 담당자",
+    "verification_scenarios": [
+      "AT14",
+      "AT16",
+      "AT28"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-001",
+    "domain": "보안과 데이터 경계",
+    "title": "보안 요구사항 기준",
+    "priority": "필수",
+    "requirement": "웹 인증 권한 입력 세션 파일 및 로깅을 ASVS 기반으로 검증 범위에 포함한다.",
+    "acceptance": "선택한 검증 항목과 시험 결과 및 미해결 사항을 추적할 수 있다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-002",
+    "domain": "보안과 데이터 경계",
+    "title": "프롬프트와 자료 분리",
+    "priority": "필수",
+    "requirement": "수집 문서와 도구 결과를 신뢰되지 않은 데이터로 취급한다.",
+    "acceptance": "자료 속 지시문이 관리 규칙 도구 권한 및 공개 정책을 바꾸지 못한다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-003",
+    "domain": "보안과 데이터 경계",
+    "title": "서버 실행 경계",
+    "priority": "필수",
+    "requirement": "도구 실행을 허용 목록 대상 범위 및 서버 권한으로 제한한다.",
+    "acceptance": "LLM이 권한 밖 작업을 요청해도 서버가 거부하며 탐지기 성공에 의존하지 않는다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-004",
+    "domain": "보안과 데이터 경계",
+    "title": "민감정보 검사",
+    "priority": "필수",
+    "requirement": "등록 발행 외부 전송 전 비밀정보 및 개인정보 처리를 적용한다.",
+    "acceptance": "테스트용 토큰과 식별 정보가 지정 정책에 따라 차단 마스킹 또는 검토된다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-005",
+    "domain": "보안과 데이터 경계",
+    "title": "파일과 HTML 보안",
+    "priority": "필수",
+    "requirement": "파일 변환과 렌더링을 격리하고 XSS 경로 탈출 압축 폭탄 등 입력 위험을 검사한다.",
+    "acceptance": "공격용 fixture가 코드 실행 임의 파일 쓰기 또는 브라우저 스크립트 실행을 만들지 않는다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-006",
+    "domain": "보안과 데이터 경계",
+    "title": "URL과 SSRF",
+    "priority": "필수",
+    "requirement": "URL 수집과 임베드가 허용되지 않은 내부 주소 메타데이터 및 리다이렉트를 호출하지 못하게 한다.",
+    "acceptance": "로컬 주소 사설망 우회 DNS 변경 및 리다이렉트 시험에서 정책이 유지된다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-007",
+    "domain": "보안과 데이터 경계",
+    "title": "비밀 관리",
+    "priority": "필수",
+    "requirement": "암호화 키 모델 키 및 IdP 비밀을 문서 DB 평문 로그 코드 저장소에 노출하지 않는다.",
+    "acceptance": "키 회전과 권한 분리 및 복구 절차를 검증한다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-008",
+    "domain": "보안과 데이터 경계",
+    "title": "암호화와 전송",
+    "priority": "필수",
+    "requirement": "사내 정책에 맞는 TLS 저장 암호화 및 키 관리 방식을 적용한다.",
+    "acceptance": "앱 첨부 백업 로그의 암호화와 키 접근 권한을 확인한다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-009",
+    "domain": "보안과 데이터 경계",
+    "title": "감사 추적",
+    "priority": "필수",
+    "requirement": "권한 공유 반출 승인 발행 AI 실행과 관리자 접근을 추적한다.",
+    "acceptance": "누가 무엇을 언제 어떤 권한으로 바꿨는지 원본 비밀 노출 없이 확인한다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-010",
+    "domain": "보안과 데이터 경계",
+    "title": "감사 기록 보호",
+    "priority": "필수",
+    "requirement": "감사 기록 접근과 수정 권한을 서비스 일반 운영 권한과 구분한다.",
+    "acceptance": "일반 편집자 및 매니저가 자신이 남긴 감사 기록을 지우지 못한다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-011",
+    "domain": "보안과 데이터 경계",
+    "title": "모델 전송 정책",
+    "priority": "필수",
+    "requirement": "자료 등급에 따라 사용 가능한 모델 임베딩 OCR 및 외부 전송을 제한한다.",
+    "acceptance": "차단된 공급자로 대화뿐 아니라 색인 변환 작업도 자료를 전송하지 않는다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-012",
+    "domain": "보안과 데이터 경계",
+    "title": "공급망 관리",
+    "priority": "필수",
+    "requirement": "의존성 이미지 및 재사용 코드의 출처 라이선스 취약점 고정 버전을 관리한다.",
+    "acceptance": "SBOM NOTICE 이미지 다이제스트와 보안 결함 대응 책임을 제시한다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "SEC-013",
+    "domain": "보안과 데이터 경계",
+    "title": "보안 사고 대응",
+    "priority": "필수",
+    "requirement": "키 유출 지식 오염 권한 노출 및 침해에 대한 차단 조사 통지 복구 절차를 둔다.",
+    "acceptance": "사고 훈련에서 매니저 중지 노출 범위 추적 및 안전한 재개를 수행한다.",
+    "owner_role": "보안 담당자",
+    "verification_scenarios": [
+      "AT03",
+      "AT04",
+      "AT06",
+      "AT15",
+      "AT21",
+      "AT28",
+      "AT31"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-001",
+    "domain": "배포와 운영 및 복구",
+    "title": "환경 분리",
+    "priority": "필수",
+    "requirement": "개발 검증 운영 환경과 계정 키 데이터 저장소를 분리한다.",
+    "acceptance": "검증 작업이 운영 자료와 모델 키를 사용하거나 운영 문서를 수정하지 않는다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-002",
+    "domain": "배포와 운영 및 복구",
+    "title": "재현 가능한 배포",
+    "priority": "필수",
+    "requirement": "고정 이미지 및 선언된 설정으로 배포하고 설정 검증을 제공한다.",
+    "acceptance": "빈 환경에서 문서화된 절차로 설치하고 동일 버전을 재배포한다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-003",
+    "domain": "배포와 운영 및 복구",
+    "title": "기동과 상태 확인",
+    "priority": "필수",
+    "requirement": "준비 상태 생존 상태와 필수 의존성을 구분한다.",
+    "acceptance": "미완료 마이그레이션과 잘못된 설정에서 정상 트래픽을 받지 않는다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-004",
+    "domain": "배포와 운영 및 복구",
+    "title": "스키마 마이그레이션",
+    "priority": "필수",
+    "requirement": "업그레이드 전 백업 호환 검사 및 실패 대응을 수행한다.",
+    "acceptance": "이전 버전 데이터에서 업그레이드하고 실패 시 정한 복구 경로를 실행한다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-005",
+    "domain": "배포와 운영 및 복구",
+    "title": "점진 배포",
+    "priority": "필수",
+    "requirement": "기능 플래그 제한 사용자 배포와 이전 버전 복귀를 지원한다.",
+    "acceptance": "UI 숨김 외에 API 작업자 및 예약 작업까지 동일 기능 상태를 따른다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-006",
+    "domain": "배포와 운영 및 복구",
+    "title": "관측 가능성",
+    "priority": "필수",
+    "requirement": "요청 수 지연 오류 대기열 작업 심박 모델 비용과 인덱스 지연을 관측한다.",
+    "acceptance": "사용자 오류에서 요청 ID로 API 작업 및 모델 실행까지 추적한다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-007",
+    "domain": "배포와 운영 및 복구",
+    "title": "운영 알림",
+    "priority": "필수",
+    "requirement": "사용자 영향이 있는 실패 및 SLO 소진에 경보와 담당 대응 경로를 둔다.",
+    "acceptance": "경보가 실제로 전달되고 무시되는 반복 알림은 묶음 및 억제한다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-008",
+    "domain": "배포와 운영 및 복구",
+    "title": "백업 범위",
+    "priority": "필수",
+    "requirement": "문서 DB 파일 원본 정책 설정 및 복호화에 필요한 키 복구 경로를 포함한다.",
+    "acceptance": "DB만 복원해 첨부와 키가 없어 서비스가 불완전해지는 상황을 방지한다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-009",
+    "domain": "배포와 운영 및 복구",
+    "title": "복구 검증",
+    "priority": "필수",
+    "requirement": "격리된 환경에서 정기 복원과 목표 RPO RTO를 실측한다.",
+    "acceptance": "실제로 읽을 수 있는 문서 첨부 근거 권한 및 삭제 상태까지 확인한다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-010",
+    "domain": "배포와 운영 및 복구",
+    "title": "장애 모드",
+    "priority": "필수",
+    "requirement": "모델 검색 큐 파일 및 인증 장애별 제한 동작과 복구 순서를 문서화한다.",
+    "acceptance": "모델 장애가 기존 위키 열람까지 전면 중단시키지 않는다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-011",
+    "domain": "배포와 운영 및 복구",
+    "title": "용량과 자원",
+    "priority": "필수",
+    "requirement": "DB 파일 버전 벡터 인덱스 로그 및 대기열 용량을 예측하고 한도를 둔다.",
+    "acceptance": "디스크 부족과 과부하에서 조용한 데이터 손상 대신 제어된 실패와 경보가 난다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-012",
+    "domain": "배포와 운영 및 복구",
+    "title": "운영자 도구",
+    "priority": "필수",
+    "requirement": "작업 재처리 권한 진단 인덱스 재구축 연결 점검 및 안전한 중지 화면을 제공한다.",
+    "acceptance": "일상 복구를 운영 DB 직접 수정이나 임의 SQL에 의존하지 않고 수행한다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-013",
+    "domain": "배포와 운영 및 복구",
+    "title": "비밀키와 인증서 갱신",
+    "priority": "필수",
+    "requirement": "인증서와 키 만료를 사전 경고하고 교체를 시험한다.",
+    "acceptance": "갱신 후 연결이 유지되며 예전 비밀을 폐기하고 감사 기록을 남긴다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "OPS-014",
+    "domain": "배포와 운영 및 복구",
+    "title": "운영 문서",
+    "priority": "필수",
+    "requirement": "설치 업그레이드 장애 대응 백업 복구 인계 및 연락 체계를 유지한다.",
+    "acceptance": "최초 작성자가 없어도 다른 운영자가 문서로 복구 훈련을 완료한다.",
+    "owner_role": "서비스 운영자",
+    "verification_scenarios": [
+      "AT20",
+      "AT22",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT34"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "NFR-001",
+    "domain": "성능 가용성과 비용 목표",
+    "title": "검증 부하 정의",
+    "priority": "필수",
+    "requirement": "부하와 데이터 규모 및 측정 환경을 명시하고 목표를 검증한다.",
+    "acceptance": "가정은 계정 1000 동시 활성 100 발행 페이지 10만 버전 100만이며 실제 규모 확정 전 추정이라고 표시한다.",
+    "owner_role": "운영 및 성능",
+    "verification_scenarios": [
+      "AT23",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "NFR-002",
+    "domain": "성능 가용성과 비용 목표",
+    "title": "기본 가용성",
+    "priority": "필수",
+    "requirement": "문서 읽기 일반 검색 및 수동 편집의 월간 가용성 목표를 99.9% 제안 기준으로 검증한다.",
+    "acceptance": "성공 요청 분모 제외 조건과 측정 지점을 정의하고 운영 중 월별로 집계한다.",
+    "owner_role": "운영 및 성능",
+    "verification_scenarios": [
+      "AT23",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "NFR-003",
+    "domain": "성능 가용성과 비용 목표",
+    "title": "읽기 검색 지연",
+    "priority": "필수",
+    "requirement": "정의한 부하에서 문서 읽기 p95 1초 일반 검색 p95 2초를 제안 목표로 둔다.",
+    "acceptance": "서버 종단 측정이며 대용량 파일 다운로드를 제외하고 캐시 유무를 함께 보고한다.",
+    "owner_role": "운영 및 성능",
+    "verification_scenarios": [
+      "AT23",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "NFR-004",
+    "domain": "성능 가용성과 비용 목표",
+    "title": "AI 응답 지연",
+    "priority": "필수",
+    "requirement": "AI 첫 유효 응답 p95 8초 완료 p95 45초를 초기 제안 목표로 검증한다.",
+    "acceptance": "지정 모델 입력 출력 길이 및 부하에서 실측하고 미달 시 모델 용량 또는 목표를 근거와 함께 재설계한다.",
+    "owner_role": "운영 및 성능",
+    "verification_scenarios": [
+      "AT23",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "NFR-005",
+    "domain": "성능 가용성과 비용 목표",
+    "title": "편입 신선도",
+    "priority": "필수",
+    "requirement": "1MiB 이하 텍스트 산출물의 수락 후 변경안 생성 p95 5분을 제안 목표로 둔다.",
+    "acceptance": "정의된 입력량 동시 작업과 모델에서 실패 포함 지연을 집계한다.",
+    "owner_role": "운영 및 성능",
+    "verification_scenarios": [
+      "AT23",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "NFR-006",
+    "domain": "성능 가용성과 비용 목표",
+    "title": "권한 전파 시간",
+    "priority": "필수",
+    "requirement": "서비스 내부 철회는 다음 보호 응답 이전에 적용하고 외부 권한 동기화 상한은 초기 5분으로 제안한다.",
+    "acceptance": "동기화 상한 초과 시 제한 모드로 전환하며 외부 변경을 즉시 알 수 있다고 주장하지 않는다.",
+    "owner_role": "운영 및 성능",
+    "verification_scenarios": [
+      "AT23",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "NFR-007",
+    "domain": "성능 가용성과 비용 목표",
+    "title": "검색 반영 시간",
+    "priority": "필수",
+    "requirement": "발행 후 일반 검색 반영 p95 60초를 제안 목표로 두되 접근 차단은 색인 갱신을 기다리지 않는다.",
+    "acceptance": "색인 지연 상황에서도 철회된 정보가 제공되지 않음을 확인한다.",
+    "owner_role": "운영 및 성능",
+    "verification_scenarios": [
+      "AT23",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "NFR-008",
+    "domain": "성능 가용성과 비용 목표",
+    "title": "재해 복구 목표",
+    "priority": "필수",
+    "requirement": "DB 및 첨부의 일관된 복구 기준으로 RPO 15분 RTO 4시간을 제안한다.",
+    "acceptance": "운영 예정 규모에서 복원 훈련으로 실측하고 키와 파일까지 복구한 시점을 종료로 삼는다.",
+    "owner_role": "운영 및 성능",
+    "verification_scenarios": [
+      "AT23",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "NFR-009",
+    "domain": "성능 가용성과 비용 목표",
+    "title": "비용과 할당량",
+    "priority": "필수",
+    "requirement": "모델 호출 임베딩 변환 저장 백업 및 운영 인건비를 분리 추적한다.",
+    "acceptance": "팀별 작업 예산 초과를 제어하며 월간 총비용을 산식과 실제 사용량으로 설명한다.",
+    "owner_role": "운영 및 성능",
+    "verification_scenarios": [
+      "AT23",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "NFR-010",
+    "domain": "성능 가용성과 비용 목표",
+    "title": "규모 확대",
+    "priority": "확장",
+    "requirement": "조직 확대 전 별도 부하 등급과 용량 계획을 정의한다.",
+    "acceptance": "사용자 및 자료 증가에 따른 목표를 다시 검증하고 초기 시험 결과를 전사 규모 보장으로 사용하지 않는다.",
+    "owner_role": "운영 및 성능",
+    "verification_scenarios": [
+      "AT23",
+      "AT26",
+      "AT32",
+      "AT33",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "EVA-001",
+    "domain": "품질 평가와 출시 검증",
+    "title": "기준 평가셋",
+    "priority": "필수",
+    "requirement": "실제 업무를 익명화한 질의 근거 변경 충돌 권한 사례를 버전으로 관리한다.",
+    "acceptance": "한국어 코드 수치 표 환경 차이 근거 부족 및 공격 사례가 포함된다.",
+    "owner_role": "QA 및 AI 평가",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT19",
+      "AT31",
+      "AT34",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "EVA-002",
+    "domain": "품질 평가와 출시 검증",
+    "title": "근거 정확성",
+    "priority": "필수",
+    "requirement": "중요 주장 인용과 실제 근거 일치율을 독립 검토한다.",
+    "acceptance": "초기 제안 기준 100개 대표 답변에서 중요 주장 근거 일치율 95% 이상이며 잘못된 공식 기준 사례는 출시 차단한다.",
+    "owner_role": "QA 및 AI 평가",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT19",
+      "AT31",
+      "AT34",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "EVA-003",
+    "domain": "품질 평가와 출시 검증",
+    "title": "근거 없는 질문",
+    "priority": "필수",
+    "requirement": "정답이 없는 질문에서 근거 부족을 표현하는지 평가한다.",
+    "acceptance": "평가셋의 답 없음 사례에서 허위 공식 정책과 가짜 출처가 하나라도 나오면 차단 원인을 수정한다.",
+    "owner_role": "QA 및 AI 평가",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT19",
+      "AT31",
+      "AT34",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "EVA-004",
+    "domain": "품질 평가와 출시 검증",
+    "title": "권한 회귀 검증",
+    "priority": "필수",
+    "requirement": "역할 공간 원본 과거 버전 첨부 검색 대화 및 캐시의 접근 행렬을 시험한다.",
+    "acceptance": "정의된 접근 행렬에서 무단 노출 사례 0건이며 이것을 모든 미래 공격의 무위험 보장으로 표현하지 않는다.",
+    "owner_role": "QA 및 AI 평가",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT19",
+      "AT31",
+      "AT34",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "EVA-005",
+    "domain": "품질 평가와 출시 검증",
+    "title": "매니저 평가",
+    "priority": "필수",
+    "requirement": "중복 통합 충돌 탐지 및 최소 변경을 수동 정답 사례와 비교한다.",
+    "acceptance": "대표 50개 변경에서 근거 없는 의미 변경 및 보호 구간 자동 수정 0건을 제안 출시 기준으로 적용한다.",
+    "owner_role": "QA 및 AI 평가",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT19",
+      "AT31",
+      "AT34",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "EVA-006",
+    "domain": "품질 평가와 출시 검증",
+    "title": "모델 규칙 회귀",
+    "priority": "필수",
+    "requirement": "모델 프롬프트 임베딩 및 관리 규칙 변경 전후를 같은 평가셋으로 비교한다.",
+    "acceptance": "버전별 결과와 비용 지연을 기록하고 기준 미달이면 기존 구성을 유지한다.",
+    "owner_role": "QA 및 AI 평가",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT19",
+      "AT31",
+      "AT34",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "EVA-007",
+    "domain": "품질 평가와 출시 검증",
+    "title": "기능 통합 검증",
+    "priority": "필수",
+    "requirement": "사용자 도구별 등록에서 재사용 피드백까지 실환경 통합 검증한다.",
+    "acceptance": "인증 모델 저장소와 작업 큐를 포함한 검증 환경에서 주요 흐름을 완료한다.",
+    "owner_role": "QA 및 AI 평가",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT19",
+      "AT31",
+      "AT34",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "EVA-008",
+    "domain": "품질 평가와 출시 검증",
+    "title": "실패 복구 검증",
+    "priority": "필수",
+    "requirement": "권한 동기화 실패 작업자 종료 모델 중단 DB 및 파일 복원 시나리오를 시험한다.",
+    "acceptance": "데이터 중복 조용한 누락 권한 부활 및 미발행 노출이 없음을 확인한다.",
+    "owner_role": "QA 및 AI 평가",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT19",
+      "AT31",
+      "AT34",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "EVA-009",
+    "domain": "품질 평가와 출시 검증",
+    "title": "재사용 코드 검증",
+    "priority": "필수",
+    "requirement": "채택 코드의 라이선스 지원 버전 의존성 계약 및 회귀 검증 결과를 남긴다.",
+    "acceptance": "README 기능 명칭만으로 채택하지 않고 실제 지원 범위와 교체 경계를 명시한다.",
+    "owner_role": "QA 및 AI 평가",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT19",
+      "AT31",
+      "AT34",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "EVA-010",
+    "domain": "품질 평가와 출시 검증",
+    "title": "출시 판정",
+    "priority": "필수",
+    "requirement": "필수 요구사항 시험 보안 결함 운영 인계와 복원 결과를 출시 근거로 남긴다.",
+    "acceptance": "미통과 필수 항목은 담당자와 해결 후 재검증 전까지 완료나 운영 준비로 표시하지 않는다.",
+    "owner_role": "QA 및 AI 평가",
+    "verification_scenarios": [
+      "AT17",
+      "AT18",
+      "AT19",
+      "AT31",
+      "AT34",
+      "AT35"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [
+      "EVA-004",
+      "EVA-006",
+      "EVA-007",
+      "EVA-008",
+      "EVA-009",
+      "OPS-014"
+    ],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "UX-001",
+    "domain": "사용성과 도입",
+    "title": "위키 중심 정보구조",
+    "priority": "필수",
+    "requirement": "홈은 지식 탐색과 최근 유효 변경을 중심으로 두고 채팅을 보조 진입으로 제공한다.",
+    "acceptance": "채팅하지 않아도 주제와 문서를 찾고 출처와 상태를 읽을 수 있다.",
+    "owner_role": "제품 디자인 및 프론트엔드",
+    "verification_scenarios": [
+      "AT01",
+      "AT08",
+      "AT09",
+      "AT25",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "UX-002",
+    "domain": "사용성과 도입",
+    "title": "짧은 등록 흐름",
+    "priority": "필수",
+    "requirement": "업무 산출물에서 최소한의 확인으로 개인 수집함 및 공유 제안에 등록한다.",
+    "acceptance": "동일 내용을 다시 문서로 작성하지 않아도 초안과 근거가 생성된다.",
+    "owner_role": "제품 디자인 및 프론트엔드",
+    "verification_scenarios": [
+      "AT01",
+      "AT08",
+      "AT09",
+      "AT25",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "UX-003",
+    "domain": "사용성과 도입",
+    "title": "검토 부담 통제",
+    "priority": "필수",
+    "requirement": "동일 원인의 변경은 묶고 중요도와 의존성에 따라 검토 순서를 보여준다.",
+    "acceptance": "주간 실행 한 번이 문서마다 중복 승인 요청을 쏟아내지 않는다.",
+    "owner_role": "제품 디자인 및 프론트엔드",
+    "verification_scenarios": [
+      "AT01",
+      "AT08",
+      "AT09",
+      "AT25",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "UX-004",
+    "domain": "사용성과 도입",
+    "title": "상태의 명료성",
+    "priority": "필수",
+    "requirement": "저장 검토 승인 발행 및 작업 성공을 다른 상태로 표시한다.",
+    "acceptance": "사용자가 승인만 된 문서를 이미 공개된 문서로 오인하지 않는다.",
+    "owner_role": "제품 디자인 및 프론트엔드",
+    "verification_scenarios": [
+      "AT01",
+      "AT08",
+      "AT09",
+      "AT25",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "UX-005",
+    "domain": "사용성과 도입",
+    "title": "모바일과 반응형",
+    "priority": "필수",
+    "requirement": "모바일에서 읽기 검색 링크 공유 및 검토 핵심 흐름을 제공한다.",
+    "acceptance": "좁은 화면에서 표와 변경 비교를 확인하고 검토 결정을 완료한다.",
+    "owner_role": "제품 디자인 및 프론트엔드",
+    "verification_scenarios": [
+      "AT01",
+      "AT08",
+      "AT09",
+      "AT25",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "UX-006",
+    "domain": "사용성과 도입",
+    "title": "접근성",
+    "priority": "필수",
+    "requirement": "주요 흐름에 키보드 접근 초점 스크린리더 레이블 및 대비를 적용한다.",
+    "acceptance": "마우스 없이 등록 검색 공유 검토를 수행하고 색상만으로 상태를 전달하지 않는다.",
+    "owner_role": "제품 디자인 및 프론트엔드",
+    "verification_scenarios": [
+      "AT01",
+      "AT08",
+      "AT09",
+      "AT25",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "UX-007",
+    "domain": "사용성과 도입",
+    "title": "시간과 언어",
+    "priority": "필수",
+    "requirement": "한국어 입력 검색과 사용자 시간대별 일정 날짜를 지원한다.",
+    "acceptance": "한글 IME 입력이 저장 중 깨지지 않고 같은 실행의 절대 시각이 일관된다.",
+    "owner_role": "제품 디자인 및 프론트엔드",
+    "verification_scenarios": [
+      "AT01",
+      "AT08",
+      "AT09",
+      "AT25",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "UX-008",
+    "domain": "사용성과 도입",
+    "title": "도움말과 오류",
+    "priority": "필수",
+    "requirement": "역할별 시작 안내 오류 해결 방법 및 문의 경로를 제공한다.",
+    "acceptance": "빈 수집함 권한 부족 모델 실패와 대기 상태에서 다음 행동을 안내한다.",
+    "owner_role": "제품 디자인 및 프론트엔드",
+    "verification_scenarios": [
+      "AT01",
+      "AT08",
+      "AT09",
+      "AT25",
+      "AT30"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "CORE-001",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "런타임 위키 규칙",
+    "priority": "필수",
+    "requirement": "원본·위키·규칙을 분리하고 위키 유지 에이전트가 버전이 있는 운영 규칙을 읽는다.",
+    "acceptance": "모델 요청에 런타임 규칙이 포함되고 앱 개발용 AGENTS.md와 역할이 구분된다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT01"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": true
+  },
+  {
+    "id": "CORE-002",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "원본 보존과 재검사",
+    "priority": "필수",
+    "requirement": "편입은 원본을 덮어쓰지 않고 원본 스냅샷을 변경 집합에 고정한다.",
+    "acceptance": "편입 전후 원본 본문이 같고 승인 후 원본 변경 시 전체 발행이 차단된다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT02"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P0 기반 계약",
+    "demoCoverage": true
+  },
+  {
+    "id": "CORE-003",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "여러 페이지의 지식 종합",
+    "priority": "필수",
+    "requirement": "새 자료를 기존 주제·개념·연결에 함께 반영하는 변경 집합을 만든다.",
+    "acceptance": "한 자료로 주제와 두 개념 페이지가 제안되고 승인 전 발행본은 유지된다. 모델 모드는 단순 원문 추가와 구분하여 평가한다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT03"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "CORE-004",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "의존 변경 집합 발행",
+    "priority": "필수",
+    "requirement": "승인한 전체 내용·원본·기준 버전·규칙을 고정하고 일관되게 발행한다.",
+    "acceptance": "한 대상 충돌 또는 승인 내용 변조 시 새 페이지를 포함해 어느 대상도 발행되지 않고 반복 발행은 중복 버전을 만들지 않는다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT04"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "CORE-005",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "발행본 기반 질문",
+    "priority": "필수",
+    "requirement": "현재 권한의 발행본으로 답하고 인용 버전과 원문 위치를 보존한다.",
+    "acceptance": "실제 발행본에 없는 인용을 거부하고 고정 버전을 열 수 있다. 근거 부족 질문에 답을 조작하지 않는다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT05"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "CORE-006",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "질문 결과의 재편입",
+    "priority": "필수",
+    "requirement": "유용한 답변을 근거 계보가 있는 새 지식으로 제안한다.",
+    "acceptance": "답변 편입은 승인 전 공개되지 않고 인용 버전 변경 시 재질의하며 파생 답변을 독립 검증 근거로 세지 않는다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT06"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "CORE-007",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "실제 위키 건강 점검",
+    "priority": "필수",
+    "requirement": "깨진 연결·고립·원본 누락·검증 시점·동일 조건 상충 사실을 검사한다.",
+    "acceptance": "자료를 바꾸면 점검 결과도 바뀌고 조건이 다른 사실은 같은 모순으로 처리하지 않는다. 구조 검사와 의미 추론을 구분한다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT07"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "CORE-008",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "실제 모델 경계와 오류",
+    "priority": "필수",
+    "requirement": "서버만 모델 자격증명을 보유하고 호출 결과의 스키마·근거·범위를 검사한다.",
+    "acceptance": "연결하지 않은 모델은 선택할 수 없고 실패·잘못된 JSON·가짜 인용이 성공 처리되거나 조용히 오프라인 결과로 바뀌지 않는다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT08"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": true
+  },
+  {
+    "id": "CORE-009",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "인증된 MCP 위키 도구",
+    "priority": "필수",
+    "requirement": "검색·읽기·맥락·산출물·변경 제안·결과 보고 도구가 공통 서비스 규칙을 사용한다.",
+    "acceptance": "실제 OpenCode 또는 Claude Code 연결로 사용자 범위 읽기와 변경 제안을 수행하고 에이전트의 권한 우회·직접 발행을 차단한다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT09"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "CORE-010",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "업무 맥락과 분량 예산",
+    "priority": "필수",
+    "requirement": "프로젝트·환경·적용 조건·질의에 맞는 지식과 근거를 정해진 분량으로 제공한다.",
+    "acceptance": "큰 위키에서 예외와 근거를 보존하며 필요한 부분을 가져오고 잘린 내용과 추가 조회 방법을 명시한다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT10"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P1 기능 통합",
+    "demoCoverage": false
+  },
+  {
+    "id": "CORE-011",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "무인 유지관리와 환류",
+    "priority": "필수",
+    "requirement": "Daily와 Weekly를 지속 작업으로 실행하고 실제 사용 성공·실패를 다음 검토에 연결한다.",
+    "acceptance": "브라우저를 닫아도 정시 실행·재시도·중복 방지·취소가 동작하고 사용 결과로 재검증 대상이 생성된다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT11"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  },
+  {
+    "id": "CORE-012",
+    "domain": "LLM Wiki 핵심 순환",
+    "title": "지식 누적 품질 평가",
+    "priority": "필수",
+    "requirement": "실제 업무의 연속 편입·질문·점검 평가셋으로 지식 손실과 오류 누적을 측정한다.",
+    "acceptance": "최소 세 차례의 자료 추가와 질문 이후 근거 보존·상충 표기·권한·정답 품질을 사내 모델로 평가한다.",
+    "owner_role": "제품·지식 엔진 책임자",
+    "verification_scenarios": [
+      "CORE-AT12"
+    ],
+    "status": "미검증",
+    "evidence_required": true,
+    "depends_on": [],
+    "phase": "P2 운영 준비",
+    "demoCoverage": false
+  }
+]

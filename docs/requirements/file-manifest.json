@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-26",
+  "files": [
+    {
+      "name": "README.md",
+      "bytes": 4214,
+      "sha256": "f67838aa72f6a7c0eeff673ce79a29c1ff2dfcfccfd80f97b42a6f22e1ecde86"
+    },
+    {
+      "name": "acceptance-tests.json",
+      "bytes": 37683,
+      "sha256": "99fa92443a3278510cc9096e6cb361f13fe9ddfee8396654e0ad2ca3397e75c9"
+    },
+    {
+      "name": "acceptance-tests.md",
+      "bytes": 26480,
+      "sha256": "acbb3c66fd4c5e6d87c8e90455d8bdf08e323ee369db0f8e9e24ca7d2248ef08"
+    },
+    {
+      "name": "build_acceptance.py",
+      "bytes": 16688,
+      "sha256": "7fb42ffddc7da455f4f1331dc25bc550aabc0f6513daf31c910e49c6409f07c9"
+    },
+    {
+      "name": "build_requirements.py",
+      "bytes": 58932,
+      "sha256": "e65df504eb08d519b961a213b9c4e648cd1a8a30d76b330ecc48e9ec8e1dfa07"
+    },
+    {
+      "name": "requirements.json",
+      "bytes": 147754,
+      "sha256": "75eb813fba8f89206ab8c119380958e4c70fe75e8b783c264e37272b5ba5e305"
+    },
+    {
+      "name": "requirements.md",
+      "bytes": 62372,
+      "sha256": "2fe4ad68161e42eb6614185a15db2ee8d05e96d15826064096ed4f0ba73d8681"
+    },
+    {
+      "name": "review.md",
+      "bytes": 28353,
+      "sha256": "0c6e45cbb867ef2b2428c8d1c27a018e2e176e6b23e35f0f168d87ede3016c1a"
+    },
+    {
+      "name": "source-audit.json",
+      "bytes": 13317,
+      "sha256": "8d8d949c767ef0f41133c3d62a074022691fe8946d5c67eb25fdb78688e28452"
+    },
+    {
+      "name": "validation.json",
+      "bytes": 703,
+      "sha256": "a18277b75aa8a01e8a9256d387554d2a998f328dd1e75c7609f156e58906aa36"
+    }
+  ]
+}
