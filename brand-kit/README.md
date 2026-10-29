@@ -1,4 +1,4 @@
-# Folio Wiki 아이콘 팩
+# agent-knowledge-hub 아이콘 팩
 
 편집 가능한 SVG 원본과 PNG, favicon ICO, 워드마크, README 배너, 소셜 이미지, 14개 UI 아이콘과 스프라이트를 제공합니다. 기존 agent-admission-gate의 plum 색상 4개를 유지하고 책과 연결 구조를 새 심볼로 구성했습니다. 기존 Gate 로고 파일 자체를 복제하지 않았습니다.
 

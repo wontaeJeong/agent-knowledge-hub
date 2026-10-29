@@ -1,7 +1,7 @@
 import type { Page, Source, State } from "./types";
 import { makeId } from "./id";
 
-export const POLICY_VERSION = "folio-wiki/2";
+export const POLICY_VERSION = "agent-knowledge-hub/2";
 export type Mode = "offline" | "model";
 export interface Fact {
   key: string;

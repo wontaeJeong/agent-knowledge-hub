@@ -9,9 +9,9 @@ if (!fs.existsSync(path.join(root, "index.html"))) {
   console.error("Packaged build not found. Run npm ci && npm run build first.");
   process.exit(1);
 }
-const port = Number(process.env.FOLIO_DEMO_PORT || 8080);
+const port = Number(process.env.AGENT_KNOWLEDGE_HUB_DEMO_PORT || 8080);
 if (!Number.isInteger(port) || port < 1024 || port > 65535)
-  throw Error("FOLIO_DEMO_PORT must be 1024..65535");
+  throw Error("AGENT_KNOWLEDGE_HUB_DEMO_PORT must be 1024..65535");
 const types = {
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
@@ -63,6 +63,6 @@ server.on("error", (e) => {
 });
 server.listen(port, "127.0.0.1", () =>
   console.log(
-    `Folio Wiki demo: http://127.0.0.1:${port}\nLocal synthetic demo only. Ctrl+C to stop.`,
+    `agent-knowledge-hub demo: http://127.0.0.1:${port}\nLocal synthetic demo only. Ctrl+C to stop.`,
   ),
 );

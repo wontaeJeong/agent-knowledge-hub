@@ -115,10 +115,13 @@ i {
   width: 29px;
   height: 30px;
 }
-.brand-light {
-  font-weight: 400;
-  margin-left: 3px;
-  color: var(--muted);
+.brand-name {
+  font-size: 14px;
+  line-height: 1.4;
+  letter-spacing: -0.3px;
+}
+.brand img {
+  flex-shrink: 0;
 }
 .brand .badge {
   font-size: 8px;

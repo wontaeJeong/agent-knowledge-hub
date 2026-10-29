@@ -2,6 +2,16 @@
 
 검증일 2026-10-27. 현재 소스 0.2 기준이다.
 
+## 2026-10-29 이름 변경·문서 체계 회귀
+
+- `npm test`: Vitest 32개(기존 도메인 28 + 저장 키/기존 데이터 이전·초기화·쓰기 실패 보존 4), Node HTTP 계약 5개 통과.
+- `npm run check:requirements`: 기존 251개 원래 수용 기준과 정직한 상태 연결 검사 통과.
+- `npm run build`: TypeScript/Vite 통과. 주 청크 508.26 kB 크기 경고는 남아 있다.
+- `npm run brand`: 이름이 바뀐 SVG/PNG/manifest 재생성. 워드마크와 README 배너 PNG에서 전체 이름 확인.
+- Markdown 상대 경로 55개/29문서 존재 확인, `git diff --check` 통과.
+- 로컬 데모 새 포트 변수로 실행. 1440px/390px 문서 너비가 각각 뷰포트와 일치했고 390px 열린 메뉴에서 브랜드 14px 두 줄/잘림 없음 확인. 전체 반응형·접근성 검증을 뜻하지 않는다.
+- North Star 및 [EVALUATION.md](EVALUATION.md)는 설계 문서다. 실제 모델 의미 품질, Knowledge Compounding, 시간/상충 해소, 후속 에이전트 성능 향상은 측정하지 않았다. 아래 과거 실행 기록과 새 평가 계획을 구분한다.
+
 ## 자동 검사
 
 - Vitest 도메인 28개: 초기 회귀 12개 + 핵심 순환 16개

@@ -12,9 +12,10 @@ const contracts = {
 export function config() {
   return {
     configured: Boolean(
-      process.env.FOLIO_LLM_BASE_URL && process.env.FOLIO_LLM_MODEL,
+      process.env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL &&
+      process.env.AGENT_KNOWLEDGE_HUB_LLM_MODEL,
     ),
-    model: process.env.FOLIO_LLM_MODEL || null,
+    model: process.env.AGENT_KNOWLEDGE_HUB_LLM_MODEL || null,
   };
 }
 export async function handleModel(req, res, pathname) {
@@ -82,19 +83,20 @@ export async function handleModel(req, res, pathname) {
       return true;
     }
     const endpoint = new URL(
-      process.env.FOLIO_LLM_BASE_URL.replace(/\/$/, "") + "/chat/completions",
+      process.env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL.replace(/\/$/, "") +
+        "/chat/completions",
     );
     if (!["http:", "https:"].includes(endpoint.protocol))
       throw Error("Invalid protocol");
     const headers = { "Content-Type": "application/json" };
-    if (process.env.FOLIO_LLM_API_KEY)
-      headers.Authorization = `Bearer ${process.env.FOLIO_LLM_API_KEY}`;
+    if (process.env.AGENT_KNOWLEDGE_HUB_LLM_API_KEY)
+      headers.Authorization = `Bearer ${process.env.AGENT_KNOWLEDGE_HUB_LLM_API_KEY}`;
     const upstream = await fetch(endpoint, {
       method: "POST",
       headers,
       signal: AbortSignal.timeout(60_000),
       body: JSON.stringify({
-        model: process.env.FOLIO_LLM_MODEL,
+        model: process.env.AGENT_KNOWLEDGE_HUB_LLM_MODEL,
         temperature: 0.2,
         max_tokens: 6000,
         messages: [

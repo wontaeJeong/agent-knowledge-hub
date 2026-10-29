@@ -9,9 +9,10 @@ try {
   sharp = require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES + "/sharp");
 }
 const root = path.resolve("brand-kit");
+const projectName = "agent-knowledge-hub";
 await fs.mkdir(root, { recursive: true });
 const mark = (color = "#78469e", secondary = "#623680", bg = "") =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100" role="img" aria-label="Folio Wiki mark"><title>Folio Wiki</title>${bg ? `<rect width="100" height="100" rx="22" fill="${bg}"/>` : ""}<path d="M50 15 87 28v49L50 91 13 77V28z" fill="none" stroke="${color}" stroke-width="8" stroke-linejoin="round"/><path d="M50 37v40M27 36l14 5v24l-14-5M73 36l-14 5v24l14-5" fill="none" stroke="${secondary}" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100" role="img" aria-label="${projectName} mark"><title>${projectName}</title>${bg ? `<rect width="100" height="100" rx="22" fill="${bg}"/>` : ""}<path d="M50 15 87 28v49L50 91 13 77V28z" fill="none" stroke="${color}" stroke-width="8" stroke-linejoin="round"/><path d="M50 37v40M27 36l14 5v24l-14-5M73 36l-14 5v24l14-5" fill="none" stroke="${secondary}" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 for (const [name, c, s, b] of [
   ["light", "#78469e", "#623680", ""],
   ["dark", "#d4a1eb", "#eac7f6", ""],
@@ -55,10 +56,10 @@ for (const mode of ["light", "dark"]) {
     /<svg[^>]*>/,
     '<svg x="52" y="47" width="88" height="88" viewBox="0 0 100 100">',
   );
-  const word = `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="180" viewBox="0 0 720 180"><rect width="720" height="180" fill="${bg}"/>${inner}<text x="165" y="114" font-family="Arial,sans-serif" font-size="67" font-weight="600" fill="${fg}">folio<tspan font-weight="300" fill="${accent}"> wiki</tspan></text></svg>`;
+  const word = `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="180" viewBox="0 0 720 180"><rect width="720" height="180" fill="${bg}"/>${inner}<text x="165" y="104" font-family="Arial,sans-serif" font-size="44" font-weight="600" fill="${fg}">${projectName}</text></svg>`;
   await fs.writeFile(`${root}/wordmark-${mode}.svg`, word);
   await sharp(Buffer.from(word)).png().toFile(`${root}/wordmark-${mode}.png`);
-  const banner = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="480" viewBox="0 0 1600 480"><rect width="1600" height="480" fill="${bg}"/><path d="M1080 0v480M1220 0v480M1360 0v480M1500 0v480M980 100h620M980 240h620M980 380h620" fill="none" stroke="${accent}" opacity=".08"/>${mark(accent, accent).replace(/<svg[^>]*>/, '<svg x="100" y="145" width="126" height="126" viewBox="0 0 100 100">')}<text x="260" y="235" font-family="Arial,sans-serif" font-size="82" font-weight="600" fill="${fg}">folio wiki</text><text x="265" y="284" font-family="Arial,sans-serif" font-size="23" fill="${accent}">Knowledge, connected.</text><rect x="1160" y="170" width="236" height="140" rx="12" fill="${bg}" stroke="${accent}" opacity=".5"/><path d="M1190 205h100m-100 25h170m-170 25h150m-150 25h120" stroke="${accent}" stroke-width="3" opacity=".45" stroke-linecap="round"/></svg>`;
+  const banner = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="480" viewBox="0 0 1600 480"><rect width="1600" height="480" fill="${bg}"/><path d="M1080 0v480M1220 0v480M1360 0v480M1500 0v480M980 100h620M980 240h620M980 380h620" fill="none" stroke="${accent}" opacity=".08"/>${mark(accent, accent).replace(/<svg[^>]*>/, '<svg x="100" y="145" width="126" height="126" viewBox="0 0 100 100">')}<text x="260" y="235" font-family="Arial,sans-serif" font-size="64" font-weight="600" fill="${fg}">${projectName}</text><text x="265" y="284" font-family="Arial,sans-serif" font-size="23" fill="${accent}">Knowledge, connected.</text><rect x="1160" y="170" width="236" height="140" rx="12" fill="${bg}" stroke="${accent}" opacity=".5"/><path d="M1190 205h100m-100 25h170m-170 25h150m-150 25h120" stroke="${accent}" stroke-width="3" opacity=".45" stroke-linecap="round"/></svg>`;
   await fs.writeFile(`${root}/readme-banner-${mode}.svg`, banner);
   await sharp(Buffer.from(banner))
     .png()
@@ -103,7 +104,7 @@ await fs.writeFile(
   `${root}/icons/sprite.svg`,
   `<svg xmlns="http://www.w3.org/2000/svg">${symbols}</svg>`,
 );
-const preview = `<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960"><rect width="1440" height="960" fill="#fbfafc"/><text x="72" y="83" font-family="Arial" font-size="15" fill="#75717f" letter-spacing="3">FOLIO WIKI / BRAND ASSETS 01</text><rect x="72" y="127" width="628" height="370" rx="14" fill="#f3edf8"/><rect x="720" y="127" width="648" height="370" rx="14" fill="#211e26"/>${mark().replace(/<svg[^>]*>/, '<svg x="260" y="195" width="215" height="215" viewBox="0 0 100 100">')}${mark("#d4a1eb", "#eac7f6").replace(/<svg[^>]*>/, '<svg x="930" y="195" width="215" height="215" viewBox="0 0 100 100">')}<text x="72" y="577" font-family="Arial" font-size="55" font-weight="600" fill="#292631">folio<tspan font-weight="300" fill="#78469e"> wiki</tspan></text><text x="75" y="623" font-family="Arial" font-size="16" fill="#75717f">Editable vectors. Light + dark. Built for the same workspace.</text><text x="74" y="710" font-family="Arial" font-size="12" fill="#75717f" letter-spacing="2">PLUM PALETTE</text>${["#78469e", "#623680", "#d4a1eb", "#eac7f6"].map((c, i) => `<rect x="${72 + i * 158}" y="740" width="138" height="65" rx="7" fill="${c}"/><text x="${72 + i * 158}" y="832" font-family="Arial" font-size="13" fill="#75717f">${c}</text>`).join("")}<text x="800" y="710" font-family="Arial" font-size="12" fill="#75717f" letter-spacing="2">14 WORKSPACE ICONS</text>${Object.entries(
+const preview = `<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960"><rect width="1440" height="960" fill="#fbfafc"/><text x="72" y="83" font-family="Arial" font-size="15" fill="#75717f" letter-spacing="3">${projectName} / BRAND ASSETS 01</text><rect x="72" y="127" width="628" height="370" rx="14" fill="#f3edf8"/><rect x="720" y="127" width="648" height="370" rx="14" fill="#211e26"/>${mark().replace(/<svg[^>]*>/, '<svg x="260" y="195" width="215" height="215" viewBox="0 0 100 100">')}${mark("#d4a1eb", "#eac7f6").replace(/<svg[^>]*>/, '<svg x="930" y="195" width="215" height="215" viewBox="0 0 100 100">')}<text x="72" y="577" font-family="Arial" font-size="55" font-weight="600" fill="#292631">${projectName}</text><text x="75" y="623" font-family="Arial" font-size="16" fill="#75717f">Editable vectors. Light + dark. Built for the same workspace.</text><text x="74" y="710" font-family="Arial" font-size="12" fill="#75717f" letter-spacing="2">PLUM PALETTE</text>${["#78469e", "#623680", "#d4a1eb", "#eac7f6"].map((c, i) => `<rect x="${72 + i * 158}" y="740" width="138" height="65" rx="7" fill="${c}"/><text x="${72 + i * 158}" y="832" font-family="Arial" font-size="13" fill="#75717f">${c}</text>`).join("")}<text x="800" y="710" font-family="Arial" font-size="12" fill="#75717f" letter-spacing="2">14 WORKSPACE ICONS</text>${Object.entries(
   icons,
 )
   .map(
@@ -119,8 +120,8 @@ await fs.writeFile(
   `${root}/site.webmanifest`,
   JSON.stringify(
     {
-      name: "Folio Wiki",
-      short_name: "Folio",
+      name: projectName,
+      short_name: projectName,
       icons: [
         { src: "favicon-192.png", sizes: "192x192", type: "image/png" },
         { src: "favicon-512.png", sizes: "512x512", type: "image/png" },
@@ -135,6 +136,6 @@ await fs.writeFile(
 );
 await fs.writeFile(
   `${root}/README.md`,
-  "# Folio Wiki 아이콘 팩\n\n편집 가능한 SVG 원본과 PNG, favicon ICO, 워드마크, README 배너, 소셜 이미지, 14개 UI 아이콘과 스프라이트를 제공합니다. 기존 agent-admission-gate의 plum 색상 4개를 유지하고 책과 연결 구조를 새 심볼로 구성했습니다. 기존 Gate 로고 파일 자체를 복제하지 않았습니다.\n\n가이드: 심볼 주변 최소 15% 여백, 16px 이하에서는 favicon 사용, 라이트 및 다크 전용 변형 선택. 워드마크는 시스템 Arial 텍스트 기반이므로 배포 환경의 폰트에 따라 SVG 텍스트 모양이 달라질 수 있습니다. 동일 결과가 필요하면 PNG를 사용하거나 사내 디자인 도구에서 텍스트를 아웃라인 처리하세요. 웹폰트는 포함하지 않습니다. site.webmanifest는 자산 예시이며 서비스워커나 오프라인 PWA를 구현한 것은 아닙니다.\n\n이 폴더의 새 벡터와 생성 PNG는 프로젝트 전용 창작 자산입니다. 사내에서 수정·사용할 수 있습니다. 생성은 scripts/generate-brand.mjs로 재현합니다. 앱의 Lucide 아이콘은 별도 ISC 라이선스를 따릅니다.\n",
+  `# ${projectName} 아이콘 팩\n\n편집 가능한 SVG 원본과 PNG, favicon ICO, 워드마크, README 배너, 소셜 이미지, 14개 UI 아이콘과 스프라이트를 제공합니다. 기존 agent-admission-gate의 plum 색상 4개를 유지하고 책과 연결 구조를 새 심볼로 구성했습니다. 기존 Gate 로고 파일 자체를 복제하지 않았습니다.\n\n가이드: 심볼 주변 최소 15% 여백, 16px 이하에서는 favicon 사용, 라이트 및 다크 전용 변형 선택. 워드마크는 시스템 Arial 텍스트 기반이므로 배포 환경의 폰트에 따라 SVG 텍스트 모양이 달라질 수 있습니다. 동일 결과가 필요하면 PNG를 사용하거나 사내 디자인 도구에서 텍스트를 아웃라인 처리하세요. 웹폰트는 포함하지 않습니다. site.webmanifest는 자산 예시이며 서비스워커나 오프라인 PWA를 구현한 것은 아닙니다.\n\n이 폴더의 새 벡터와 생성 PNG는 프로젝트 전용 창작 자산입니다. 사내에서 수정·사용할 수 있습니다. 생성은 scripts/generate-brand.mjs로 재현합니다. 앱의 Lucide 아이콘은 별도 ISC 라이선스를 따릅니다.\n`,
 );
 console.log("brand assets generated");

@@ -42,7 +42,7 @@ import {
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { Badge, Button, Empty, Modal } from "./ui/primitives";
-import { demoRepository } from "./adapters/repository";
+import { demoRepository, readStoredValue } from "./adapters/repository";
 import {
   canReview,
   canWrite,
@@ -145,7 +145,7 @@ export default function App() {
     "source" | "share" | "versions" | "edit" | "help" | "reset" | null
   >(null);
   const [theme, setTheme] = useState(
-    () => localStorage.getItem("folio.theme") || "light",
+    () => readStoredValue("agent-knowledge-hub.theme", "folio.theme") || "light",
   );
   const [running, setRunning] = useState<Run["kind"] | null>(null);
 
@@ -172,7 +172,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("folio.theme", theme);
+    localStorage.setItem("agent-knowledge-hub.theme", theme);
   }, [theme]);
   useEffect(() => {
     if (!toast) return;
@@ -292,7 +292,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "folio-demo-export.json";
+    a.download = "agent-knowledge-hub-demo-export.json";
     a.click();
     URL.revokeObjectURL(url);
     notify("데모 데이터를 내보냈습니다.");
@@ -438,8 +438,8 @@ export default function App() {
             src={theme === "dark" ? "/brand/mark-dark.svg" : "/brand/mark.svg"}
             alt=""
           />
-          <span>
-            folio<span className="brand-light">wiki</span>
+          <span className="brand-name">
+            agent-<wbr />knowledge-hub
           </span>
           <Badge>DEMO</Badge>
         </a>
@@ -1509,7 +1509,7 @@ export default function App() {
         </main>
         <footer className="app-footer">
           <span>
-            Folio Wiki <i>·</i> 합성 데이터 / 로컬 저장 / 오프라인·모델 선택
+            agent-knowledge-hub <i>·</i> 합성 데이터 / 로컬 저장 / 오프라인·모델 선택
           </span>
           <a href="#/roadmap">
             구현 범위와 로드맵 <ArrowRight size={12} />
@@ -1835,7 +1835,7 @@ export default function App() {
         </Modal>
       )}
       {modal === "help" && (
-        <Modal title="Folio Wiki 데모 안내" onClose={() => setModal(null)}>
+        <Modal title="agent-knowledge-hub 데모 안내" onClose={() => setModal(null)}>
           <p>
             사내 업무 산출물이 검토된 지식으로 축적되는 흐름을 시연합니다. 실제
             시스템과 계정에는 연결되지 않습니다.

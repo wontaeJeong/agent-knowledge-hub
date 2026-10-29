@@ -1,5 +1,5 @@
 services:
-  folio-demo:
+  agent-knowledge-hub-demo:
     build: .
     ports:
       - "127.0.0.1:8080:8080"
