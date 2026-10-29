@@ -19,6 +19,8 @@ const types = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".json": "application/json",
+  ".ico": "image/x-icon",
+  ".webmanifest": "application/manifest+json",
 };
 const server = http.createServer(async (req, res) => {
   let pathname;
@@ -63,6 +65,6 @@ server.on("error", (e) => {
 });
 server.listen(port, "127.0.0.1", () =>
   console.log(
-    `Folio Wiki demo: http://127.0.0.1:${port}\nLocal synthetic demo only. Ctrl+C to stop.`,
+    `agent-knowledge-hub demo: http://127.0.0.1:${port}\nLocal synthetic demo only. Ctrl+C to stop.`,
   ),
 );

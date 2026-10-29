@@ -1,6 +1,9 @@
-# Folio Wiki
+# agent-knowledge-hub
 
-![Folio Wiki](brand-kit/readme-banner-light.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand-kit/readme-banner-dark.svg">
+  <img src="brand-kit/readme-banner-light.svg" alt="agent-knowledge-hub — Knowledge that compounds.">
+</picture>
 
 LLM으로 만든 업무 산출물을 근거와 함께 사내 지식에 연결하고, 사람이 검토한 변경을 발행하는 앱입니다. Ingest·Query·Lint로 연결된 위키를 축적하는 **실행 가능한 로컬 데모**이며 사내 레포에서 계속 개발하기 위한 출발점입니다.
 
@@ -114,6 +117,6 @@ http://localhost:8080 에서 같은 정적 데모를 제공합니다. 컨테이�
 
 ## 아이콘 팩
 
-`brand-kit/`에 SVG·PNG 심볼, 라이트·다크·단색 변형, favicon·ICO, 워드마크, README 배너, 소셜 이미지, UI 아이콘 14개와 스프라이트를 포함합니다. `npm run brand`로 다시 생성합니다. [미리보기](brand-kit/brand-preview.png).
+`brand-kit/`에 SVG·PNG 심볼, 라이트·다크·단색 변형, favicon·ICO, 워드마크, README 배너, 소셜 이미지, UI 아이콘 24개·빈 상태 일러스트와 스프라이트를 포함합니다. `npm run brand`로 다시 생성합니다. [미리보기](brand-kit/brand-preview.png). 전체 파일별 해시는 `brand-kit/asset-manifest.json`, 사용 규칙은 [브랜드 가이드](brand-kit/README.md)에 있습니다. 워드마크는 글자 윤곽을 포함한 SVG라 폰트 설치가 필요 없습니다.
 
 이 레포는 내부 개발 전달용입니다. 프로젝트 자체의 공개 배포 라이선스는 선택하지 않았습니다. 외부 라이브러리의 라이선스는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)와 각 패키지 원문을 따릅니다.

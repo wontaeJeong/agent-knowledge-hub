@@ -105,26 +105,42 @@ i {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   padding: 0 10px 27px;
-  font-size: 26px;
+  font-size: 16px;
   font-weight: 740;
-  letter-spacing: -1.2px;
+  letter-spacing: -0.4px;
 }
 .brand img {
-  width: 29px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
 }
-.brand-light {
-  font-weight: 400;
-  margin-left: 3px;
-  color: var(--muted);
+.brand-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
 }
-.brand .badge {
+.brand-prefix {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.brand-prefix i {
   font-size: 8px;
-  margin-left: auto;
   letter-spacing: 0.6px;
-  padding: 3px 5px;
+  padding: 2px 5px;
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+.brand-name strong {
+  font-size: 16px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 .workspace {
   display: flex;

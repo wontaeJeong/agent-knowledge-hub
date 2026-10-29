@@ -42,6 +42,7 @@ import {
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { Badge, Button, Empty, Modal } from "./ui/primitives";
+import { BrandIcon } from "./ui/BrandIcon";
 import { demoRepository } from "./adapters/repository";
 import {
   canReview,
@@ -292,7 +293,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "folio-demo-export.json";
+    a.download = "agent-knowledge-hub-export.json";
     a.click();
     URL.revokeObjectURL(url);
     notify("데모 데이터를 내보냈습니다.");
@@ -433,15 +434,17 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobile ? "open" : ""}`}>
-        <a href="#/" className="brand">
+        <a href="#/" className="brand" aria-label="agent-knowledge-hub 홈">
           <img
             src={theme === "dark" ? "/brand/mark-dark.svg" : "/brand/mark.svg"}
             alt=""
           />
-          <span>
-            folio<span className="brand-light">wiki</span>
+          <span className="brand-name">
+            <span className="brand-prefix">
+              agent-<i>DEMO</i>
+            </span>
+            <strong>knowledge-hub</strong>
           </span>
-          <Badge>DEMO</Badge>
         </a>
         <div className="workspace">
           <span className="workspace-symbol">P</span>
@@ -465,17 +468,34 @@ export default function App() {
         </button>
         <div className="nav-label">WORKSPACE</div>
         <nav>
-          {navItem("/", "지식 공간", <BookOpen size={17} />)}
+          {navItem("/", "지식 공간", <BrandIcon name="hub" size={17} />)}
           {navItem(
             "/sources",
             "산출물 수집함",
-            <Inbox size={17} />,
+            <BrandIcon name="inbox" size={17} />,
             sources.filter((s) => !s.processed).length,
           )}
-          {navItem("/review", "변경 검토", <GitBranch size={17} />, pending)}
-          {navItem("/compile", "지식 컴파일", <Sparkles size={17} />)}
-          {navItem("/manager", "위키 매니저", <Workflow size={17} />)}
-          {navItem("/activity", "활동 기록", <History size={17} />)}
+          {navItem(
+            "/review",
+            "변경 검토",
+            <BrandIcon name="branch" size={17} />,
+            pending,
+          )}
+          {navItem(
+            "/compile",
+            "지식 컴파일",
+            <BrandIcon name="compile" size={17} />,
+          )}
+          {navItem(
+            "/manager",
+            "위키 매니저",
+            <BrandIcon name="manager" size={17} />,
+          )}
+          {navItem(
+            "/activity",
+            "활동 기록",
+            <BrandIcon name="history" size={17} />,
+          )}
         </nav>
         <div className="nav-label section-label">
           PINNED <Star size={11} />
@@ -495,8 +515,16 @@ export default function App() {
             ))}
         </div>
         <div className="sidebar-bottom">
-          {navItem("/roadmap", "제품 로드맵", <Workflow size={16} />)}
-          {navItem("/settings", "연동 · 설정", <Settings2 size={16} />)}
+          {navItem(
+            "/roadmap",
+            "제품 로드맵",
+            <BrandIcon name="roadmap" size={16} />,
+          )}
+          {navItem(
+            "/settings",
+            "연동 · 설정",
+            <BrandIcon name="settings" size={16} />,
+          )}
           <button className="profile" onClick={() => setModal("help")}>
             <span className="avatar">{profile.initial}</span>
             <span>
@@ -608,7 +636,7 @@ export default function App() {
                       {latest(state.pages[0]).sourceIds.length}개 근거
                     </span>
                     <span className="featured-lines" aria-hidden="true">
-                      <BookOpen size={94} strokeWidth={0.8} />
+                      <BrandIcon name="hub" size={94} strokeWidth={0.8} />
                     </span>
                   </div>
                 </section>
@@ -1509,7 +1537,8 @@ export default function App() {
         </main>
         <footer className="app-footer">
           <span>
-            Folio Wiki <i>·</i> 합성 데이터 / 로컬 저장 / 오프라인·모델 선택
+            agent-knowledge-hub <i>·</i> 합성 데이터 / 로컬 저장 / 오프라인·모델
+            선택
           </span>
           <a href="#/roadmap">
             구현 범위와 로드맵 <ArrowRight size={12} />
@@ -1835,7 +1864,10 @@ export default function App() {
         </Modal>
       )}
       {modal === "help" && (
-        <Modal title="Folio Wiki 데모 안내" onClose={() => setModal(null)}>
+        <Modal
+          title="agent-knowledge-hub 데모 안내"
+          onClose={() => setModal(null)}
+        >
           <p>
             사내 업무 산출물이 검토된 지식으로 축적되는 흐름을 시연합니다. 실제
             시스템과 계정에는 연결되지 않습니다.
