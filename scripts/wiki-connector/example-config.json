@@ -1,0 +1,29 @@
+{
+  "syntheticOnly": true,
+  "file": ".local-wiki-demo/remote",
+  "port": 8091,
+  "identities": {
+    "synthetic-alice-not-a-secret": {
+      "userId": "alice",
+      "spaces": ["team-demo"],
+      "reviewer": false
+    },
+    "synthetic-reviewer-not-a-secret": {
+      "userId": "reviewer",
+      "spaces": ["team-demo"],
+      "reviewer": true
+    }
+  },
+  "pages": [
+    {
+      "id": "demo-guide",
+      "title": "합성 위키 예시",
+      "content": "이 페이지는 로컬 동기화와 개인 변경 제안의 합성 예시입니다.",
+      "links": [],
+      "sourceRefs": [],
+      "spaceId": "team-demo",
+      "version": 1,
+      "localCopyAllowed": true
+    }
+  ]
+}
