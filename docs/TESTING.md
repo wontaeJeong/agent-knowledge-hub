@@ -84,6 +84,16 @@ Docker 빌드·실행, 실제 GitHub Actions 실행, 실제 모바일 기기·�
 - 모든 manifest SHA-256, SVG XML 파싱, PNG 디코딩, favicon 16–512px 크기, 1200×630 공유 카드, 1600×480 배너, ICO의 16/32/48px 디렉터리와 webmanifest의 실제 아이콘 경로를 확인했다. public/brand 사본과 원본도 대조했다.
 - 새 전체 미리보기·다크 배너를 렌더링해 이름의 정확성·로고·아이콘·여백·작은 크기를 시각 확인했다. 워드마크는 경로 윤곽으로 렌더링한다.
 - 새 앱의 실제 브라우저 렌더링은 이번 실행 환경의 브라우저 접근 제한으로 확인하지 못했다. 이전 버전의 브라우저 검증 기록과 구분한다. 기존 500kB 번들 경고는 유지되며 이번 브랜드 변경의 실패가 아니다.
+## 2026-10-29 서버 발행·사용량 후속 검증
+
+- Node 24.22.2 + Docker PostgreSQL 17.6-alpine 시험 DB 사용. `npm test`: 클라이언트 35개 + Node 6개 통과, `npm run test:server`: 26개 통과.
+- `npm run check:server`, `npm run check:requirements`(251개), `npm run build`, 명시 `DATABASE_URL`의 `npm run db:migrate` 재실행, `git diff --check` 통과. 주 청크 511.15 kB 경고는 유지한다.
+- DB 회귀: 원본 불변/중복 거부, 현재 membership·source ACL, 과거 메타데이터 차단, source 교집합, 연결 대상 실효 접근, 승인 후 내용/원본/기준/정책/ACL 변경, 동시 발행·재시작 후 replay, 멱등 키, SQL/계측 실패 rollback, 감사 주체, 사용량 본인/workspace 범위, 미수집 모델 값, 인증된 집계 HTTP 응답.
+- 독립 코드 리뷰 중요 결함 3개(승인 ACL 변경, 연결 대상 source ACL, 과거 조회의 현재 제목 노출)를 각각 재현하는 실패 시험 후 수정하고 전체 26개 회귀를 다시 통과시켰다.
+- UI: 1440×1000, 390×844 브라우저에서 측정/미연결/인증 오류/빈 상태/로딩/본인 범위/7·30일/라이트·다크·탐색/내부 스크롤/재시도를 확인했다. 새 경로의 중복 not-found fallback도 브라우저 실패→수정→통과로 검증했다. [캡처 19개 및 자료 성격](pr-assets/server-usage/README.md), [표시 크기 실측](SERVER_FOUNDATION.md)을 참조한다.
+- 이 결과는 실제 사용자 사용량, SSO·전체 업무 UI 서버 연결·운영 DB/백업복원·K8s·실부하·모델 품질 검증이 아니다. 측정 캡처의 데이터는 로컬 DB 서비스 조회 15회의 실제 계측이며 나머지 화면 상태는 별도 UI fixture다.
+- 최신 main의 확정 심볼(670f5a9) 통합 후 위 35+6+26개 시험과 요구사항·타입·빌드를 재실행해 통과했다. 이 통합의 최종 주 청크는 511.20 kB이며 최신 심볼로 모든 캡처 19개를 다시 생성했다. 브랜드 변경 자체의 검증 기록은 아래 원래 절을 보존한다.
+- 머지 직전 PR #7(c03079d)과의 패키지/인계 충돌을 양쪽 기능 보존으로 해결했다. Node 24.22.2의 깨끗한 `npm ci` 이후 `npm test` 35 Vitest + 34 Node, `test:server` 26개(총 95개), `check:server`, `check:requirements` 251개, `build`, `git diff --check` 통과. Vite 출력 해시/주 청크 511.20 kB가 동일해 추가 UI 변경은 없었다.
 
 ## 2026-10-29 최초 심볼과 현 브랜드 조합
 

@@ -4,6 +4,8 @@
 >
 > 결정 근거: [ADR 003](adr/003-single-cluster-initial-release.md) · 장기 규모: [SCALING_PLAN.md](SCALING_PLAN.md) · 기존 요구사항: [ROADMAP.md](ROADMAP.md)
 
+후속 코드 상태: [서버 기반 서비스](SERVER_FOUNDATION.md)의 PostgreSQL 원자 발행·권한·사용량 저장을 로컬 시험 DB에서 검증했다. 이는 기본 UI/운영 DB·SSO 연결이나 K8s 배포가 아니며 아래 1차 실사용 필수 게이트는 아직 미완료다.
+
 ## 1. 범위와 배포 원칙
 
 - **클러스터:** 단일 Kubernetes 클러스터(기존 사내 공용 인프라 사용 가정).

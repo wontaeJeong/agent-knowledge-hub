@@ -56,6 +56,11 @@ import {
 import type { Action, Change, Page, Run, Scope, State } from "./domain/types";
 import { makeId } from "./domain/id";
 import roadmap from "./data/roadmap.json";
+const UsageDashboard = lazy(() =>
+  import("./features/UsageDashboard").then((m) => ({
+    default: m.UsageDashboard,
+  })),
+);
 const KnowledgeWorkbench = lazy(() =>
   import("./features/KnowledgeWorkbench").then((m) => ({
     default: m.KnowledgeWorkbench,
@@ -146,7 +151,8 @@ export default function App() {
     "source" | "share" | "versions" | "edit" | "help" | "reset" | null
   >(null);
   const [theme, setTheme] = useState(
-    () => readStoredValue("agent-knowledge-hub.theme", "folio.theme") || "light",
+    () =>
+      readStoredValue("agent-knowledge-hub.theme", "folio.theme") || "light",
   );
   const [running, setRunning] = useState<Run["kind"] | null>(null);
 
@@ -345,7 +351,9 @@ export default function App() {
                   ? "제품 로드맵"
                   : active === "settings"
                     ? "연동 · 설정"
-                    : page?.category || "위키";
+                    : active === "usage"
+                      ? "사용량 대시보드"
+                      : page?.category || "위키";
   function navItem(
     url: string,
     label: string,
@@ -468,6 +476,7 @@ export default function App() {
         </button>
         <div className="nav-label">WORKSPACE</div>
         <nav>
+          {navItem("/usage", "사용량 대시보드", <LayoutGrid size={17} />)}
           {navItem("/", "지식 공간", <BrandIcon name="hub" size={17} />)}
           {navItem(
             "/sources",
@@ -584,6 +593,13 @@ export default function App() {
           </div>
         </header>
         <main id="main-content">
+          {active === "usage" && (
+            <Suspense
+              fallback={<p role="status">사용량 화면을 불러오는 중입니다…</p>}
+            >
+              <UsageDashboard />
+            </Suspense>
+          )}
           {active === "home" && (
             <div className="home page-wrap">
               <div className="eyebrow">
@@ -1522,6 +1538,7 @@ export default function App() {
             "manager",
             "compile",
             "activity",
+            "usage",
             "roadmap",
             "settings",
             "shared",
