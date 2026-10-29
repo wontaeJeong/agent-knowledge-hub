@@ -1,6 +1,6 @@
 # agent-knowledge-hub 브랜드 에셋
 
-브랜드 표기는 **agent-knowledge-hub**다. Linked K 심볼은 자료와 실행 결과가 하나의 지식 분기점에서 연결되는 모습을 담았다. Gate와의 경험 일관성을 위해 Graphite & Plum 색상을 사용한다.
+브랜드 표기는 **agent-knowledge-hub**다. 심볼은 최초 Folio Wiki에서 사용한 **육각형 안의 펼친 책**을 그대로 사용한다. 사용자가 이 기존 심볼을 선택했으며, 원본의 두 path·선 두께·비율·plum 색상과 단색·타일 변형을 보존한다. 워드마크와 배너의 제품 이름은 agent-knowledge-hub으로 유지한다. Gate와의 경험 일관성을 위해 Graphite & Plum 색상을 사용한다.
 
 | 파일 | 용도 |
 | --- | --- |
