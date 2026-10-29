@@ -15,6 +15,12 @@
 - MCP는 병합안을 준비할 수 있지만 병합 확정과 공유 승인/발행은 CLI로 분리했다. CLI 플래그 자체가 사람이 실제 검토했다는 보안 증거는 아니며 호스트의 shell 권한 정책도 필요하다.
 - 첫 공유 제안은 **한 페이지 단위**다. 기존 지식 엔진의 여러 페이지 원자 발행과 결합한 것으로 표시하지 않는다. 운영 연결 전 의존 변경 집합으로 확장해야 한다.
 
+## LLM Wiki North Star와의 통합 위치
+
+이 커넥터의 **개인 저장·동기화·공유 제안**은 지식의 원본 편입이나 Ingest → Query → Lint가 아니다. `wiki_write`는 개인 작업본만 수정하고 `wiki_propose_change`는 한 페이지의 선택 revision을 제안한다. 기존 웹 데모의 복수 페이지 지식 컴파일/검증/발행 경로와 **서로 다른 정본**인 현재 상태를 유지하고 있으며, 완료된 통합으로 표시하지 않는다.
+
+향후 공통 서버 서비스에서 원본·권한·근거 계보·의존 변경 집합을 검증하면서 개인 작업본을 활용하는 방안은 [지식 누적 통합 계획](KNOWLEDGE_INTEGRATION.md)과 [ADR 004 제안](adr/004-unified-knowledge-service.md)을 참고한다. ADR은 아직 채택되지 않았고, KI-01~08은 미실행 수용 설계다.
+
 [설계](superpowers/specs/2026-10-29-local-personal-wiki-design.md) · [구현 계획](superpowers/plans/2026-10-29-local-personal-wiki.md)
 
 ## 합성 원격 서비스 실행
