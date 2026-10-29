@@ -1,0 +1,13 @@
+import { execFileSync } from 'node:child_process';
+const directory=process.argv[2];
+if (!directory) { console.error('Usage: node scripts/k8s/validate-production.mjs SITE_OVERLAY'); process.exit(1); }
+try {
+  const rendered=execFileSync('kubectl',['kustomize',directory],{encoding:'utf8'});
+  const failures=[];
+  if (/CHANGE-ME|\.invalid|knowledge-hub:dev|start-dev|local-test-only/.test(rendered)) failures.push('환경별 도메인·IdP·이미지 등 미설정/개발 설정');
+  if (!/image: .*@sha256:[0-9a-f]{64}/.test(rendered)) failures.push('불변 이미지 digest 미설정');
+  if (!/kind: NetworkPolicy/.test(rendered) || !/tls:/.test(rendered)) failures.push('네트워크 정책/TLS 없음');
+  if (/kind: Secret\b/.test(rendered)) failures.push('배포 manifest에 평문 Secret 포함');
+  if (failures.length) { for(const reason of failures) console.error(`배포 차단: ${reason}`); process.exitCode=1; }
+  else console.log('정적 구성 검사 통과. 실제 SSO/TLS/CNI/복원/운영 인수는 별도 실행해야 합니다.');
+} catch {console.error('운영 overlay 렌더링 실패');process.exitCode=1;}
