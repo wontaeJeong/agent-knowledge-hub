@@ -49,20 +49,17 @@ const rect = (x, y, w, h, fill, radius = 0, extra = "") =>
   `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${radius}" fill="${fill}" ${extra}/>`;
 const text = (value, x, y, size, fill, extra = "") =>
   `<text x="${x}" y="${y}" font-family="DejaVu Sans,Arial,sans-serif" font-size="${size}" fill="${fill}" ${extra}>${value}</text>`;
-// Linked K: source and output tiles meet at the central knowledge junction.
-function symbol(primary, secondary = primary) {
-  return `<g fill="none" stroke-linecap="round" stroke-linejoin="round"><path class="primary-stroke" d="M32 24v80M32 64h26" stroke="${primary}" stroke-width="14"/><path class="secondary-stroke" d="m58 64 36-40M58 64l36 40" stroke="${secondary}" stroke-width="14"/></g><g class="primary-fill" fill="${primary}">${rect(20, 12, 24, 24, "inherit", 7)}${rect(46, 52, 24, 24, "inherit", 7)}</g><g class="secondary-fill" fill="${secondary}">${rect(82, 12, 24, 24, "inherit", 7)}${rect(82, 92, 24, 24, "inherit", 7)}</g>`;
+// Original Folio Wiki symbol, retained unchanged by the user's brand decision.
+// The two path definitions, stroke widths and joins match the original source.
+function originalSymbol(primary, secondary = primary) {
+  return `<path class="primary-stroke" d="M50 15 87 28v49L50 91 13 77V28z" fill="none" stroke="${primary}" stroke-width="8" stroke-linejoin="round"/><path class="secondary-stroke" d="M50 37v40M27 36l14 5v24l-14-5M73 36l-14 5v24l14-5" fill="none" stroke="${secondary}" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>`;
 }
+const symbol = (primary, secondary = primary) =>
+  `<g transform="scale(1.28)">${originalSymbol(primary, secondary)}</g>`;
 const placeSymbol = (x, y, size, p, s) =>
   `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 128 128">${symbol(p, s)}</svg>`;
 const mark = (p, s, bg) =>
-  svg(
-    512,
-    512,
-    (bg ? rect(0, 0, 512, 512, bg, 112) : "") +
-      `<g transform="translate(40 40) scale(3.375)">${symbol(p, s)}</g>`,
-    "linked K symbol",
-  );
+  `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100" role="img" aria-label="${BRAND} hexagon book symbol"><title>${BRAND}</title>${bg ? rect(0, 0, 100, 100, bg, 22) : ""}${originalSymbol(p, s)}</svg>`;
 function wordPaths(x, baseline, size, color) {
   const scale = size / glyphs.unitsPerEm;
   let cursor = 0;
@@ -87,36 +84,22 @@ async function pair(name, source) {
 for (const [name, p, s, bg] of [
   ["light", palette.light.accent, palette.light.strong],
   ["dark", palette.dark.accent, palette.dark.strong],
-  ["mono-black", "#222636", "#222636"],
+  ["mono-black", "#222222", "#222222"],
   ["mono-white", "#ffffff", "#ffffff"],
-  [
-    "tile-light",
-    palette.light.accent,
-    palette.light.strong,
-    palette.light.soft,
-  ],
-  ["tile-dark", palette.dark.accent, palette.dark.strong, palette.dark.surface],
+  ["tile-light", palette.light.accent, palette.light.strong, "#f3edf8"],
+  ["tile-dark", palette.dark.accent, palette.dark.strong, "#211e26"],
 ])
   await pair(`mark-${name}`, mark(p, s, bg));
 
 const favicon = svg(
   128,
   128,
-  `<style>@media(prefers-color-scheme:dark){.primary-stroke{stroke:#d4a1eb}.secondary-stroke{stroke:#eac7f6}.primary-fill{fill:#d4a1eb}.secondary-fill{fill:#eac7f6}}</style>${symbol(palette.light.accent, palette.light.strong)}`,
+  `<style>@media(prefers-color-scheme:dark){.primary-stroke{stroke:#d4a1eb}.secondary-stroke{stroke:#eac7f6}}</style>${symbol(palette.light.accent, palette.light.strong)}`,
   "adaptive favicon",
 );
 await fs.writeFile(path.join(root, "favicon.svg"), favicon + "\n");
 for (const size of [16, 24, 32, 48, 64, 128, 180, 192, 256, 512]) {
-  await sharp(
-    Buffer.from(
-      svg(
-        128,
-        128,
-        symbol(palette.light.accent, palette.light.strong),
-        "favicon",
-      ),
-    ),
-  )
+  await sharp(Buffer.from(mark(palette.light.accent, palette.light.strong)))
     .resize(size)
     .png()
     .toFile(path.join(root, `favicon-${size}.png`));
@@ -386,7 +369,7 @@ await fs.writeFile(
   path.join(root, "README.md"),
   `# ${BRAND} 브랜드 에셋
 
-브랜드 표기는 **agent-knowledge-hub**다. Linked K 심볼은 자료와 실행 결과가 하나의 지식 분기점에서 연결되는 모습을 담았다. Gate와의 경험 일관성을 위해 Graphite & Plum 색상을 사용한다.
+브랜드 표기는 **agent-knowledge-hub**다. 심볼은 최초 Folio Wiki에서 사용한 **육각형 안의 펼친 책**을 그대로 사용한다. 사용자가 이 기존 심볼을 선택했으며, 원본의 두 path·선 두께·비율·plum 색상과 단색·타일 변형을 보존한다. 워드마크와 배너의 제품 이름은 agent-knowledge-hub으로 유지한다. Gate와의 경험 일관성을 위해 Graphite & Plum 색상을 사용한다.
 
 | 파일 | 용도 |
 | --- | --- |
@@ -452,8 +435,8 @@ await fs.writeFile(
   JSON.stringify(
     {
       brand: BRAND,
-      identity_version: "1.0.0",
-      symbol: "Linked K",
+      identity_version: "1.1.0",
+      symbol: "Hexagon Book (original Folio Wiki symbol)",
       icon_count: Object.keys(icons).length,
       palette,
       files,
