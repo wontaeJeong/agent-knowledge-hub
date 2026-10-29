@@ -43,8 +43,9 @@ export const digest = (value: unknown) =>
 const batchHash = ({
   status: _s,
   approvedFingerprint: _f,
+  requestAuthorizationPending: _pending,
   ...content
-}: Batch) => digest(content);
+}: Batch & { requestAuthorizationPending?: boolean }) => digest(content);
 type RuntimeBatch = Batch & {
   contextDependencyIds?: string[];
   inputEnvelope?: InputEnvelope;
@@ -164,6 +165,7 @@ export async function propose(
     dependencyIds?: string[];
     answerId?: string;
     inputEnvelope?: InputEnvelope;
+    requestAuthorizationPending?: boolean;
   },
 ) {
   return transaction(
@@ -171,6 +173,7 @@ export async function propose(
     ctx.workspaceId,
     async (db) => {
       if ((await membership(db, ctx)) === "reader") throw Error("FORBIDDEN");
+      await ctx.authorization?.assertSession(db);
       await permissions(db, ctx, updates, sourceIds, options?.dependencyIds);
       if (options?.inputEnvelope)
         await assertEnvelope(
@@ -210,6 +213,8 @@ export async function propose(
           (batch as RuntimeBatch).contextDependencyIds = options.dependencyIds;
         if (options?.inputEnvelope)
           (batch as RuntimeBatch).inputEnvelope = options.inputEnvelope;
+        if (options?.requestAuthorizationPending)
+          Object.assign(batch, { requestAuthorizationPending: true });
         enqueueBatch(state, batch);
       } catch {
         throw Error("VALIDATION_FAILED");
@@ -241,6 +246,11 @@ async function checkedBatch(
   );
   if (!r.rowCount) throw Error("NOT_FOUND");
   const batch = r.rows[0].data as Batch;
+  if (
+    (batch as Batch & { requestAuthorizationPending?: boolean })
+      .requestAuthorizationPending
+  )
+    throw Error("NOT_FOUND");
   if (batch.status !== "published" && (batch as RuntimeBatch).inputEnvelope)
     await assertEnvelope(
       db,

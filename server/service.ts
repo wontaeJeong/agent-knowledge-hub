@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import type { Source } from "../src/domain/types";
 import type { Draft } from "../src/domain/wiki";
 import { transaction } from "./database";
@@ -15,6 +15,11 @@ import * as publication from "./publication";
 export interface Context {
   workspaceId: string;
   principalId: string;
+  /** Server-created request capability; never accepted from a client DTO. */
+  authorization?: {
+    revalidate: () => Promise<void>;
+    assertSession: (db: PoolClient) => Promise<void>;
+  };
 }
 export class KnowledgeService {
   constructor(readonly pool: Pool) {}

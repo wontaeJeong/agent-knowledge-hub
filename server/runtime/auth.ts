@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import * as oidc from "openid-client";
 import type { Role } from "../../src/domain/types";
 import type { Context } from "../service";
@@ -16,6 +16,38 @@ export const cookie = (req: IncomingMessage, name: string) =>
     ?.slice(name.length + 1);
 export type Session = Context & { role: Role; csrfToken: string };
 export class OidcAuth {
+  requestGuard(req: IncomingMessage, expected: Session) {
+    const raw = cookie(req, "akh_session");
+    const check = async (db: Pick<PoolClient, "query">) => {
+      if (!raw) throw Error("UNAUTHENTICATED");
+      const result = await db.query(
+        `SELECT s.id FROM runtime_sessions s JOIN memberships m ON m.workspace_id=s.workspace_id AND m.principal_id=s.principal_id WHERE s.id=$1 AND s.workspace_id=$2 AND s.principal_id=$3 AND s.csrf=$4 AND s.expires_at>clock_timestamp() AND m.role=$5 FOR SHARE OF s,m`,
+        [
+          sessionHash(raw),
+          expected.workspaceId,
+          expected.principalId,
+          expected.csrfToken,
+          expected.role,
+        ],
+      );
+      if (!result.rowCount) throw Error("UNAUTHENTICATED");
+    };
+    return {
+      assertSession: (db: PoolClient) => check(db),
+      revalidate: async () => {
+        const fresh = await this.authenticate(req);
+        if (
+          !fresh ||
+          fresh.workspaceId !== expected.workspaceId ||
+          fresh.principalId !== expected.principalId ||
+          fresh.role !== expected.role ||
+          fresh.csrfToken !== expected.csrfToken
+        )
+          throw Error("UNAUTHENTICATED");
+        await check(this.pool);
+      },
+    };
+  }
   constructor(
     readonly pool: Pool,
     readonly config: oidc.Configuration,

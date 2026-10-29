@@ -108,6 +108,7 @@ export class RuntimeService {
       return result.rows
         .filter(
           (r) =>
+            !r.data.requestAuthorizationPending &&
             (r.data as Batch).snapshots.every((s) => ids.has(s.id)) &&
             (
               (r.data as Batch & { contextDependencyIds?: string[] })
@@ -249,12 +250,24 @@ export class RuntimeService {
           sourceIds,
         );
       }
-      return propose(this.pool, ctx, drafts.parse(updates), sourceIds, {
-        expectedStateHash: fingerprint,
-        mode,
-        dependencyIds,
-        inputEnvelope,
-      });
+      if (mode === "model") await ctx.authorization?.revalidate();
+      const result = await propose(
+        this.pool,
+        ctx,
+        drafts.parse(updates),
+        sourceIds,
+        {
+          expectedStateHash: fingerprint,
+          mode,
+          dependencyIds,
+          inputEnvelope,
+          requestAuthorizationPending:
+            mode === "model" && Boolean(ctx.authorization),
+        },
+      );
+      if (mode === "model" && ctx.authorization)
+        await this.releaseAuthorizedResult(ctx, "batch", result.id);
+      return result;
     });
   }
   async query(ctx: Context, question: string, mode: Mode) {
@@ -298,7 +311,9 @@ export class RuntimeService {
           at: new Date().toISOString(),
         };
       } else answer = answerOffline(state, question);
+      if (mode === "model") await ctx.authorization?.revalidate();
       await transaction(this.pool, ctx.workspaceId, async (db) => {
+        if (mode === "model") await ctx.authorization?.assertSession(db);
         const fresh = (await this.view(db, ctx)).state;
         await assertEnvelope(db, ctx, fresh, envelope);
         for (const citation of answer.citations) {
@@ -315,10 +330,18 @@ export class RuntimeService {
           ctx.workspaceId,
           answer.id,
           ctx.principalId,
-          { ...answer, inputEnvelope: envelope },
+          {
+            ...answer,
+            inputEnvelope: envelope,
+            ...(mode === "model" && ctx.authorization
+              ? { requestAuthorizationPending: true }
+              : {}),
+          },
         ]);
         await audit(db, ctx, "query", answer.id);
       });
+      if (mode === "model" && ctx.authorization)
+        await this.releaseAuthorizedResult(ctx, "answer", answer.id);
       return answer;
     });
   }
@@ -329,6 +352,7 @@ export class RuntimeService {
       [ctx.workspaceId, id, ctx.principalId],
     );
     if (!row.rowCount) throw Error("NOT_FOUND");
+    if (row.rows[0].data.requestAuthorizationPending) throw Error("NOT_FOUND");
     const answer = row.rows[0].data as Answer & {
       inputEnvelope?: InputEnvelope;
     };
@@ -427,6 +451,7 @@ export class RuntimeService {
     );
     const ids = [];
     for (const row of r.rows) {
+      if (row.data.requestAuthorizationPending) continue;
       let ok = true;
       for (const s of row.data.snapshots)
         if (
@@ -438,5 +463,45 @@ export class RuntimeService {
       if (ok) ids.push(row.id);
     }
     return ids;
+  }
+  /** Results stay invisible/unapprovable until a final live IdP + originating-session check succeeds. */
+  private async releaseAuthorizedResult(
+    ctx: Context,
+    kind: "batch" | "answer",
+    id: string,
+  ) {
+    const table = kind === "batch" ? "batches" : "runtime_answers";
+    try {
+      await ctx.authorization!.revalidate(); // Network I/O is outside every DB transaction.
+      await transaction(this.pool, ctx.workspaceId, async (db) => {
+        await ctx.authorization!.assertSession(db);
+        const row = await db.query(
+          `SELECT data FROM ${table} WHERE workspace_id=$1 AND id=$2`,
+          [ctx.workspaceId, id],
+        );
+        if (!row.rowCount || !row.rows[0].data.requestAuthorizationPending)
+          throw Error("NOT_FOUND");
+        const envelope = row.rows[0].data.inputEnvelope as InputEnvelope;
+        await assertEnvelope(
+          db,
+          ctx,
+          await loadState(db, ctx.workspaceId),
+          envelope,
+        );
+        await db.query(
+          `UPDATE ${table} SET data=data-'requestAuthorizationPending' WHERE workspace_id=$1 AND id=$2`,
+          [ctx.workspaceId, id],
+        );
+      });
+    } catch (error) {
+      // A failed final check discards the private staged result, never a published/approved object.
+      await transaction(this.pool, ctx.workspaceId, (db) =>
+        db.query(
+          `DELETE FROM ${table} WHERE workspace_id=$1 AND id=$2 AND data->>'requestAuthorizationPending'='true'`,
+          [ctx.workspaceId, id],
+        ),
+      );
+      throw error;
+    }
   }
 }

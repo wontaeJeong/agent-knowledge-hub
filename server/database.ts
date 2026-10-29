@@ -2,6 +2,39 @@ import type { Pool, PoolClient } from "pg";
 import { readFile, readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 
+/** Read-only compatibility gate: the web process must never apply migrations. */
+export async function assertSchemaCurrent(pool: Pool): Promise<void> {
+  try {
+    const directory = new URL("./migrations/", import.meta.url);
+    const expected = await Promise.all(
+      (await readdir(directory))
+        .filter((n) => /^\d+-.*\.sql$/.test(n))
+        .sort()
+        .map(async (name) => ({
+          version: Number(name.split("-")[0]),
+          hash: createHash("sha256")
+            .update(await readFile(new URL(name, directory), "utf8"))
+            .digest("hex"),
+        })),
+    );
+    const actual = await pool.query(
+      "SELECT version,hash FROM schema_migrations",
+    );
+    if (
+      actual.rows.length !== expected.length ||
+      expected.some(
+        (item) =>
+          !actual.rows.some(
+            (row) => row.version === item.version && row.hash === item.hash,
+          ),
+      )
+    )
+      throw Error("SCHEMA_NOT_CURRENT");
+  } catch {
+    throw Error("SCHEMA_NOT_CURRENT");
+  }
+}
+
 export async function migrate(pool: Pool): Promise<void> {
   const db = await pool.connect();
   try {

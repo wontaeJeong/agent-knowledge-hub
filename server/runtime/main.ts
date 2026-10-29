@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { Pool } from "pg";
-import { migrate } from "../database";
+import { migrate, assertSchemaCurrent } from "../database";
 import { OidcAuth } from "./auth";
 import { RuntimeService } from "./knowledge";
 import { createRuntimeHandler } from "./http";
@@ -15,10 +15,13 @@ if (process.argv.includes("--migrate")) {
   await migrate(pool);
   await pool.end();
 } else {
+  await assertSchemaCurrent(pool);
   const auth = await OidcAuth.create(pool);
   // Accepted in-flight jobs are visible after restart as interrupted, never silently successful.
   await pool.query(
-    "UPDATE runtime_jobs SET status='failed',error_code='PROCESS_INTERRUPTED',finished_at=now() WHERE status='running'",
+    `UPDATE runtime_jobs SET status='failed',error_code='PROCESS_INTERRUPTED',finished_at=now() WHERE status='running';
+     DELETE FROM batches WHERE data->>'requestAuthorizationPending'='true';
+     DELETE FROM runtime_answers WHERE data->>'requestAuthorizationPending'='true';`,
   );
   const service = new RuntimeService(pool);
   const server = createServer(

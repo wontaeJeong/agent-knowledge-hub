@@ -16,6 +16,7 @@ import {
 import { modelConfig } from "./model";
 import { usageSummary } from "../usage";
 import { handleMcp } from "./mcp";
+import { assertSchemaCurrent } from "../database";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
@@ -43,7 +44,7 @@ export function createRuntimeHandler(options: {
       if (path === "/healthz" && req.method === "GET")
         return send(200, { ok: true });
       if (path === "/readyz" && req.method === "GET") {
-        await options.pool.query("SELECT 1 FROM runtime_jobs LIMIT 1");
+        await assertSchemaCurrent(options.pool);
         return send(200, { ok: true });
       }
       if (path === "/auth/login" && req.method === "GET" && options.auth)
@@ -87,6 +88,7 @@ export function createRuntimeHandler(options: {
         path !== "/mcp"
       )
         return send(404, { code: "NOT_FOUND" });
+      await assertSchemaCurrent(options.pool);
       const session = await (options.auth?.authenticate(req) ??
         Promise.resolve(null));
       if (!session) return send(401, { code: "UNAUTHENTICATED", requestId });
@@ -95,6 +97,7 @@ export function createRuntimeHandler(options: {
       const ctx = {
         workspaceId: session.workspaceId,
         principalId: session.principalId,
+        authorization: options.auth!.requestGuard(req, session),
       };
       let body: unknown;
       if (
