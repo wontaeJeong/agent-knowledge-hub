@@ -89,6 +89,27 @@ export class KnowledgeService {
           await requireRead(db, ctx, "source", sourceId);
         for (const sourceId of v.rows[0].data.sourceIds)
           await requireRead(db, ctx, "source", sourceId);
+        const visited = new Set<string>([id]);
+        const pending: string[] = [...(p.rows[0].data.links ?? [])];
+        while (pending.length) {
+          const link = pending.pop()!;
+          if (visited.has(link)) continue;
+          visited.add(link);
+          const target = await db.query(
+            "SELECT data FROM pages WHERE workspace_id=$1 AND id=$2",
+            [ctx.workspaceId, link],
+          );
+          if (!target.rowCount) continue;
+          await requireRead(db, ctx, "page", link);
+          const latestTarget = await db.query(
+            "SELECT data FROM versions WHERE workspace_id=$1 AND page_id=$2 ORDER BY number DESC LIMIT 1",
+            [ctx.workspaceId, link],
+          );
+          if (!latestTarget.rowCount) throw Error("NOT_FOUND");
+          for (const sourceId of latestTarget.rows[0].data.sourceIds)
+            await requireRead(db, ctx, "source", sourceId);
+          pending.push(...(target.rows[0].data.links ?? []));
+        }
         return {
           id,
           title: p.rows[0].data.title as string,

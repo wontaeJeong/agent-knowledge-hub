@@ -7,6 +7,7 @@ import {
   decideBatch,
   enqueueBatch,
   memory,
+  current,
 } from "../src/domain/wiki";
 import { transaction } from "./database";
 import {
@@ -37,12 +38,14 @@ const batchHash = ({
   approvedFingerprint: _f,
   ...content
 }: Batch) => digest(content);
+type RuntimeBatch = Batch & { contextDependencyIds?: string[] };
 
 async function permissions(
   db: PoolClient,
   ctx: Context,
   updates: Draft[],
   sourceIds: string[],
+  dependencyIds: string[] = [],
 ) {
   const acl: Record<string, unknown> = {};
   const audienceOf = async (kind: string, id: string) => {
@@ -100,6 +103,25 @@ async function permissions(
         throw Error("SOURCE_SCOPE_CONFLICT");
     }
   }
+  for (const id of dependencyIds) {
+    const dependencyAudience = await audienceOf("page", id);
+    if (!dependencyAudience.includes(ctx.principalId)) throw Error("NOT_FOUND");
+    const r = await db.query(
+      "SELECT data,number FROM versions WHERE workspace_id=$1 AND page_id=$2 ORDER BY number DESC LIMIT 1",
+      [ctx.workspaceId, id],
+    );
+    if (!r.rowCount) throw Error("NOT_FOUND");
+    acl[`dependency:${id}`] = r.rows[0].number;
+    let effective = dependencyAudience;
+    for (const sourceId of r.rows[0].data.sourceIds) {
+      const a = await audienceOf("source", sourceId);
+      effective = effective.filter((p) => a.includes(p));
+    }
+    if (!effective.includes(ctx.principalId)) throw Error("NOT_FOUND");
+    for (const audience of audiences.values())
+      if (audience.some((p) => !effective.includes(p)))
+        throw Error("SOURCE_SCOPE_CONFLICT");
+  }
   return { audiences, hash: digest(acl) };
 }
 
@@ -108,17 +130,48 @@ export async function propose(
   ctx: Context,
   updates: Draft[],
   sourceIds: string[],
+  options?: {
+    expectedStateHash?: string;
+    mode?: "offline" | "model";
+    dependencyIds?: string[];
+    answerId?: string;
+  },
 ) {
   return transaction(
     pool,
     ctx.workspaceId,
     async (db) => {
       if ((await membership(db, ctx)) === "reader") throw Error("FORBIDDEN");
-      await permissions(db, ctx, updates, sourceIds);
+      await permissions(db, ctx, updates, sourceIds, options?.dependencyIds);
       const state = await loadState(db, ctx.workspaceId);
+      if (
+        options?.expectedStateHash &&
+        digest(state) !== options.expectedStateHash
+      )
+        throw Error("STALE_VERSION");
       let batch: Batch;
       try {
-        batch = createBatch(state, updates, sourceIds, "offline");
+        batch = createBatch(
+          state,
+          updates,
+          sourceIds,
+          options?.mode ?? "offline",
+        );
+        for (const id of options?.dependencyIds ?? []) {
+          const p = state.pages.find((p) => p.id === id);
+          if (!p) throw Error("NOT_FOUND");
+          batch.baseSnapshots[id] = JSON.stringify([
+            p.title,
+            p.summary,
+            p.scope,
+            p.links,
+            p.facts,
+            current(p),
+          ]);
+        }
+        if (options?.answerId) batch.answerId = options.answerId;
+        if (options?.dependencyIds)
+          (batch as RuntimeBatch).contextDependencyIds = options.dependencyIds;
         enqueueBatch(state, batch);
       } catch {
         throw Error("VALIDATION_FAILED");
@@ -155,6 +208,7 @@ async function checkedBatch(
     ctx,
     batch.updates,
     batch.snapshots.map((s) => s.id),
+    (batch as RuntimeBatch).contextDependencyIds,
   );
   if (hash !== r.rows[0].hash || hash !== batchHash(batch))
     throw Error("APPROVAL_STALE");
@@ -187,6 +241,7 @@ export async function approve(
         ctx,
         batch.updates,
         batch.snapshots.map((s) => s.id),
+        (batch as RuntimeBatch).contextDependencyIds,
       );
       await db.query(
         "UPDATE batches SET data=$3 WHERE workspace_id=$1 AND id=$2",
@@ -243,6 +298,7 @@ export async function publish(
           ctx,
           batch.updates,
           batch.snapshots.map((s) => s.id),
+          (batch as RuntimeBatch).contextDependencyIds,
         );
         if (permissionSnapshot.hash !== approval.rows[0].acl_hash)
           throw Error("APPROVAL_STALE");
