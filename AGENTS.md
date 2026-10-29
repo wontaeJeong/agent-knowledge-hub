@@ -33,7 +33,7 @@
 
 ## 먼저 읽을 파일
 
-README.md, docs/ARCHITECTURE.md, docs/UI_INTEGRATION.md, docs/ROADMAP.md, docs/SECURITY.md와 작업 대상 요구사항을 읽는다. 기준 요구사항은 docs/requirements/requirements.json, 핵심 순환 추가 기준은 docs/requirements/core-requirements.json이며 앱 로드맵 데이터는 src/data/roadmap.json이다. 기존 리뷰 근거는 docs/requirements/review.md와 source-audit.json에 있다.
+README.md, docs/ARCHITECTURE.md, docs/UI_INTEGRATION.md, docs/ROADMAP.md, docs/SECURITY.md와 작업 대상 요구사항을 읽는다. K8s 배포·서버 영속화·운영 설계 변경 시 docs/K8S_RELEASE.md, docs/SCALING_PLAN.md와 docs/adr/003-single-cluster-initial-release.md도 따른다. 기준 요구사항은 docs/requirements/requirements.json, 핵심 순환 추가 기준은 docs/requirements/core-requirements.json이며 앱 로드맵 데이터는 src/data/roadmap.json이다. 기존 리뷰 근거는 docs/requirements/review.md와 source-audit.json에 있다.
 
 ## 사내 레포로 이식할 때
 
