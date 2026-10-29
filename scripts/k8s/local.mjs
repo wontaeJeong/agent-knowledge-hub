@@ -80,6 +80,8 @@ try {
       }
       if (parsed.AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION === "true")
         env.AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION = "true";
+      if (parsed.AGENT_KNOWLEDGE_HUB_LLM_THINKING)
+        env.AGENT_KNOWLEDGE_HUB_LLM_THINKING = parsed.AGENT_KNOWLEDGE_HUB_LLM_THINKING;
       if (
         !env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL ||
         !env.AGENT_KNOWLEDGE_HUB_LLM_MODEL
@@ -100,6 +102,12 @@ try {
     }
     if (process.argv.includes("--allow-model-transmission"))
       env.AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION = "true";
+    const thinkingArg = process.argv.indexOf("--model-thinking");
+    if (thinkingArg >= 0) {
+      const thinking = process.argv[thinkingArg + 1];
+      if (!["enabled", "disabled"].includes(thinking)) throw Error("MODEL_THINKING_INVALID");
+      env.AGENT_KNOWLEDGE_HUB_LLM_THINKING = thinking;
+    }
     apply({
       apiVersion: "v1",
       kind: "Secret",

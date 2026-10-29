@@ -259,6 +259,8 @@ export function createRuntimeHandler(options: {
         SOURCE_SCOPE_CONFLICT: 409,
         MODEL_NOT_CONFIGURED: 503,
         MODEL_FAILED: 502,
+        MODEL_OUTPUT_LIMIT: 502,
+        MODEL_CONFIGURATION: 503,
         MODEL_CONTEXT_LIMIT: 413,
         JOB_CAPACITY: 429,
       };

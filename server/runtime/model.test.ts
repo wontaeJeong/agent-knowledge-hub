@@ -4,6 +4,7 @@ import { callModel, modelConfig } from "./model";
 let server: Server, url: string;
 let payload: Record<string, unknown>;
 let status = 200;
+let finishReason = "stop";
 const original = { ...process.env };
 beforeAll(async () => {
   server = createServer(async (req, res) => {
@@ -16,6 +17,7 @@ beforeAll(async () => {
         ? JSON.stringify({
             choices: [
               {
+                finish_reason: finishReason,
                 message: {
                   content: JSON.stringify({
                     content: "답변",
@@ -58,4 +60,25 @@ test("provider failure is generic and transmission defaults denied", async () =>
   delete process.env.AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION;
   expect(modelConfig().configured).toBe(false);
   await expect(callModel("query", {})).rejects.toThrow("MODEL_NOT_CONFIGURED");
+});
+test("thinking mode is an explicit optional provider setting, not an on-prem default", async () => {
+  status = 200;
+  process.env.AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION = "true";
+  process.env.AGENT_KNOWLEDGE_HUB_LLM_THINKING = "disabled";
+  await callModel("query", {});
+  expect(payload.thinking).toEqual({ type: "disabled" });
+  delete process.env.AGENT_KNOWLEDGE_HUB_LLM_THINKING;
+  await callModel("query", {});
+  expect(payload.thinking).toBeUndefined();
+});
+test("truncated provider output is never accepted even if its JSON parses", async () => {
+  status = 200;
+  finishReason = "length";
+  await expect(callModel("query", {})).rejects.toThrow("MODEL_OUTPUT_LIMIT");
+  finishReason = "stop";
+});
+test("invalid thinking configuration fails closed", async () => {
+  process.env.AGENT_KNOWLEDGE_HUB_LLM_THINKING = "unsupported";
+  await expect(callModel("query", {})).rejects.toThrow("MODEL_CONFIGURATION");
+  delete process.env.AGENT_KNOWLEDGE_HUB_LLM_THINKING;
 });

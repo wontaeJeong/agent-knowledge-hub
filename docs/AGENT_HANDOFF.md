@@ -17,7 +17,7 @@
 - 환경: 기본 Colima 2GiB에서 우리 노드의 OOM을 관찰했다. 기존 프로젝트는 중지하지 않고 실패한 우리 합성 cluster만 정리한 뒤 별도 4GiB profile `knowledge-hub-dev`를 생성했다. Docker 기본 context는 유지하고 `DOCKER_CONTEXT=colima-knowledge-hub-dev`로 분리한다. 앱/IdP는 28080/28081이다.
 - 남은 소프트웨어: 지속 작업 lease/재시도/무인 일정·취소/예산, 개인 커넥터 공통 서버 통합, 서비스 계정 MCP/업무 context/outcome, 초안·수동 편집·전체 복원·공유·첨부·댓글·알림·삭제/권한 변경 운영 UI, blob 저장/일관 백업/감사 외부 보호, 실제 토큰·비용 영속 계측, 모델 의미 품질/후속 에이전트 대조 평가. 현재 jobs는 영속 시도 기록이지 자동 재개 worker가 아니다.
 - 남은 운영 인수: 실제 사내 SSO/TLS/CNI/스토리지/독립 백업·삭제 정책/알림 수신자·책임자·혼합 부하와 품질/보안 기준. 정책·담당자 승인을 기술 구현으로 대체하지 않는다.
-- 추적: `node scripts/release-status.mjs /external/path/report.json`이 원래 251행을 보존하고 부분 근거/미검증을 출력한다. 4개 ID의 부분 근거만 현재 연결돼 있으며 전체 요구사항별 구현 계획/인수가 완성됐다는 뜻은 아니다.
+- 추적: [251개 항목별 미완료 작업표](requirements/operational-backlog.json)는 원래 ID/제목/우선순위/수용 기준을 그대로 보존하고, 항목별 구현 작업·실패/검증 사례·근거 심볼·소프트웨어 미구현/현장 검증/정책 차단을 구분한다. 모두 open이며 accepted는 0개다. `node scripts/release-status.mjs /external/path/report.json`의 간단 집계는 4개 ID 부분 근거만 연결한 별도 요약이며 작업표나 구현 완료 증거를 대체하지 않는다.
 
 ## 서버 기반 첫 단계의 기록 (위 후속 기록 우선)
 

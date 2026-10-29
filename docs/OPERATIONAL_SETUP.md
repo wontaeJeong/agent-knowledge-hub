@@ -35,10 +35,12 @@ node scripts/k8s/local.mjs logs
 기본 모델은 미연결이다. 서버 설정 파일에서 필요한 세 값만 읽어 Kubernetes Secret에 넣을 수 있다. 파일을 shell로 실행하거나 전체 환경을 복사하지 않는다.
 
 ```sh
-node scripts/k8s/local.mjs up --model-env /absolute/path/to/private.env --allow-model-transmission
+node scripts/k8s/local.mjs up --model-env /absolute/path/to/private.env --allow-model-transmission --model-thinking disabled
 ```
 
 인식하는 키는 `AGENT_KNOWLEDGE_HUB_LLM_BASE_URL`, `_MODEL`, `_API_KEY`이며 개발 설정의 `AGENT_OPT_MODEL_BASE_URL`, `AGENT_OPT_MODEL_ID`, `AGENT_OPT_MODEL_API_KEY`도 입력 어댑터로 읽는다. `--allow-model-transmission` 또는 명시적인 `AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION=true` 없이는 모델 전송을 허용하지 않는다. 외부 DeepSeek 시험에는 합성 자료만 사용한다. 사내 자료를 외부로 보낼 권한으로 해석하지 않는다. Secret·키·설정 파일은 Git/프런트/PR에 넣지 않는다.
+
+DeepSeek의 기본 thinking 모드는 추론도 `max_tokens` 예산을 소비한다. 실제 시험에서 6000토큰 중 5642토큰이 추론에 쓰여 `finish_reason=length`로 JSON이 잘렸다. 로컬 구조화 출력 시험은 `--model-thinking disabled`(서버 `AGENT_KNOWLEDGE_HUB_LLM_THINKING=disabled`)를 명시한다. `enabled`도 지원하지만 잘린 응답은 JSON이 파싱돼도 `MODEL_OUTPUT_LIMIT`로 거부한다. 이 설정은 기본값이 없으며 온프레미스/다른 OpenAI 호환 서버에는 설정하지 않으면 `thinking` 필드를 전송하지 않는다. 온프레미스로 전환할 때 공급자별 옵션도 함께 검토한다. thinking 비활성화가 의미 품질을 개선했다는 주장은 하지 않는다.
 
 설치 순서는 인프라 → DB 준비 → 단일 migration Job 성공 → 앱 적용/재시작 → rollout 확인이다. migration 실패 시 새 앱 rollout을 하지 않는다. 기존 버전이 실행 중인 업그레이드는 backward-compatible migration만 사용한다. DB 파괴적 변경/다운그레이드는 별도 검토한다.
 
@@ -87,5 +89,7 @@ node scripts/k8s/verify-restore.mjs /external/private-backups/knowledge-TIMESTAM
 현재 도구는 **DB 백업/로컬 복원 검증**이다. 외부 blob과 일관된 manifest·독립 스토리지 자동 보관·스케줄/보관·삭제 tombstone 재적용·사내 복원 시간 측정까지 제공됐다고 주장하지 않는다. 같은 디스크의 파일/PVC만으로 운영 백업 완료가 아니다. 실제 운영 인수에서 이 미충족 조건을 해결해야 한다.
 
 ## 제한의 보고
+
+원래 251개 기준별 남은 구현 작업·검증 사례·외부/소프트웨어 차단은 [operational-backlog.json](requirements/operational-backlog.json)에 있다. 각 행의 수용 기준은 원문과 같으며 전체 상태는 open이다. 이 작업표의 존재도 구현·인수 완료가 아니다.
 
 실패/미실행/미수집을0 또는 성공으로 표시하지 않는다. 모델이 실제 호출됐다는 사실은 의미 품질/지식 누적 개선의 증거가 아니다. 기존251개 수용 기준은 유지하며 기능 구현·kind 시험·사내 운영 인수를 별도로 추적한다. 남은 조건이 있으면 민감 자료 운영을 승인하지 않는다.

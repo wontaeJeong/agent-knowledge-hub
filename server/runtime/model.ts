@@ -13,6 +13,9 @@ export const modelConfig = () => ({
 });
 export const callModel: ModelCall = async (operation, context) => {
   if (!modelConfig().configured) throw Error("MODEL_NOT_CONFIGURED");
+  const thinking = process.env.AGENT_KNOWLEDGE_HUB_LLM_THINKING;
+  if (thinking !== undefined && !["enabled", "disabled"].includes(thinking))
+    throw Error("MODEL_CONFIGURATION");
   const serialized = JSON.stringify(context);
   if (Buffer.byteLength(serialized) > 300000)
     throw Error("MODEL_CONTEXT_LIMIT");
@@ -51,6 +54,7 @@ export const callModel: ModelCall = async (operation, context) => {
         model: modelConfig().model,
         temperature: 0.2,
         max_tokens: 6000,
+        ...(thinking ? { thinking: { type: thinking } } : {}),
         response_format: { type: "json_object" },
         messages: [
           {
@@ -69,12 +73,17 @@ export const callModel: ModelCall = async (operation, context) => {
     const raw = await res.text();
     if (raw.length > 1000000) throw Error("MODEL_FAILED");
     const data = JSON.parse(raw);
+    if (data.choices?.[0]?.finish_reason === "length")
+      throw Error("MODEL_OUTPUT_LIMIT");
+    if (data.choices?.[0]?.finish_reason && data.choices[0].finish_reason !== "stop")
+      throw Error("MODEL_FAILED");
     return JSON.parse(
       data.choices[0].message.content
         .replace(/^\s*```(?:json)?\s*/, "")
         .replace(/\s*```\s*$/, ""),
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "MODEL_OUTPUT_LIMIT") throw error;
     throw Error("MODEL_FAILED");
   }
 };
