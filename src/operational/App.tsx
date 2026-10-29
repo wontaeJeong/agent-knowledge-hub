@@ -10,6 +10,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { ApiError, OperationalApi, pageItems, snapshotPath } from "./api";
 import type { Identity } from "./api";
+import type { UsageSummary } from "../domain/usage";
 import type { Source } from "../domain/types";
 import type { Answer, Draft, Issue } from "../domain/wiki";
 import { Button, Badge } from "../ui/primitives";
@@ -48,9 +49,9 @@ const labels: Record<Tab, string> = {
   jobs: "작업 상태",
   usage: "사용량",
 };
-const UsageDashboard = lazy(() =>
+const UsageReport = lazy(() =>
   import("../features/UsageDashboard").then((m) => ({
-    default: m.UsageDashboard,
+    default: m.UsageReport,
   })),
 );
 const safeMarkdown = (text: string) =>
@@ -130,6 +131,28 @@ export default function OperationalApp() {
   const [sourcePage, setSourcePage] = useState(0);
   const [changePage, setChangePage] = useState(0);
   const [jobPage, setJobPage] = useState(0);
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
+  const [usageDays, setUsageDays] = useState<7 | 30>(7);
+  const clearProtected = useCallback(() => {
+    setIdentity(null);
+    setPages([]);
+    setSources([]);
+    setChanges([]);
+    setMembers([]);
+    setJobs([]);
+    setAnswer(null);
+    setSnapshot(null);
+    setUsage(null);
+    setIssues(null);
+    setTitle("");
+    setContent("");
+    setQuestion("");
+    setSelectedReaders([]);
+    setSelectedSources([]);
+    setNotice(
+      "세션이 만료되어 보호된 화면과 작성 중인 입력을 비웠습니다. 다시 로그인하세요.",
+    );
+  }, []);
 
   const load = useCallback(async () => {
     const [p, s, c, m, j, config] = await Promise.all([
@@ -149,17 +172,24 @@ export default function OperationalApp() {
   }, [api]);
   useEffect(() => {
     let active = true;
+    let authenticated = false;
     api
       .me()
       .then(async (me) => {
         if (!active) return;
+        authenticated = true;
         setIdentity(me);
         setSelectedReaders([me.principalId]);
         await load();
       })
       .catch((e: unknown) => {
-        if (active && !(e instanceof ApiError && e.status === 401))
-          setError(e instanceof Error ? e.message : "서버 연결 실패");
+        if (!active) return;
+        if (e instanceof ApiError && e.status === 401) {
+          if (authenticated) {
+            clearProtected();
+            setError(e.message);
+          }
+        } else setError(e instanceof Error ? e.message : "서버 연결 실패");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -167,7 +197,7 @@ export default function OperationalApp() {
     return () => {
       active = false;
     };
-  }, [api, load]);
+  }, [api, load, clearProtected]);
   const perform = async (action: () => Promise<void>) => {
     setBusy(true);
     setError("");
@@ -177,29 +207,18 @@ export default function OperationalApp() {
       await load();
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        setIdentity(null);
-        setPages([]);
-        setSources([]);
-        setChanges([]);
-        setMembers([]);
-        setJobs([]);
-        setAnswer(null);
-        setSnapshot(null);
-        setIssues(null);
-        setTitle("");
-        setContent("");
-        setQuestion("");
-        setSelectedReaders([]);
-        setSelectedSources([]);
-        setNotice(
-          "세션이 만료되어 보호된 화면과 작성 중인 입력을 비웠습니다. 다시 로그인하세요.",
-        );
+        clearProtected();
       }
       setError(e instanceof Error ? e.message : "요청에 실패했습니다.");
     } finally {
       setBusy(false);
     }
   };
+  const refreshUsage = (days = usageDays) =>
+    perform(async () => {
+      setUsage(null);
+      setUsage(await api.get<UsageSummary>(`/usage?days=${days}`));
+    });
   const write = identity?.role !== "reader";
   const review = identity?.role === "reviewer";
   const [pageNumber, setPageNumber] = useState(0);
@@ -296,6 +315,7 @@ export default function OperationalApp() {
                   onClick={() => {
                     setTab(key);
                     setError("");
+                    if (key === "usage") void refreshUsage();
                   }}
                 >
                   {labels[key]}
@@ -882,9 +902,35 @@ export default function OperationalApp() {
             {tab === "usage" && (
               <section className="op-panel">
                 <h2>서버 사용량</h2>
-                <Suspense fallback={<p role="status">집계를 불러오는 중…</p>}>
-                  <UsageDashboard />
-                </Suspense>
+                <label>
+                  조회 기간
+                  <select
+                    value={usageDays}
+                    disabled={busy}
+                    onChange={(e) => {
+                      const days = Number(e.target.value) as 7 | 30;
+                      setUsageDays(days);
+                      void refreshUsage(days);
+                    }}
+                  >
+                    <option value={7}>최근 7일</option>
+                    <option value={30}>최근 30일</option>
+                  </select>
+                </label>
+                <Button disabled={busy} onClick={() => void refreshUsage()}>
+                  집계 새로고침
+                </Button>
+                {usage ? (
+                  <Suspense fallback={<p role="status">집계를 불러오는 중…</p>}>
+                    <UsageReport data={usage} />
+                  </Suspense>
+                ) : (
+                  <p role="status">
+                    {busy
+                      ? "서버 집계를 확인하고 있습니다…"
+                      : "서버에서 집계를 받지 못했습니다. 미연결을 0건으로 대체하지 않습니다."}
+                  </p>
+                )}
               </section>
             )}
           </>
