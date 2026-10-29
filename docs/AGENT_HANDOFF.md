@@ -8,7 +8,7 @@
 - 서버: OIDC+PKCE/state/nonce/JWKS, issuer+subject 신원, DB 세션/CSRF, 매 요청 UserInfo/현재 DB 권한, 원본/변경 집합/원자 발행/Query/답변/Lint/시도 기록, 쿠키 인증 REST/MCP를 연결했다. 실제 모델의 전체 입력 계보와 원본·페이지 ACL을 결과/재편입/발행/과거 버전에도 보존한다.
 - UI: 기본 진입은 서버 정본 UI, 기존 합성 데모는 `/?demo=1`로 분리한다. 한국어 원본/편입/검토/발행/질문/재편입/Lint/작업/사용량, 25건 목록과 고정 인용 버전을 제공한다. 역할 선택/localStorage를 운영 인증/정본으로 사용하지 않는다.
 - 배포: `Dockerfile.server`, Kustomize base/local/stg/prod, 로컬 Keycloak 고정 subject, 별도 DB/PVC, migration 성공 후 앱 배포, Secret 주입과 미설정/가변 이미지 운영 차단을 추가했다. 실제 회사 도메인·SSO·TLS·CNI·저장소는 추정하지 않는다. [설정/기동/제한](OPERATIONAL_SETUP.md).
-- 실행 검증: Node 24.22.2 `npm run check`의 클라이언트 40개+Node 48개, 251개 연결 검사, 서버 타입/빌드/HTTP smoke 통과. 전용 kind DB의 서버 80개 회귀와 배포/추적 10개 통과. 실제 Keycloak의 3역할·원본→다중 페이지 편입→승인·원자 발행/멱등 재시도→인용 질문→재편입 제안→Lint·ACL/CSRF 거부를 실행했다.
+- 실행 검증: Node 24.22.2 `npm run check`의 클라이언트 40개+Node 48개, 251개 연결 검사, 서버 타입/빌드/HTTP smoke 통과. 전용 kind DB의 서버 83개 회귀와 배포/추적 10개 통과. UTF-8 한글/이모지가 네트워크 청크 경계에서 손상되는 기존 읽기를 재현하고, 바이트 상한 확인 후 한 번만 디코딩하도록 수정했다. 실제 Keycloak의 3역할·원본→다중 페이지 편입→승인·원자 발행/멱등 재시도→인용 질문→재편입 제안→Lint·ACL/CSRF 거부를 실행했다.
 - 실제 모델: 최초 자연어 질문의 조사 토큰 검색 실패와 DeepSeek thinking의 출력6000/추론5642토큰 JSON 잘림을 재현하고 성공으로 치환하지 않았다. 검색·선택적 thinking 설정·잘림 거부 RED→GREEN 후 최종 이미지에서 `deepseek-flash` 편입·승인/발행12,233ms, 자연어 질문3,128ms/인용4개를 확인했다. thinking=disabled를 명시했고 온프레미스 기본 옵션으로 보내지 않는다. 의미 품질/업무 효과 평가는 아니다.
 - 제한된 읽기 측정: 최종 3개 합성 주체의 10개 인증 세션, 50/50 요청 성공, p95 158ms/전체516ms. 고유 사용자 10명의 혼합 부하·대용량·장기 안정성이나 사내 SLO 검증으로 확대하지 않는다. 이전 실행과 코드/입력/설정이 달라 성능 개선 비교로도 사용하지 않는다.
 - 백업: AES256-GCM+scrypt/체크섬의 DB 백업 161610bytes를 로컬 폐기용 DB로 복원했다. 페이지 237·버전 265·원본 221개, 복원 단계 307ms였다. 테스트 workspace를 포함한 합성 DB이며 blob 일관성·독립 보관·사내 RPO/RTO는 별도다.

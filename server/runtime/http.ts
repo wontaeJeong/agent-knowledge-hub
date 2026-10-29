@@ -16,6 +16,7 @@ import {
 import { modelConfig } from "./model";
 import { usageSummary } from "../usage";
 import { handleMcp } from "./mcp";
+import { readJsonBody } from "./body";
 import { assertSchemaCurrent } from "../database";
 
 export function createRuntimeHandler(options: {
@@ -112,17 +113,7 @@ export function createRuntimeHandler(options: {
           return send(403, { code: "CSRF_FAILED" });
         if (!req.headers["content-type"]?.startsWith("application/json"))
           return send(415, { code: "JSON_REQUIRED" });
-        let raw = "";
-        for await (const chunk of req) {
-          raw += chunk.toString();
-          if (Buffer.byteLength(raw) > 512000)
-            return send(413, { code: "INPUT_TOO_LARGE" });
-        }
-        try {
-          body = JSON.parse(raw || "{}");
-        } catch {
-          return send(400, { code: "VALIDATION_FAILED" });
-        }
+        body = await readJsonBody(req, 512000);
       }
       const service = options.service;
       if (path === "/mcp" && req.method === "POST")
@@ -252,6 +243,7 @@ export function createRuntimeHandler(options: {
         FORBIDDEN: 403,
         UNAUTHENTICATED: 401,
         VALIDATION_FAILED: 400,
+        INPUT_TOO_LARGE: 413,
         ALREADY_EXISTS: 409,
         STALE_VERSION: 409,
         APPROVAL_STALE: 409,

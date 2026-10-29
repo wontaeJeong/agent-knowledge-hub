@@ -3,7 +3,7 @@
 ## 2026-10-29 운영형 지식 순환·OIDC·kind 실행
 
 - Node24.22.2 `npm run check`: 클라이언트40개 + Node48개,251개 연결 검사,서버 타입,빌드,실제 정적HTTP smoke 통과.251개는 요구사항 보존/매핑 수이지 구현 완료 수가 아니다.
-- 전용 kind의 PostgreSQL에서 `npm run test:server`:최종9파일80개 통과(원본/발행/재시도/HTTP·MCP/실제 서명OIDC fixture/전체 입력 계보·철회·고정 버전, schema 버전/해시 기동 차단, 실행 중 로그아웃/만료/IdP 철회, 모델 잘림 거부 포함). 자격증명은 메모리에서만 공급했다.
+- 전용 kind의 PostgreSQL에서 `npm run test:server`:최종10파일83개 통과(원본/발행/재시도/HTTP·MCP/실제 서명OIDC fixture/전체 입력 계보·철회·고정 버전, schema 버전/해시 기동 차단, 실행 중 로그아웃/만료/IdP 철회, 모델 잘림 거부, UTF-8 청크 경계/본문 바이트 상한/잘못된JSON 포함). 자격증명은 메모리에서만 공급했다.
 - `node --test scripts/k8s/*.test.mjs scripts/release-status.test.mjs`:10개 통과.로컬/운영 렌더링,인증fixture,마이그레이션 선행 단계 분리,모든 실행 이미지digest,백업 암호화·변조/오키 거부,251행 보존을 검사한다.
 - 전용 Colima4GiB의 실제 kind1.34에서 DB/Keycloak 준비 → migration005 Job 성공 → 앱 이미지 rollout 완료를 확인했다. 기본2GiB VM에서 우리 노드의 OOM이 발생한 초기 실패는 성공으로 세지 않았으며 기존 프로젝트를 중지하지 않고 별도 profile로 해결했다.
 - `node scripts/k8s/e2e.mjs --model`: 실제 Keycloak3역할·익명/CSRF/ACL 차단·원본→다중 편입→승인·원자발행/멱등 재시도→인용질문→재편입제안→Lint와 DeepSeek 모델 편입/발행/인용질문12개 검사를 통과했다. [고정 결과와 캡처](pr-assets/operational/README.md).
