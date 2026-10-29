@@ -9,6 +9,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run src && node --test scripts/model-api.test.mjs",
+    "test:server": "vitest run server --maxWorkers=1",
+    "check:server": "tsc -p tsconfig.server.json",
     "check:requirements": "node scripts/check-requirements.mjs",
     "demo": "node scripts/serve-demo.mjs",
     "brand": "node scripts/generate-brand.mjs",
@@ -18,10 +20,13 @@
     "dompurify": "3.4.17",
     "lucide-react": "1.61.0",
     "marked": "18.1.2",
+    "pg": "^8.23.1",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
