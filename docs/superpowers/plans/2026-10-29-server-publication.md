@@ -64,7 +64,7 @@
 - [x] 실제 실행법·연결 경계·DB 직렬화 한계·후속 릴리즈 게이트와 요구사항 CORE-002~004/ACL-001~005/REV-004~006/VER-005/SEC-009/OPS-004를 기록한다. 전체 요구사항 완료 상태는 올리지 않는다.
 - [x] `npm test`, `npm run test:server`, `npm run check:requirements`, `npm run build`, `npm run check:server`, `git diff --check` 실행.
 - [x] 독립 전체 변경 리뷰 후 중요 지적은 RED→GREEN으로 수정한다.
-- [ ] UI diff 확인. UI 변경 시 캡처, 미변경 시 PR에 명시. 검증 결과를 포함해 커밋/푸시/PR 생성. 사용자 승인 전 병합하지 않는다.
+- [x] UI diff 확인. UI 변경 캡처 19개·검증 결과를 포함해 커밋/푸시/PR #6 생성. 사용자 승인 전 병합하지 않는다.
 
 ## 추가 승인 범위: 사용 기록과 사용량 대시보드
 
@@ -81,3 +81,4 @@
 - 최종 검증: Node 24.22.2/PostgreSQL 17.6, 클라이언트 35+Node 6+서버 26개 통과, 251개 요구사항/서버 타입/빌드/마이그레이션 재실행 통과. 주 청크 511.15 kB 경고 유지.
 - 독립 리뷰 3개 중요 지적 RED→GREEN으로 수정. 과거 버전은 현재 제목 근거도 읽을 수 있어야 반환하는 보수적 정책을 적용했다. 그 때문에 과거 조회 가용성이 더 엄격할 수 있으며 전체 과거 메타데이터 모델은 후속이다.
 - UI 캡처 19개와 실제 표시 크기/미수집 범위는 `docs/SERVER_FOUNDATION.md`에 기록했다. 실제 운영 릴리즈 완료 선언이 아니다.
+- PR: https://github.com/wontaeJeong/agent-knowledge-hub/pull/6 . 첨부한 19개 원격 이미지 모두 HTTP 200/image-webp 확인. 현재 토큰의 workflow scope 부족으로 서버 CI 확장은 적용용 패치로 분리했으며 기존 workflow는 보존했다.

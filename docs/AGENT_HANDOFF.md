@@ -31,6 +31,7 @@ React 로컬 데모와 도메인 엔진, UI 교체 경계, 기준 239개와 핵�
 - UI: 데스크톱/모바일 19개 캡처를 PR에 첨부. 실측 시험 응답/미연결/UI fixture를 구분한다. 측정 화면 높이 1576/1782px, 첫 결론 264/334px, 그래프 글자 14px, 표 내부 스크롤을 확인했다.
 - 최종 로컬 검증(Node 24.22.2/PostgreSQL 17.6): `npm test` 35 Vitest + 6 Node, `npm run test:server` 26개 통과. `check:server`, `check:requirements`(251개), `build`, `db:migrate`(재실행), `git diff --check` 통과. 주 청크 511.15 kB 크기 경고는 남는다. 서버 CI 확장은 현재 OAuth 토큰의 workflow 권한 부족으로 푸시가 거부되어 `docs/ci-server-tests.patch`로 분리했다. 기존 CI만 실행되며 서버 DB 회귀 자동화는 권한 있는 담당자가 패치를 적용해야 한다. SSO·실제 모델·업무 UI 서버 전환·K8s 배포/백업복원·운영 부하 검증은 미실행이다.
 - 다음 작업: 실제 인증/그룹·UI/API 계약 연결, 반려/수정·재검토 운영 흐름, Query/Lint/작업 영속화와 나머지 1차 릴리즈 필수 게이트를 순차 구현한다. workspace 단위 잠금은 초기 선택이며 대규모 처리량을 보장하지 않는다.
+- PR: https://github.com/wontaeJeong/agent-knowledge-hub/pull/6 . UI 캡처 19개 모두 PR 본문에 첨부하고 원격 이미지 응답을 확인했다. 병합은 사용자 승인 대기다.
 
 ### 기존 후속 순서
 
