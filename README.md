@@ -21,16 +21,20 @@ http://127.0.0.1:8080 을 엽니다. `AGENT_KNOWLEDGE_HUB_DEMO_PORT` 환경변�
 
 ## 소스에서 개발하기
 
-Node.js 22.12 이상 또는 호환되는 최신 LTS와 npm이 필요합니다. 실제 설치 버전은 package-lock.json에 고정돼 있습니다.
+Node.js **22.12 이상인 22.x 또는 24.x LTS**와 npm 10 이상이 필요합니다. Node 24를 권장하며 `.nvmrc`로 선택할 수 있습니다. 의존성 버전은 package-lock.json에 고정돼 있습니다.
 
 ```bash
 npm ci
+npm run doctor
+npm run check
 npm run dev
 ```
 
 터미널에 표시되는 주소를 브라우저에서 엽니다. 기본 Vite 포트는 5173입니다. 빌드 결과는 `npm run build`, 빌드 미리보기는 `npm run preview`로 확인합니다. 정적 빌드는 `dist/`에 생기며 파일을 더블클릭하는 대신 HTTP 서버로 제공하세요.
 
 내부 npm 미러와 프록시·CA를 사용한다면 회사 표준 설정을 적용하세요. TLS 검증을 끄는 설정은 포함하지 않았습니다. 웹폰트 CDN이나 외부 이미지·서비스를 런타임에 호출하지 않습니다. Pretendard 및 D2Coding이 설치돼 있으면 사용하고, 없으면 시스템 폰트로 표시됩니다.
+
+OS별 설치·집중 테스트·모델 없는 개발·포트 충돌·PR CI와 배포 한계는 [개발 가이드](docs/DEVELOPMENT.md)를 참고하세요. 기본 검사에는 모델 키나 Docker가 필요하지 않습니다.
 
 ## 핵심 순환 데모
 
@@ -105,10 +109,10 @@ agent-admission-gate의 실제 소스는 포함하지 않았습니다. 기존 �
 ## 검증
 
 ```bash
-npm test
-npm run check:requirements
-npm run build
+npm run check
 ```
+
+환경 진단·전체 테스트·요구사항 연결·타입검사/빌드·실제 정적 HTTP 기동을 순서대로 확인합니다. 개별 명령과 PR 매트릭스는 [개발 가이드](docs/DEVELOPMENT.md)에 있습니다.
 
 기존·핵심 도메인 불변식, 로컬 모델 중계 계약, 총 251개 요구사항 연결을 검사합니다. 35개 프로덕션 인수 시나리오는 요구사항 문서의 시험 계획이며 이 데모가 통과한 시험으로 표시하지 않습니다.
 
@@ -118,7 +122,7 @@ npm run build
 docker compose up --build
 ```
 
-http://localhost:8080 에서 같은 정적 데모를 제공합니다. 컨테이너 설정은 제공하지만 이번 환경에서 Docker 빌드·실행은 검증하지 않았습니다. 서버 권한 검증이나 지속 저장소가 추가되는 것은 아닙니다.
+http://localhost:8080 에서 같은 정적 데모를 제공합니다. PR CI는 이미지 빌드·health·HTTP smoke를 검사합니다. 서버 권한 검증·모델 중계나 지속 저장소가 추가되는 것은 아니며 운영 배포는 자동화하지 않았습니다.
 
 ## 아이콘 팩
 
