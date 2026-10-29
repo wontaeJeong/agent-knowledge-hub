@@ -101,7 +101,7 @@ npm run wiki -- confirm-merge demo-guide <검토한-제안-해시> --human-revie
 
 새 원격 편집은 해시 확인을 무효화한다. 서버의 기준 버전 검사도 적용해 확인과 전송 사이의 경쟁에서도 조용히 덮어쓰지 않는다. 같은 로컬 디렉토리를 MCP가 열고 있으면 CLI를 병행할 수 없으므로 호스트 연결을 끊고 CLI로 검토한 뒤 재연결한다. 이 제한을 없애는 네이티브 확인 UX는 후속 작업이다.
 
-공유 제안 입력은 `{id: 'pr-one', pageId: 'demo-guide', targetSpaceId: 'team-demo', baseVersion: 1}`이며 먼저 개인 변경이 동기화돼 있어야 한다. JSON 파일로 저장해 `npm run wiki -- propose <파일>` 또는 MCP로 제출한다. 제출 이후 개인 편집이 제안 내용을 바꾸지 않는다.
+공유 제안 입력은 `{id: 'pr-one', pageId: 'demo-guide', targetSpaceId: 'team-demo', baseVersion: 1, personalVersion: 1}`이며 먼저 개인 변경이 동기화돼 있어야 한다. `personalVersion`은 읽고 제출하기로 선택한 개인본 revision이고 `baseVersion`은 공유 기준 revision이다. JSON 파일로 저장해 `npm run wiki -- propose <파일>` 또는 MCP로 제출한다. 제출 시 개인본이 다른 기기에서 바뀌었으면 `STALE_PERSONAL_VERSION`으로 거부하며 최신 내용을 확인한 뒤 다시 선택한다. 제출 이후 개인 편집도 기존 제안 내용을 바꾸지 않는다.
 
 검토자는 별도 셸에서 합성 reviewer 토큰을 설정하고 `show-proposal <id>`, `approve <id>`, `publish <id>`를 사용한다. reviewer 자격은 서버 설정에서만 해석하며 MCP에 승인/발행 도구는 없다. 승인 후 공유 기준이 바뀌면 발행을 거부한다. 기존 공유본에 대한 개인 fork가 오래되면 새 공유 기준을 검토해 갱신하는 rebase 도구는 아직 없으므로 기존 fork의 제안을 강제로 발행하지 않는다.
 
@@ -110,6 +110,7 @@ npm run wiki -- confirm-merge demo-guide <검토한-제안-해시> --human-revie
 - 읽기 권한과 로컬 반출 허용은 다르다. 서비스가 `localCopyAllowed: true`로 지정한 합성 자료만 사용한다. 등급별 운영 반출 정책·기기 암호화·보관 기간은 미결 운영 게이트다.
 - 본문 읽기·검색·충돌/병합안 조회 전 현재 권한/버전 메타데이터를 서버에 확인한다. 변경 없는 본문은 로컬에서 읽는다. 서버 확인 실패 시 캐시를 제공하지 않으므로 완전한 오프라인 열람은 아니다.
 - 자동 polling 다운로드는 최신 전체 스냅샷이다. 업로드는 변경 페이지만 보낸다. 대량 데이터 delta 다운로드·검색 인덱스·paging은 후속 최적화이며 현재 HTTP JSON 상한은 요청/응답 각각 1 MiB다. 한 페이지 본문 상한은 200,000자다.
+- 서로 다른 공간에 같은 문서 ID가 있을 수 있다. 첫 구현의 개인본 슬롯은 ID별 하나이므로 다른 공간의 같은 ID를 편집하려 하면 `PAGE_ID_COLLISION`으로 거부하고 기존 draft를 보존한다. 다른 공간의 출처로 조용히 바꾸지 않으며, 공간별 독립 fork 슬롯은 후속 확장이다.
 - 권한 회수 시 다음 정상 권한 확인/동기화에서 캐시·충돌·병합안을 제거한다. 이미 반출된 파일/OS 백업/사용자 복사를 완전히 회수할 수 없다. 오류나 권한 서비스 중단 동안 디스크 사본이 자동 삭제됐다고 주장하지 않는다.
 - 자격증명은 환경변수로 전달하고 상태 파일에 기록하지 않는다. 작업 디렉토리는 endpoint/토큰 해시에 묶이며 계정·토큰 교체 시 새 디렉토리를 사용한다. 토큰 회전 시 자동 재바인딩은 미구현이다.
 - 네트워크 요청은 5초 제한과 redirect 금지를 적용한다. HTTPS가 기본이며 합성 개발용 `127.0.0.1`만 평문 HTTP를 허용한다. TLS 검증을 끄지 않는다.

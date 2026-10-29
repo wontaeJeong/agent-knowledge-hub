@@ -4,6 +4,7 @@ import {
   hash,
   readJsonBody,
   requireId,
+  revision,
   safeError,
   serial,
   validatePage,
@@ -220,6 +221,14 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
       return run(async () => {
         const p = validatePage(input),
           r = state.personal[p.id];
+        if (
+          r &&
+          ((p.spaceId !== "personal" &&
+            (r.draft.upstream?.spaceId !== p.spaceId ||
+              r.draft.upstream?.pageId !== p.id)) ||
+            (p.upstream && hash(p.upstream) !== hash(r.draft.upstream)))
+        )
+          throw Error("PAGE_ID_COLLISION");
         if (r?.incoming) throw Error("CONFLICT_REQUIRES_REVIEW");
         const upstream =
           r?.draft.upstream ??
@@ -370,10 +379,19 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
     },
     propose(input) {
       return run(async () => {
+        const selected = state.personal[input.pageId];
+        if (!selected || selected.dirty || selected.incoming)
+          throw Error("SYNC_REQUIRED");
+        // Capture BEFORE refresh can replace a clean local snapshot.
+        const personalVersion = revision(
+          input.personalVersion ?? selected.base.version,
+        );
         await authorize();
         const r = state.personal[input.pageId];
         if (!r || r.dirty || r.incoming) throw Error("SYNC_REQUIRED");
-        return request("propose", input);
+        if (r.base.version !== personalVersion)
+          throw Error("STALE_PERSONAL_VERSION");
+        return request("propose", { ...input, personalVersion });
       });
     },
     async start() {

@@ -73,6 +73,18 @@ test(
       (await remote.service.request("token", "snapshot", {})).shared[0].content,
       "original",
     );
+    assert.equal(
+      (
+        await call("wiki_propose_change", {
+          id: "pr-sdk",
+          pageId: "guide",
+          targetSpaceId: "team-a",
+          baseVersion: 1,
+          personalVersion: 1,
+        })
+      ).status,
+      "pending",
+    );
     const denied = await client.callTool({
       name: "wiki_read",
       arguments: { id: "missing" },

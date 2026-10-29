@@ -157,6 +157,8 @@ export async function createService({ file, identities, pages = [] }) {
             throw Error("FORBIDDEN");
           const p = own.find((x) => x.id === input.pageId);
           if (!p || !personalVisible(actor, p)) throw Error("NOT_FOUND");
+          if (p.version !== revision(input.personalVersion))
+            throw Error("STALE_PERSONAL_VERSION");
           if (p.upstream && p.upstream.spaceId !== input.targetSpaceId)
             throw Error("SOURCE_SCOPE_CONFLICT");
           const targetId = p.upstream?.pageId ?? p.id;

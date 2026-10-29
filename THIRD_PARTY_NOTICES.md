@@ -4,6 +4,8 @@ Direct package metadata at the packaged lockfile versions. Preserve original not
 
 | Package | Version | License metadata |
 | --- | --- | --- |
+| @modelcontextprotocol/sdk | 1.32.2 | MIT |
+| zod | 4.6.7 | MIT |
 | dompurify | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
 | lucide-react | 1.61.0 | ISC |
 | marked | 18.1.2 | MIT |

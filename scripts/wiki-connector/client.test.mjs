@@ -286,3 +286,110 @@ test("network transport rejects redirects and does not forward authorization to 
   await assert.rejects(a.sync(), /CONNECTION_FAILED/);
   assert.equal(leaked, false);
 });
+
+test("cross-space page ID collision preserves the first draft and cannot publish restricted content", async (t) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "wiki-collision-"));
+  const broad = { ...shared, spaceId: "broad", content: "Broad original" };
+  const restricted = {
+    ...shared,
+    spaceId: "restricted",
+    content: "Restricted original",
+  };
+  const remote = await startDevServer({
+    file: path.join(dir, "remote"),
+    identities: {
+      alice: { userId: "alice", spaces: ["broad", "restricted"] },
+      reviewer: { userId: "reviewer", spaces: ["broad"], reviewer: true },
+    },
+    pages: [broad, restricted],
+  });
+  const a = await openClient({
+    directory: path.join(dir, "a"),
+    url: remote.url,
+    token: "alice",
+  });
+  t.after(async () => {
+    await a.close();
+    await remote.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+  await a.sync();
+  await a.write({ ...broad, content: "Broad personal edit" });
+  await a.sync();
+  await assert.rejects(
+    a.write({ ...restricted, content: "Restricted-only edit" }),
+    /PAGE_ID_COLLISION/,
+  );
+  assert.equal((await a.read("guide")).page.content, "Broad personal edit");
+  await a.sync();
+  await a.propose({
+    id: "pr-one",
+    pageId: "guide",
+    targetSpaceId: "broad",
+    baseVersion: 1,
+  });
+  await remote.service.request("reviewer", "approve", { id: "pr-one" });
+  await remote.service.request("reviewer", "publish", { id: "pr-one" });
+  const visible = await remote.service.request("reviewer", "snapshot", {});
+  assert.equal(visible.shared[0].content, "Broad personal edit");
+  assert.ok(!JSON.stringify(visible).includes("Restricted-only"));
+});
+
+test("proposal pins the selected personal revision across authorization refresh and request races", async (t) => {
+  for (const race of ["before-access", "before-submit"]) {
+    await t.test(race, async (t) => {
+      const { remote, connect } = await setup(t);
+      const b = await connect("b");
+      await b.sync();
+      await b.write({ ...shared, content: "Selected revision" });
+      await b.sync();
+      let trigger = false;
+      const proxy = http.createServer(async (req, res) => {
+        const chunks = [];
+        for await (const c of req) chunks.push(c);
+        const body = Buffer.concat(chunks).toString();
+        const action = JSON.parse(body).action;
+        if (
+          trigger &&
+          action === (race === "before-access" ? "access" : "propose")
+        ) {
+          trigger = false;
+          await b.write({ ...shared, content: "UNSEEN private edit" });
+          await b.sync();
+        }
+        const result = await fetch(remote.url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer alice",
+          },
+          body,
+        });
+        res.writeHead(result.status, { "Content-Type": "application/json" });
+        res.end(await result.text());
+      });
+      await new Promise((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+      t.after(() => new Promise((resolve) => proxy.close(resolve)));
+      const a = await connect("a", {
+        url: `http://127.0.0.1:${proxy.address().port}/sync`,
+      });
+      await a.sync();
+      assert.equal((await a.read("guide")).page.version, 1);
+      trigger = true;
+      await assert.rejects(
+        a.propose({
+          id: "pr-race",
+          pageId: "guide",
+          targetSpaceId: "team-a",
+          baseVersion: 1,
+          personalVersion: 1,
+        }),
+        /STALE_PERSONAL_VERSION/,
+      );
+      await assert.rejects(
+        remote.service.request("reviewer", "proposal", { id: "pr-race" }),
+        /FORBIDDEN/,
+      );
+    });
+  }
+});

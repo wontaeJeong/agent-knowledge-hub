@@ -86,6 +86,7 @@ test("PR freezes personal revision; only reviewers publish with current shared b
     pageId: "guide",
     targetSpaceId: "team-a",
     baseVersion: 1,
+    personalVersion: 1,
   });
   await request("alice", "push", {
     mutationId: "two",
@@ -118,6 +119,7 @@ test("competing PRs cannot publish over a changed shared base", async (t) => {
       pageId: "guide",
       targetSpaceId: "team-a",
       baseVersion: 1,
+      personalVersion: 1,
     });
     await request("reviewer", "approve", { id });
   }
@@ -217,6 +219,7 @@ test("an unrelated private page cannot replace an existing shared page without l
       pageId: "guide",
       targetSpaceId: "team-a",
       baseVersion: 1,
+      personalVersion: 1,
     }),
     /SOURCE_SCOPE_CONFLICT/,
   );
@@ -234,6 +237,7 @@ test("proposal viewing requires current scope and cannot leak to another author"
     pageId: "guide",
     targetSpaceId: "team-a",
     baseVersion: 1,
+    personalVersion: 1,
   });
   assert.equal(
     (await request("reviewer", "proposal", { id: "pr-one" })).page.content,

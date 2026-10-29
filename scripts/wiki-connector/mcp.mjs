@@ -118,7 +118,13 @@ try {
   tool(
     "wiki_propose_change",
     "동기화된 개인 revision을 공유 공간의 검토 제안으로 제출. 승인/발행은 수행하지 않습니다.",
-    { id, pageId: id, targetSpaceId: id, baseVersion: version },
+    {
+      id,
+      pageId: id,
+      targetSpaceId: id,
+      baseVersion: version,
+      personalVersion: version,
+    },
     (a) => client.propose(a),
     false,
   );
