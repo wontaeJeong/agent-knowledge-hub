@@ -7,6 +7,7 @@
 - docs/LLM_WIKI_CORE.md, docs/AGENT_INTERFACE.md, wiki/SCHEMA.md와 ADR 002를 따른다.
 - 핵심은 에이전트가 연결된 지식을 작성·유지하는 Ingest → Query → Lint와 질문 결과 재편입이다. 사람의 탐색·검토 경험도 유지한다.
 - 새 자료를 한 문서에 단순 추가하는 흐름이나 MCP 연결만으로 이 핵심을 구현했다고 표시하지 않는다.
+- 로컬 개인 위키 동기화와 공유 제안은 지식 종합·근거 검증·발행과 별개다. 통합 작업은 `docs/KNOWLEDGE_INTEGRATION.md`를 참조하고, `docs/adr/004-unified-knowledge-service.md`는 아직 **제안**임을 명시한다.
 - wiki/SCHEMA.md는 업무 지식 유지관리용 런타임 규칙이며 이 파일은 앱 개발용이다.
 - 오프라인 구조 편입·발췌·명시 사실 검사와 실제 모델 종합을 구분한다. 모델 오류를 가짜 성공으로 감추지 않는다.
 
@@ -24,6 +25,7 @@
 | --- | --- |
 | 제품 방향·아키텍처 | docs/LLM_WIKI_CORE.md, docs/ARCHITECTURE.md, docs/adr/002-persistent-wiki-loop.md |
 | 지식 편입·질문·점검·모델 | wiki/SCHEMA.md, docs/MODEL_SETUP.md, docs/AGENT_INTERFACE.md |
+| 로컬 개인 위키·공통 지식 서비스 통합 | docs/LOCAL_WIKI.md, docs/KNOWLEDGE_INTEGRATION.md, docs/adr/004-unified-knowledge-service.md |
 | 업무 에이전트 API/MCP·환류 | docs/AGENT_INTERFACE.md, docs/API_CONTRACT.md, docs/SECURITY.md |
 | 평가·효과 주장 | docs/EVALUATION.md, docs/TESTING.md, docs/requirements/core-requirements.json |
 | UI·사내 이식 | docs/UI_INTEGRATION.md, docs/REUSE.md |
