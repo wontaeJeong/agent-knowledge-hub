@@ -88,6 +88,8 @@ agent-admission-gate의 실제 소스는 포함하지 않았습니다. 기존 �
 | [UI 이식](docs/UI_INTEGRATION.md) | agent-admission-gate 컴포넌트 재사용 지점 |
 | [시연 가이드](docs/DEMO.md) | 진행 순서와 실패·복원 시나리오 |
 | [운영 가이드](docs/OPERATIONS.md) | 현재 실행·복구와 운영 전 갖출 항목 |
+| [Kubernetes 1차 릴리즈](docs/K8S_RELEASE.md) | STG/PROD 네임스페이스·단일 앱/DB 목표·출시 전 필수 게이트 |
+| [3만 사용자 확장 계획](docs/SCALING_PLAN.md) | 실제 부하 측정·병목별 단계적 증설·검증 조건 |
 | [보안 경계](docs/SECURITY.md) | 현재 제한과 서버에서 구현할 통제 |
 | [API 계약](docs/API_CONTRACT.md) | 미래 서버 구현의 제안 계약 |
 | [에이전트 인계](docs/AGENT_HANDOFF.md) | 다음 작업과 완료 근거 관리 |
