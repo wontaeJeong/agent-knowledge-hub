@@ -40,11 +40,12 @@
 
 ## 2026-10-29 개발환경·PR CI 보강
 
-- macOS 새 워크트리에서 `npm ci`, Node 22.23.4 및 24.22.2의 `npm run check` 통과: Vitest 32개 + Node 19개(기존 모델 HTTP 5, 환경 진단 3, smoke 회귀 11), 요구사항 251개, 타입검사/빌드, 실제 로컬 정적 HTTP smoke.
+- macOS 새 워크트리에서 `npm ci`, Node 22.23.4 및 24.22.2의 `npm run check` 통과: Vitest 32개 + Node 19개(기존 모델 HTTP 5, 환경 진단 3, smoke 회귀 11), 요구사항 251개, 타입검사/빌드, 실제 로컬 정적 HTTP smoke. 선언한 최소 버전 Node 22.12.0에서도 같은 `check` 통과.
 - Node 25.7.0의 `npm ci --dry-run`은 의도대로 `EBADENGINE`으로 차단됐다. 진단 회귀는 22.11/22.12, 24, 25, 26 경계·의존성 없음·키 비노출을 확인한다. smoke 회귀는 누락 JS/CSS/브랜드·잘못된 MIME·가짜 SPA 성공·빈 앱·성공/실패 뒤 자식 서버 정리·빌드 없음·URL 모드 실패를 확인한다.
 - Colima Linux aarch64 / Docker 29.2.1 / Compose 5.1.3에서 격리된 프로젝트와 동적 loopback 포트로 실제 이미지 빌드·health·HTTP smoke 통과 후 컨테이너/네트워크 정리. 최초 실행은 Nginx의 webmanifest MIME 불일치로 실패했고, `nginx/default.conf` 적용 후 같은 검사 통과. 로컬 buildx 미설치 경고로 classic builder가 사용됐으며 실행 실패는 아니었다.
 - `actionlint .github/workflows/ci.yml`, `git diff --check` 통과. 기존 GitHub API에서 main push/이전 PR의 Verify 성공 이력을 확인했으며 main 브랜치 보호는 설정되지 않았다(404). 보호 설정은 임의 변경하지 않는다.
-- 새 PR의 실제 Actions 실행 결과는 PR 생성 후 이 절에 기록한다. 워크플로 존재만으로 성공했다고 표시하지 않는다.
+- [PR #5](https://github.com/wontaeJeong/agent-knowledge-hub/pull/5)의 [실제 Actions 실행 40860406846](https://github.com/wontaeJeong/agent-knowledge-hub/actions/runs/40860406846), 소스 `2e67d63`: Ubuntu Node22/24, macOS Node24, Windows Node24의 설치/전체 검사, Docker build/health/HTTP/정리, 최종 `check` **6개 job 모두 성공**. 정적 artifact 590,042 bytes 업로드도 API로 확인했다. 워크플로 존재만으로 성공했다고 표시한 것이 아니다.
+- 독립 코드 리뷰에서 Critical/Important/Minor 결함 없음. 리뷰어가 진단/smoke 회귀 14개를 별도로 실행해 통과했다. 전체 로컬/Docker 검증은 위 구현자의 실행 근거이며 독립 재실행으로 표시하지 않는다.
 - 기존 510.25 kB 번들 경고와 앱 파일 네 곳의 Prettier 부채를 유지한다. 운영 배포/CD, 제품 서버/ACL/DB, 실제 모델 의미 품질·지식/에이전트 효과, 브라우저 E2E·접근성·부하/복구 인수 시험은 이 작업에서 검증하지 않는다.
 
 ## 0.1 기록
