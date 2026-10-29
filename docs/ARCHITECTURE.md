@@ -39,3 +39,7 @@ src/domain/wiki.ts는 기존 도메인과 분리된 편입·질문·점검 상�
 6. 검색·임베딩은 재구축 가능한 파생 데이터다. 후보 검색 전후와 답변 출력에서 현재 권한을 확인한다.
 
 프레임워크를 먼저 확정하지 않는다. FastAPI 등 사내 표준 백엔드로 구현해도 클라이언트 DTO와 서버 권한·버전 계약이 유지되면 된다. UI 서버 경계를 명확히 해서 기존 admission-gate의 공통 모듈을 재사용한다.
+
+## 1차 K8s 배포 목표(아직 미구현)
+
+동일 클러스터 내 `agent-knowledge-hub-stg` 및 `agent-knowledge-hub-prod` 네임스페이스마다 앱 1개와 PostgreSQL 인스턴스 1개를 독립 운영한다. 단일 replica와 DB는 초기 운영 복잡도를 줄이는 선택이지 가용성·3만 사용자 처리량의 검증이 아니다. 실사용 전 서버 저장소·권한·백업·복원·관측 등 최소 게이트를 충족해야 한다. 배포 계약은 [K8S_RELEASE.md](K8S_RELEASE.md), 확장 조건은 [SCALING_PLAN.md](SCALING_PLAN.md), 결정 기록은 [ADR 003](adr/003-single-cluster-initial-release.md)을 참조한다.

@@ -25,6 +25,14 @@ localStorage 키는 `folio-wiki.demo.v1`, 테마 키는 `folio.theme`다. JSON �
 
 전체 조건은 OPS·JOB·NFR·SEC 요구사항에 있다. 초기에 제안한 SLO와 RPO/RTO는 실측 보장값이 아니다. 사내 규모·모델·지원 인력을 확정해 인수 기준으로 사용한다.
 
+## 1차 K8s 릴리즈와 장기 확장 계획
+
+- [K8S_RELEASE.md](K8S_RELEASE.md): 같은 클러스터의 STG/PROD 네임스페이스에서 앱 1·DB 1로 시작하는 목표 배포 구조, 보안·백업·배포·관측의 최소 필수 게이트. **이 단계는 아직 구현/검증되지 않았다.**
+- [SCALING_PLAN.md](SCALING_PLAN.md): 사용자 30,000명 시나리오, DAU/RPS/에이전트 작업 기준의 실측 계획, App/worker/DB/검색의 순차적 확장 방안.
+- [ADR 003](adr/003-single-cluster-initial-release.md): 단일 인스턴스·네임스페이스 분리를 선택한 이유와 명시적인 다운타임/공동 장애 위험.
+
+단일 replica 선택은 고가용성을 미루는 결정일 뿐 인증·서버 ACL·영속 저장소·복원 검증을 생략한다는 뜻이 아니다.
+
 ## 0.2 실행 경로
 
 오프라인/모델 모드의 실행과 회사 CA 설정 경계는 MODEL_SETUP.md를 따른다. .env 변경은 Node 실행기 재시작 후 적용된다. Node는 dist가 있으면 우선 사용하고 배포 ZIP에서는 demo-dist를 사용한다. npm run dev와 nginx 컨테이너는 오프라인 UI 경로이며 모델 중계는 npm run demo가 제공한다. 브라우저 종료 후 자동 점검은 아직 없다.
