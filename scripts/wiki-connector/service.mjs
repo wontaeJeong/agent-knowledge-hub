@@ -24,6 +24,10 @@ export async function createService({ file, identities, pages = [] }) {
       requireId(actor.userId);
       const own = state.personal[actor.userId] ?? [];
       if (action === 'snapshot') return structuredClone({ shared: state.shared.filter(p => visible(actor, p)), personal: own.filter(p => personalVisible(actor, p)) });
+      if (action === 'access') {
+        const metadata = p => ({ id: p.id, spaceId: p.spaceId, version: p.version });
+        return { shared: state.shared.filter(p => visible(actor, p)).map(metadata), personal: own.filter(p => personalVisible(actor, p)).map(metadata) };
+      }
       const next = structuredClone(state);
       let result;
       if (action === 'push') {
