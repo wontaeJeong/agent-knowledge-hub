@@ -16,7 +16,10 @@ export function diagnose({ nodeVersion, dependenciesInstalled }) {
   return { ok: supported && dependenciesInstalled, messages };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
   const result = diagnose({
     nodeVersion: process.versions.node,
     dependenciesInstalled: ["vite", "vitest", "typescript"].every((name) =>
@@ -24,6 +27,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     ),
   });
   console.log(result.messages.join("\n"));
-  console.log("모델 키·Docker는 기본 개발/검증에 필요하지 않습니다. 전체 검사: npm run check");
+  console.log(
+    "모델 키·Docker는 기본 개발/검증에 필요하지 않습니다. 전체 검사: npm run check",
+  );
   process.exitCode = result.ok ? 0 : 1;
 }

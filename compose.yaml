@@ -2,5 +2,5 @@ services:
   agent-knowledge-hub:
     build: .
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${AGENT_KNOWLEDGE_HUB_HTTP_PORT:-8080}:8080"
     restart: unless-stopped
