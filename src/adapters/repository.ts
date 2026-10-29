@@ -6,12 +6,28 @@ export interface WikiRepository {
   save(state: State): void;
   reset(): State;
 }
-const KEY = "folio-wiki.demo.v1";
+const KEY = "agent-knowledge-hub.demo.v1";
+// These old keys are retained only to migrate existing browser data.
+const LEGACY_KEY = "folio-wiki.demo.v1";
+export function readStoredValue(key: string, legacyKey: string) {
+  const current = localStorage.getItem(key);
+  if (current !== null) return current;
+  const previous = localStorage.getItem(legacyKey);
+  if (previous !== null) {
+    try {
+      localStorage.setItem(key, previous);
+      localStorage.removeItem(legacyKey);
+    } catch {
+      // A failed migration must not hide or delete the existing value.
+    }
+  }
+  return previous;
+}
 const copy = () => structuredClone(seed);
 export const demoRepository: WikiRepository = {
   load() {
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = readStoredValue(KEY, LEGACY_KEY);
       if (!raw) return copy();
       const v = JSON.parse(raw);
       if (
@@ -34,6 +50,7 @@ export const demoRepository: WikiRepository = {
   },
   reset() {
     localStorage.removeItem(KEY);
+    localStorage.removeItem(LEGACY_KEY);
     return copy();
   },
 };

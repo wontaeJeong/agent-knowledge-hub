@@ -39,9 +39,9 @@ before(async () => {
 after(() => {
   api.close();
   provider.close();
-  delete process.env.FOLIO_LLM_BASE_URL;
-  delete process.env.FOLIO_LLM_MODEL;
-  delete process.env.FOLIO_LLM_API_KEY;
+  delete process.env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL;
+  delete process.env.AGENT_KNOWLEDGE_HUB_LLM_MODEL;
+  delete process.env.AGENT_KNOWLEDGE_HUB_LLM_API_KEY;
 });
 const request = (extra = {}) =>
   fetch(base + "/api/model/complete", {
@@ -53,14 +53,14 @@ const request = (extra = {}) =>
     }),
   });
 test("unconfigured model returns a visible error without an offline fallback", async () => {
-  delete process.env.FOLIO_LLM_BASE_URL;
-  delete process.env.FOLIO_LLM_MODEL;
+  delete process.env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL;
+  delete process.env.AGENT_KNOWLEDGE_HUB_LLM_MODEL;
   assert.equal((await request()).status, 503);
 });
 test("model proxy sends system policy and data, keeps key server-side", async () => {
-  process.env.FOLIO_LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
-  process.env.FOLIO_LLM_MODEL = "fake-model";
-  process.env.FOLIO_LLM_API_KEY = "test-key-never-a-real-secret";
+  process.env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
+  process.env.AGENT_KNOWLEDGE_HUB_LLM_MODEL = "fake-model";
+  process.env.AGENT_KNOWLEDGE_HUB_LLM_API_KEY = "test-key-never-a-real-secret";
   result = JSON.stringify({
     content: "no evidence",
     insufficient: true,
@@ -70,7 +70,7 @@ test("model proxy sends system policy and data, keeps key server-side", async ()
   assert.equal(res.status, 200);
   assert.equal((await res.json()).result.content, "no evidence");
   assert.equal(lastRequest.auth, "Bearer test-key-never-a-real-secret");
-  assert.match(lastRequest.body.messages[0].content, /folio-wiki\/2/);
+  assert.match(lastRequest.body.messages[0].content, /agent-knowledge-hub\/2/);
   const cfg = await (await fetch(base + "/api/model/config")).json();
   assert.deepEqual(cfg, { configured: true, model: "fake-model" });
 });

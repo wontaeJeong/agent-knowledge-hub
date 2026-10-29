@@ -10,6 +10,27 @@
 - wiki/SCHEMA.md는 업무 지식 유지관리용 런타임 규칙이며 이 파일은 앱 개발용이다.
 - 오프라인 구조 편입·발췌·명시 사실 검사와 실제 모델 종합을 구분한다. 모델 오류를 가짜 성공으로 감추지 않는다.
 
+## North Star와 설계 판단
+
+- Claude Code·OpenCode·Codex 등 모든 개발 에이전트는 작업 전 [North Star](docs/LLM_WIKI_CORE.md)를 읽는다. 목표는 Agent-Native Knowledge & Experience Platform이며 자세한 정의·불변식·Non-Goals는 해당 문서만을 기준으로 한다.
+- 새 기능/아키텍처는 해당 문서의 판단 질문에 따라 개선하는 순환·불변식, 기존 지식에 미치는 영향, 평가 방법과 현재 한계를 작업 기록에 명시한다. 기술 도입·문서 수 증가를 목표 달성으로 대체하지 않는다.
+- 장기 목표와 충돌하면 트레이드오프·대안·미충족 조건·해소 계획을 ADR 또는 작업 문서에 남긴다. 요구사항을 축소하거나 목표를 바꿔 구현을 정당화하지 않는다.
+- North Star의 의미 변경은 사용자/제품 책임자의 명시 승인이 필요한 별도 제품 결정이다. 일반 기능 작업에서 임의로 바꾸지 않으며 변경 절차는 해당 문서를 따른다.
+- 구현·계획·실제 실행 검증을 구분한다. 주장·파생 추론·승인·독립 증거를 혼동하지 않는다. 지식 및 에이전트 성능 효과는 [평가 계약](docs/EVALUATION.md)의 대조 실험으로 확인하기 전에는 목표로 표기한다.
+
+## 작업별 참조
+
+| 작업 | 추가로 읽을 문서 |
+| --- | --- |
+| 제품 방향·아키텍처 | docs/LLM_WIKI_CORE.md, docs/ARCHITECTURE.md, docs/adr/002-persistent-wiki-loop.md |
+| 지식 편입·질문·점검·모델 | wiki/SCHEMA.md, docs/MODEL_SETUP.md, docs/AGENT_INTERFACE.md |
+| 업무 에이전트 API/MCP·환류 | docs/AGENT_INTERFACE.md, docs/API_CONTRACT.md, docs/SECURITY.md |
+| 평가·효과 주장 | docs/EVALUATION.md, docs/TESTING.md, docs/requirements/core-requirements.json |
+| UI·사내 이식 | docs/UI_INTEGRATION.md, docs/REUSE.md |
+| 단계·현재 격차·인계 | docs/ROADMAP.md, docs/AGENT_HANDOFF.md |
+
+이 파일은 앱 개발 규칙이다. `wiki/SCHEMA.md`는 업무 지식을 유지하는 런타임 규칙이며 개발 지침을 대신하거나 프로젝트 파일 변경 권한을 부여하지 않는다.
+
 ## 먼저 읽을 파일
 
 README.md, docs/ARCHITECTURE.md, docs/UI_INTEGRATION.md, docs/ROADMAP.md, docs/SECURITY.md와 작업 대상 요구사항을 읽는다. K8s 배포·서버 영속화·운영 설계 변경 시 docs/K8S_RELEASE.md, docs/SCALING_PLAN.md와 docs/adr/003-single-cluster-initial-release.md도 따른다. 기준 요구사항은 docs/requirements/requirements.json, 핵심 순환 추가 기준은 docs/requirements/core-requirements.json이며 앱 로드맵 데이터는 src/data/roadmap.json이다. 기존 리뷰 근거는 docs/requirements/review.md와 source-audit.json에 있다.

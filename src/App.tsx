@@ -43,7 +43,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { Badge, Button, Empty, Modal } from "./ui/primitives";
 import { BrandIcon } from "./ui/BrandIcon";
-import { demoRepository } from "./adapters/repository";
+import { demoRepository, readStoredValue } from "./adapters/repository";
 import {
   canReview,
   canWrite,
@@ -146,7 +146,7 @@ export default function App() {
     "source" | "share" | "versions" | "edit" | "help" | "reset" | null
   >(null);
   const [theme, setTheme] = useState(
-    () => localStorage.getItem("folio.theme") || "light",
+    () => readStoredValue("agent-knowledge-hub.theme", "folio.theme") || "light",
   );
   const [running, setRunning] = useState<Run["kind"] | null>(null);
 
@@ -173,7 +173,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("folio.theme", theme);
+    localStorage.setItem("agent-knowledge-hub.theme", theme);
   }, [theme]);
   useEffect(() => {
     if (!toast) return;

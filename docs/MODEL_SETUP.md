@@ -9,8 +9,8 @@ http://127.0.0.1:8080/#/compile 에서 시작한다. 모델 키가 필요 없다
 ## 모델 서버
 
 1. .env.example을 .env로 복사한다.
-2. FOLIO_LLM_BASE_URL에 사내 OpenAI 호환 서버의 /v1까지 지정한다. 예: http://127.0.0.1:4000/v1. 실제 요청은 /chat/completions에 보낸다.
-3. FOLIO_LLM_MODEL과 필요한 경우 FOLIO_LLM_API_KEY를 서버 환경에 지정한다.
+2. AGENT_KNOWLEDGE_HUB_LLM_BASE_URL에 사내 OpenAI 호환 서버의 /v1까지 지정한다. 예: http://127.0.0.1:4000/v1. 실제 요청은 /chat/completions에 보낸다.
+3. AGENT_KNOWLEDGE_HUB_LLM_MODEL과 필요한 경우 AGENT_KNOWLEDGE_HUB_LLM_API_KEY를 서버 환경에 지정한다. 기존 설정은 .env.example의 새 변수명으로 변경한다.
 4. `npm run demo`를 재시작하고 브라우저를 새로고침한다. 실행 엔진에서 연결된 모델을 선택한다.
 
 서버가 wiki/SCHEMA.md와 작업별 출력 계약을 system 메시지에 넣는다. 선택한 원본과 같은 공유 범위의 발행본을 해당 모델로 전송한다. 질문은 현재 검색된 최대 4개 발행본을 전달한다. 서버 키는 응답·클라이언트 번들에 넣지 않는다. 회사 프록시·CA는 회사 표준 Node 설정을 사용하고 TLS 검증을 끄지 않는다.
