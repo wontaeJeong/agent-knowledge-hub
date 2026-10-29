@@ -1,4 +1,4 @@
-# Folio Wiki
+# agent-knowledge-hub
 
 이 프로젝트의 공통 개발 규칙은 AGENTS.md에 있다. 작업 전 해당 파일과 docs/AGENT_HANDOFF.md를 읽고, docs/UI_INTEGRATION.md의 사내 UI 교체 경계를 지킨다.
 

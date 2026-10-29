@@ -1,4 +1,4 @@
-# Folio Wiki 유지관리 규칙 · folio-wiki/2
+# agent-knowledge-hub 유지관리 규칙 · folio-wiki/2
 
 이 문서는 업무 지식을 유지하는 런타임 에이전트용이다. 레포 루트 AGENTS.md는 앱 개발 에이전트용이다. 현재 모델 서버는 이 문서를 system 지침에 읽어 넣는다. 정책 변경 시 버전을 올리고 기존 변경안을 재검토한다.
 

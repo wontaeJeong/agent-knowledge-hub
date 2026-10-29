@@ -17,23 +17,22 @@ if git("status", "--porcelain"):
     raise SystemExit("Commit the reviewed source before packaging.")
 if not (root / "dist/index.html").is_file():
     raise SystemExit("Run npm run build first.")
-bundle = out / "folio-wiki.bundle"
+bundle = out / "agent-knowledge-hub.bundle"
 subprocess.run(["git", "-C", str(root), "bundle", "create", str(bundle), "--all"], check=True)
 subprocess.run(["git", "-C", str(root), "bundle", "verify", str(bundle)], check=True)
-icons = out / "folio-wiki-icons.zip"
+icons = out / "agent-knowledge-hub-brand-kit.zip"
 with zipfile.ZipFile(icons, "w", zipfile.ZIP_DEFLATED) as z:
     for p in sorted((root / "brand-kit").rglob("*")):
         if p.is_file():
             z.write(p, str(p.relative_to(root)))
 entries = {}
 for name in git("ls-files").splitlines():
-    entries[f"folio-wiki/{name}"] = (root / name).read_bytes()
+    entries[f"agent-knowledge-hub/{name}"] = (root / name).read_bytes()
 for p in sorted((root / "dist").rglob("*")):
     if p.is_file():
-        entries[f"folio-wiki/demo-dist/{p.relative_to(root / 'dist')}"] = p.read_bytes()
+        entries[f"agent-knowledge-hub/demo-dist/{p.relative_to(root / 'dist')}"] = p.read_bytes()
 entries[bundle.name] = bundle.read_bytes()
-entries[icons.name] = icons.read_bytes()
-entries["START_HERE.md"] = """# Folio Wiki 0.2 실행 데모
+entries["START_HERE.md"] = """# agent-knowledge-hub 0.2 실행 데모
 
 소스·빌드본·Git 이력·아이콘 팩·기준 239개와 핵심 순환 12개 요구사항을 포함합니다.
 
@@ -42,7 +41,7 @@ entries["START_HERE.md"] = """# Folio Wiki 0.2 실행 데모
 Node.js 22.12 이상에서:
 
 ```bash
-cd folio-wiki
+cd agent-knowledge-hub
 npm run demo
 ```
 
@@ -53,8 +52,8 @@ http://127.0.0.1:8080/#/compile 을 엽니다. 패키지는 의존성 설치 없
 ## Git 소스에서 개발
 
 ```bash
-git clone folio-wiki.bundle folio-wiki-from-git
-cd folio-wiki-from-git
+git clone agent-knowledge-hub.bundle agent-knowledge-hub-from-git
+cd agent-knowledge-hub-from-git
 npm ci
 npm run dev
 ```
@@ -70,12 +69,12 @@ Git 번들은 main 이력을 보존합니다. 원격 푸시 상태와는 별개�
 - docs/AGENT_INTERFACE.md: 향후 MCP 도구와 호출 정책
 - docs/ROADMAP.md, docs/requirements/: 전체 기준과 이행표
 - docs/UI_INTEGRATION.md: agent-admission-gate 재사용 경계
-- folio-wiki-icons.zip: 별도 아이콘 팩
+- brand-kit/: 원본·PNG·가이드·파일 해시를 포함한 전체 에셋 팩 (중첩 ZIP 없음)
 
 현재는 합성 데이터와 로컬 저장소 데모입니다. 실제 사내 모델 품질·SSO·서버 ACL·지속 DB·MCP·무인 일정·운영 복구는 미검증 또는 미구현이며 로드맵에 남겨두었습니다. Gate 소스 자체를 복사한 것은 아니며 UI 교체 경계를 제공합니다.
 """.encode()
 manifest = {
-    "name": "folio-wiki", "version": "0.2.0-demo", "date": "2026-10-27",
+    "name": "agent-knowledge-hub", "version": "0.2.0-demo", "date": "2026-10-29",
     "commit": git("rev-parse", "HEAD"), "branch": git("branch", "--show-current"),
     "requirements": 251, "domain_tests": 28, "model_contract_tests": 5,
     "demo_only": True,
@@ -83,7 +82,7 @@ manifest = {
               for name, content in sorted(entries.items())],
 }
 entries["MANIFEST.json"] = json.dumps(manifest, ensure_ascii=False, indent=2).encode()
-archive = out / "folio-wiki-demo-kit.zip"
+archive = out / "agent-knowledge-hub-demo-kit.zip"
 with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
     for name, content in sorted(entries.items()):
         z.writestr(name, content)

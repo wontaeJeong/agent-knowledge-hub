@@ -1,7 +1,28 @@
-# Folio Wiki 아이콘 팩
+# agent-knowledge-hub 브랜드 에셋
 
-편집 가능한 SVG 원본과 PNG, favicon ICO, 워드마크, README 배너, 소셜 이미지, 14개 UI 아이콘과 스프라이트를 제공합니다. 기존 agent-admission-gate의 plum 색상 4개를 유지하고 책과 연결 구조를 새 심볼로 구성했습니다. 기존 Gate 로고 파일 자체를 복제하지 않았습니다.
+브랜드 표기는 **agent-knowledge-hub**다. Linked K 심볼은 자료와 실행 결과가 하나의 지식 분기점에서 연결되는 모습을 담았다. Gate와의 경험 일관성을 위해 Graphite & Plum 색상을 사용한다.
 
-가이드: 심볼 주변 최소 15% 여백, 16px 이하에서는 favicon 사용, 라이트 및 다크 전용 변형 선택. 워드마크는 시스템 Arial 텍스트 기반이므로 배포 환경의 폰트에 따라 SVG 텍스트 모양이 달라질 수 있습니다. 동일 결과가 필요하면 PNG를 사용하거나 사내 디자인 도구에서 텍스트를 아웃라인 처리하세요. 웹폰트는 포함하지 않습니다. site.webmanifest는 자산 예시이며 서비스워커나 오프라인 PWA를 구현한 것은 아닙니다.
+| 파일 | 용도 |
+| --- | --- |
+| mark-light / mark-dark | 투명 배경 심볼. 밝은 / 어두운 배경에 사용 |
+| mark-mono-black / mark-mono-white | 단색 인쇄·각인 |
+| mark-tile-light / mark-tile-dark | 배경이 있는 앱 타일 |
+| wordmark-light / wordmark-dark | 전체 이름을 SVG path로 고정한 가로형 워드마크 |
+| favicon.svg / favicon-*.png / favicon.ico | 테마 대응 SVG, 16–512px PNG, 16/32/48px ICO |
+| readme-banner-light / readme-banner-dark | 1600×480 저장소·문서 배너 |
+| open-graph-light / open-graph-dark | 1200×630 소셜 카드 |
+| social-avatar-light / social-avatar-dark | 512×512 프로필 이미지 |
+| empty-state-light / empty-state-dark | 480×320 빈 지식 공간 일러스트 |
+| icons/ | 새로 그린 24개 UI 아이콘과 SVG sprite |
+| brand-preview | 전체 세트 미리보기 |
+| asset-manifest.json | 파일별 크기·SHA-256·브랜드 정보 |
 
-이 폴더의 새 벡터와 생성 PNG는 프로젝트 전용 창작 자산입니다. 사내에서 수정·사용할 수 있습니다. 생성은 scripts/generate-brand.mjs로 재현합니다. 앱의 Lucide 아이콘은 별도 ISC 라이선스를 따릅니다.
+심볼 최소 크기는 16px, 기본 앱 크기는 32px다. 주변에 폭의 15% 이상 여백을 둔다. 이름의 하이픈·소문자를 유지한다. 좁은 사이드바에서는 agent- / knowledge-hub 두 줄로 배치한다. 그림자·그라데이션·새 색을 임의로 추가하지 않는다.
+
+아이콘은 24×24 기준, 1.8 stroke, currentColor다. 공통 원본은 src/ui/brand-icons.json이며 앱의 BrandIcon과 에셋 생성기가 함께 사용한다. 일반 유틸리티용 Lucide는 별도 라이선스를 따른다.
+
+워드마크는 DejaVu Sans의 필요한 글자 윤곽만 사용해 폰트 설치나 CDN이 필요 없다. 출처·라이선스는 third-party-licenses/dejavu-font-license.txt에 보존한다. 보조 문구는 SVG text이며 PNG 사본을 제공한다. webmanifest는 메타데이터이며 오프라인 PWA나 서비스워커를 구현한 것은 아니다.
+
+프로젝트 루트에서 npm ci 후 npm run brand로 다시 생성한다. Node.js와 프로젝트의 sharp만 사용한다. 심볼·배치·색상은 scripts/generate-brand.mjs, 워드마크 윤곽은 scripts/brand-wordmark-glyphs.json, UI 아이콘은 src/ui/brand-icons.json을 편집한다. 외부 서비스·웹폰트는 호출하지 않는다.
+
+별도 중첩 ZIP 없이 이 폴더 전체를 에셋 팩으로 사용한다. 프로젝트 전용 심볼·아이콘·일러스트와 폰트 윤곽의 라이선스 범위를 구분해 유지한다.
