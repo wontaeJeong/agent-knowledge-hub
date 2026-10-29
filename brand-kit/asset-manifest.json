@@ -1,7 +1,7 @@
 {
   "brand": "agent-knowledge-hub",
-  "identity_version": "1.0.0",
-  "symbol": "Linked K",
+  "identity_version": "1.1.0",
+  "symbol": "Hexagon Book (original Folio Wiki symbol)",
   "icon_count": 24,
   "palette": {
     "light": {
@@ -28,93 +28,93 @@
   "files": [
     {
       "path": "brand-preview.png",
-      "bytes": 133913,
-      "sha256": "8778fc2f59e33f2059923848490b10e5d74f5c8f6d71a52fefa64886b6ab4105"
+      "bytes": 141191,
+      "sha256": "c455e4638fb4f194c2e638a7f3b59d141d10576d9da0ff767a1394a93fabe5d2"
     },
     {
       "path": "brand-preview.svg",
-      "bytes": 26598,
-      "sha256": "1e302fc1d81d8d601c0d9d3f4318afb420f38525b666356d5eb2f6e58cf00666"
+      "bytes": 24051,
+      "sha256": "07373ad724f1d2c244d5a3961cffb44fa7b9f53c56db1591104099726987c1fb"
     },
     {
       "path": "empty-state-dark.png",
-      "bytes": 8088,
-      "sha256": "a74de16c26e4473292a6d819e86725006b85a6f576229d7abb41656fb53718e8"
+      "bytes": 8717,
+      "sha256": "beab428e882dd49606d3a49ff29fce13436a6d7781e6fd9216d1681374a45a15"
     },
     {
       "path": "empty-state-dark.svg",
-      "bytes": 1460,
-      "sha256": "dfbd94b81e7b28bcca6e45bfa0eb5894f69949dc6b745fd89bb5a92e68afec3d"
+      "bytes": 1200,
+      "sha256": "a8022cba70469143a5cc1dbab960932a03fb6faf6c77bb1c25e173e5e4cb2a25"
     },
     {
       "path": "empty-state-light.png",
-      "bytes": 7798,
-      "sha256": "44180a83653f03bb0048e990a0eb0a8f17aff4c1efc43bd0ff0471bd7a00a2a1"
+      "bytes": 8368,
+      "sha256": "9078784eb234ddcedc33bebc37dacfb1d50177f353359231638378628eaad8a8"
     },
     {
       "path": "empty-state-light.svg",
-      "bytes": 1462,
-      "sha256": "317d864f21be435414eb822513a8cef3d99424b55c21b5559b2d22586bea546b"
+      "bytes": 1202,
+      "sha256": "891addbfbde5650531a5260cc046ae53881d606493b4284ac18d0f4a70d62632"
     },
     {
       "path": "favicon-128.png",
-      "bytes": 1715,
-      "sha256": "14a5a25385751aba1932868aa48d52d55542f7a633d2dfc3cabf7afd11c1080e"
+      "bytes": 3017,
+      "sha256": "96c8c8075ba75169b577f604bae18a15f78d05619ace474369d07e8a36fa967b"
     },
     {
       "path": "favicon-16.png",
-      "bytes": 346,
-      "sha256": "32d5f50d47863d27908d8e91e212385c979779694dd7007af28d79e3e3a5ad39"
+      "bytes": 457,
+      "sha256": "2ad2cf30111672c8ad5a6fe4973e4875d2030b6f28067e323406e674364af83e"
     },
     {
       "path": "favicon-180.png",
-      "bytes": 2740,
-      "sha256": "d4177002be1f6018c638cdd505d4f5e94e9cf5a7f9e98db451073ac16337ed9a"
+      "bytes": 3929,
+      "sha256": "209764ede110a786bed72cfa41b907d3f0a0de18e3f4ff1eb6cd566fdd00c783"
     },
     {
       "path": "favicon-192.png",
-      "bytes": 2773,
-      "sha256": "5acd173f2406597a2027c0930b4de21fa7db3a8dde7a5a449567af64600e6cf9"
+      "bytes": 4361,
+      "sha256": "5e1711f89545cd849f5df551b6d0fa1e7e6aef3a4489cbb4a09a01ae664060e4"
     },
     {
       "path": "favicon-24.png",
-      "bytes": 458,
-      "sha256": "2cf7018f2cbc730940c132b8b2ea10483265dc891407315d414d9469736f4647"
+      "bytes": 660,
+      "sha256": "a35fcda96cdde68cf91fa91d47902be1aa002bf6a095f285700e9a6f8aca3b21"
     },
     {
       "path": "favicon-256.png",
-      "bytes": 3960,
-      "sha256": "ec042ee1585f0e6ef7239b1297c1a163fd7dafc868b9455241c0d3e4c3021cf7"
+      "bytes": 5797,
+      "sha256": "7e8ae5a4ef53f72b3e52b79ca617b898189cb0f4133a1d8302469881799c0b28"
     },
     {
       "path": "favicon-32.png",
-      "bytes": 538,
-      "sha256": "b99433e31b998fdcaedd9af4a9bd19f19db257cf83c9d11d4b94054599cfe92a"
+      "bytes": 850,
+      "sha256": "8116e777f107eb87703226735c60470ff4e07162ce7f7ca7cb76a7ba6f95226a"
     },
     {
       "path": "favicon-48.png",
-      "bytes": 855,
-      "sha256": "54d604beb469ca14b5b1aec99fb33b86b57d200fff762ab1cbad10fc6da4aff5"
+      "bytes": 1291,
+      "sha256": "da41db50d400a6726105b127c42152ec3c17760d6dfcfad387768f9c68ae03b0"
     },
     {
       "path": "favicon-512.png",
-      "bytes": 9555,
-      "sha256": "a347dfbe5ba3fb34296c43e7740507720265e7ce161c1edcd9926e1badc1155f"
+      "bytes": 12165,
+      "sha256": "5d89573f4c470d8cd049d65a4cb857abea5b812466adacfde08aee1e0e27dc4c"
     },
     {
       "path": "favicon-64.png",
-      "bytes": 875,
-      "sha256": "929de5d53ed71dade69ae2dbc6c1c5223a6cb8044e078fcc61be54b7d9d3f91c"
+      "bytes": 1578,
+      "sha256": "a136a6d12216f8f9d57de68bac5df965d98727c1401f49eb9ad4e6472c6d2d6a"
     },
     {
       "path": "favicon.ico",
-      "bytes": 1793,
-      "sha256": "73496dde5a1e333a56c3a4db38b9b106205a4c5c2042102a5d161ec23efb2e35"
+      "bytes": 2652,
+      "sha256": "e444d5ee9890550ee5a619e57e5e90ea5c259f1ee2cfa790ca39820e4602333d"
     },
     {
       "path": "favicon.svg",
-      "bytes": 985,
-      "sha256": "5b048735b83db15ebbd30e699e1af687783aaa6da25e4d60cd4a3581d1c7a7fe"
+      "bytes": 669,
+      "sha256": "8a72734fd9a5e795c7eacb63a62ec06b42634265a1091a72b94937352270780c"
     },
     {
       "path": "icons/activity.svg",
@@ -158,8 +158,8 @@
     },
     {
       "path": "icons/hub.svg",
-      "bytes": 379,
-      "sha256": "9000645ed799fb0fc8ae9655b2d5ac2828e565329362378b93266390f736f693"
+      "bytes": 432,
+      "sha256": "7c04397b83bdd28892ef03a16675f36a730f35a406a0b7d5977e9b8edda3e835"
     },
     {
       "path": "icons/inbox.svg",
@@ -233,8 +233,8 @@
     },
     {
       "path": "icons/sprite.svg",
-      "bytes": 5305,
-      "sha256": "911cff7eb1ec53241aed5905b33dc3f106eb3e9eed62fd97688ce84093fb9b90"
+      "bytes": 5358,
+      "sha256": "44fbb94552f3e8219239c89a2ae8ddee8b3cd8a1aed70cf6dceb446041fb2a1c"
     },
     {
       "path": "icons/workspace.svg",
@@ -243,108 +243,108 @@
     },
     {
       "path": "mark-dark.png",
-      "bytes": 7732,
-      "sha256": "b9b9a652181da5c3d24a3d584b848bce3ce48220196430bea4d97a4f57424159"
+      "bytes": 12098,
+      "sha256": "8cca9b3b35857c9c87189dbcf7405ca1730aacd675091a80f4f250c47e9ca643"
     },
     {
       "path": "mark-dark.svg",
-      "bytes": 862,
-      "sha256": "e11e0f3f5586bd42005639d891b7bec20c9a24ed7a25f0e5d255c8bd795da0c9"
+      "bytes": 507,
+      "sha256": "97b99cb8bfd9fba601f76fc5a97cdcc8595017926e8b2ba2b917c66b8e8c94e6"
     },
     {
       "path": "mark-light.png",
-      "bytes": 7784,
-      "sha256": "70bb10343cfb1cc973c3de9d83146a452348eca15463809e1ba2a09c70229ec9"
+      "bytes": 12165,
+      "sha256": "5d89573f4c470d8cd049d65a4cb857abea5b812466adacfde08aee1e0e27dc4c"
     },
     {
       "path": "mark-light.svg",
-      "bytes": 862,
-      "sha256": "b30364ba7840cf3f428f3c7bdea64bb50a4d49544225d38274cde759bb7dc0ee"
+      "bytes": 507,
+      "sha256": "3cff1d415595a6bd86d7759dcdfdbd11aa34a3f9ff20a1da8f6a5091e9f438ee"
     },
     {
       "path": "mark-mono-black.png",
-      "bytes": 7004,
-      "sha256": "61daffdb9a572dd82e3ea5764ed4f832a4fa73ea069b1d90e76d76ed4784f9a9"
+      "bytes": 11150,
+      "sha256": "70b1adb082397c8424f54f103489685d607be882176c238b9d6983677a6b3508"
     },
     {
       "path": "mark-mono-black.svg",
-      "bytes": 862,
-      "sha256": "c321934443be3e3c26b0fe66a1d7cf5c41f4b1a5c50a76f72f3da74a9aff9ed4"
+      "bytes": 507,
+      "sha256": "0984d94875bc4866fa4d80b8d231d334bd74872a0307b98feb26e86b446bac36"
     },
     {
       "path": "mark-mono-white.png",
-      "bytes": 5900,
-      "sha256": "ddca6ec957f04074e729eef24488ce2903bc1a523dddb8f430d16233ee3446c2"
+      "bytes": 9590,
+      "sha256": "4b9fd2856ae60f624a7224297ef609b3bdc838af9763367cd011ba7c218f5e95"
     },
     {
       "path": "mark-mono-white.svg",
-      "bytes": 862,
-      "sha256": "76f3e5ee5877c001e6244155e6820d523a225f914638d6162cf53842dcd03464"
+      "bytes": 507,
+      "sha256": "1522815e9be590e154190d4cc634d20c2df6c5ac50f596566437f0a6183b558b"
     },
     {
       "path": "mark-tile-dark.png",
-      "bytes": 15765,
-      "sha256": "c9f5db679fe98efa072edcdebf50bbd18492dd157df2fed6167bb7e2f0ba6a5a"
+      "bytes": 18949,
+      "sha256": "e635c5fa71383a74d9ad5d5a01b98c4c64a63ef8feb8902a5ef0e0581484ee59"
     },
     {
       "path": "mark-tile-dark.svg",
-      "bytes": 931,
-      "sha256": "df917ac727b83222180005955d182573d88e35999042c36b8b18ed06f91ba354"
+      "bytes": 575,
+      "sha256": "458ab854e107cb3fde0a4cafdefcd6d976115ba969dd6efc85e08a33b6435c33"
     },
     {
       "path": "mark-tile-light.png",
-      "bytes": 15676,
-      "sha256": "9f79e33356faf0a538d43abfe28c8a7676acc94e507ce60c437872d34a83fb2c"
+      "bytes": 18722,
+      "sha256": "522f58c4dfca68569d058822b1c2db9c04756764f483fbb98e685a4aa481feab"
     },
     {
       "path": "mark-tile-light.svg",
-      "bytes": 931,
-      "sha256": "aadc4a34a07de491f0cbebd4f62b86681cfe8ba7d0bbed4abdf75def53397d33"
+      "bytes": 575,
+      "sha256": "96bf179ba4eabfb54611d70ad5f156bf7d254409378f10ebf27ee12a354a3653"
     },
     {
       "path": "open-graph-dark.png",
-      "bytes": 57780,
-      "sha256": "29ed86deba22ad06cd3a35ff2771c2589703e0fd8875581f8193ae12f39b456b"
+      "bytes": 58866,
+      "sha256": "d4723ec713b5a7a2a8461fe5ee0120e65d1b7d25f6af8e051500b9d86e349b6c"
     },
     {
       "path": "open-graph-dark.svg",
-      "bytes": 8723,
-      "sha256": "11cc470a0ec385e9e1dc9831f89a033331fc644afb7e3c5763360069235b970e"
+      "bytes": 8203,
+      "sha256": "79455f3d6495861651ebf2c7cc78a8b316f73305c2da6f67e0434d6b9662ceff"
     },
     {
       "path": "open-graph-light.png",
-      "bytes": 53345,
-      "sha256": "9a4fe2b18d3e579e338bd72d1706ebd12897107a4b7738bb1f6244540b6978ed"
+      "bytes": 54595,
+      "sha256": "aea6d328c494b5401bdba74c0341163af931d3eaccb08c8b2c91a38e0737ff05"
     },
     {
       "path": "open-graph-light.svg",
-      "bytes": 8725,
-      "sha256": "dece50ffeb32988d7a244e4c66f9e1414a0dd951ee77f48dfb2fae0373a75d4d"
+      "bytes": 8205,
+      "sha256": "8aaef4746543f93e97992e024032b76b5f44ebf0ec59a5e44d86a357c398078a"
     },
     {
       "path": "readme-banner-dark.png",
-      "bytes": 58020,
-      "sha256": "691c5072e6c6c47ce34dbff92aedb5d18016685e9b2fdbac30c9cf3c51a7d7a0"
+      "bytes": 58994,
+      "sha256": "01051a29bc6e9c6fc512b2b83e588bf21d591d9721d7bf75310cc2204aae38e0"
     },
     {
       "path": "readme-banner-dark.svg",
-      "bytes": 9065,
-      "sha256": "399c7280f687486c447f4309262e3f70d3b3c1c45ceb2101d10934a376cc9157"
+      "bytes": 8545,
+      "sha256": "974af2857ebabf1dcce1d349a691dc88dca86e0adb73df5209f4c2be7a4529bf"
     },
     {
       "path": "readme-banner-light.png",
-      "bytes": 53273,
-      "sha256": "a373136edf7c1add7a1bb369df4e32fb159f26899ec94c3ed975ae88e03f170a"
+      "bytes": 54437,
+      "sha256": "46c3262b167b8ecea289a79b68c5a9eca492a2214447af1ecb4452c2d991ef15"
     },
     {
       "path": "readme-banner-light.svg",
-      "bytes": 9067,
-      "sha256": "2b09dbf8a890179c50743bfdc7af24f673ef1b651886422879c7beb764107732"
+      "bytes": 8547,
+      "sha256": "703759758e2c8128551f43162f439c111aef42f92c97856a829fe899ea63ca74"
     },
     {
       "path": "README.md",
-      "bytes": 2654,
-      "sha256": "d04ebeafefba65181bde7b2ace91559f90ad000b951df3fef4c505ed49a3a0ba"
+      "bytes": 2872,
+      "sha256": "798dc29afaaa0d3eb43713f8b1a3c6ef8cb77b31bf8a6f8cee49abc7260278f4"
     },
     {
       "path": "site.webmanifest",
@@ -353,43 +353,43 @@
     },
     {
       "path": "social-avatar-dark.png",
-      "bytes": 15380,
-      "sha256": "7467dd446241073a411d684a4d584a076df33920fd446bcf9745821a2032096f"
+      "bytes": 17513,
+      "sha256": "32b925eb05cf34dd616944a197feec60dfd6c82359ec487fbb82457559600eda"
     },
     {
       "path": "social-avatar-dark.svg",
-      "bytes": 946,
-      "sha256": "3b09b3d8ba7417d0940313d049fbd43c5cbf89d2b5495502c1a639c8e39fb3ff"
+      "bytes": 686,
+      "sha256": "4fb62af0e1fafe98f5c873df4ea5993eca1d3fdefbaf031b8ad87bd95e0fa262"
     },
     {
       "path": "social-avatar-light.png",
-      "bytes": 15146,
-      "sha256": "d42377e9c769e346fb02b02c2b25409dfba2aa52ac3f05b3d7c442aaf9792124"
+      "bytes": 17237,
+      "sha256": "73211f9a8b894140428a914c79295dc5dde07328b85492e339a60f4b62d55c0e"
     },
     {
       "path": "social-avatar-light.svg",
-      "bytes": 948,
-      "sha256": "cbdfdf2279c79ce90e2c3f8cb7c8b6f80699d3dd8701f01f061aeb138adf663b"
+      "bytes": 688,
+      "sha256": "94da527b604411946a918b7400bca9d26377f5d57db5f9d04882c46040c16843"
     },
     {
       "path": "wordmark-dark.png",
-      "bytes": 13811,
-      "sha256": "136c91907dc1e553a45decb5a335a941269db647a3758546cb85af14f0a1c60d"
+      "bytes": 15132,
+      "sha256": "1e9f7f0ba83e1fc7ea12b5ecbac586b9a0131c665af434d19b04e1a197f4878e"
     },
     {
       "path": "wordmark-dark.svg",
-      "bytes": 6257,
-      "sha256": "baebb65400c3acbaadb1f6afc9ab1e522bd5e67d0b349fce56cb4459404ee19e"
+      "bytes": 5997,
+      "sha256": "56f21d9eff0482321fd456ffc9b8f98c498c7f5fd40d4d9bb97eb014b34118d3"
     },
     {
       "path": "wordmark-light.png",
-      "bytes": 13927,
-      "sha256": "f9c0c003422a88760f6e23e871de1efe6c2a83926d77b68251ba9cb39a54a52a"
+      "bytes": 15211,
+      "sha256": "79f71eb25dace4653571fc2f1098a412a81ce77156d6b1915e951b50db674f3a"
     },
     {
       "path": "wordmark-light.svg",
-      "bytes": 6259,
-      "sha256": "4003eae519e957a114a8fc19224f97f388e8c6d1978390bd96229e161f4bcab8"
+      "bytes": 5999,
+      "sha256": "067f0f878806df4e499004fb6b10bc1c1109bb21c0d0873abc9dfae4f0563d3d"
     }
   ]
 }
