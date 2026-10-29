@@ -20,7 +20,7 @@ if not (root / "dist/index.html").is_file():
 bundle = out / "agent-knowledge-hub.bundle"
 subprocess.run(["git", "-C", str(root), "bundle", "create", str(bundle), "--all"], check=True)
 subprocess.run(["git", "-C", str(root), "bundle", "verify", str(bundle)], check=True)
-icons = out / "agent-knowledge-hub-icons.zip"
+icons = out / "agent-knowledge-hub-brand-kit.zip"
 with zipfile.ZipFile(icons, "w", zipfile.ZIP_DEFLATED) as z:
     for p in sorted((root / "brand-kit").rglob("*")):
         if p.is_file():
@@ -32,7 +32,6 @@ for p in sorted((root / "dist").rglob("*")):
     if p.is_file():
         entries[f"agent-knowledge-hub/demo-dist/{p.relative_to(root / 'dist')}"] = p.read_bytes()
 entries[bundle.name] = bundle.read_bytes()
-entries[icons.name] = icons.read_bytes()
 entries["START_HERE.md"] = """# agent-knowledge-hub 0.2 실행 데모
 
 소스·빌드본·Git 이력·아이콘 팩·기준 239개와 핵심 순환 12개 요구사항을 포함합니다.
@@ -70,12 +69,12 @@ Git 번들은 main 이력을 보존합니다. 원격 푸시 상태와는 별개�
 - docs/AGENT_INTERFACE.md: 향후 MCP 도구와 호출 정책
 - docs/ROADMAP.md, docs/requirements/: 전체 기준과 이행표
 - docs/UI_INTEGRATION.md: agent-admission-gate 재사용 경계
-- agent-knowledge-hub-icons.zip: 별도 아이콘 팩
+- brand-kit/: 원본·PNG·가이드·파일 해시를 포함한 전체 에셋 팩 (중첩 ZIP 없음)
 
 현재는 합성 데이터와 로컬 저장소 데모입니다. 실제 사내 모델 품질·SSO·서버 ACL·지속 DB·MCP·무인 일정·운영 복구는 미검증 또는 미구현이며 로드맵에 남겨두었습니다. Gate 소스 자체를 복사한 것은 아니며 UI 교체 경계를 제공합니다.
 """.encode()
 manifest = {
-    "name": "agent-knowledge-hub", "version": "0.2.0-demo", "date": "2026-10-27",
+    "name": "agent-knowledge-hub", "version": "0.2.0-demo", "date": "2026-10-29",
     "commit": git("rev-parse", "HEAD"), "branch": git("branch", "--show-current"),
     "requirements": 251, "domain_tests": 28, "model_contract_tests": 5,
     "demo_only": True,

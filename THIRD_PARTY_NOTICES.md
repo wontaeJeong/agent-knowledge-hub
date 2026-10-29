@@ -19,3 +19,5 @@ Direct package metadata at the packaged lockfile versions. Preserve original not
 | vitest | 5.0.5 | MIT |
 
 Original available direct-package license texts are included under third-party-licenses/. Transitive packages retain their npm notices. No upstream wiki product or Enterprise Edition source was copied into this repository.
+
+Brand wordmark outlines use a subset of DejaVu Sans glyphs (Bitstream Vera license; DejaVu changes are public domain). The original copyright and license notice is retained in third-party-licenses/dejavu-font-license.txt. No font file is loaded by the app. The project-specific Linked K symbol and workspace icon paths are maintained separately.
