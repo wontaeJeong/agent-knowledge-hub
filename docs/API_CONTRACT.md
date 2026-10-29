@@ -2,6 +2,8 @@
 
 현재 실행 중계 API는 docs/MODEL_SETUP.md에 별도 정의한다. 아래는 여전히 프로덕션 서버의 목표 계약이다. MCP 도구 상세는 AGENT_INTERFACE.md를 따른다.
 
+후속 구현으로 `server/http.ts`의 **인증 어댑터 주입형** `GET /api/v1/usage?days=7|30` 핸들러를 추가했다. 실제 호스트 세션 검증과 같은 origin 마운트가 필요하며 기본 정적 데모에 이 엔드포인트가 활성화된 것은 아니다. 일반 구성원은 본인, 검토자는 workspace 전체 집계를 읽는다. 오류/권한/측정 범위는 [SERVER_FOUNDATION.md](SERVER_FOUNDATION.md)를 따른다. 아래 업무 API는 계속 목표 계약이다.
+
 이 파일은 다음 구현의 계약 제안이며 현재 정적 데모에 아래 엔드포인트가 존재하는 것은 아니다. Repository와 도메인 개체를 서버 DTO에 매핑하고, 서버가 모든 권한·버전·발행을 강제한다.
 
 | 경로 | 동작과 주요 조건 |

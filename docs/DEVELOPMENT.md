@@ -27,7 +27,8 @@ Vite 개발 주소는 터미널에 표시되며 기본 5173이다. `npm run dev 
 | 명령 | 용도 |
 | --- | --- |
 | `npm run doctor` | 지원 Node와 개발 의존성 존재 확인. 비밀값을 출력하지 않으며 잠금 파일 동기화 검사를 대신하지 않음 |
-| `npm run check` | 진단 → 전체 테스트 → 251개 요구사항 연결 → 타입검사/빌드 → HTTP smoke. PR CI와 동일 |
+| `npm run check` | 진단 → 도메인/Node 테스트 → 251개 요구사항 연결 → 서버 타입검사 → 타입검사/빌드 → HTTP smoke. PR 매트릭스와 동일 |
+| `npm run test:server` | 폐기 가능한 PostgreSQL 시험 DB의 서버 통합 회귀. [서버 가이드](SERVER_FOUNDATION.md)의 TEST_DATABASE_URL 설정 필요 |
 | `npm test` | 전체 도메인 및 Node HTTP/개발 도구 회귀. 모델 호출은 로컬 가짜 공급자로 검사 |
 | `npm run test:watch` | Vitest 도메인 테스트 감시. Node 도구 테스트는 포함하지 않음 |
 | `npm exec vitest -- run src/domain/wiki.test.ts` | 특정 도메인 테스트만 실행 |
@@ -62,7 +63,7 @@ docker compose down
 1. Ubuntu Node 22/24, macOS Node 24, Windows Node 24에서 `npm ci`와 `npm run check`.
 2. Ubuntu에서 실제 Docker 이미지 빌드 → health 대기 → 같은 HTTP smoke → 컨테이너 정리.
 3. Ubuntu Node 24의 검증된 `dist/`를 7일 보관하는 `static-demo-<commit>` artifact로 제공. Actions 실행 화면에서 다운로드하고 압축을 푼 뒤 `npm run test:smoke -- <정적 서버 주소>`로 재확인할 수 있다. 모델 중계를 포함한 배포 패키지는 아니다.
-4. 모든 매트릭스와 Docker가 성공해야 마지막 `check`가 성공. 실패·취소·건너뜀은 통과로 처리하지 않는다.
+4. 별도 PostgreSQL 17.6 합성 시험 서비스에서 서버 타입검사/통합 회귀. 모든 매트릭스·Docker·서버 회귀가 성공해야 마지막 `check`가 성공. 실패·취소·건너뜀은 통과로 처리하지 않는다. 기본 `npm run check`는 DB가 필요 없으며 DB 통합 시험은 별도 명령이다.
 
 같은 PR의 새 실행은 이전 실행을 취소하며 PR 브랜치 push와 PR 이벤트의 중복 실행을 피한다. GitHub 토큰은 `contents: read`만 부여하고 checkout 자격증명은 남기지 않는다. 외부 PR에도 모델 키·배포 자격증명이 필요 없다. Actions는 검토 가능한 commit SHA로 고정한다. 이 설정은 GitHub.com hosted runner 기준이며 다른 서버/runner로 이식 시 Actions 버전과 artifact 호환성을 따로 확인한다.
 

@@ -74,10 +74,40 @@ jobs:
         if: always()
         run: docker compose down
 
+  server:
+    name: PostgreSQL server regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: knowledge_test
+          POSTGRES_PASSWORD: test-only-not-for-deployment
+          POSTGRES_DB: knowledge_test
+        ports:
+          - '5432:5432'
+        options: >-
+          --health-cmd "pg_isready -U knowledge_test -d knowledge_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://knowledge_test:test-only-not-for-deployment@127.0.0.1:5432/knowledge_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run check:server
+      - run: npm run test:server
+
   check:
     name: check
     if: always()
-    needs: [verify, container]
+    needs: [verify, container, server]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -85,4 +115,5 @@ jobs:
         env:
           VERIFY_RESULT: ${{ needs.verify.result }}
           CONTAINER_RESULT: ${{ needs.container.result }}
-        run: test "$VERIFY_RESULT" = success && test "$CONTAINER_RESULT" = success
+          SERVER_RESULT: ${{ needs.server.result }}
+        run: test "$VERIFY_RESULT" = success && test "$CONTAINER_RESULT" = success && test "$SERVER_RESULT" = success

@@ -44,4 +44,6 @@ src/domain/wiki.ts는 기존 도메인과 분리된 편입·질문·점검 상�
 
 ## 1차 K8s 배포 목표(아직 미구현)
 
+서버 전환의 첫 단위로 `server/`에 PostgreSQL 정본/승인·원자 발행·감사·사용 이벤트 서비스와 인증 콜백 주입형 사용량 GET 핸들러를 추가했다. 기본 UI 업무는 계속 localStorage이며 사용량 화면만 같은 origin의 서버 집계를 요청한다. 정적 데모는 사용량 미연결을 표시한다. 실제 SSO/업무 API·MCP·지속 작업·전체 UI 서버 전환은 아직 없다. [서버 기반 구현 경계와 실제 검증](SERVER_FOUNDATION.md)을 따른다.
+
 동일 클러스터 내 `agent-knowledge-hub-stg` 및 `agent-knowledge-hub-prod` 네임스페이스마다 앱 1개와 PostgreSQL 인스턴스 1개를 독립 운영한다. 단일 replica와 DB는 초기 운영 복잡도를 줄이는 선택이지 가용성·3만 사용자 처리량의 검증이 아니다. 실사용 전 서버 저장소·권한·백업·복원·관측 등 최소 게이트를 충족해야 한다. 배포 계약은 [K8S_RELEASE.md](K8S_RELEASE.md), 확장 조건은 [SCALING_PLAN.md](SCALING_PLAN.md), 결정 기록은 [ADR 003](adr/003-single-cluster-initial-release.md)을 참조한다.

@@ -2,6 +2,8 @@
 
 ## 현재 상태
 
+2026-10-29 후속 구현: PostgreSQL 내부 발행 서비스, DB membership/자료 allowlist, 승인 권한 스냅샷, 원자 발행·멱등 영수증, 감사/사용 기록과 사용량 대시보드를 추가했다. 상세는 [SERVER_FOUNDATION.md](SERVER_FOUNDATION.md). 아래 기존 데모 상태 설명은 계속 유효하며 새 서비스가 SSO/업무 UI/API 전체를 운영용으로 대체한 것은 아니다.
+
 React 로컬 데모와 도메인 엔진, UI 교체 경계, 기준 239개와 핵심 순환 12개 요구사항, 앱 내 로드맵, 아이콘 팩을 제공한다. 선택적 로컬 모델 중계와 별도의 합성 개발용 로컬 위키 커넥터/STDIO MCP를 제공한다. 제품 서버·SSO·운영 커넥터·무인 스케줄러·인증된 운영 MCP는 아직 없다. 로드맵의 데모 매핑은 부분 시연 범위이지 프로덕션 완료 수가 아니다.
 
 ## 2026-10-29 로컬 개인 위키 커넥터 첫 수직 구현
@@ -33,6 +35,7 @@ React 로컬 데모와 도메인 엔진, UI 교체 경계, 기준 239개와 핵�
 ## 2026-10-29 개발환경·PR CI 보강
 
 - 머지 준비 후속: 사용자 머지 승인 후 최신 main의 브랜드/로컬 위키 PR을 통합했다. `.gitignore`의 양쪽 제외 항목과 `wiki`/`wiki:mcp` 명령을 모두 보존하고, 전체 `test`에 기존 개발 도구 및 새 커넥터 회귀를 모두 명시 등록했다. 합성 로컬 위키 데이터도 Docker 컨텍스트에서 제외했다. Node24 `check`: Vitest32 + Node47(하위 테스트 포함), 요구사항251·빌드·HTTP smoke 통과. 최신 브랜드 기준 번들 경고는 510.31 kB다.
+- 두 번째 main 통합: CI 대기 중 반영된 서버 기반 PR #6의 migration 회귀·서버 명령·사용량 UI를 보존했다. `check`에 DB 없는 서버 타입검사를 포함하고, 미적용 PostgreSQL CI 패치를 독립 서비스 job으로 반영해 최종 게이트가 서버 실패도 차단한다. 최신 Node24 `check`: Vitest35+Node48, 별도 폐기용 PostgreSQL17.6에서 서버26 통과 후 컨테이너 정리. 요구사항251·빌드/HTTP·actionlint 통과, 청크 경고511.20 kB. 과거 적용용 패치는 재적용하지 않도록 SERVER_FOUNDATION에 기록했다.
 
 - 요구사항 연결: OPS-002·003·014, SEC-012, EVA-007의 개발 지원/회귀 기반. 기존 수용 기준·프로덕션 상태는 변경하지 않았다. 지식 편입/질문/점검·원본/권한/승인 불변식의 기존 회귀를 재사용하며 의미 품질/후속 에이전트 성능 개선을 주장하지 않는다.
 - 변경 파일: `package.json`/lock, `.nvmrc`, `.npmrc`, `.editorconfig`, `.gitignore`, `.dockerignore`, `scripts/doctor.mjs`/시험, `scripts/smoke.mjs`/시험, `Dockerfile`, `nginx/default.conf`, `compose.yaml`, `.github/workflows/ci.yml`, PR 템플릿, README·DEVELOPMENT·TESTING·작업 계획.
@@ -42,6 +45,21 @@ React 로컬 데모와 도메인 엔진, UI 교체 경계, 기준 239개와 핵�
 - 운영 영향/제한: 앱 기능·지식 상태·권한/발행 로직은 변경하지 않았다. Compose 포트는 기본8080 loopback을 유지하며 환경변수로 변경 가능하다. 원래의 510.25 kB 빌드 경고·포맷 부채, 운영 서버/CD·실제 모델 품질·브라우저 E2E·부하/복구 검증은 남아 있다. Docker 기반 이미지는 기존의 가변 태그를 유지한다. 사용자의 마지막 지시에 따라 PR까지만 진행하며 머지하지 않는다.
 
 ## 다음 작업
+
+### 2026-10-29 서버 기반·사용량 작업 인계
+
+- 요구사항: CORE-002~004, ACL-001~005·009, REV-004~006, VER-005, SEC-009, OPS-004, GOV-009·OPS-006의 일부 구현. 기존 251개 상태/수용 기준과 35개 인수 시험 계획은 완료로 변경하지 않았다.
+- 변경 파일: `server/` 서비스·저장소·마이그레이션 3개/DB 시험, `scripts/migrate.mts`, 시험 compose/CI, `src/domain/usage.ts`·집계 어댑터·대시보드·CSS·App 탐색, 패키지/라이선스, README·ARCHITECTURE·SERVER_FOUNDATION 및 캡처.
+- 보안/발행: 권한 교집합과 연결 대상 실효 접근 검사, 승인 시 ACL 고정, 승인 후 source/base/body/policy/ACL 변경 차단, 현재 권한으로 replay·과거 제목 검사, SQL/성공 계측 실패 rollback. 독립 리뷰의 중요 결함 3건을 시험으로 재현하고 수정했다.
+- 사용량: 실제 DB에 주체/작업/성공·실패/시각/ms 기록, 본인/검토자 workspace 범위와 UTC 7/30일 집계. 모델 토큰/비용은 미수집(null). 현재 데모 업무 UI/페이지뷰를 수집하거나 운영 사용량이라고 주장하지 않는다.
+- UI: 데스크톱/모바일 19개 캡처를 PR에 첨부. 실측 시험 응답/미연결/UI fixture를 구분한다. 측정 화면 높이 1576/1782px, 첫 결론 264/334px, 그래프 글자 14px, 표 내부 스크롤을 확인했다.
+- 최종 로컬 검증(Node 24.22.2/PostgreSQL 17.6): `npm test` 35 Vitest + 6 Node, `npm run test:server` 26개 통과. `check:server`, `check:requirements`(251개), `build`, `db:migrate`(재실행), `git diff --check` 통과. 주 청크 511.15 kB 크기 경고는 남는다. 서버 CI 확장은 현재 OAuth 토큰의 workflow 권한 부족으로 푸시가 거부되어 `docs/ci-server-tests.patch`로 분리했다. 기존 CI만 실행되며 서버 DB 회귀 자동화는 권한 있는 담당자가 패치를 적용해야 한다. SSO·실제 모델·업무 UI 서버 전환·K8s 배포/백업복원·운영 부하 검증은 미실행이다.
+- 다음 작업: 실제 인증/그룹·UI/API 계약 연결, 반려/수정·재검토 운영 흐름, Query/Lint/작업 영속화와 나머지 1차 릴리즈 필수 게이트를 순차 구현한다. workspace 단위 잠금은 초기 선택이며 대규모 처리량을 보장하지 않는다.
+- PR: https://github.com/wontaeJeong/agent-knowledge-hub/pull/6 . UI 캡처 19개 모두 PR 본문에 첨부하고 원격 이미지 응답을 확인했다. 병합은 사용자 승인 대기다.
+- PR 생성 후 최신 `origin/main`의 확정 원본 Folio 심볼 변경(670f5a9)을 보존해 통합했다. 충돌은 TESTING의 양쪽 검증 기록을 모두 보존해 해결했다. 전체 35+6+26개 시험/251개 요구사항/타입/빌드를 다시 통과했고 최종 주 청크 경고는 511.20 kB다. 최신 심볼로 캡처 19개도 다시 생성했다.
+- 사용자 머지 승인 후 PR #7의 로컬 개인 위키 커넥터(c03079d)도 보존해 통합했다. 패키지 시험 명령은 양쪽 시험을 모두 실행하며 lockfile의 의존성/버전을 합쳤다. Node 24.22.2에서 `npm ci`, 클라이언트 35개+Node 34개+서버 26개(총 95개), 요구사항 251개/서버 타입/빌드가 통과했다. 업무 UI 산출물 해시는 변경 전과 같아 캡처 19개는 계속 유효하다. 커넥터의 합성 파일 서비스와 PostgreSQL 기반 서비스를 이미 통합했다고 주장하지 않는다.
+
+### 기존 후속 순서
 
 1. docs/LLM_WIKI_CORE.md와 wiki/SCHEMA.md의 지식 누적 순환을 기준으로 사내 권한·자료 등급·UI 계약을 확정한다. Gate UI의 실제 경로와 지침을 확인해 어댑터로 재사용한다.
 2. 원본·변경 집합·발행·인용·관계 메타데이터를 서버 저장소와 트랜잭션으로 옮긴다. 현재 localStorage를 인증된 서버 권한으로 대체한다.
