@@ -64,3 +64,6 @@
 
 - User directed unattended execution on 2026-10-29; extra design approval prompts waived. Architecture choices are implementer defaults, not company policy approval.
 - Initial environment has Docker/kind/kubectl and GitHub authentication. Node25 default must be replaced with Node24 for verification. Existing kind cluster `agentcask-mvp` is out of scope.
+- Task1 initial implementation ca5c6bb:41 DB tests and real Keycloak/deployed image startup verified; independent review found3 model lineage confidentiality issues, fix wave in progress. Do not merge until fixed/retested.
+- Task2/3 initial review7 findings fixed with regression tests; actual 390/1440 browser login, knowledge display, session expiry clearing and re-login exercised.10-session synthetic HTTP read workload completed, but initial actual-model natural Korean query correctly returned insufficient because lexical retrieval missed particles; added failing retrieval regression and conservative lexical expansion. Re-run deployed E2E after new image.
+- Full251 implementation/production acceptance remains explicitly incomplete. This plan is not a completion statement.

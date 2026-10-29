@@ -1,0 +1,22 @@
+{
+  "CORE-002": {
+    "implementation": ["server/service.ts", "server/publication.ts"],
+    "tests": ["server/service.test.ts"],
+    "limitations": ["원본 정정/철회·운영 저장소·전체 수용 시나리오는 별도 인수 필요"]
+  },
+  "CORE-004": {
+    "implementation": ["server/publication.ts", "server/database.ts"],
+    "tests": ["server/service.test.ts"],
+    "limitations": ["DB 회귀 통과는 실제 사내 다중 사용자 운영 인수를 대신하지 않음"]
+  },
+  "OPS-002": {
+    "implementation": ["Dockerfile.server", "deploy/", "scripts/k8s/local.mjs"],
+    "tests": ["scripts/k8s/manifests.test.mjs", "scripts/k8s/release.test.mjs"],
+    "limitations": ["사내 site overlay·불변 이미지·TLS·CNI 실증은 별도"]
+  },
+  "OPS-009": {
+    "implementation": ["scripts/k8s/backup.mjs", "scripts/k8s/verify-restore.mjs"],
+    "tests": ["scripts/k8s/backup-format.test.mjs"],
+    "limitations": ["DB-only 로컬 복원 도구; 외부 blob 일관성·실제 RPO/RTO·독립 보관 인수 필요"]
+  }
+}

@@ -9,4 +9,5 @@ coverage/
 demo-dist/
 .serena/
 .superpowers/
+.playwright-mcp/
 /.local-wiki-demo/

@@ -9,6 +9,7 @@ configMapGenerator:
   - name: knowledge-config
     literals:
       - NODE_ENV=development
+      - OIDC_ALLOW_HTTP=true
       - APP_ORIGIN=http://localhost:28080
       - OIDC_ISSUER=http://localhost:28081/realms/knowledge
       - OIDC_INTERNAL_URL=http://knowledge-keycloak:8080

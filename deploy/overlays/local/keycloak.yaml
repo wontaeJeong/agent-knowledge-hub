@@ -18,6 +18,8 @@ metadata:
   name: knowledge-keycloak
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: knowledge-keycloak
@@ -38,6 +40,8 @@ spec:
               value: "true"
             - name: KC_HEALTH_ENABLED
               value: "true"
+            - name: JAVA_OPTS_APPEND
+              value: "-Xms64m -Xmx256m"
             - name: KC_BOOTSTRAP_ADMIN_USERNAME
               value: local-admin
             - name: KC_BOOTSTRAP_ADMIN_PASSWORD
@@ -47,13 +51,26 @@ spec:
                   key: password
           ports:
             - containerPort: 8080
+            - containerPort: 9000
+              name: health
+          startupProbe:
+            httpGet:
+              path: /health/ready
+              port: health
+            failureThreshold: 90
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: health
+            periodSeconds: 5
           resources:
             requests:
               cpu: 200m
-              memory: 512Mi
+              memory: 256Mi
             limits:
               cpu: "2"
-              memory: 1Gi
+              memory: 512Mi
           volumeMounts:
             - name: realm
               mountPath: /opt/keycloak/data/import
