@@ -9,8 +9,8 @@
 
 하나의 기존 Kubernetes 클러스터에 정확히 두 네임스페이스를 사용한다.
 
-- §agent-knowledge-hub-stg§: 스테이징
-- §agent-knowledge-hub-prod§: 운영
+- `agent-knowledge-hub-stg`: 스테이징
+- `agent-knowledge-hub-prod`: 운영
 
 각 환경은 처음에 **애플리케이션 replica 1, PostgreSQL 인스턴스 1**로 구성한다. 애플리케이션과 DB는 **서로 다른 워크로드/Pod**이며, 각 환경의 DB·PVC·자격증명·설정·권한·백업을 분리한다. 동일한 소스/이미지로 배포하되 환경별 설정과 데이터는 공유하지 않는다.
 
@@ -30,7 +30,7 @@
 - Kubernetes 네임스페이스만으로 통신·리소스·권한 격리가 완성되지 않는다. RBAC, ResourceQuota, NetworkPolicy, Secret, 계정 및 백업 권한을 별도로 강제한다.
 - DB PVC만으로는 백업이 되지 않는다. 복구 가능한 외부 사본과 복원 점검이 필요하다.
 - 동시 작업과 다중 사용자 발행은 앱 replica가 하나여도 DB 트랜잭션·멱등성·버전 충돌 방지가 필요하다.
-- 현재 §Dockerfile§/§compose.yaml§은 정적 Vite 데모를 제공하며, 현 시점에는 서버 데이터 저장소가 없다. 이것을 그대로 사내 다중 사용자 운영 배포로 간주하지 않는다.
+- 현재 `Dockerfile`/`compose.yaml`은 정적 Vite 데모를 제공하며, 현 시점에는 서버 데이터 저장소가 없다. 이것을 그대로 사내 다중 사용자 운영 배포로 간주하지 않는다.
 
 ## 전환 조건
 
