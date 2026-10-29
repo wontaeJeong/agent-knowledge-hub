@@ -15,6 +15,8 @@ COPY --from=build --chown=node:node /app/src/domain ./src/domain
 COPY --from=build --chown=node:node /app/scripts/migrate.mts ./scripts/migrate.mts
 COPY --from=build --chown=node:node /app/wiki ./wiki
 COPY --from=build --chown=node:node /app/package.json ./package.json
+COPY --from=build --chown=node:node /app/THIRD_PARTY_NOTICES.md ./THIRD_PARTY_NOTICES.md
+COPY --from=build --chown=node:node /app/third-party-licenses ./third-party-licenses
 USER node
 EXPOSE 8080
 CMD ["npm", "run", "start:server"]

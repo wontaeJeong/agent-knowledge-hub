@@ -194,6 +194,7 @@ try {
   latency.sort((a, b) => a - b);
   result.load = {
     sessions: 10,
+    distinctPrincipals: new Set(clients.map((client) => client.me.principalId)).size,
     requests: latency.length,
     successful: latency.length,
     elapsedMs: Math.round(performance.now() - started),
