@@ -4,11 +4,20 @@
   "private": true,
   "type": "module",
   "description": "LLM 업무 산출물을 연결된 사내 지식으로 만드는 위키 데모",
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "vitest run src && node --test scripts/model-api.test.mjs scripts/migrate.test.mjs scripts/wiki-connector/*.test.mjs",
+    "test": "vitest run src && node --test scripts/model-api.test.mjs scripts/migrate.test.mjs scripts/doctor.test.mjs scripts/smoke.test.mjs scripts/wiki-connector/cli.test.mjs scripts/wiki-connector/client.test.mjs scripts/wiki-connector/mcp.test.mjs scripts/wiki-connector/service.test.mjs",
+    "test:watch": "vitest src",
+    "typecheck": "tsc -b --pretty",
+    "doctor": "node scripts/doctor.mjs",
+    "check": "npm run doctor && npm test && npm run check:requirements && npm run check:server && npm run build && npm run test:smoke",
+    "test:smoke": "node scripts/smoke.mjs",
     "test:server": "vitest run server --maxWorkers=1",
     "check:server": "tsc -p tsconfig.server.json",
     "db:migrate": "node --experimental-strip-types scripts/migrate.mts",

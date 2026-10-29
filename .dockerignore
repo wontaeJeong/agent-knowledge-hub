@@ -5,3 +5,11 @@ dist
 docs
 brand-kit
 artifacts
+.env
+.env.*
+!.env.example
+.serena
+.superpowers
+coverage
+demo-dist
+.local-wiki-demo

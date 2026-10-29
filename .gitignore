@@ -7,4 +7,6 @@ dist/
 .DS_Store
 coverage/
 demo-dist/
+.serena/
+.superpowers/
 /.local-wiki-demo/
