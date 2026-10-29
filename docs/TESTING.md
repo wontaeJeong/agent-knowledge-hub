@@ -40,6 +40,8 @@
 
 ## 2026-10-29 개발환경·PR CI 보강
 
+- 머지 승인 뒤 최신 main(브랜드 및 로컬 위키 PR 포함) 통합: Node24 `npm ci`/`npm run check` 통과, Vitest32 + Node47(하위 테스트 포함), 요구사항251·타입검사/빌드·정적 HTTP 통과. 양쪽 테스트 명령을 보존했으며 최신 브랜드의 청크 경고는 510.31 kB다. 아래 51개 기록은 통합 이전 실행 근거다.
+
 - macOS 새 워크트리에서 `npm ci`, Node 22.23.4 및 24.22.2의 `npm run check` 통과: Vitest 32개 + Node 19개(기존 모델 HTTP 5, 환경 진단 3, smoke 회귀 11), 요구사항 251개, 타입검사/빌드, 실제 로컬 정적 HTTP smoke. 선언한 최소 버전 Node 22.12.0에서도 같은 `check` 통과.
 - Node 25.7.0의 `npm ci --dry-run`은 의도대로 `EBADENGINE`으로 차단됐다. 진단 회귀는 22.11/22.12, 24, 25, 26 경계·의존성 없음·키 비노출을 확인한다. smoke 회귀는 누락 JS/CSS/브랜드·잘못된 MIME·가짜 SPA 성공·빈 앱·성공/실패 뒤 자식 서버 정리·빌드 없음·URL 모드 실패를 확인한다.
 - Colima Linux aarch64 / Docker 29.2.1 / Compose 5.1.3에서 격리된 프로젝트와 동적 loopback 포트로 실제 이미지 빌드·health·HTTP smoke 통과 후 컨테이너/네트워크 정리. 최초 실행은 Nginx의 webmanifest MIME 불일치로 실패했고, `nginx/default.conf` 적용 후 같은 검사 통과. 로컬 buildx 미설치 경고로 classic builder가 사용됐으며 실행 실패는 아니었다.
@@ -96,3 +98,9 @@ Docker 빌드·실행, 실제 GitHub Actions 실행, 실제 모바일 기기·�
 - 모든 manifest SHA-256, SVG XML 파싱, PNG 디코딩, favicon 16–512px 크기, 1200×630 공유 카드, 1600×480 배너, ICO의 16/32/48px 디렉터리와 webmanifest의 실제 아이콘 경로를 확인했다. public/brand 사본과 원본도 대조했다.
 - 새 전체 미리보기·다크 배너를 렌더링해 이름의 정확성·로고·아이콘·여백·작은 크기를 시각 확인했다. 워드마크는 경로 윤곽으로 렌더링한다.
 - 새 앱의 실제 브라우저 렌더링은 이번 실행 환경의 브라우저 접근 제한으로 확인하지 못했다. 이전 버전의 브라우저 검증 기록과 구분한다. 기존 500kB 번들 경고는 유지되며 이번 브랜드 변경의 실패가 아니다.
+
+## 2026-10-29 최초 심볼과 현 브랜드 조합
+
+사용자 결정에 따라 최초 Folio Wiki의 육각형·펼친 책 심볼을 복원했다. 원본 SVG의 두 path·viewBox·색·선 두께·끝/이음 속성을 대조했고, 심볼 PNG 6종과 favicon PNG 10종은 원본 커밋 afa472f의 파일과 바이트까지 일치한다.
+
+최신 main을 반영한 상태에서 Vitest 32개와 모델 중계 5개, 총 37개 테스트 및 요구사항 251개 연결 검사·TypeScript·Vite 빌드가 통과했다. 에셋 74개 파일의 manifest SHA-256과 SVG 파싱을 확인하고 전체 미리보기를 시각 점검했다. 새 배너·워드마크·공유 이미지의 이름은 agent-knowledge-hub이다. 이번 변경은 지식 처리나 모델 성능의 개선을 주장하지 않는다.

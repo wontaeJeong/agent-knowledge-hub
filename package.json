@@ -12,23 +12,27 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "vitest run src && node --test scripts/model-api.test.mjs scripts/doctor.test.mjs scripts/smoke.test.mjs",
+    "test": "vitest run src && node --test scripts/model-api.test.mjs scripts/doctor.test.mjs scripts/smoke.test.mjs scripts/wiki-connector/cli.test.mjs scripts/wiki-connector/client.test.mjs scripts/wiki-connector/mcp.test.mjs scripts/wiki-connector/service.test.mjs",
     "test:watch": "vitest src",
     "typecheck": "tsc -b --pretty",
     "doctor": "node scripts/doctor.mjs",
     "check": "npm run doctor && npm test && npm run check:requirements && npm run build && npm run test:smoke",
     "test:smoke": "node scripts/smoke.mjs",
+    "wiki": "node scripts/wiki-connector/cli.mjs",
+    "wiki:mcp": "node scripts/wiki-connector/mcp.mjs",
     "check:requirements": "node scripts/check-requirements.mjs",
     "demo": "node scripts/serve-demo.mjs",
     "brand": "node scripts/generate-brand.mjs",
     "format": "prettier --write src vite.config.ts scripts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
     "dompurify": "3.4.17",
     "lucide-react": "1.61.0",
     "marked": "18.1.2",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

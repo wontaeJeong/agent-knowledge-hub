@@ -35,6 +35,10 @@
 
 README.md, docs/ARCHITECTURE.md, docs/UI_INTEGRATION.md, docs/ROADMAP.md, docs/SECURITY.md와 작업 대상 요구사항을 읽는다. K8s 배포·서버 영속화·운영 설계 변경 시 docs/K8S_RELEASE.md, docs/SCALING_PLAN.md와 docs/adr/003-single-cluster-initial-release.md도 따른다. 기준 요구사항은 docs/requirements/requirements.json, 핵심 순환 추가 기준은 docs/requirements/core-requirements.json이며 앱 로드맵 데이터는 src/data/roadmap.json이다. 기존 리뷰 근거는 docs/requirements/review.md와 source-audit.json에 있다.
 
+## 브랜드 기준
+
+제품 이름은 `agent-knowledge-hub`, 확정 심볼은 최초 Folio Wiki의 육각형·펼친 책 SVG다. 심볼의 원본 path·비율·선 두께·plum 색상을 보존하고 `scripts/generate-brand.mjs`로 파생 에셋을 생성한다.
+
 ## 사내 레포로 이식할 때
 
 - agent-admission-gate 소스 접근이 가능해지면 해당 레포의 AGENTS.md와 실제 디자인 토큰·프리미티브를 우선 확인한다.

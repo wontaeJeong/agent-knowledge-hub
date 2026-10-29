@@ -4,6 +4,8 @@ Direct package metadata at the packaged lockfile versions. Preserve original not
 
 | Package | Version | License metadata |
 | --- | --- | --- |
+| @modelcontextprotocol/sdk | 1.32.2 | MIT |
+| zod | 4.6.7 | MIT |
 | dompurify | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
 | lucide-react | 1.61.0 | ISC |
 | marked | 18.1.2 | MIT |
@@ -20,4 +22,4 @@ Direct package metadata at the packaged lockfile versions. Preserve original not
 
 Original available direct-package license texts are included under third-party-licenses/. Transitive packages retain their npm notices. No upstream wiki product or Enterprise Edition source was copied into this repository.
 
-Brand wordmark outlines use a subset of DejaVu Sans glyphs (Bitstream Vera license; DejaVu changes are public domain). The original copyright and license notice is retained in third-party-licenses/dejavu-font-license.txt. No font file is loaded by the app. The project-specific Linked K symbol and workspace icon paths are maintained separately.
+Brand wordmark outlines use a subset of DejaVu Sans glyphs (Bitstream Vera license; DejaVu changes are public domain). The original copyright and license notice is retained in third-party-licenses/dejavu-font-license.txt. No font file is loaded by the app. The original project-specific hexagon-book symbol and workspace icon paths are maintained separately.

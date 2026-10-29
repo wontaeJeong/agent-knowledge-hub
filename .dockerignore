@@ -12,3 +12,4 @@ artifacts
 .superpowers
 coverage
 demo-dist
+.local-wiki-demo
