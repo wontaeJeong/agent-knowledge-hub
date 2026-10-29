@@ -1,0 +1,352 @@
+.operational-app {
+  min-height: 100vh;
+  color: var(--text, #24202a);
+  background: var(--bg, #f7f5f9);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.op-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px max(20px, calc((100% - 1180px) / 2));
+  background: var(--surface, #fff);
+  border-bottom: 1px solid var(--border, #ddd7e4);
+}
+.op-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  font-size: 18px;
+  font-weight: 750;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.op-brand img {
+  width: 38px;
+  height: 38px;
+}
+.op-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.op-main {
+  max-width: 1180px;
+  padding: 32px 24px;
+  margin: 0 auto;
+}
+.op-main h1 {
+  font-size: clamp(23px, 3.2vw, 34px);
+  letter-spacing: -0.04em;
+  margin: 0 0 12px;
+}
+.op-lead {
+  max-width: 810px;
+  color: var(--muted, #696072);
+  margin: 0 0 24px;
+}
+.op-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 24px 0 16px;
+}
+.op-nav button {
+  padding: 10px 16px;
+  border: 1px solid var(--border, #ddd7e4);
+  border-radius: 9px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.op-nav button[aria-current] {
+  background: #623680;
+  color: white;
+  border-color: #623680;
+}
+.op-context {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  font-size: 14px;
+  color: var(--muted, #696072);
+  margin-bottom: 20px;
+}
+.op-context label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.op-panel {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #ddd7e4);
+  padding: 26px;
+  border-radius: 14px;
+  margin: 0 0 20px;
+  min-width: 0;
+}
+.op-panel h2 {
+  font-size: 21px;
+  margin: 0 0 12px;
+}
+.op-panel h3 {
+  font-size: 17px;
+  margin: 8px 0;
+}
+.op-panel h4 {
+  font-size: 15px;
+}
+.op-panel p {
+  margin: 10px 0 18px;
+}
+.op-main label:not(.op-check) {
+  display: block;
+  font-weight: 550;
+  margin-bottom: 14px;
+}
+.op-main input:not([type="checkbox"]),
+.op-main textarea,
+.op-main select {
+  width: 100%;
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #cfc7d7);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  margin-top: 5px;
+}
+.op-main textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+.op-context select {
+  width: auto;
+}
+.op-main fieldset {
+  border: 1px solid var(--border, #ddd7e4);
+  border-radius: 8px;
+  margin: 16px 0;
+  padding: 12px;
+}
+.op-main legend {
+  padding: 0 6px;
+}
+.op-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+  margin: 6px 0;
+}
+.op-check input {
+  flex: none;
+  margin-top: 7px;
+  width: 16px;
+  height: 16px;
+}
+.op-section-head,
+.op-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.op-actions {
+  justify-content: flex-start;
+  margin-top: 16px;
+}
+.op-main details {
+  border-bottom: 1px solid var(--border, #ddd7e4);
+  padding: 14px 0;
+}
+.op-main summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.op-page-list summary .badge {
+  margin-left: 12px;
+}
+.op-page-list summary > span:last-child {
+  display: block;
+  margin: 8px 0 0;
+  color: var(--muted, #696072);
+}
+.op-source summary {
+  display: flex;
+}
+.op-source summary label {
+  margin: 0;
+}
+.op-main pre {
+  font:
+    14px/1.7 ui-monospace,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 550px;
+  overflow: auto;
+  padding: 16px;
+  background: var(--bg, #f7f5f9);
+  border-radius: 8px;
+}
+.op-id {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--muted, #696072);
+  font-size: 13px;
+}
+.op-change {
+  border-top: 1px solid var(--border, #ddd7e4);
+  margin-top: 22px;
+  padding-top: 16px;
+}
+.op-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.op-diff > div {
+  min-width: 0;
+}
+.op-answer {
+  margin-top: 28px;
+  border-top: 1px solid var(--border, #ddd7e4);
+  padding-top: 18px;
+}
+.op-markdown {
+  overflow-wrap: anywhere;
+}
+.op-markdown table {
+  display: block;
+  overflow: auto;
+  max-width: 100%;
+}
+.op-markdown img {
+  max-width: 100%;
+}
+.op-markdown blockquote,
+.op-main blockquote {
+  margin: 12px 0;
+  padding: 8px 16px;
+  border-left: 3px solid #78469e;
+  background: var(--bg, #f7f5f9);
+}
+.op-error {
+  padding: 16px 20px;
+  border: 1px solid #ce7c7c;
+  background: #fff0f0;
+  color: #7e2323;
+  border-radius: 10px;
+  margin: 18px 0;
+}
+.op-error p {
+  margin: 6px 0 12px;
+  overflow-wrap: anywhere;
+}
+.op-notice,
+.op-progress {
+  padding: 12px 18px;
+  background: #eee4f4;
+  color: #623680;
+  border-radius: 8px;
+  margin: 16px 0;
+}
+.op-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted, #696072);
+  font-size: 13px;
+  margin: 30px 0;
+}
+.op-table-scroll {
+  overflow: auto;
+  max-width: 100%;
+}
+.op-table-scroll table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.op-table-scroll th,
+.op-table-scroll td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #ddd7e4);
+}
+.op-skip {
+  position: absolute;
+  top: -80px;
+  left: 12px;
+  background: #623680;
+  color: white;
+  padding: 12px;
+  z-index: 100;
+}
+.op-skip:focus {
+  top: 8px;
+}
+.op-main :focus-visible,
+.op-header :focus-visible {
+  outline: 3px solid #a566ce;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .op-header {
+    align-items: flex-start;
+    padding: 16px;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .op-main {
+    padding: 24px 16px;
+  }
+  .op-panel {
+    padding: 18px 16px;
+  }
+  .op-nav {
+    gap: 6px;
+  }
+  .op-nav button {
+    padding: 9px 11px;
+    font-size: 14px;
+  }
+  .op-diff {
+    grid-template-columns: 1fr;
+  }
+  .op-brand {
+    font-size: 17px;
+  }
+  .op-account {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .op-context {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .op-context label {
+    width: 100%;
+  }
+  .op-context select {
+    width: auto;
+  }
+  .op-main .button {
+    min-height: 42px;
+  }
+  .op-main h1 {
+    line-height: 1.4;
+  }
+}

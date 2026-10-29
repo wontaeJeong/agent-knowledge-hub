@@ -9,6 +9,8 @@
     "npm": ">=10"
   },
   "scripts": {
+    "start:server": "tsx server/runtime/main.ts",
+    "migrate:server": "tsx server/runtime/main.ts --migrate",
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
@@ -33,9 +35,12 @@
     "dompurify": "3.4.17",
     "lucide-react": "1.61.0",
     "marked": "18.1.2",
+    "openid-client": "6.8.4",
     "pg": "8.23.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "tsx": "4.20.6",
+    "yaml": "2.9.1",
     "zod": "4.6.7"
   },
   "devDependencies": {

@@ -7,6 +7,7 @@ import {
   decideBatch,
   enqueueBatch,
   memory,
+  current,
 } from "../src/domain/wiki";
 import { transaction } from "./database";
 import {
@@ -17,6 +18,13 @@ import {
   readers,
   requireRead,
 } from "./repository";
+import {
+  assertEnvelope,
+  inheritedProvenance,
+  versionProvenance,
+  type InputEnvelope,
+  type Provenance,
+} from "./provenance";
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
@@ -35,16 +43,24 @@ export const digest = (value: unknown) =>
 const batchHash = ({
   status: _s,
   approvedFingerprint: _f,
+  requestAuthorizationPending: _pending,
   ...content
-}: Batch) => digest(content);
+}: Batch & { requestAuthorizationPending?: boolean }) => digest(content);
+type RuntimeBatch = Batch & {
+  contextDependencyIds?: string[];
+  inputEnvelope?: InputEnvelope;
+};
 
 async function permissions(
   db: PoolClient,
   ctx: Context,
   updates: Draft[],
   sourceIds: string[],
+  dependencyIds: string[] = [],
 ) {
   const acl: Record<string, unknown> = {};
+  const canonicalState = await loadState(db, ctx.workspaceId);
+  const retainedDependencies = new Set(dependencyIds);
   const audienceOf = async (kind: string, id: string) => {
     const list = (await readers(db, ctx.workspaceId, kind, id)).sort();
     acl[`${kind}:${id}`] = list;
@@ -78,6 +94,16 @@ async function permissions(
       audiences.set(d.id, audience);
     } else audiences.set(d.id, intersection);
     if (!intersection.includes(ctx.principalId)) throw Error("NOT_FOUND");
+    const old = canonicalState.pages.find((p) => p.id === d.id);
+    if (old) {
+      const inherited = inheritedProvenance(old);
+      for (const id of inherited.pageIds) retainedDependencies.add(id);
+      for (const id of inherited.sourceIds) {
+        const a = await audienceOf("source", id);
+        if (audiences.get(d.id)!.some((p) => !a.includes(p)))
+          throw Error("SOURCE_SCOPE_CONFLICT");
+      }
+    }
   }
   for (const d of updates) {
     for (const link of d.links) {
@@ -100,6 +126,31 @@ async function permissions(
         throw Error("SOURCE_SCOPE_CONFLICT");
     }
   }
+  for (const id of retainedDependencies) {
+    const dependencyAudience = await audienceOf("page", id);
+    if (!dependencyAudience.includes(ctx.principalId)) throw Error("NOT_FOUND");
+    const r = await db.query(
+      "SELECT data,number FROM versions WHERE workspace_id=$1 AND page_id=$2 ORDER BY number DESC LIMIT 1",
+      [ctx.workspaceId, id],
+    );
+    if (!r.rowCount) throw Error("NOT_FOUND");
+    acl[`dependency:${id}`] = r.rows[0].number;
+    let effective = dependencyAudience;
+    for (const sourceId of r.rows[0].data.sourceIds) {
+      const a = await audienceOf("source", sourceId);
+      effective = effective.filter((p) => a.includes(p));
+    }
+    const retained = versionProvenance(r.rows[0].data);
+    for (const nested of retained.pageIds) retainedDependencies.add(nested);
+    for (const sourceId of retained.sourceIds) {
+      const a = await audienceOf("source", sourceId);
+      effective = effective.filter((p) => a.includes(p));
+    }
+    if (!effective.includes(ctx.principalId)) throw Error("NOT_FOUND");
+    for (const audience of audiences.values())
+      if (audience.some((p) => !effective.includes(p)))
+        throw Error("SOURCE_SCOPE_CONFLICT");
+  }
   return { audiences, hash: digest(acl) };
 }
 
@@ -108,17 +159,62 @@ export async function propose(
   ctx: Context,
   updates: Draft[],
   sourceIds: string[],
+  options?: {
+    expectedStateHash?: string;
+    mode?: "offline" | "model";
+    dependencyIds?: string[];
+    answerId?: string;
+    inputEnvelope?: InputEnvelope;
+    requestAuthorizationPending?: boolean;
+  },
 ) {
   return transaction(
     pool,
     ctx.workspaceId,
     async (db) => {
       if ((await membership(db, ctx)) === "reader") throw Error("FORBIDDEN");
-      await permissions(db, ctx, updates, sourceIds);
+      await ctx.authorization?.assertSession(db);
+      await permissions(db, ctx, updates, sourceIds, options?.dependencyIds);
+      if (options?.inputEnvelope)
+        await assertEnvelope(
+          db,
+          ctx,
+          await loadState(db, ctx.workspaceId),
+          options.inputEnvelope,
+        );
       const state = await loadState(db, ctx.workspaceId);
+      if (
+        options?.expectedStateHash &&
+        digest(state) !== options.expectedStateHash
+      )
+        throw Error("STALE_VERSION");
       let batch: Batch;
       try {
-        batch = createBatch(state, updates, sourceIds, "offline");
+        batch = createBatch(
+          state,
+          updates,
+          sourceIds,
+          options?.mode ?? "offline",
+        );
+        for (const id of options?.dependencyIds ?? []) {
+          const p = state.pages.find((p) => p.id === id);
+          if (!p) throw Error("NOT_FOUND");
+          batch.baseSnapshots[id] = JSON.stringify([
+            p.title,
+            p.summary,
+            p.scope,
+            p.links,
+            p.facts,
+            current(p),
+          ]);
+        }
+        if (options?.answerId) batch.answerId = options.answerId;
+        if (options?.dependencyIds)
+          (batch as RuntimeBatch).contextDependencyIds = options.dependencyIds;
+        if (options?.inputEnvelope)
+          (batch as RuntimeBatch).inputEnvelope = options.inputEnvelope;
+        if (options?.requestAuthorizationPending)
+          Object.assign(batch, { requestAuthorizationPending: true });
         enqueueBatch(state, batch);
       } catch {
         throw Error("VALIDATION_FAILED");
@@ -150,11 +246,24 @@ async function checkedBatch(
   );
   if (!r.rowCount) throw Error("NOT_FOUND");
   const batch = r.rows[0].data as Batch;
+  if (
+    (batch as Batch & { requestAuthorizationPending?: boolean })
+      .requestAuthorizationPending
+  )
+    throw Error("NOT_FOUND");
+  if (batch.status !== "published" && (batch as RuntimeBatch).inputEnvelope)
+    await assertEnvelope(
+      db,
+      ctx,
+      await loadState(db, ctx.workspaceId),
+      (batch as RuntimeBatch).inputEnvelope!,
+    );
   await permissions(
     db,
     ctx,
     batch.updates,
     batch.snapshots.map((s) => s.id),
+    (batch as RuntimeBatch).contextDependencyIds,
   );
   if (hash !== r.rows[0].hash || hash !== batchHash(batch))
     throw Error("APPROVAL_STALE");
@@ -187,6 +296,7 @@ export async function approve(
         ctx,
         batch.updates,
         batch.snapshots.map((s) => s.id),
+        (batch as RuntimeBatch).contextDependencyIds,
       );
       await db.query(
         "UPDATE batches SET data=$3 WHERE workspace_id=$1 AND id=$2",
@@ -243,6 +353,7 @@ export async function publish(
           ctx,
           batch.updates,
           batch.snapshots.map((s) => s.id),
+          (batch as RuntimeBatch).contextDependencyIds,
         );
         if (permissionSnapshot.hash !== approval.rows[0].acl_hash)
           throw Error("APPROVAL_STALE");
@@ -259,7 +370,41 @@ export async function publish(
         for (const d of batch.updates) {
           const p = next.pages.find((p) => p.id === d.id)!;
           const { versions: history, ...metadata } = p;
-          const v = { ...history.at(-1)!, author: ctx.principalId };
+          const old = state.pages.find((p) => p.id === d.id);
+          const inherited = old
+            ? inheritedProvenance(old)
+            : { pageIds: [], sourceIds: [] };
+          const dependencyIds = [
+            ...new Set([
+              ...inherited.pageIds,
+              ...d.links,
+              ...((batch as RuntimeBatch).contextDependencyIds ?? []),
+            ]),
+          ].filter((id) => id !== d.id);
+          const provenance: Provenance = {
+            pageIds: dependencyIds,
+            sourceIds: [
+              ...new Set([
+                ...inherited.sourceIds,
+                ...d.sourceIds,
+                ...dependencyIds.flatMap((id) => {
+                  const p = state.pages.find((p) => p.id === id);
+                  return p ? inheritedProvenance(p).sourceIds : [];
+                }),
+              ]),
+            ],
+          };
+          const v = {
+            ...history.at(-1)!,
+            author: ctx.principalId,
+            provenance,
+            sourceIds: [
+              ...new Set([
+                ...history.at(-1)!.sourceIds,
+                ...provenance.sourceIds,
+              ]),
+            ],
+          };
           if (d.baseVersion === 0)
             await addResource(
               db,

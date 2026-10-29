@@ -461,9 +461,15 @@ export function decideBatch(
   );
 }
 
-const tokens = (text: string) => [
-  ...new Set(text.toLowerCase().match(/[a-z0-9_]+|[가-힣]{2,}/g) ?? []),
-];
+// Conservative lexical expansion, not a Korean morphological/semantic engine.
+// Preserve the original token and only add a >=2-character noun candidate.
+const tokens = (text: string) => {
+  const raw = text.toLowerCase().match(/[a-z0-9_]+|[가-힣]{2,}/g) ?? [];
+  return [...new Set(raw.flatMap((term) => {
+    const stem = term.replace(/(?:에서|으로|에게|부터|까지|과|와|은|는|이|가|을|를|의|도)$/, "");
+    return /^[가-힣]{2,}$/.test(stem) ? [term, stem] : [term];
+  }))];
+};
 export function retrieve(s: State, question: string): Page[] {
   const terms = tokens(question);
   return readable(s)

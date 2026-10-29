@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: agent-knowledge-hub-prod
+resources:
+  - ../../base
+  - namespace.yaml
+  - network.yaml
+  - ingress.yaml
+configMapGenerator:
+  - name: knowledge-config
+    literals:
+      - NODE_ENV=production
+      - APP_ORIGIN=https://CHANGE-ME-PROD.invalid
+      - OIDC_ISSUER=https://CHANGE-ME-IDP.invalid
+      - OIDC_CLIENT_ID=CHANGE-ME-PROD
+      - WORKSPACE_ID=default
+      - OIDC_GROUP_ROLES={"knowledge-reviewers":"reviewer","knowledge-writers":"editor","knowledge-readers":"reader"}

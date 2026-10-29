@@ -1,5 +1,7 @@
 # 서버 API 제안 계약
 
+후속 실행 경로: `server/runtime/http.ts`는 OIDC 세션·CSRF가 적용된 `/api/v1/me`, `pages`/고정 버전, `sources`, `members`, `changesets`/승인·발행·반려, `ingest`, `query`, `answers/:id/file`, `lint`, `jobs`, `model`, `usage`를 제공한다. 현행 스키마는 `server/runtime/schema.ts`가 기준이며 목록은 `{items}`, 오류는 `{code,requestId}`다. 아래 artifacts/manager/restore/shares 등 목표 계약 전체를 구현한 것은 아니다. [실제 설정/검증/제약](OPERATIONAL_SETUP.md)을 따른다.
+
 현재 실행 중계 API는 docs/MODEL_SETUP.md에 별도 정의한다. 아래는 여전히 프로덕션 서버의 목표 계약이다. MCP 도구 상세는 AGENT_INTERFACE.md를 따른다.
 
 후속 구현으로 `server/http.ts`의 **인증 어댑터 주입형** `GET /api/v1/usage?days=7|30` 핸들러를 추가했다. 실제 호스트 세션 검증과 같은 origin 마운트가 필요하며 기본 정적 데모에 이 엔드포인트가 활성화된 것은 아니다. 일반 구성원은 본인, 검토자는 workspace 전체 집계를 읽는다. 오류/권한/측정 범위는 [SERVER_FOUNDATION.md](SERVER_FOUNDATION.md)를 따른다. 아래 업무 API는 계속 목표 계약이다.

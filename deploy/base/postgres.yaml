@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledge-db
+spec:
+  selector:
+    app: knowledge-db
+  ports:
+    - port: 5432
+      name: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: knowledge-db
+spec:
+  serviceName: knowledge-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: knowledge-db
+  template:
+    metadata:
+      labels:
+        app: knowledge-db
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: postgres:17.6-bookworm
+          env:
+            - name: POSTGRES_USER
+              value: knowledge
+            - name: POSTGRES_DB
+              value: knowledge
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: knowledge-db-secret
+                  key: password
+          ports:
+            - containerPort: 5432
+              name: postgres
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, knowledge, -d, knowledge]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 5Gi
+---
+# Referred to by backup/restore procedures; production must export copies off-cluster.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: knowledge-backup-staging
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi

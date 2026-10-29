@@ -1,5 +1,7 @@
 # 업무 에이전트 인터페이스
 
+후속 구현: `server/runtime/mcp.ts`의 `/mcp`는 실제 SDK Streamable HTTP이며 OIDC 브라우저 세션·Origin·CSRF를 검사한다. 현행 도구는 `knowledge_search`, `knowledge_query`, `knowledge_ingest`, `knowledge_lint`, `knowledge_jobs`로 별도 버전 경로이며 공통 서버 ACL/계보/발행 서비스를 사용한다. 독립 서비스 계정/Bearer 위임·업무 context/outcome·아래 `wiki_*` 목표 계약 전체와 개인 커넥터의 운영 통합은 **미구현**이다. 쿠키 세션 도구를 일반 에이전트 호스트 운영 인증까지 완성한 것으로 표시하지 않는다. [설정과 현재 한계](OPERATIONAL_SETUP.md).
+
 이 문서는 **운영 목표 계약**이다. 현재 앱에 범용 사내 REST API나 인증된 운영 MCP가 구현된 것은 아니다. 모델 중계는 로컬 실행기의 /api/model/config와 /api/model/complete다. 별도로 [로컬 위키 커넥터](LOCAL_WIKI.md)는 합성 개발 서비스용 STDIO MCP를 제공한다. 이 개발 프로토콜의 도구·단일 페이지 제안은 아래 운영 계약 전체와 호환/통합됐다는 뜻이 아니다.
 
 ## 구성과 책임

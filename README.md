@@ -1,5 +1,7 @@
 # agent-knowledge-hub
 
+> **운영형 전환 작업:** Kubernetes/로컬 kind의 서버 연결 경로는 [운영 환경 설정](docs/OPERATIONAL_SETUP.md)을 참고하세요. 기본 웹 진입점은 인증된 서버 UI이며 기존 합성 데모는 `/?demo=1`로 명시적으로 엽니다. 아래 정적 데모 설명을 운영 기능·사내 인수 완료로 해석하지 마세요. 구현과 실제 검증·남은 조건은 [인계](docs/AGENT_HANDOFF.md)에 별도로 기록합니다.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="brand-kit/readme-banner-dark.svg">
   <img src="brand-kit/readme-banner-light.svg" alt="agent-knowledge-hub — Knowledge that compounds.">
@@ -17,7 +19,7 @@ LLM으로 만든 업무 산출물을 근거와 함께 사내 지식에 연결하
 npm run demo
 ```
 
-http://127.0.0.1:8080 을 엽니다. `AGENT_KNOWLEDGE_HUB_DEMO_PORT` 환경변수로 포트를 바꿀 수 있습니다. 이 실행기는 로컬 시연용이며 프로덕션 웹서버가 아닙니다.
+http://127.0.0.1:8080/?demo=1 을 엽니다. `AGENT_KNOWLEDGE_HUB_DEMO_PORT` 환경변수로 포트를 바꿀 수 있습니다. 이 실행기는 로컬 시연용이며 프로덕션 웹서버가 아닙니다.
 
 ## 소스에서 개발하기
 

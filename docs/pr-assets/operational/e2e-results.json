@@ -1,0 +1,46 @@
+{
+  "kind": "synthetic-kind-acceptance",
+  "at": "2026-10-29T15:30:38.270Z",
+  "thinking": "disabled (explicit server setting, not a cross-provider default)",
+  "steps": [
+    "anonymous denied",
+    "real Keycloak OIDC identities",
+    "CSRF denied",
+    "source ACL and multi-page bootstrap",
+    "approval atomic publication and idempotent retry",
+    "version-pinned query",
+    "answer reingestion proposal",
+    "persisted Lint",
+    "unauthorized pages not disclosed",
+    "10 authenticated sessions measured",
+    "real model multi-page ingest and checked publication",
+    "real model query with checked citations"
+  ],
+  "load": {
+    "sessions": 10,
+    "distinctPrincipals": 3,
+    "requests": 50,
+    "successful": 50,
+    "elapsedMs": 516,
+    "p95Ms": 158,
+    "scope": "10 authenticated synthetic sessions; published-page reads only, not full workload/SLO acceptance"
+  },
+  "model": {
+    "model": "deepseek-flash",
+    "ingestMs": 12233,
+    "queryMs": 3128,
+    "citations": 4,
+    "scope": "synthetic connectivity/citation-validation case, not semantic-quality evaluation"
+  },
+  "failed_prior_runs": [
+    { "stage": "natural-language query", "reason": "Korean particle token missed relevant pages; insufficient answer, not a model success", "resolution": "lexical expansion regression and deployed rerun" },
+    { "stage": "actual model ingest", "reason": "finish_reason=length, completion_tokens=6000, reasoning_tokens=5642; incomplete JSON rejected", "resolution": "explicit optional thinking setting plus MODEL_OUTPUT_LIMIT regression and deployed rerun" }
+  ],
+  "inflight_logout_browser_check": {
+    "model_observed_running": true,
+    "logout_status": 200,
+    "model_response_status": 401,
+    "model_response_code": "UNAUTHENTICATED",
+    "protected_content_returned": false
+  }
+}

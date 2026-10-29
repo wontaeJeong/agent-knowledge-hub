@@ -10,6 +10,9 @@ Direct package metadata at the packaged lockfile versions. Preserve original not
 | lucide-react | 1.61.0 | ISC |
 | marked | 18.1.2 | MIT |
 | pg | 8.23.1 | MIT |
+| openid-client | 6.8.4 | MIT |
+| tsx | 4.20.6 | MIT |
+| yaml | 2.9.1 | ISC |
 | @types/pg | 8.23.1 | MIT |
 | @types/node | 26.6.6 | MIT |
 | react | 19.3.1 | MIT |

@@ -1,0 +1,27 @@
+{
+  "realm": "knowledge",
+  "enabled": true,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "sslRequired": "none",
+  "groups": [{"name":"reviewers"},{"name":"writers"},{"name":"readers"}],
+  "clients": [{
+    "clientId":"knowledge-hub",
+    "enabled":true,
+    "protocol":"openid-connect",
+    "publicClient":false,
+    "secret":"local-test-only",
+    "standardFlowEnabled":true,
+    "directAccessGrantsEnabled":false,
+    "redirectUris":["http://localhost:28080/auth/callback"],
+    "webOrigins":["http://localhost:28080"],
+    "attributes":{"pkce.code.challenge.method":"S256"},
+    "protocolMappers":[{"name":"groups","protocol":"openid-connect","protocolMapper":"oidc-group-membership-mapper","consentRequired":false,"config":{"claim.name":"groups","full.path":"false","id.token.claim":"true","access.token.claim":"true","userinfo.token.claim":"true"}}]
+  }],
+  "users": [
+    {"id":"10000000-0000-4000-8000-000000000001","username":"reviewer","enabled":true,"emailVerified":true,"firstName":"로컬","lastName":"검토자","email":"reviewer@example.invalid","groups":["reviewers"],"credentials":[{"type":"password","value":"local-test-only","temporary":false}]},
+    {"id":"10000000-0000-4000-8000-000000000002","username":"writer","enabled":true,"emailVerified":true,"firstName":"로컬","lastName":"작성자","email":"writer@example.invalid","groups":["writers"],"credentials":[{"type":"password","value":"local-test-only","temporary":false}]},
+    {"id":"10000000-0000-4000-8000-000000000003","username":"reader","enabled":true,"emailVerified":true,"firstName":"로컬","lastName":"독자","email":"reader@example.invalid","groups":["readers"],"credentials":[{"type":"password","value":"local-test-only","temporary":false}]},
+    {"id":"10000000-0000-4000-8000-000000000004","username":"disabled","enabled":false,"groups":["writers"],"credentials":[{"type":"password","value":"local-test-only","temporary":false}]}
+  ]
+}
