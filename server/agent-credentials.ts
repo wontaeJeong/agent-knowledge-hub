@@ -26,6 +26,11 @@ async function authorize(db:PoolClient,ctx:Context) {
  await ctx.authorization?.assertSession(db);
  await membership(db,ctx);
 }
+async function requireSpaceAdmin(db:PoolClient,ctx:Context){
+ await authorize(db,ctx);
+ const r=await db.query("SELECT access_role($1,$2) AS role",[ctx.workspaceId,ctx.principalId]);
+ if(r.rows[0]?.role!=="Admin")throw Error("FORBIDDEN");
+}
 async function issue(db:PoolClient,workspace:string,principal:string,params:{name:string;scope:AgentScope;days:number},clientId:string|null=null) {
  const token="akh_sk_"+random();
  const id=randomUUID();
@@ -33,6 +38,7 @@ async function issue(db:PoolClient,workspace:string,principal:string,params:{nam
   "INSERT INTO agent_api_keys(id,workspace_id,principal_id,device_client_id,name,token_hash,suffix,scope,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,clock_timestamp()+($9::int * interval '1 day'))",
   [id,workspace,principal,clientId,params.name,hash(token),token.slice(-6),params.scope,params.days],
  );
+ await db.query("INSERT INTO agent_key_audit(workspace_id,actor_id,key_id,action) VALUES($1,$2,$3,'issue')",[workspace,principal,id]);
  return {id,token,expiresInDays:params.days,scope:params.scope};
 }
 export async function authenticateAgentKey(pool:Pool,token:string):Promise<AgentActor|null> {
@@ -81,10 +87,29 @@ export function permittedAgentRoute(method:string,path:string,scope:AgentScope,b
 export async function handleCredentialRequest(pool:Pool,ctx:Context,method:string,path:string,body:unknown,origin:string) {
  if(!credentialsEnabled())return ok(404,{code:"NOT_FOUND"});
  const suffix=path.replace(/^\/api\/v1\/credentials/,"");
+ if(suffix==="/admin/keys"&&method==="GET")return transaction(pool,ctx.workspaceId,async db=>{
+  await requireSpaceAdmin(db,ctx);
+  const r=await db.query("SELECT k.id,k.principal_id AS issuer,k.name,k.scope,k.suffix,k.created_at AS \"createdAt\",k.expires_at AS \"expiresAt\",k.revoked_at AS \"revokedAt\",k.last_used_at AS \"lastUsedAt\",count(h.id) FILTER(WHERE h.at>=clock_timestamp()-interval '30 days')::int AS \"requests30d\",count(DISTINCT date(h.at)) FILTER(WHERE h.at>=clock_timestamp()-interval '30 days')::int AS \"activeDays30d\" FROM agent_api_keys k LEFT JOIN agent_key_requests h ON h.key_id=k.id WHERE k.workspace_id=$1 GROUP BY k.id ORDER BY k.created_at DESC LIMIT 500",[ctx.workspaceId]);
+  return ok(200,{items:r.rows});
+ });
+ const adminRevoke=/^\/admin\/keys\/([0-9a-f-]{36})\/revoke$/.exec(suffix);
+ if(adminRevoke&&method==="POST"){
+  const {reason}=reasonForm.parse(body);
+  return transaction(pool,ctx.workspaceId,async db=>{
+   await requireSpaceAdmin(db,ctx);
+   const id=uuid.parse(adminRevoke[1]);
+   const found=await db.query("UPDATE agent_api_keys SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE id=$1 AND workspace_id=$2 RETURNING id",[id,ctx.workspaceId]);
+   if(!found.rowCount)throw Error("NOT_FOUND");
+   await db.query("INSERT INTO agent_key_audit(workspace_id,actor_id,key_id,action,reason) VALUES($1,$2,$3,'revoke',$4)",[ctx.workspaceId,ctx.principalId,id,reason]);
+   await audit(db,ctx,"agent.key.admin_revoke",id);
+   return ok(200,{ok:true});
+  });
+ }
+
  if(suffix==="/keys"&&method==="GET")return transaction(pool,ctx.workspaceId,async db=>{
   await authorize(db,ctx);
   const r=await db.query(
-   "SELECT k.id,k.name,k.scope,k.suffix,k.created_at AS \"createdAt\",k.expires_at AS \"expiresAt\",k.revoked_at AS \"revokedAt\",k.last_used_at AS \"lastUsedAt\",count(h.id) FILTER(WHERE h.at>=clock_timestamp()-interval '30 days')::int AS \"requests30d\", count(DISTINCT date(h.at)) FILTER(WHERE h.at>=clock_timestamp()-interval '30 days')::int AS \"activeDays30d\" FROM agent_api_keys k LEFT JOIN agent_key_requests h ON h.key_id=k.id WHERE k.workspace_id=$1 AND k.principal_id=$2 GROUP BY k.id ORDER BY k.created_at DESC LIMIT 200",
+   "SELECT k.id,k.principal_id AS issuer,k.name,k.scope,k.suffix,k.created_at AS \"createdAt\",k.expires_at AS \"expiresAt\",k.revoked_at AS \"revokedAt\",k.last_used_at AS \"lastUsedAt\",count(h.id) FILTER(WHERE h.at>=clock_timestamp()-interval '30 days')::int AS \"requests30d\", count(DISTINCT date(h.at)) FILTER(WHERE h.at>=clock_timestamp()-interval '30 days')::int AS \"activeDays30d\" FROM agent_api_keys k LEFT JOIN agent_key_requests h ON h.key_id=k.id WHERE k.workspace_id=$1 AND k.principal_id=$2 GROUP BY k.id ORDER BY k.created_at DESC LIMIT 200",
    [ctx.workspaceId,ctx.principalId]);
   return ok(200,{items:r.rows});
  });
@@ -105,7 +130,7 @@ export async function handleCredentialRequest(pool:Pool,ctx:Context,method:strin
    const row=await db.query("UPDATE agent_api_keys SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE id=$1 AND workspace_id=$2 AND principal_id=$3 RETURNING id",[uuid.parse(revoke[1]),ctx.workspaceId,ctx.principalId]);
    if(!row.rowCount)throw Error("NOT_FOUND");
    await audit(db,ctx,"agent.key.revoke",revoke[1]);
-   void reason; // Reason is validated but never embedded in an executable audit trail.
+   await db.query("INSERT INTO agent_key_audit(workspace_id,actor_id,key_id,action,reason) VALUES($1,$2,$3,'revoke',$4)",[ctx.workspaceId,ctx.principalId,revoke[1],reason]);
    return ok(200,{ok:true});
   });
  }
@@ -210,7 +235,7 @@ export async function pollDevice(pool:Pool,body:unknown){
   const live=await db.query("SELECT effective_membership($1,$2) AS role",[grant.workspace_id,grant.principal_id]);
   if(!live.rows[0]?.role)throw Error("ACCESS_DENIED");
   const issued=await issue(db,grant.workspace_id,grant.principal_id,{name:grant.name+" (device)",scope:grant.requested_scope,days:90},grant.client_id);
-  await db.query("UPDATE agent_device_grants SET status='consumed' WHERE id=$1",[grant.id]);
+  await db.query("UPDATE agent_device_grants SET status='consumed',consumed_at=clock_timestamp() WHERE id=$1",[grant.id]);
   await db.query("COMMIT");
   return ok(200,{access_token:issued.token,token_type:"Bearer",expires_in:90*86400,scope:issued.scope});
  }catch(e){await db.query("ROLLBACK");throw e;}finally{db.release();}

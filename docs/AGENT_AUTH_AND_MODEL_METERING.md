@@ -7,7 +7,7 @@ Date: 2026-10-31. Scope: agent-knowledge-hub latest main. This is an implementat
 | ID | Requirement | Implementation | Deployment acceptance |
 | --- | --- | --- | --- |
 | AUTH-01 | 1–90 day API keys | SHA-256 digest in DB, random 32-byte secret, one-time token response, read/write scopes and owner+space binding | No raw secret in GET, logs, exports, dashboards, or database |
-| AUTH-02 | Key management | Name, id/suffix, issue/expiry/revocation/last-use, 30-day request count and active days, own-key revocation | Cross-owner and cross-space mutation blocked |
+| AUTH-02 | Key management | Name, id/suffix, issuer, issue/expiry/revocation/last-use, 30-day request count and active days, own-key revocation; space Admin sees all keys and may revoke them with a persisted reason | Cross-owner and cross-space mutation blocked; legacy reviewer is not silently Admin |
 | AUTH-03 | MCP/REST | Strict allowlist. Read allows pages/sources/search/jobs; write adds query/ingest/lint | Never grant approval, publication, administrative API, user directories, boards, import uploads or usage exports |
 | AUTH-04 | Device Code | Registered client, 8-character human code, 10 minutes TTL, 5 seconds polling, approval/denial, one-time token exchange | No double issuance, disabled client cancels pending grants and revokes connected keys |
 | AUTH-05 | Current permissions | Recheck live DB membership, principal enabled flag and revoked key on every request/mutation | Account/group revocation feed to DB must be verified before enabling machine auth |

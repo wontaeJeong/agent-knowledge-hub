@@ -68,3 +68,15 @@ CREATE TABLE model_usage_events (
 );
 CREATE INDEX model_usage_workspace ON model_usage_events(workspace_id,at DESC);
 CREATE INDEX model_usage_principal ON model_usage_events(workspace_id,principal_id,at DESC);
+
+CREATE TABLE agent_key_audit (
+ id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ workspace_id text NOT NULL REFERENCES workspaces(id),
+ actor_id text NOT NULL,
+ key_id uuid NOT NULL REFERENCES agent_api_keys(id),
+ action text NOT NULL CHECK(action IN ('issue','revoke')),
+ reason text CHECK(reason IS NULL OR length(reason) BETWEEN 5 AND 500),
+ at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE INDEX agent_key_audit_workspace ON agent_key_audit(workspace_id,at DESC);
+ALTER TABLE agent_device_grants ADD COLUMN consumed_at timestamptz;

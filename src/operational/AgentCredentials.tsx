@@ -3,16 +3,17 @@ import {ApiError,type Identity,type OperationalApi} from "./api";
 import {Button} from "../ui/primitives";
 import "./credentials.css";
 type Scope="read"|"write";
-type KeyItem={id:string;name:string;scope:Scope;suffix:string;createdAt:string;expiresAt:string;revokedAt:string|null;lastUsedAt:string|null;requests30d:number;activeDays30d:number};
+type KeyItem={id:string;issuer?:string;name:string;scope:Scope;suffix:string;createdAt:string;expiresAt:string;revokedAt:string|null;lastUsedAt:string|null;requests30d:number;activeDays30d:number};
 type ClientItem={id:string;name:string;active:boolean;createdAt:string};
 type Verification={user_code:string;requested_scope:Scope;clientName:string};
 const time=(value:string|null)=>value?new Date(value).toLocaleString("ko-KR"):"—";
 export default function AgentCredentials({api,identity,onExpired,section}:{api:OperationalApi;identity:Identity;onExpired:()=>void;section:"agents"|"integrations"}){
- const [keys,setKeys]=useState<KeyItem[]>([]),[clients,setClients]=useState<ClientItem[]>([]);
+ const [keys,setKeys]=useState<KeyItem[]>([]),[clients,setClients]=useState<ClientItem[]>([]),[adminKeys,setAdminKeys]=useState<KeyItem[]>([]);
  const [ready,setReady]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [name,setName]=useState(""),[scope,setScope]=useState<Scope>("read"),[days,setDays]=useState(90);
  const [clientName,setClientName]=useState(""),[busy,setBusy]=useState(false),[secret,setSecret]=useState(""),[confirmRevoke,setConfirmRevoke]=useState("");
  const [confirmDisable,setConfirmDisable]=useState("");
+ const [adminReason,setAdminReason]=useState("관리자 보안 정책에 따른 키 폐기");
  const [code,setCode]=useState(""),[verification,setVerification]=useState<Verification|null>(null);
  const fail=useCallback((e:unknown)=>{
    if(e instanceof ApiError&&e.status===401){onExpired();return;}
@@ -21,10 +22,10 @@ export default function AgentCredentials({api,identity,onExpired,section}:{api:O
  const load=useCallback(async()=>{
    setLoading(true);
    try{
-     const [k,c]=await Promise.all([api.get<{items:KeyItem[]}>("/credentials/keys"),api.get<{items:ClientItem[]}>("/credentials/clients")]);
-     setKeys(k.items);setClients(c.items);setReady(true);setError("");
+     const [k,c,all]=await Promise.all([api.get<{items:KeyItem[]}>("/credentials/keys"),api.get<{items:ClientItem[]}>("/credentials/clients"),identity.spaceRole==="Admin"?api.get<{items:KeyItem[]}>("/credentials/admin/keys"):Promise.resolve({items:[]})]);
+     setKeys(k.items);setClients(c.items);setAdminKeys(all.items);setReady(true);setError("");
    }catch(e){fail(e);}finally{setLoading(false);}
- },[api,fail]);
+ },[api,fail,identity.spaceRole]);
  useEffect(()=>{void load();},[load]);
  const action=async(run:()=>Promise<void>)=>{
    setBusy(true);setError("");setNotice("");
@@ -66,8 +67,13 @@ export default function AgentCredentials({api,identity,onExpired,section}:{api:O
     <Button variant="primary" disabled={busy||!name.trim()||days<1||days>90}>키 발급</Button>
    </form></section>
    <section className="op-panel"><h2>내 API 키</h2>
-   {keys.length===0?<p>발급한 키가 없습니다.</p>:<div className="credential-scroll" role="region" tabIndex={0} aria-label="API 키 목록, 가로 스크롤 가능"><table><caption>현재 공간에서 발급한 내 API 키</caption><thead><tr><th>이름·키 ID</th><th>권한·상태</th><th>발급·만료·마지막 사용</th><th>최근 30일</th><th>폐기</th></tr></thead><tbody>{keys.map(k=><tr key={k.id}><th scope="row"><strong>{k.name}</strong><small>{k.id} · ••••{k.suffix}</small></th><td>{k.scope==="read"?"읽기":"쓰기"} · {k.revokedAt?"폐기":new Date(k.expiresAt)<=new Date()?"만료":"활성"}</td><td><small>발급 {time(k.createdAt)}</small><small>만료 {time(k.expiresAt)}</small><small>마지막 {time(k.lastUsedAt)}</small></td><td>{k.requests30d}회 · {k.activeDays30d}일</td><td>{!k.revokedAt&&(confirmRevoke===k.id?<div><span>폐기할까요?</span><Button disabled={busy} onClick={()=>void action(async()=>{await api.post("/credentials/keys/"+k.id+"/revoke",{reason:"사용자가 키 폐기를 요청함"});setConfirmRevoke("");})}>확인</Button><Button onClick={()=>setConfirmRevoke("")}>취소</Button></div>:<Button disabled={busy} onClick={()=>setConfirmRevoke(k.id)}>폐기</Button>)}</td></tr>)}</tbody></table></div>}
-   </section><section className="op-panel"><h2>Device Code 연결 승인</h2><p>장치에서 받은 8자리 코드를 입력합니다. 클라이언트 이름과 요청 권한을 확인한 뒤 승인하세요.</p>
+   {keys.length===0?<p>발급한 키가 없습니다.</p>:<div className="credential-scroll" role="region" tabIndex={0} aria-label="API 키 목록, 가로 스크롤 가능"><table><caption>현재 공간에서 발급한 내 API 키</caption><thead><tr><th>이름·키 ID</th><th>권한·상태</th><th>발급·만료·마지막 사용</th><th>최근 30일</th><th>폐기</th></tr></thead><tbody>{keys.map(k=><tr key={k.id}><th scope="row"><strong>{k.name}</strong><small>{k.issuer} · {k.id} · ••••{k.suffix}</small></th><td>{k.scope==="read"?"읽기":"쓰기"} · {k.revokedAt?"폐기":new Date(k.expiresAt)<=new Date()?"만료":"활성"}</td><td><small>발급 {time(k.createdAt)}</small><small>만료 {time(k.expiresAt)}</small><small>마지막 {time(k.lastUsedAt)}</small></td><td>{k.requests30d}회 · {k.activeDays30d}일</td><td>{!k.revokedAt&&(confirmRevoke===k.id?<div><span>폐기할까요?</span><Button disabled={busy} onClick={()=>void action(async()=>{await api.post("/credentials/keys/"+k.id+"/revoke",{reason:"사용자가 키 폐기를 요청함"});setConfirmRevoke("");})}>확인</Button><Button onClick={()=>setConfirmRevoke("")}>취소</Button></div>:<Button disabled={busy} onClick={()=>setConfirmRevoke(k.id)}>폐기</Button>)}</td></tr>)}</tbody></table></div>}
+   </section>
+   {identity.spaceRole==="Admin"&&<section className="op-panel"><h2>공간 관리자 · 전체 API 키</h2><p>현재 공간에 속한 모든 사용자의 키를 확인하고 강제로 폐기할 수 있습니다. 발급 원문은 조회할 수 없습니다.</p>
+     <label>관리자 폐기 사유<input value={adminReason} maxLength={500} onChange={e=>setAdminReason(e.target.value)}/></label>
+     <div className="credential-scroll" tabIndex={0} role="region" aria-label="공간 전체 API 키"><table><thead><tr><th>발급자</th><th>키 / 이름</th><th>권한</th><th>마지막 사용</th><th>폐기</th></tr></thead><tbody>{adminKeys.map(k=><tr key={k.id}><td><code>{k.issuer}</code></td><th scope="row">{k.name}<small>{k.id}</small></th><td>{k.scope}</td><td>{time(k.lastUsedAt)}</td><td>{k.revokedAt?"폐기됨":<Button disabled={busy||adminReason.trim().length<5} onClick={()=>void action(async()=>{await api.post("/credentials/admin/keys/"+k.id+"/revoke",{reason:adminReason});})}>관리자 폐기</Button>}</td></tr>)}</tbody></table></div>
+   </section>}
+   <section className="op-panel"><h2>Device Code 연결 승인</h2><p>장치에서 받은 8자리 코드를 입력합니다. 클라이언트 이름과 요청 권한을 확인한 뒤 승인하세요.</p>
     <form className="credential-form" onSubmit={verify}><label>사용자 코드<input value={code} onChange={e=>{setCode(e.target.value.toUpperCase());setVerification(null);}} maxLength={11} placeholder="ABCDEFGH" autoComplete="off"/></label><Button disabled={busy||code.replace(/[\s-]/g,"").length!==8}>코드 확인</Button></form>
     {verification&&<div className="credential-confirm"><h3>장치 연결 요청</h3><p>클라이언트: <strong>{verification.clientName}</strong></p><p>요청 권한: <strong>{verification.requested_scope}</strong></p><p>신뢰하는 장치에서 직접 시작한 요청만 승인하세요.</p><Button disabled={busy} variant="primary" onClick={()=>decide(true)}>승인</Button><Button disabled={busy} onClick={()=>decide(false)}>거절</Button></div>}
    </section></>}
