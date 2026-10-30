@@ -4,6 +4,7 @@ import { migrate, assertSchemaCurrent } from "../database";
 import { OidcAuth } from "./auth";
 import { RuntimeService } from "./knowledge";
 import { createRuntimeHandler } from "./http";
+import { bootstrapAccess, validateAccessBootstrap } from "../access";
 
 if (!process.env.DATABASE_URL) throw Error("DATABASE_URL_REQUIRED");
 const pool = new Pool({
@@ -13,6 +14,17 @@ const pool = new Pool({
 });
 if (process.argv.includes("--migrate")) {
   await migrate(pool);
+  if (process.env.ACCESS_BOOTSTRAP_JSON) {
+    const input = validateAccessBootstrap(
+      JSON.parse(process.env.ACCESS_BOOTSTRAP_JSON),
+    );
+    for (const s of input.spaces ?? [])
+      await pool.query(
+        "INSERT INTO workspaces VALUES($1) ON CONFLICT DO NOTHING",
+        [s.workspaceId],
+      );
+    await bootstrapAccess(pool, input);
+  }
   await pool.end();
 } else {
   await assertSchemaCurrent(pool);

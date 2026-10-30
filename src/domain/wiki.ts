@@ -121,10 +121,18 @@ const factsFrom = (text: string, sourceId: string): Fact[] =>
   });
 
 /** Offline compiler is deliberately explicit: headings and fact records are a small input language, not semantic LLM extraction. */
+// Only server-constructed state opts into personal compilation. Legacy/demo states remain unchanged.
+const personalCompilation = (s: State) =>
+  (s as State & { serverPersonalSpace?: boolean }).serverPersonalSpace === true;
 export function compileOffline(s: State, sourceIds: string[]): Draft[] {
   writable(s);
   const sources = sourceIds.map((id) => s.sources.find((x) => x.id === id));
-  if (!sources.length || sources.some((x) => !x || x.scope === "private"))
+  if (
+    !sources.length ||
+    sources.some(
+      (x) => !x || (x.scope === "private" && !personalCompilation(s)),
+    )
+  )
     throw Error("공유 가능한 원본을 선택하세요.");
   const updates = new Map<string, Draft>();
   const get = (id: string) =>
@@ -208,7 +216,11 @@ export function createBatch(
 ): Batch {
   writable(s);
   const sources = sourceIds.map((id) => s.sources.find((x) => x.id === id));
-  if (sources.some((x) => !x || x.scope === "private"))
+  if (
+    sources.some(
+      (x) => !x || (x.scope === "private" && !personalCompilation(s)),
+    )
+  )
     throw Error("접근할 수 없는 원본입니다.");
   if (
     !updates.length ||
@@ -241,7 +253,11 @@ export function createBatch(
       throw Error("원본 근거가 필요합니다.");
     for (const id of d.sourceIds) {
       const src = s.sources.find((x) => x.id === id);
-      if (!src || src.scope !== d.scope || src.scope === "private")
+      if (
+        !src ||
+        src.scope !== d.scope ||
+        (src.scope === "private" && !personalCompilation(s))
+      )
         throw Error(
           "원본 범위를 넓히거나 존재하지 않는 근거를 사용할 수 없습니다.",
         );
@@ -543,7 +559,7 @@ export function fileAnswer(s: State, answerId: string): State {
     return p;
   });
   const scopes = new Set(refs.map((p) => p.scope));
-  if (scopes.size !== 1 || scopes.has("private"))
+  if (scopes.size !== 1 || (scopes.has("private") && !personalCompilation(s)))
     throw Error("같은 공유 범위의 지식으로만 답변을 편입할 수 있습니다.");
   const sourceIds = [...new Set(refs.flatMap((p) => current(p).sourceIds))];
   if (!sourceIds.length || refs.some((p) => !current(p).sourceIds.length))

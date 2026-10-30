@@ -5,6 +5,7 @@ import * as oidc from "openid-client";
 import type { Role } from "../../src/domain/types";
 import type { Context } from "../service";
 import { workspaceHref } from "../../src/entry";
+import { effectiveAccess, syncIdentity } from "../access";
 
 export const sessionHash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -15,21 +16,19 @@ export const cookie = (req: IncomingMessage, name: string) =>
     .map((s) => s.trim())
     .find((s) => s.startsWith(name + "="))
     ?.slice(name.length + 1);
-export type Session = Context & { role: Role; csrfToken: string };
+export type Session = Context & {
+  role: Role;
+  csrfToken: string;
+  identityRole?: Role;
+};
 export class OidcAuth {
   requestGuard(req: IncomingMessage, expected: Session) {
     const raw = cookie(req, "akh_session");
     const check = async (db: Pick<PoolClient, "query">) => {
       if (!raw) throw Error("UNAUTHENTICATED");
       const result = await db.query(
-        `SELECT s.id FROM runtime_sessions s JOIN memberships m ON m.workspace_id=s.workspace_id AND m.principal_id=s.principal_id WHERE s.id=$1 AND s.workspace_id=$2 AND s.principal_id=$3 AND s.csrf=$4 AND s.expires_at>clock_timestamp() AND m.role=$5 FOR SHARE OF s,m`,
-        [
-          sessionHash(raw),
-          expected.workspaceId,
-          expected.principalId,
-          expected.csrfToken,
-          expected.role,
-        ],
+        `SELECT s.id FROM runtime_sessions s JOIN access_principals p ON p.id=s.principal_id AND p.active WHERE s.id=$1 AND s.principal_id=$2 AND s.csrf=$3 AND s.expires_at>clock_timestamp() FOR SHARE OF s,p`,
+        [sessionHash(raw), expected.principalId, expected.csrfToken],
       );
       if (!result.rowCount) throw Error("UNAUTHENTICATED");
     };
@@ -42,6 +41,7 @@ export class OidcAuth {
           fresh.workspaceId !== expected.workspaceId ||
           fresh.principalId !== expected.principalId ||
           fresh.role !== expected.role ||
+          fresh.identityRole !== expected.identityRole ||
           fresh.csrfToken !== expected.csrfToken
         )
           throw Error("UNAUTHENTICATED");
@@ -182,10 +182,10 @@ export class OidcAuth {
       tokens.access_token,
       claims.sub,
     );
-    const role = this.role(info),
-      principalId = sessionHash(
-        this.config.serverMetadata().issuer + "\0" + claims.sub,
-      );
+    this.role(info); // Directory eligibility is not a product role binding.
+    const principalId = sessionHash(
+      this.config.serverMetadata().issuer + "\0" + claims.sub,
+    );
     const session = token(),
       csrf = token();
     const db = await this.pool.connect();
@@ -195,10 +195,10 @@ export class OidcAuth {
         "INSERT INTO workspaces VALUES($1) ON CONFLICT DO NOTHING",
         [this.workspaceId],
       );
-      await db.query(
-        "INSERT INTO memberships VALUES($1,$2,$3) ON CONFLICT(workspace_id,principal_id) DO UPDATE SET role=excluded.role",
-        [this.workspaceId, principalId, role],
-      );
+      await syncIdentity(db, {
+        issuer: this.config.serverMetadata().issuer,
+        subject: claims.sub,
+      });
       await db.query(
         "INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,expires_at,subject,access_token) VALUES($1,$2,$3,$4,$5,$6,$7)",
         [
@@ -245,15 +245,39 @@ export class OidcAuth {
         s.access_token,
         s.subject,
       );
-      const role = this.role(info);
-      await this.pool.query(
-        "UPDATE memberships SET role=$3 WHERE workspace_id=$1 AND principal_id=$2",
-        [s.workspace_id, s.principal_id, role],
+      const identityRole = this.role(info);
+      const active = await this.pool.query(
+        "SELECT 1 FROM access_principals WHERE id=$1 AND active",
+        [s.principal_id],
       );
+      if (!active.rowCount) throw Error("UNAUTHENTICATED");
+      const selected = req.headers["x-space-id"];
+      if (
+        selected !== undefined &&
+        (typeof selected !== "string" ||
+          !/^[a-zA-Z0-9_-]{1,100}$/.test(selected))
+      )
+        throw Error("UNAUTHENTICATED");
+      const workspaceId = selected ?? s.workspace_id;
+      let role: Role = "reader";
+      try {
+        const a = await effectiveAccess(this.pool, {
+          workspaceId,
+          principalId: s.principal_id,
+        });
+        role = a.capabilities.includes("changeset.approve")
+          ? "reviewer"
+          : a.capabilities.includes("changeset.propose")
+            ? "editor"
+            : "reader";
+      } catch (e) {
+        if (!(e instanceof Error) || e.message !== "NOT_FOUND") throw e;
+      }
       return {
-        workspaceId: s.workspace_id,
+        workspaceId,
         principalId: s.principal_id,
         role,
+        identityRole,
         csrfToken: s.csrf,
       };
     } catch {

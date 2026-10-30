@@ -11,10 +11,13 @@ import {
 } from "./repository";
 import { visiblePageIds } from "./provenance";
 import * as publication from "./publication";
+import { authorizeManaged, effectiveAccess } from "./access";
 
 export interface Context {
   workspaceId: string;
   principalId: string;
+  /** Server-resolved hashed credential, never parsed from a caller context. */
+  credentialId?: string;
   /** Server-created request capability; never accepted from a client DTO. */
   authorization?: {
     revalidate: () => Promise<void>;
@@ -23,8 +26,13 @@ export interface Context {
 }
 export class KnowledgeService {
   constructor(readonly pool: Pool) {}
-  propose(ctx: Context, updates: Draft[], sourceIds: string[]) {
-    return publication.propose(this.pool, ctx, updates, sourceIds);
+  propose(
+    ctx: Context,
+    updates: Draft[],
+    sourceIds: string[],
+    options?: Parameters<typeof publication.propose>[4],
+  ) {
+    return publication.propose(this.pool, ctx, updates, sourceIds, options);
   }
   approve(ctx: Context, id: string, hash: string) {
     return publication.approve(this.pool, ctx, id, hash);
@@ -36,12 +44,27 @@ export class KnowledgeService {
     ctx: Context,
     source: Source,
     readers: string[],
+    /** Trusted server hook, not an HTTP input. Atomic with source/resource/ACL/audit creation. */
+    onRegistered?: (db: PoolClient) => Promise<void>,
   ): Promise<void> {
     return transaction(
       this.pool,
       ctx.workspaceId,
       async (db) => {
         if ((await membership(db, ctx)) === "reader") throw Error("FORBIDDEN");
+        const managed = await authorizeManaged(db, ctx, "source.create");
+        if (managed)
+          for (const principalId of readers) {
+            const recipient = await effectiveAccess(db, {
+              workspaceId: ctx.workspaceId,
+              principalId,
+            });
+            if (!recipient.role) throw Error("VALIDATION_FAILED");
+            await db.query(
+              "INSERT INTO memberships VALUES($1,$2,'reader') ON CONFLICT DO NOTHING",
+              [ctx.workspaceId, principalId],
+            );
+          }
         const members = await db.query(
           "SELECT principal_id FROM memberships WHERE workspace_id=$1 FOR SHARE",
           [ctx.workspaceId],
@@ -72,6 +95,7 @@ export class KnowledgeService {
           [ctx.workspaceId, source.id, source],
         );
         await audit(db, ctx, "source.register", source.id);
+        await onRegistered?.(db);
       },
       { principalId: ctx.principalId, operation: "source.register" },
     );
@@ -82,6 +106,7 @@ export class KnowledgeService {
       ctx.workspaceId,
       async (db) => {
         await membership(db, ctx);
+        await authorizeManaged(db, ctx, "knowledge.read", { kind: "page", id });
         if (
           !(
             await visiblePageIds(db, ctx, await loadState(db, ctx.workspaceId))

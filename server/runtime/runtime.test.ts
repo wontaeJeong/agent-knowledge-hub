@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { createServer, type Server } from "node:http";
-import { fixture, source } from "../test-support";
+import { fixture, source, adoptFixture } from "../test-support";
 import { RuntimeService } from "./knowledge";
 import { createRuntimeHandler } from "./http";
 import { OidcAuth, sessionHash } from "./auth";
@@ -33,6 +33,7 @@ let service: RuntimeService;
 let provider: Server;
 beforeAll(async () => {
   f = await fixture();
+  await adoptFixture(f.pool, f.workspaceId);
   service = new RuntimeService(f.pool);
   await f.pool.query(
     `INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,expires_at,subject,access_token) VALUES($1,$2,'editor','csrf',now()+interval '1 hour','editor','unused')`,
@@ -95,7 +96,7 @@ test("database session revalidates IdP and CSRF; bounded DTOs reject malformed d
     headers: { Cookie: `akh_session=${sessionToken}` },
   });
   expect(me.status).toBe(200);
-  expect(await me.json()).toEqual({
+  expect(await me.json()).toMatchObject({
     principalId: "editor",
     workspaceId: f.workspaceId,
     role: "editor",

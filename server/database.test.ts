@@ -31,7 +31,10 @@ test("migration is repeatable and transactions roll back all writes", async () =
       )
     ).rowCount,
   ).toBe(0);
+  const { readdir } = await import("node:fs/promises");
   expect((await pool.query("SELECT * FROM schema_migrations")).rowCount).toBe(
-    5,
+    (await readdir(new URL("./migrations/", import.meta.url))).filter((n) =>
+      /^\d+-.*\.sql$/.test(n),
+    ).length,
   );
 });

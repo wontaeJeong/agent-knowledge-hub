@@ -19,6 +19,11 @@ async function connection(
   let groups = ["writers"];
   let active = true;
   const pool = runtime.pool;
+  if (
+    (await pool.query("SELECT to_regclass('access_spaces') AS present")).rows[0]
+      .present
+  )
+    await (await import("../test-support")).adoptFixture(pool, workspaceId);
   let count = 0;
   const provider = createServer(async (_req, res) => {
     await onInfo?.(++count);
@@ -193,6 +198,10 @@ test("image schema gate rejects004 and wrong checksums, then005 enables protecte
       ).rowCount,
     ).toBe(0);
     await database.migrate(pool);
+    await (await import("../test-support")).adoptFixture(pool, "legacy");
+    // Migration intentionally invalidates old sessions; re-authenticate the explicit fixture.
+    await client.close();
+    client = await connection(runtime, "legacy");
     await expect(assertCurrent(pool)).resolves.toBeUndefined();
     expect((await fetch(client.base + "/readyz")).status).toBe(200);
     const pages = await fetch(client.base + "/api/v1/pages", {

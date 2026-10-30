@@ -21,6 +21,7 @@ import { KnowledgeService, type Context } from "../service";
 import { digest, propose } from "../publication";
 import { answerOutput, drafts } from "./schema";
 import { callModel, type ModelCall } from "./model";
+import { authorizeManaged } from "../access";
 import {
   captureEnvelope,
   assertEnvelope,
@@ -84,9 +85,15 @@ export class RuntimeService {
     return transaction(this.pool, ctx.workspaceId, (db) => this.view(db, ctx));
   }
   async sources(ctx: Context) {
+    await transaction(this.pool, ctx.workspaceId, (db) =>
+      authorizeManaged(db, ctx, "changeset.propose"),
+    );
     return (await this.snapshot(ctx)).state.sources;
   }
   async pages(ctx: Context) {
+    await transaction(this.pool, ctx.workspaceId, (db) =>
+      authorizeManaged(db, ctx, "knowledge.read"),
+    );
     return (await this.snapshot(ctx)).state.pages.map((p) => ({
       id: p.id,
       title: p.title,
@@ -98,6 +105,7 @@ export class RuntimeService {
   }
   async changesets(ctx: Context) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
+      await authorizeManaged(db, ctx, "queue.triage");
       const { state } = await this.view(db, ctx);
       const ids = new Set(state.sources.map((s) => s.id));
       const pageIds = new Set(state.pages.map((p) => p.id));
@@ -141,6 +149,11 @@ export class RuntimeService {
     const id = randomUUID();
     await transaction(this.pool, ctx.workspaceId, async (db) => {
       await membership(db, ctx);
+      await authorizeManaged(
+        db,
+        ctx,
+        operation === "ingest" ? "changeset.propose" : "knowledge.read",
+      );
       const active = await db.query(
         "SELECT count(*)::integer AS n FROM runtime_jobs WHERE workspace_id=$1 AND status='running'",
         [ctx.workspaceId],
@@ -180,7 +193,11 @@ export class RuntimeService {
         state.sources.find((s) => s.id === id),
       );
       if (sources.some((s) => !s)) throw Error("NOT_FOUND");
-      if (sources.some((s) => s!.scope === "private"))
+      if (
+        sources.some((s) => s!.scope === "private") &&
+        !(state as State & { serverPersonalSpace?: boolean })
+          .serverPersonalSpace
+      )
         throw Error("SOURCE_SCOPE_CONFLICT");
       let updates: Draft[];
       let dependencyIds: string[] = [];
@@ -399,6 +416,7 @@ export class RuntimeService {
   }
   async lint(ctx: Context) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
+      await authorizeManaged(db, ctx, "lint.run");
       const { state } = await this.view(db, ctx);
       const data = { issues: lintWiki(state) };
       await db.query(
@@ -412,6 +430,7 @@ export class RuntimeService {
   async jobs(ctx: Context) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
       await membership(db, ctx);
+      await authorizeManaged(db, ctx, "knowledge.read");
       return (
         await db.query(
           "SELECT id,operation,status,created_at,finished_at,error_code FROM runtime_jobs WHERE workspace_id=$1 AND principal_id=$2 ORDER BY created_at",

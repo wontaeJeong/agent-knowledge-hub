@@ -25,7 +25,7 @@ export const drafts = z
         title: z.string().trim().min(1).max(300),
         summary: z.string().max(2000),
         content: text,
-        scope: z.enum(["team", "company"]),
+        scope: z.enum(["team", "company", "private"]),
         baseVersion: z.number().int().min(0),
         links: z.array(id).max(100),
         sourceIds: z.array(id).min(1).max(100),

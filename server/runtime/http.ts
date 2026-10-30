@@ -18,6 +18,18 @@ import { usageSummary } from "../usage";
 import { handleMcp } from "./mcp";
 import { readJsonBody } from "./body";
 import { assertSchemaCurrent } from "../database";
+import {
+  AccessService,
+  authorizeAction,
+  authorizeInTransaction,
+} from "../access";
+import { WorkflowService } from "../workflows/service";
+import { handleWorkflowRoute } from "../workflows/http";
+import { AgentService } from "../agents/service";
+import { handleAgentRoute } from "../agents/http";
+import { handleAgentMcp } from "../agents/mcp";
+import { accessRoute, routeAction } from "../access/http";
+import type { Context } from "../service";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
@@ -90,15 +102,30 @@ export function createRuntimeHandler(options: {
       )
         return send(404, { code: "NOT_FOUND" });
       await assertSchemaCurrent(options.pool);
-      const session = await (options.auth?.authenticate(req) ??
-        Promise.resolve(null));
+      const access = new AccessService(options.pool);
+      const bearer = req.headers.authorization?.match(
+        /^Bearer (akh_[a-zA-Z0-9_-]{43})$/,
+      )?.[1];
+      if (req.headers.authorization && !bearer) throw Error("UNAUTHENTICATED");
+      const credential = bearer
+        ? await access.authenticateCredential(
+            bearer,
+            typeof req.headers["x-space-id"] === "string"
+              ? req.headers["x-space-id"]
+              : undefined,
+          )
+        : undefined;
+      const session = credential
+        ? { ...credential, role: "reader" as const, csrfToken: "" }
+        : await (options.auth?.authenticate(req) ?? Promise.resolve(null));
       if (!session) return send(401, { code: "UNAUTHENTICATED", requestId });
-      if (session.workspaceId !== options.workspaceId)
-        return send(403, { code: "FORBIDDEN" });
-      const ctx = {
+      const ctx: Context = {
         workspaceId: session.workspaceId,
         principalId: session.principalId,
-        authorization: options.auth!.requestGuard(req, session),
+        credentialId: credential?.credentialId,
+        authorization: credential
+          ? undefined
+          : options.auth!.requestGuard(req, session),
       };
       let body: unknown;
       if (
@@ -107,8 +134,9 @@ export function createRuntimeHandler(options: {
         req.method === "DELETE"
       ) {
         if (
-          req.headers.origin !== options.origin ||
-          req.headers["x-csrf-token"] !== session.csrfToken
+          !credential &&
+          (req.headers.origin !== options.origin ||
+            req.headers["x-csrf-token"] !== session.csrfToken)
         )
           return send(403, { code: "CSRF_FAILED" });
         if (!req.headers["content-type"]?.startsWith("application/json"))
@@ -116,14 +144,90 @@ export function createRuntimeHandler(options: {
         body = await readJsonBody(req, 512000);
       }
       const service = options.service;
-      if (path === "/mcp" && req.method === "POST")
-        return await handleMcp(req, res, body, service, ctx);
+      const accessResult = await accessRoute(
+        access,
+        ctx,
+        req.method,
+        path,
+        body,
+        url.searchParams,
+      );
+      if (accessResult) return send(accessResult.status, accessResult.body);
       if (path === "/auth/logout" && req.method === "POST") {
+        if (credential) throw Error("FORBIDDEN");
         await options.auth?.logout(req, res);
         return send(200, { ok: true });
       }
+      if (path === "/api/v1/me" && req.method === "GET") {
+        try {
+          const a = await access.effective(ctx);
+          if (!a.role) throw Error("NOT_FOUND");
+          const role = a.capabilities.includes("changeset.approve")
+            ? "reviewer"
+            : a.capabilities.includes("changeset.propose")
+              ? "editor"
+              : "reader";
+          return send(200, {
+            workspaceId: ctx.workspaceId,
+            principalId: ctx.principalId,
+            role,
+            csrfToken: session.csrfToken,
+            capabilities: a.capabilities,
+            space: a.space,
+          });
+        } catch (e) {
+          if (
+            !(e instanceof Error) ||
+            e.message !== "NOT_FOUND" ||
+            ctx.credentialId
+          )
+            throw e;
+          const p = await options.pool.query(
+            "SELECT team_create FROM access_principals WHERE id=$1 AND active AND kind='human'",
+            [ctx.principalId],
+          );
+          if (!p.rowCount) throw Error("UNAUTHENTICATED");
+          return send(200, {
+            workspaceId: ctx.workspaceId,
+            principalId: ctx.principalId,
+            role: "reader",
+            csrfToken: session.csrfToken,
+            capabilities: [
+              "space.create",
+              ...(p.rows[0].team_create ? ["team.create"] : []),
+            ],
+            space: null,
+          });
+        }
+      }
+      const agents = new AgentService(
+        options.pool,
+        service,
+        authorizeInTransaction,
+      );
+      if (path === "/api/v1/agent/mcp" && req.method === "POST")
+        return await handleAgentMcp(req, res, body, agents, ctx);
+      if (
+        await handleAgentRoute(
+          { method: req.method ?? "GET", path, body, ctx, send },
+          agents,
+        )
+      )
+        return;
+      if (path === "/mcp" && !(await access.effective(ctx)).role)
+        throw Error("NOT_FOUND");
+      if (path !== "/mcp")
+        await authorizeAction(options.pool, ctx, routeAction(path, req.method));
+      if (
+        await handleWorkflowRoute(
+          { method: req.method ?? "GET", path, body, ctx, send },
+          new WorkflowService(options.pool, service, authorizeInTransaction),
+        )
+      )
+        return;
+      if (path === "/mcp" && req.method === "POST")
+        return await handleMcp(req, res, body, service, ctx);
       if (req.method === "GET") {
-        if (path === "/api/v1/me") return send(200, session);
         if (path === "/api/v1/pages")
           return send(200, { items: await service.pages(ctx) });
         if (path === "/api/v1/sources")
@@ -140,12 +244,7 @@ export function createRuntimeHandler(options: {
         }
         if (path === "/api/v1/members")
           return send(200, {
-            items: (
-              await options.pool.query(
-                'SELECT principal_id AS "principalId",role FROM memberships WHERE workspace_id=$1 ORDER BY principal_id',
-                [ctx.workspaceId],
-              )
-            ).rows,
+            items: await access.members(ctx),
           });
         const page = path.match(
           /^\/api\/v1\/pages\/([^/]+)(?:\/versions\/(\d+))?$/,
@@ -249,6 +348,7 @@ export function createRuntimeHandler(options: {
         APPROVAL_STALE: 409,
         IDEMPOTENCY_CONFLICT: 409,
         SOURCE_SCOPE_CONFLICT: 409,
+        LAST_OWNER: 409,
         MODEL_NOT_CONFIGURED: 503,
         MODEL_FAILED: 502,
         MODEL_OUTPUT_LIMIT: 502,

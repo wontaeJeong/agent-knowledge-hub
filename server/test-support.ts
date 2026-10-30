@@ -2,6 +2,29 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import type { Source, Page } from "../src/domain/types";
 import { migrate } from "./database";
+import { bootstrapAccess } from "./access";
+
+/** Explicit adoption of known local test identities; never called by production runtime. */
+export async function adoptFixture(pool: Pool, workspaceId: string) {
+  await bootstrapAccess(pool, {
+    spaces: [
+      {
+        workspaceId,
+        team: {
+          slug: workspaceId === "legacy" ? "legacy" : workspaceId,
+          name: "Fixture",
+        },
+        owners: [{ principalId: "fixture-owner" }],
+        grants: [
+          { principalId: "editor", role: "write" },
+          { principalId: "reviewer", role: "maintain" },
+          { principalId: "reader", role: "read" },
+        ],
+        reviewers: ["reviewer"],
+      },
+    ],
+  });
+}
 
 export const source: Source = {
   id: "source-a",

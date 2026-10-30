@@ -85,6 +85,7 @@ async function http(
   f: Awaited<ReturnType<typeof fixture>>,
   principal = "editor",
 ) {
+  await (await import("../test-support")).adoptFixture(f.pool, f.workspaceId);
   const provider = createServer((_req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.end(

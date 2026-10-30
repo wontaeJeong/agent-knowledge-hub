@@ -3,6 +3,7 @@ import type { Context } from "./service";
 import type { UsageSummary } from "../src/domain/usage";
 import { transaction } from "./database";
 import { membership } from "./repository";
+import { effectiveAccess } from "./access";
 
 export async function usageSummary(
   pool: Pool,
@@ -12,13 +13,22 @@ export async function usageSummary(
   if (![7, 30].includes(days)) throw Error("VALIDATION_FAILED");
   return transaction(pool, ctx.workspaceId, async (db) => {
     const role = await membership(db, ctx);
+    const modern = await db.query(
+      "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
+      [ctx.workspaceId],
+    );
+    const aggregate = modern.rowCount
+      ? (await effectiveAccess(db, ctx)).capabilities.includes(
+          "usage.read_aggregate",
+        )
+      : role === "reviewer";
     const now = new Date(
       (await db.query("SELECT clock_timestamp() AS now")).rows[0].now,
     );
     const from = new Date(now);
     from.setUTCHours(0, 0, 0, 0);
     from.setUTCDate(from.getUTCDate() - days + 1);
-    const principal = role === "reviewer" ? null : ctx.principalId;
+    const principal = aggregate ? null : ctx.principalId;
     const args = [
       ctx.workspaceId,
       principal,
@@ -60,7 +70,7 @@ export async function usageSummary(
       args,
     );
     return {
-      scope: role === "reviewer" ? "workspace" : "self",
+      scope: aggregate ? "workspace" : "self",
       from: from.toISOString(),
       to: now.toISOString(),
       timezone: "UTC",

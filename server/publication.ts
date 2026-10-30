@@ -10,6 +10,7 @@ import {
   current,
 } from "../src/domain/wiki";
 import { transaction } from "./database";
+import { authorizeActionDb, effectiveAccess } from "./access";
 import {
   addResource,
   audit,
@@ -59,6 +60,28 @@ async function permissions(
   dependencyIds: string[] = [],
 ) {
   const acl: Record<string, unknown> = {};
+  const policy = await db.query(
+    "SELECT policy_version FROM access_spaces WHERE workspace_id=$1",
+    [ctx.workspaceId],
+  );
+  if (policy.rowCount) acl.policyVersion = policy.rows[0].policy_version;
+  const workflowTables = await db.query(
+    "SELECT to_regclass('workflow_document_state') AS documents,to_regclass('workflow_source_state') AS sources",
+  );
+  if (workflowTables.rows[0].documents)
+    acl.documentPolicies = (
+      await db.query(
+        "SELECT page_id,parent_id,state,revision,data FROM workflow_document_state WHERE workspace_id=$1 ORDER BY page_id",
+        [ctx.workspaceId],
+      )
+    ).rows;
+  if (workflowTables.rows[0].sources)
+    acl.sourcePolicies = (
+      await db.query(
+        "SELECT source_id,state,revision,data FROM workflow_source_state WHERE workspace_id=$1 ORDER BY source_id",
+        [ctx.workspaceId],
+      )
+    ).rows;
   const canonicalState = await loadState(db, ctx.workspaceId);
   const retainedDependencies = new Set(dependencyIds);
   const audienceOf = async (kind: string, id: string) => {
@@ -75,6 +98,21 @@ async function permissions(
   }
   const audiences = new Map<string, string[]>();
   for (const d of updates) {
+    const workflow = await db.query(
+      "SELECT to_regclass('workflow_document_state') AS present",
+    );
+    if (workflow.rows[0].present) {
+      const p = await db.query(
+        "SELECT state,data FROM workflow_document_state WHERE workspace_id=$1 AND page_id=$2",
+        [ctx.workspaceId, d.id],
+      );
+      if (p.rowCount && p.rows[0].state !== "active") throw Error("FORBIDDEN");
+      if (p.rows[0]?.data?.protected === true) {
+        const a = await effectiveAccess(db, ctx);
+        if (!a.capabilities.includes("knowledge.protect"))
+          throw Error("FORBIDDEN");
+      }
+    }
     const sourceAudiences = await Promise.all(
       d.sourceIds.map((id) => audienceOf("source", id)),
     );
@@ -166,6 +204,11 @@ export async function propose(
     answerId?: string;
     inputEnvelope?: InputEnvelope;
     requestAuthorizationPending?: boolean;
+    /** Trusted integration hook; never accepted in request DTOs. Runs before the same transaction commits. */
+    onCreated?: (
+      db: PoolClient,
+      result: { id: string; hash: string },
+    ) => Promise<void>;
   },
 ) {
   return transaction(
@@ -173,6 +216,12 @@ export async function propose(
     ctx.workspaceId,
     async (db) => {
       if ((await membership(db, ctx)) === "reader") throw Error("FORBIDDEN");
+      const accessSpace = await db.query(
+        "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
+        [ctx.workspaceId],
+      );
+      if (accessSpace.rowCount)
+        await authorizeActionDb(db, ctx, "changeset.propose");
       await ctx.authorization?.assertSession(db);
       await permissions(db, ctx, updates, sourceIds, options?.dependencyIds);
       if (options?.inputEnvelope)
@@ -226,7 +275,14 @@ export async function propose(
         batch,
         hash,
       ]);
+      if (accessSpace.rowCount)
+        await db.query("INSERT INTO access_batch_authors VALUES($1,$2,$3)", [
+          ctx.workspaceId,
+          batch.id,
+          ctx.principalId,
+        ]);
       await audit(db, ctx, "batch.propose", batch.id);
+      await options?.onCreated?.(db, { id: batch.id, hash });
       return { id: batch.id, hash };
     },
     { principalId: ctx.principalId, operation: "batch.propose" },
@@ -270,6 +326,63 @@ async function checkedBatch(
   return batch;
 }
 
+async function reviewQualification(
+  db: PoolClient,
+  ctx: Context,
+  id: string,
+  approval: boolean,
+) {
+  const s = await db.query(
+    "SELECT policy_version,minimum_approvals FROM access_spaces WHERE workspace_id=$1",
+    [ctx.workspaceId],
+  );
+  if (!s.rowCount) return null; // Historical service-only fixtures are not runtime-authorized.
+  const a = await authorizeActionDb(
+    db,
+    ctx,
+    approval ? "changeset.approve" : "changeset.publish",
+  );
+  if (ctx.credentialId) throw Error("FORBIDDEN");
+  const human = await db.query(
+    "SELECT 1 FROM access_principals WHERE id=$1 AND kind='human' AND active",
+    [ctx.principalId],
+  );
+  if (!human.rowCount) throw Error("FORBIDDEN");
+  const author = await db.query(
+    "SELECT principal_id FROM access_batch_authors WHERE workspace_id=$1 AND batch_id=$2",
+    [ctx.workspaceId, id],
+  );
+  if (!author.rowCount) throw Error("APPROVAL_STALE");
+  const types = await db.query(
+    `SELECT DISTINCT coalesce(p.data->>'category','연결된 지식') AS document_type FROM batches b CROSS JOIN LATERAL jsonb_array_elements(b.data->'updates') u LEFT JOIN pages p ON p.workspace_id=b.workspace_id AND p.id=u->>'id' WHERE b.workspace_id=$1 AND b.id=$2`,
+    [ctx.workspaceId, id],
+  );
+  const rules = await db.query(
+    "SELECT * FROM access_review_rules WHERE workspace_id=$1 AND document_type=ANY($2::text[])",
+    [ctx.workspaceId, types.rows.map((r) => r.document_type)],
+  );
+  if (approval && a.space.namespaceKind !== "personal") {
+    if (author.rows[0].principal_id === ctx.principalId)
+      throw Error("FORBIDDEN");
+    const designated = await db.query(
+      "SELECT 1 FROM access_reviewers WHERE workspace_id=$1 AND principal_id=$2",
+      [ctx.workspaceId, ctx.principalId],
+    );
+    if (!designated.rowCount) throw Error("FORBIDDEN");
+    if (rules.rows.some((r) => !r.reviewer_ids.includes(ctx.principalId)))
+      throw Error("FORBIDDEN");
+  }
+  return {
+    ...s.rows[0],
+    minimum_approvals: Math.max(
+      s.rows[0].minimum_approvals,
+      ...rules.rows.map((r) => r.minimum_approvals),
+    ),
+    authorId: author.rows[0].principal_id,
+    personal: a.space.namespaceKind === "personal",
+  };
+}
+
 export async function approve(
   pool: Pool,
   ctx: Context,
@@ -281,7 +394,14 @@ export async function approve(
     ctx.workspaceId,
     async (db) => {
       await checkedBatch(db, ctx, id, hash);
+      const qualification = await reviewQualification(db, ctx, id, true);
       const state = await loadState(db, ctx.workspaceId);
+      // Additional reviewers and re-review after a policy change sign the same fixed content.
+      // Domain demo permits only one approval, so reset only this transaction-local candidate.
+      if (qualification) {
+        const candidate = memory(state).batches.find((b) => b.id === id);
+        if (candidate?.status === "approved") candidate.status = "pending";
+      }
       let batch: Batch;
       try {
         batch = memory(decideBatch(state, id, "approve")).batches.find(
@@ -303,10 +423,22 @@ export async function approve(
         [ctx.workspaceId, id, batch],
       );
       await db.query(
-        "INSERT INTO approvals(workspace_id,batch_id,principal_id,hash,acl_hash) VALUES($1,$2,$3,$4,$5)",
-        [ctx.workspaceId, id, ctx.principalId, hash, permissionSnapshot.hash],
+        "INSERT INTO approvals(workspace_id,batch_id,principal_id,hash,acl_hash,policy_version) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(workspace_id,batch_id,principal_id) DO UPDATE SET hash=excluded.hash,acl_hash=excluded.acl_hash,policy_version=excluded.policy_version,at=clock_timestamp()",
+        [
+          ctx.workspaceId,
+          id,
+          ctx.principalId,
+          hash,
+          permissionSnapshot.hash,
+          qualification?.policy_version ?? null,
+        ],
       );
-      await audit(db, ctx, "batch.approve", id);
+      await audit(
+        db,
+        ctx,
+        qualification?.personal ? "personal.save.review-free" : "batch.approve",
+        id,
+      );
     },
     { principalId: ctx.principalId, operation: "batch.approve" },
   );
@@ -325,6 +457,7 @@ export async function publish(
     async (db) => {
       if (!key.trim() || key.length > 200) throw Error("VALIDATION_FAILED");
       const batch = await checkedBatch(db, ctx, id, hash);
+      const qualification = await reviewQualification(db, ctx, id, false);
       const requestHash = digest([id, hash]);
       const replay = await db.query(
         "SELECT hash,result FROM requests WHERE workspace_id=$1 AND principal_id=$2 AND key=$3",
@@ -343,7 +476,7 @@ export async function publish(
       if (receipt.rowCount) result = receipt.rows[0].result;
       else {
         const approval = await db.query(
-          "SELECT hash,acl_hash FROM approvals WHERE workspace_id=$1 AND batch_id=$2",
+          "SELECT hash,acl_hash,principal_id,policy_version FROM approvals WHERE workspace_id=$1 AND batch_id=$2",
           [ctx.workspaceId, id],
         );
         if (!approval.rowCount || approval.rows[0].hash !== hash)
@@ -357,6 +490,53 @@ export async function publish(
         );
         if (permissionSnapshot.hash !== approval.rows[0].acl_hash)
           throw Error("APPROVAL_STALE");
+        if (qualification) {
+          let valid = 0;
+          for (const ap of approval.rows) {
+            if (
+              ap.hash !== hash ||
+              ap.acl_hash !== permissionSnapshot.hash ||
+              ap.policy_version !== qualification.policy_version
+            )
+              continue;
+            if (
+              !qualification.personal &&
+              ap.principal_id === qualification.authorId
+            )
+              continue;
+            try {
+              await reviewQualification(
+                db,
+                { workspaceId: ctx.workspaceId, principalId: ap.principal_id },
+                id,
+                true,
+              );
+              await permissions(
+                db,
+                { workspaceId: ctx.workspaceId, principalId: ap.principal_id },
+                batch.updates,
+                batch.snapshots.map((s) => s.id),
+                (batch as RuntimeBatch).contextDependencyIds,
+              );
+              valid++;
+            } catch {
+              /* Revoked or newly restricted approvals never qualify. */
+            }
+          }
+          if (
+            valid <
+            (qualification.personal ? 1 : qualification.minimum_approvals)
+          )
+            throw Error("APPROVAL_STALE");
+          await authorizeActionDb(
+            db,
+            {
+              workspaceId: ctx.workspaceId,
+              principalId: qualification.authorId,
+            },
+            "changeset.propose",
+          );
+        }
         const state = await loadState(db, ctx.workspaceId);
         let next;
         try {
@@ -370,6 +550,10 @@ export async function publish(
         for (const d of batch.updates) {
           const p = next.pages.find((p) => p.id === d.id)!;
           const { versions: history, ...metadata } = p;
+          if (qualification?.personal) {
+            metadata.status = "미검증";
+            metadata.owner = qualification.authorId;
+          }
           const old = state.pages.find((p) => p.id === d.id);
           const inherited = old
             ? inheritedProvenance(old)
