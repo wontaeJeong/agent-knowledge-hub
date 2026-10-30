@@ -232,7 +232,7 @@ export class RuntimeService {
             content: current(p).content,
             baseVersion: current(p).number,
           })),
-        });
+        }, {pool:this.pool,workspaceId:ctx.workspaceId,principalId:ctx.principalId});
         updates = drafts.parse((data as { updates: unknown }).updates);
         // All supplied context can influence prose. Preserve its source lineage even when the model omits it.
         const lineage = [
@@ -330,7 +330,7 @@ export class RuntimeService {
               version: current(p).number,
               content: current(p).content,
             })),
-          }),
+          }), {pool:this.pool,workspaceId:ctx.workspaceId,principalId:ctx.principalId}),
         );
         answer = {
           ...data,

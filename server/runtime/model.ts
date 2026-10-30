@@ -1,9 +1,13 @@
 import { readFile } from "node:fs/promises";
+import { normalizeProviderUsage, recordModelUsage, type Attribution, type Backend } from "../model-usage";
 export type ModelCall = (
   operation: "ingest" | "query" | "organize",
   context: unknown,
+  attribution?: Attribution,
 ) => Promise<unknown>;
 export const modelConfig = () => ({
+  provider: process.env.AGENT_KNOWLEDGE_HUB_LLM_PROVIDER || "openai",
+  backend: process.env.AGENT_KNOWLEDGE_HUB_LLM_BACKEND || "unknown",
   configured: Boolean(
     process.env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL &&
     process.env.AGENT_KNOWLEDGE_HUB_LLM_MODEL &&
@@ -11,7 +15,12 @@ export const modelConfig = () => ({
   ),
   model: process.env.AGENT_KNOWLEDGE_HUB_LLM_MODEL || null,
 });
-export const callModel: ModelCall = async (operation, context) => {
+export const callModel: ModelCall = async (operation, context, attribution) => {
+  const provider = modelConfig().provider;
+  if (!["openai","litellm"].includes(provider)) throw Error("MODEL_CONFIGURATION");
+  const backendSetting=modelConfig().backend;
+  if (!["unknown","onprem","bedrock","external"].includes(backendSetting)) throw Error("MODEL_CONFIGURATION");
+  const backend=backendSetting as Backend;
   if (!modelConfig().configured) throw Error("MODEL_NOT_CONFIGURED");
   const thinking = process.env.AGENT_KNOWLEDGE_HUB_LLM_THINKING;
   if (thinking !== undefined && !["enabled", "disabled"].includes(thinking))
@@ -42,6 +51,10 @@ export const callModel: ModelCall = async (operation, context) => {
         : operation === "ingest"
           ? 'Return JSON {"updates":[{"id":"ascii-id","title":"title","summary":"summary","content":"markdown","scope":"team or company","links":["id"],"sourceIds":["source-id"],"facts":[{"key":"key","context":"applicable context","value":"value","sourceId":"source-id","quote":"exact source substring"}],"baseVersion":0}]}. Integrate sources with existing concepts and topic pages together. Preserve existing human text and evidence. Exact existing ids/baseVersion/scope. Max 20 updates. New pages baseVersion=0. Link related pages. Never expand source scope.'
           : 'Return JSON {"content":"answer","insufficient":false,"citations":[{"pageId":"id","title":"exact title","version":1,"quote":"exact contiguous substring of page content"}]}. Only supplied published pages are evidence. Explain limits and conflicts.';
+  const started=performance.now();
+  let succeeded=false, errorCode:string|null=null;
+  let measured=normalizeProviderUsage(provider as "openai"|"litellm",{},undefined);
+  let deployedModel=String(modelConfig().model||"unknown");
   try {
     const res = await fetch(endpoint, {
       method: "POST",
@@ -78,6 +91,8 @@ export const callModel: ModelCall = async (operation, context) => {
     const raw = await res.text();
     if (raw.length > 1000000) throw Error("MODEL_FAILED");
     const data = JSON.parse(raw);
+    measured=normalizeProviderUsage(provider as "openai"|"litellm",data,res.headers);
+    if(typeof data.model==="string"&&data.model.length<201)deployedModel=data.model;
     if (data.choices?.[0]?.finish_reason === "length")
       throw Error("MODEL_OUTPUT_LIMIT");
     if (
@@ -85,14 +100,25 @@ export const callModel: ModelCall = async (operation, context) => {
       data.choices[0].finish_reason !== "stop"
     )
       throw Error("MODEL_FAILED");
-    return JSON.parse(
+    const result=JSON.parse(
       data.choices[0].message.content
         .replace(/^\s*```(?:json)?\s*/, "")
         .replace(/\s*```\s*$/, ""),
     );
+    succeeded=true;
+    return result;
   } catch (error) {
-    if (error instanceof Error && error.message === "MODEL_OUTPUT_LIMIT")
-      throw error;
-    throw Error("MODEL_FAILED");
+    errorCode=error instanceof Error && error.message==="MODEL_OUTPUT_LIMIT" ? "MODEL_OUTPUT_LIMIT" : "MODEL_FAILED";
+    throw Error(errorCode);
+  } finally {
+    if(attribution){
+      await recordModelUsage(attribution,{
+        operation,provider:provider as "openai"|"litellm",backend,model:deployedModel,
+        deploymentId:measured.deploymentId,succeeded,latencyMs:performance.now()-started,
+        inputTokens:measured.inputTokens,outputTokens:measured.outputTokens,
+        cacheReadTokens:measured.cacheReadTokens,cacheWriteTokens:measured.cacheWriteTokens,
+        costUsd:measured.costUsd,errorCode,
+      });
+    }
   }
 };
