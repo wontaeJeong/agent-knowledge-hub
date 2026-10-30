@@ -50,7 +50,7 @@ export async function assessPage(pool:Pool,service:RuntimeService,ctx:Context,pa
   score=answer.noul;
   await ctx.authorization?.revalidate();
   statusCode="";success=true;
-  return {pageId,version:version.number,provider:"systemone",model:process.env.AGENT_KNOWLEDGE_HUB_SYSTEMONE_MODEL,score,threshold,needsReview:score>=threshold,disclaimer:"Probabilistic screening only. Not an approval, publication decision, or independent verification."};
+  return {pageId,version:version.number,provider:"systemone",model:process.env.AGENT_KNOWLEDGE_HUB_SYSTEMONE_MODEL,score,threshold,needsReview:answer.noul>=threshold,disclaimer:"Probabilistic screening only. Not an approval, publication decision, or independent verification."};
  }catch(e){
   if(e instanceof Error&&e.message==="MODEL_INVALID")statusCode="MODEL_INVALID";
   throw Error(statusCode);

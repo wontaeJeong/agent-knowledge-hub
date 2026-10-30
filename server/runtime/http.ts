@@ -192,7 +192,7 @@ export function createRuntimeHandler(options: {
         const b = z.object({ spaceId: id }).strict().parse(body);
         return send(
           200,
-          await options.auth!.switchSpace(req, session, b.spaceId),
+          await options.auth!.switchSpace(req, session!, b.spaceId),
         );
       }
       if (path.startsWith("/api/v1/access")) {

@@ -1120,8 +1120,10 @@ export default function OperationalApp({
                   집계 새로고침
                 </Button>
                 {!preview && usage && (
+                  <>
                   <a className="button secondary" href={`/api/v1/usage/export?days=${usageDays}`} download="agent-knowledge-hub-usage.csv">호출 CSV</a>
                   <a className="button secondary" href={"/api/v1/usage/model-export?days="+usageDays} download="agent-knowledge-hub-model-usage.csv">모델 사용량 CSV</a>
+                  </>
                 )}
                 {usage ? (
                   <Suspense fallback={<p role="status">집계를 불러오는 중…</p>}>
