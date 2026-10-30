@@ -19,6 +19,9 @@ const icons = JSON.parse(
     "utf8",
   ),
 );
+const markPaths = JSON.parse(
+  await fs.readFile(new URL("../src/ui/brand-mark.json", import.meta.url), "utf8"),
+);
 await fs.mkdir(path.join(root, "icons"), { recursive: true });
 await fs.mkdir(path.join(publicRoot, "icons"), { recursive: true });
 const palette = {
@@ -52,7 +55,7 @@ const text = (value, x, y, size, fill, extra = "") =>
 // Original Folio Wiki symbol, retained unchanged by the user's brand decision.
 // The two path definitions, stroke widths and joins match the original source.
 function originalSymbol(primary, secondary = primary) {
-  return `<path class="primary-stroke" d="M50 15 87 28v49L50 91 13 77V28z" fill="none" stroke="${primary}" stroke-width="8" stroke-linejoin="round"/><path class="secondary-stroke" d="M50 37v40M27 36l14 5v24l-14-5M73 36l-14 5v24l14-5" fill="none" stroke="${secondary}" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>`;
+  return `<path class="primary-stroke" d="${markPaths.outerPath}" fill="none" stroke="${primary}" stroke-width="${markPaths.outerStrokeWidth}" stroke-linejoin="round"/><path class="secondary-stroke" d="${markPaths.innerPath}" fill="none" stroke="${secondary}" stroke-width="${markPaths.innerStrokeWidth}" stroke-linejoin="round" stroke-linecap="round"/>`;
 }
 const symbol = (primary, secondary = primary) =>
   `<g transform="scale(1.28)">${originalSymbol(primary, secondary)}</g>`;
@@ -391,6 +394,8 @@ await fs.writeFile(
 아이콘은 24×24 기준, 1.8 stroke, currentColor다. 공통 원본은 src/ui/brand-icons.json이며 앱의 BrandIcon과 에셋 생성기가 함께 사용한다. 일반 유틸리티용 Lucide는 별도 라이선스를 따른다.
 
 워드마크는 DejaVu Sans의 필요한 글자 윤곽만 사용해 폰트 설치나 CDN이 필요 없다. 출처·라이선스는 third-party-licenses/dejavu-font-license.txt에 보존한다. 보조 문구는 SVG text이며 PNG 사본을 제공한다. webmanifest는 메타데이터이며 오프라인 PWA나 서비스워커를 구현한 것은 아니다.
+
+웹 앱의 로고는 같은 두 path를 `src/ui/brand-mark.json`에서 읽는 `BrandMark` 컴포넌트로 표시한다. 색은 `--brand-mark-primary`/`--brand-mark-secondary`가 활성 CSS `--color-accent`/`--color-accent-strong`을 따라가므로 테마 또는 팔레트 변경 시 PNG/SVG를 다시 만들 필요가 없다. 브라우저 favicon은 활성 CSS 토큰으로 갱신되며, 이 폴더의 SVG/PNG/ICO는 배포·인쇄·소셜 공유를 위한 고정 Plum 원본이다. 정적 에셋의 색상까지 바꿀 경우에만 생성기를 실행한다.
 
 프로젝트 루트에서 npm ci 후 npm run brand로 다시 생성한다. Node.js와 프로젝트의 sharp만 사용한다. 심볼·배치·색상은 scripts/generate-brand.mjs, 워드마크 윤곽은 scripts/brand-wordmark-glyphs.json, UI 아이콘은 src/ui/brand-icons.json을 편집한다. 외부 서비스·웹폰트는 호출하지 않는다.
 

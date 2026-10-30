@@ -3,6 +3,8 @@
   color-scheme: light;
   --color-accent: #78469e;
   --color-accent-strong: #623680;
+  --brand-mark-primary: var(--color-accent);
+  --brand-mark-secondary: var(--color-accent-strong);
   --accent-soft: #eee6f5;
   --bg: #f8f9fc;
   --surface: #fff;
@@ -27,6 +29,8 @@
   color-scheme: dark;
   --color-accent: #d4a1eb;
   --color-accent-strong: #eac7f6;
+  --brand-mark-primary: var(--color-accent);
+  --brand-mark-secondary: var(--color-accent-strong);
   --accent-soft: #352a43;
   --bg: #0d1018;
   --surface: #171b26;
