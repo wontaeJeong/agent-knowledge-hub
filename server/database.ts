@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { readFile, readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { acquireSharedMutationGate } from "./operations/gate.ts";
 
 /** Read-only compatibility gate: the web process must never apply migrations. */
 export async function assertSchemaCurrent(pool: Pool): Promise<void> {
@@ -84,6 +85,7 @@ export async function transaction<T>(
     await db.query("BEGIN");
     await db.query("SET LOCAL lock_timeout = '5s'");
     await db.query("SET LOCAL statement_timeout = '15s'");
+    await acquireSharedMutationGate(db);
     const workspace = await db.query(
       "SELECT id FROM workspaces WHERE id=$1 FOR UPDATE",
       [workspaceId],

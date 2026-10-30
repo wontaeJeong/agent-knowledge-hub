@@ -76,7 +76,10 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
     error: state.error,
     lastSync: state.lastSync,
     mode: "connected-only",
-    storage: "synthetic-development",
+    storage:
+      state.backend === "operational-server"
+        ? "operational-server"
+        : "synthetic-development",
   });
   async function request(action, input = {}) {
     try {
@@ -93,7 +96,8 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(5000)]),
       });
       const result = await readJsonBody(response.body);
-      if (!response.ok) throw Error(safeError({ message: result.error }));
+      if (!response.ok)
+        throw Error(safeError({ message: result.error ?? result.code }));
       return result;
     } catch (e) {
       throw Error(safeError(e));
@@ -108,6 +112,10 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
       throw Error("INVALID_RESPONSE");
     const shared = snapshot.shared.map(validatePage),
       personal = snapshot.personal.map(validatePage);
+    state.backend =
+      snapshot.backend === "operational-server"
+        ? "operational-server"
+        : "synthetic-development";
     if (
       personal.some((p) => p.spaceId !== "personal") ||
       shared.some((p) => p.spaceId === "personal")

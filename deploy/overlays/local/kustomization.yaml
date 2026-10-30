@@ -14,12 +14,34 @@ configMapGenerator:
       - OIDC_ISSUER=http://localhost:28081/realms/knowledge
       - OIDC_INTERNAL_URL=http://knowledge-keycloak:8080
       - OIDC_CLIENT_ID=knowledge-hub
+      - AKH_DIRECTORY_PROVIDER=keycloak-local
+      - AKH_DIRECTORY_ADMIN_USERNAME=local-admin
       - WORKSPACE_ID=default
+      - ACCESS_BOOTSTRAP_JSON={"spaces":[{"workspaceId":"default","team":{"slug":"local-team","name":"로컬 합성 팀"},"owners":[{"issuer":"http://localhost:28081/realms/knowledge","subject":"10000000-0000-4000-8000-000000000001"}],"grants":[{"principalId":"23895760c15244211bbc337b50aff374c96fec003c3fd0b8950c86576d90b5e3","role":"write"},{"principalId":"1bb6ad7a69d82731ee38c412620672516b4d76f730e68dc70c7164a39844171f","role":"read"}],"reviewers":["2fad6c08e3f77a56568718163d04dcda1e03b8142cc1330f3c9c383c1fbe1217"]}]}
       - OIDC_GROUP_ROLES={"reviewers":"reviewer","writers":"editor","readers":"reader"}
   - name: keycloak-realm
     files:
       - knowledge-realm.json
 patches:
+  - target:
+      kind: Deployment
+      name: knowledge-app
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: knowledge-app
+      spec:
+        template:
+          spec:
+            containers:
+              - name: app
+                env:
+                  - name: AKH_DIRECTORY_ADMIN_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: knowledge-db-secret
+                        key: password
   - target:
       kind: Service
       name: knowledge-app

@@ -3,6 +3,7 @@ import type { Context } from "./service";
 import type { Role, State, Page, Source } from "../src/domain/types";
 import type { Batch } from "../src/domain/wiki";
 import { effectiveAccess } from "./access";
+import { appendOperationalAudit } from "./operations/service";
 
 export async function membership(db: PoolClient, ctx: Context): Promise<Role> {
   const modern = await db.query(
@@ -18,9 +19,11 @@ export async function membership(db: PoolClient, ctx: Context): Promise<Role> {
       "INSERT INTO memberships VALUES($1,$2,'reader') ON CONFLICT DO NOTHING",
       [ctx.workspaceId, ctx.principalId],
     );
-    return a.capabilities.includes("changeset.approve")
+    // Legacy role prechecks describe the space role, never a delegated action bundle.
+    // Each managed operation separately authorizes its exact action and credential ceiling.
+    return ["maintain", "admin"].includes(a.role)
       ? "reviewer"
-      : a.capabilities.includes("changeset.propose")
+      : a.role === "write"
         ? "editor"
         : "reader";
   }
@@ -141,6 +144,15 @@ export async function audit(
     "INSERT INTO audit(workspace_id,principal_id,operation,resource_id) VALUES($1,$2,$3,$4)",
     [ctx.workspaceId, ctx.principalId, operation, id],
   );
+  const kind = operation.startsWith("source.")
+    ? "source"
+    : operation.startsWith("page.")
+      ? "page"
+      : undefined;
+  await appendOperationalAudit(db, ctx, {
+    operation,
+    ...(kind ? { resource: { kind, id } } : {}),
+  });
 }
 
 /** Internal canonical state only; never send this aggregate to a client. */

@@ -6,6 +6,10 @@ import type { Role } from "../../src/domain/types";
 import type { Context } from "../service";
 import { workspaceHref } from "../../src/entry";
 import { effectiveAccess, syncIdentity } from "../access";
+import type {
+  InteractiveSessionBinding,
+  InteractiveSessionSnapshot,
+} from "../jobs/identity";
 
 export const sessionHash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -33,6 +37,7 @@ export class OidcAuth {
       if (!result.rowCount) throw Error("UNAUTHENTICATED");
     };
     return {
+      sessionId: raw ? sessionHash(raw) : undefined,
       assertSession: (db: PoolClient) => check(db),
       revalidate: async () => {
         const fresh = await this.authenticate(req);
@@ -48,6 +53,83 @@ export class OidcAuth {
         await check(this.pool);
       },
     };
+  }
+  private async executionSession(
+    db: Pick<PoolClient, "query">,
+    binding: InteractiveSessionBinding,
+    lock = false,
+  ) {
+    if (!/^[a-f0-9]{64}$/.test(binding.sessionId))
+      throw Error("UNAUTHENTICATED");
+    const found = await db.query(
+      `SELECT s.* FROM runtime_sessions s JOIN access_principals p ON p.id=s.principal_id AND p.active AND p.kind='human' WHERE s.id=$1 AND s.principal_id=$2 AND s.expires_at>clock_timestamp()${lock ? " FOR SHARE OF s,p" : ""}`,
+      [binding.sessionId, binding.principalId],
+    );
+    const row = found.rows[0];
+    if (!row) throw Error("UNAUTHENTICATED");
+    const access = await effectiveAccess(db, {
+      workspaceId: binding.workspaceId,
+      principalId: binding.principalId,
+    });
+    if (!access.role) throw Error("UNAUTHENTICATED");
+    const role: Role = access.capabilities.includes("changeset.approve")
+      ? "reviewer"
+      : access.capabilities.includes("changeset.propose")
+        ? "editor"
+        : "reader";
+    return { row, role };
+  }
+  /** Hashed parent pointer only. Network identity proof remains outside write transactions. */
+  async revalidateInteractiveGrant(
+    binding: InteractiveSessionBinding,
+  ): Promise<InteractiveSessionSnapshot> {
+    try {
+      const { row } = await this.executionSession(this.pool, binding);
+      const info = await oidc.fetchUserInfo(
+          this.config,
+          row.access_token,
+          row.subject,
+        ),
+        identityRole = this.role(info);
+      const current = await this.executionSession(this.pool, binding);
+      const snapshot = {
+        role: current.role,
+        identityRole,
+        csrfHash: sessionHash(current.row.csrf),
+        subjectHash: sessionHash(current.row.subject),
+      };
+      if (
+        binding.snapshot &&
+        Object.keys(snapshot).some(
+          (key) =>
+            snapshot[key as keyof typeof snapshot] !==
+            binding.snapshot![key as keyof InteractiveSessionSnapshot],
+        )
+      )
+        throw Error("UNAUTHENTICATED");
+      return snapshot;
+    } catch {
+      await this.pool.query(
+        "DELETE FROM runtime_sessions WHERE id=$1 AND principal_id=$2",
+        [binding.sessionId, binding.principalId],
+      );
+      throw Error("UNAUTHENTICATED");
+    }
+  }
+  /** DB-only final assertion; selecting a space never changes the origin session's authority. */
+  async assertInteractiveGrant(
+    db: PoolClient,
+    binding: InteractiveSessionBinding,
+  ): Promise<void> {
+    const { row, role } = await this.executionSession(db, binding, true),
+      expected = binding.snapshot;
+    if (
+      !expected ||
+      expected.role !== role ||
+      expected.csrfHash !== sessionHash(row.csrf) ||
+      expected.subjectHash !== sessionHash(row.subject)
+    )
+      throw Error("UNAUTHENTICATED");
   }
   constructor(
     readonly pool: Pool,

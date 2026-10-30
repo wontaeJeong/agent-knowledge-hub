@@ -5,16 +5,30 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
 } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
-import { ApiError, OperationalApi, pageItems, snapshotPath } from "./api";
+import {
+  ApiError,
+  OperationalApi,
+  pageItems,
+  snapshotPath,
+  documentHref,
+  resumeWorkspaceLink,
+} from "./api";
 import type { Identity } from "./api";
 import type { UsageSummary } from "../domain/usage";
 import type { Source } from "../domain/types";
 import type { Answer, Draft, Issue } from "../domain/wiki";
 import { Button, Badge } from "../ui/primitives";
 import "./styles.css";
+import { WorkflowPanel, SourceLifecycle } from "./workflows";
+import { AccessPanel } from "./access";
+import { StoragePanel } from "./storage";
+import { RefinementPanel } from "./refinement";
+import { JobsPanel } from "./jobs";
+import { resolveJob, isJobReceipt } from "./jobs-client";
 
 interface PublishedPage {
   id: string;
@@ -39,7 +53,16 @@ interface Job {
   error_code?: string;
 }
 type Tab =
-  "knowledge" | "sources" | "review" | "query" | "lint" | "jobs" | "usage";
+  | "knowledge"
+  | "sources"
+  | "review"
+  | "query"
+  | "lint"
+  | "jobs"
+  | "usage"
+  | "workflows"
+  | "access"
+  | "refinement";
 const labels: Record<Tab, string> = {
   knowledge: "발행 지식",
   sources: "원본과 편입",
@@ -48,6 +71,9 @@ const labels: Record<Tab, string> = {
   lint: "위키 점검",
   jobs: "작업 상태",
   usage: "사용량",
+  workflows: "편집과 협업",
+  access: "공간과 권한",
+  refinement: "정련과 경험",
 };
 const UsageReport = lazy(() =>
   import("../features/UsageDashboard").then((m) => ({
@@ -97,13 +123,60 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function OperationalApp() {
-  const api = useMemo(() => new OperationalApi(), []);
+  const [spaceId, setSpaceId] = useState(() => {
+    try {
+      const remembered = sessionStorage.getItem("akh-login-return");
+      sessionStorage.removeItem("akh-login-return");
+      const params = new URLSearchParams(window.location.search);
+      if (
+        remembered &&
+        !params.has("space") &&
+        !params.has("document") &&
+        !window.location.hash
+      ) {
+        const restored = resumeWorkspaceLink(remembered);
+        if (restored) window.history.replaceState(null, "", restored);
+      }
+    } catch {
+      /* Storage-blocked browsers still use the server's fixed safe app redirect. */
+    }
+    const value =
+      new URLSearchParams(window.location.search).get("space") ?? "";
+    return /^[a-zA-Z0-9_-]{1,100}$/.test(value) ? value : "";
+  });
+  return (
+    <OperationalWorkspace
+      key={spaceId}
+      spaceId={spaceId}
+      onSpace={setSpaceId}
+    />
+  );
+}
+function OperationalWorkspace({
+  spaceId,
+  onSpace,
+}: {
+  spaceId: string;
+  onSpace: (id: string) => void;
+}) {
+  const api = useMemo(() => new OperationalApi("", spaceId), [spaceId]);
+  const requestEpoch = useRef(0),
+    currentScope = useRef("");
+  const waitAbort = useMemo(() => new AbortController(), [api]);
+  useEffect(() => () => waitAbort.abort(), [waitAbort]);
+  const [spaces, setSpaces] = useState<
+    { id: string; namespaceSlug: string; slug: string; role: string }[]
+  >([]);
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<Tab>("knowledge");
+  const [tab, setTab] = useState<Tab>(() =>
+    new URLSearchParams(window.location.search).has("document")
+      ? "workflows"
+      : "knowledge",
+  );
   const [pages, setPages] = useState<PublishedPage[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<ChangeSet[]>([]);
@@ -113,8 +186,17 @@ export default function OperationalApp() {
   const [selectedReaders, setSelectedReaders] = useState<string[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [executionIdentities, setExecutionIdentities] = useState<
+      { workspaceId: string; principalId: string; credentialId: string }[]
+    >([]),
+    [directoryConfigured, setDirectoryConfigured] = useState(false);
   const [issues, setIssues] = useState<Issue[] | null>(null);
-  const [answer, setAnswer] = useState<Answer | null>(null);
+  const [answer, updateAnswer] = useState<Answer | null>(null);
+  const answerRef = useRef<Answer | null>(null);
+  const setAnswer = useCallback((value: Answer | null) => {
+    answerRef.current = value;
+    updateAnswer(value);
+  }, []);
   const [snapshot, setSnapshot] = useState<{
     title: string;
     version: { number: number; content: string };
@@ -133,43 +215,140 @@ export default function OperationalApp() {
   const [jobPage, setJobPage] = useState(0);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [usageDays, setUsageDays] = useState<7 | 30>(7);
-  const clearProtected = useCallback(() => {
-    setIdentity(null);
-    setPages([]);
-    setSources([]);
-    setChanges([]);
-    setMembers([]);
-    setJobs([]);
-    setAnswer(null);
-    setSnapshot(null);
-    setUsage(null);
-    setIssues(null);
-    setTitle("");
-    setContent("");
-    setQuestion("");
-    setSelectedReaders([]);
-    setSelectedSources([]);
-    setNotice(
-      "세션이 만료되어 보호된 화면과 작성 중인 입력을 비웠습니다. 다시 로그인하세요.",
-    );
-  }, []);
+  const clearProtected = useCallback(
+    (
+      reason = "세션이 만료되어 보호된 화면과 작성 중인 입력을 비웠습니다. 다시 로그인하세요.",
+    ) => {
+      requestEpoch.current++;
+      currentScope.current = "";
+      setIdentity(null);
+      setPages([]);
+      setSources([]);
+      setChanges([]);
+      setMembers([]);
+      setJobs([]);
+      setExecutionIdentities([]);
+      setDirectoryConfigured(false);
+      setAnswer(null);
+      setSnapshot(null);
+      setUsage(null);
+      setIssues(null);
+      setTitle("");
+      setContent("");
+      setQuestion("");
+      setSelectedReaders([]);
+      setSelectedSources([]);
+      setSpaces([]);
+      setNotice(reason);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    api.onExpired(clearProtected);
+    return () => api.onExpired(undefined);
+  }, [api, clearProtected]);
 
   const load = useCallback(async () => {
-    const [p, s, c, m, j, config] = await Promise.all([
-      api.get<{ items: PublishedPage[] }>("/pages"),
-      api.get<{ items: Source[] }>("/sources"),
-      api.get<{ items: ChangeSet[] }>("/changesets"),
-      api.get<{ items: { principalId: string; role: string }[] }>("/members"),
-      api.get<{ items: Job[] }>("/jobs"),
-      api.get<{ configured: boolean; model: string | null }>("/model"),
-    ]);
+    let epoch = requestEpoch.current;
+    const current = await api.me();
+    if (epoch !== requestEpoch.current) return;
+    const nextScope = current.principalId + "\0" + current.workspaceId;
+    if (currentScope.current && currentScope.current !== nextScope) {
+      clearProtected("사용자 또는 공간이 바뀌어 이전 보호 내용을 비웠습니다.");
+      epoch = requestEpoch.current;
+    }
+    const capabilities = current.capabilities ?? [];
+    if (!capabilities.includes("knowledge.read")) {
+      clearProtected(
+        "현재 공간의 내용 열람 권한이 없어 보호 내용과 입력을 비웠습니다.",
+      );
+      epoch = requestEpoch.current;
+      const available = await api.get<{
+        items: {
+          id: string;
+          namespaceSlug: string;
+          slug: string;
+          role: string;
+        }[];
+      }>("/spaces");
+      if (epoch !== requestEpoch.current) return;
+      setIdentity(current);
+      currentScope.current = nextScope;
+      setSpaces(available.items);
+      setTab("access");
+      return;
+    }
+    const [p, s, c, m, j, config, availableSpaces, executors] =
+      await Promise.all([
+        api.get<{ items: PublishedPage[] }>("/pages"),
+        capabilities.includes("changeset.propose")
+          ? api.get<{ items: Source[] }>("/sources")
+          : Promise.resolve({ items: [] }),
+        capabilities.includes("queue.triage")
+          ? api.get<{ items: ChangeSet[] }>("/changesets")
+          : Promise.resolve({ items: [] }),
+        capabilities.includes("space.admin")
+          ? api.get<{ items: { principalId: string; role: string }[] }>(
+              "/members",
+            )
+          : Promise.resolve({
+              items: [{ principalId: current.principalId, role: current.role }],
+            }),
+        api.get<{ items: Job[] }>(
+          capabilities.includes("jobs.read") ? "/jobs-v2" : "/jobs",
+        ),
+        api.get<{ configured: boolean; model: string | null }>("/model"),
+        api.get<{
+          items: {
+            id: string;
+            namespaceSlug: string;
+            slug: string;
+            role: string;
+          }[];
+        }>("/spaces"),
+        capabilities.includes("jobs.manage")
+          ? api.get<{
+              items: {
+                workspaceId: string;
+                principalId: string;
+                credentialId: string;
+              }[];
+              directoryConfigured: boolean;
+            }>("/execution-identities")
+          : Promise.resolve({ items: [], directoryConfigured: false }),
+      ]);
+    if (epoch !== requestEpoch.current) return;
+    const savedAnswer = answerRef.current;
+    if (savedAnswer) {
+      try {
+        const fresh = await api.get<Answer>(
+          `/answers/${encodeURIComponent(savedAnswer.id)}`,
+        );
+        if (epoch === requestEpoch.current) setAnswer(fresh);
+      } catch (e) {
+        if (e instanceof ApiError && [403, 404, 409].includes(e.status)) {
+          setAnswer(null);
+          setSnapshot(null);
+          setNotice(
+            "근거·버전·접근 범위가 바뀌어 이전 답변을 가렸습니다. 다시 질문하세요.",
+          );
+        } else throw e;
+      }
+    }
+    if (epoch !== requestEpoch.current) return;
+    setIdentity(current);
+    currentScope.current = nextScope;
     setPages(p.items);
     setSources(s.items);
     setChanges(c.items);
     setMembers(m.items);
     setJobs(j.items);
+    setExecutionIdentities(executors.items);
+    setDirectoryConfigured(executors.directoryConfigured);
     setModel(config);
-  }, [api]);
+    setSpaces(availableSpaces.items);
+  }, [api, clearProtected, setAnswer]);
   useEffect(() => {
     let active = true;
     let authenticated = false;
@@ -219,8 +398,62 @@ export default function OperationalApp() {
       setUsage(null);
       setUsage(await api.get<UsageSummary>(`/usage?days=${days}`));
     });
-  const write = identity?.role !== "reader";
-  const review = identity?.role === "reviewer";
+  const completedJob = async <T,>(value: unknown): Promise<T> => {
+    const epoch = requestEpoch.current;
+    const result = await resolveJob<T>(api, value, {
+      signal: waitAbort.signal,
+      expectQueued: !!identity?.capabilities?.includes("jobs.read"),
+      onProgress: (job) => {
+        if (epoch === requestEpoch.current)
+          setNotice(
+            `작업 ${job.id} · ${job.status === "queued" ? "대기" : job.status === "running" ? "실행 중" : job.status === "succeeded" ? "실행 종료" : job.status} — 승인·발행 완료와 별개입니다.`,
+          );
+      },
+    });
+    if (epoch !== requestEpoch.current)
+      throw new ApiError(
+        "사용자·권한이 바뀌어 이전 결과를 표시하지 않았습니다.",
+        401,
+        "UNAUTHENTICATED",
+      );
+    return result;
+  };
+  useEffect(() => {
+    if (!identity) return;
+    let active = true;
+    const openShare = () => {
+      const share = window.location.hash.match(
+        /^#share-([a-zA-Z0-9_-]{1,100})$/,
+      );
+      if (!share) return;
+      setSnapshot(null);
+      setError("");
+      void api
+        .get<{ id: string; version: number; content: string }>(
+          `/shares/${share[1]}`,
+        )
+        .then((s) => {
+          if (active)
+            setSnapshot({
+              title: s.id,
+              version: { number: s.version, content: s.content },
+            });
+        })
+        .catch((e) => {
+          if (!active) return;
+          if (e instanceof ApiError && e.status === 401) clearProtected();
+          setError(e instanceof Error ? e.message : "공유를 열 수 없습니다.");
+        });
+    };
+    openShare();
+    window.addEventListener("hashchange", openShare);
+    return () => {
+      active = false;
+      window.removeEventListener("hashchange", openShare);
+    };
+  }, [api, identity?.principalId, clearProtected]);
+  const write = identity?.capabilities?.includes("changeset.propose") ?? false;
+  const review = identity?.capabilities?.includes("changeset.approve") ?? false;
   const [pageNumber, setPageNumber] = useState(0);
   const filtered = pages.filter((p) =>
     `${p.title} ${p.summary} ${p.content}`
@@ -242,13 +475,21 @@ export default function OperationalApp() {
         {identity && (
           <div className="op-account">
             <Badge tone="plum">
-              {identity.role === "reviewer"
-                ? "검토자"
-                : identity.role === "editor"
-                  ? "작성자"
-                  : "독자"}
+              {identity.effectiveRole
+                ? `${identity.space?.owner ? "Owner · " : ""}${identity.spaceRole ?? identity.effectiveRole}`
+                : identity.role === "reviewer"
+                  ? "검토자"
+                  : identity.role === "editor"
+                    ? "작성자"
+                    : "독자"}
             </Badge>
-            <span title={identity.principalId}>{identity.workspaceId}</span>
+            <span
+              title={`사용자 ${identity.principalId} · 공간 ${identity.workspaceId}`}
+            >
+              {identity.space?.namespaceSlug && identity.space.slug
+                ? `@${identity.space.namespaceSlug}/${identity.space.slug}`
+                : identity.workspaceId}
+            </span>
             <Button
               disabled={busy}
               onClick={() =>
@@ -301,34 +542,89 @@ export default function OperationalApp() {
               접근 가능한 공간과 문서는 서버에서 확인합니다. 로컬 시연 데이터와
               운영 지식은 분리됩니다.
             </p>
-            <a className="button primary" href="/auth/login">
+            <a
+              className="button primary"
+              href="/auth/login"
+              onClick={() => {
+                try {
+                  const target = resumeWorkspaceLink(
+                    window.location.pathname +
+                      window.location.search +
+                      window.location.hash,
+                  );
+                  if (target)
+                    sessionStorage.setItem("akh-login-return", target);
+                } catch {
+                  /* Optional navigation hint only, never credentials or protected content. */
+                }
+              }}
+            >
               SSO 로그인
             </a>
           </section>
         ) : (
           <>
             <nav className="op-nav" aria-label="지식 업무">
-              {(Object.keys(labels) as Tab[]).map((key) => (
-                <button
-                  key={key}
-                  aria-current={tab === key ? "page" : undefined}
-                  onClick={() => {
-                    setTab(key);
-                    setError("");
-                    if (key === "usage") void refreshUsage();
-                  }}
-                >
-                  {labels[key]}
-                  {key === "review" && (
-                    <span>
-                      {" "}
-                      {changes.filter((c) => c.status === "pending").length}
-                    </span>
-                  )}
-                </button>
-              ))}
+              {(Object.keys(labels) as Tab[])
+                .filter((key) => {
+                  const required: Partial<Record<Tab, string>> = {
+                    knowledge: "knowledge.read",
+                    sources: "changeset.propose",
+                    review: "queue.triage",
+                    query: "knowledge.read",
+                    lint: "lint.run",
+                    jobs: "knowledge.read",
+                    usage: "usage.read_aggregate",
+                    workflows: "knowledge.read",
+                    refinement: "knowledge.read",
+                  };
+                  return (
+                    !required[key] ||
+                    identity.capabilities?.includes(required[key]!)
+                  );
+                })
+                .map((key) => (
+                  <button
+                    key={key}
+                    aria-current={tab === key ? "page" : undefined}
+                    onClick={() => {
+                      setTab(key);
+                      setError("");
+                      if (key === "usage") void refreshUsage();
+                    }}
+                  >
+                    {labels[key]}
+                    {key === "review" && (
+                      <span>
+                        {" "}
+                        {changes.filter((c) => c.status === "pending").length}
+                      </span>
+                    )}
+                  </button>
+                ))}
             </nav>
             <div className="op-context">
+              <label>
+                지식 공간
+                <select
+                  value={identity.workspaceId}
+                  disabled={busy}
+                  onChange={(e) => {
+                    if (
+                      window.confirm(
+                        "공간을 전환하면 저장하지 않은 입력과 현재 화면을 비웁니다. 전환할까요?",
+                      )
+                    )
+                      onSpace(e.target.value);
+                  }}
+                >
+                  {spaces.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      @{s.namespaceSlug}/{s.slug} · {s.role}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <span>서버 정본 · {pages.length}개 접근 가능 발행본</span>
               <span>모델: {model.configured ? model.model : "미연결"}</span>
               <label>
@@ -394,6 +690,9 @@ export default function OperationalApp() {
                         <small>
                           페이지 {page.id} · 현재 조회 버전 {page.version}
                         </small>
+                        <a href={documentHref(identity.workspaceId, page.id)}>
+                          문서 고유 링크 · 편집과 댓글
+                        </a>
                       </details>
                     </article>
                   ))}
@@ -418,6 +717,40 @@ export default function OperationalApp() {
                   </div>
                 )}
               </section>
+            )}
+            {tab === "workflows" && (
+              <WorkflowPanel
+                principalId={identity.principalId}
+                spaceId={identity.workspaceId}
+                initialPageId={
+                  new URLSearchParams(window.location.search).get("document") ??
+                  undefined
+                }
+                key={identity.workspaceId}
+                api={api}
+                pages={pages}
+                capabilities={identity.capabilities ?? []}
+                onChanged={load}
+                onExpired={clearProtected}
+              />
+            )}
+            {tab === "access" && (
+              <AccessPanel
+                api={api}
+                capabilities={identity.capabilities ?? []}
+                onChanged={load}
+                onExpired={clearProtected}
+                onSelect={onSpace}
+              />
+            )}
+            {tab === "refinement" && (
+              <RefinementPanel
+                api={api}
+                pages={pages}
+                capabilities={identity.capabilities ?? []}
+                onExpired={clearProtected}
+                onChanged={load}
+              />
             )}
             {tab === "sources" && (
               <>
@@ -543,6 +876,39 @@ export default function OperationalApp() {
                       <small>
                         {s.id} · {s.verification}
                       </small>
+                      <SourceLifecycle
+                        api={api}
+                        sourceId={s.id}
+                        canCorrect={
+                          !!identity.capabilities?.includes("source.create")
+                        }
+                        canWithdraw={
+                          !!identity.capabilities?.includes("lifecycle.manage")
+                        }
+                        canSetPolicy={
+                          !!identity.capabilities?.includes("space.admin")
+                        }
+                        perform={perform}
+                      />
+                      <StoragePanel
+                        key={`${identity.workspaceId}:${s.id}`}
+                        api={api}
+                        parent={{ kind: "source", id: s.id }}
+                        baseVersion={
+                          pages.find((p) => p.id === s.targetPageId)?.version
+                        }
+                        editorPageId={
+                          pages.find((p) => p.id === s.targetPageId)?.id
+                        }
+                        transport={(path, init) => api.transport(path, init)}
+                        canCreate={
+                          !!identity.capabilities?.includes("source.create")
+                        }
+                        canExport={
+                          !!identity.capabilities?.includes("data.export")
+                        }
+                        onChanged={load}
+                      />
                     </details>
                   ))}
                   <ListPager
@@ -560,7 +926,7 @@ export default function OperationalApp() {
                     }
                     onClick={() =>
                       perform(async () => {
-                        await api.post(
+                        const accepted = await api.post(
                           "/ingest",
                           { sourceIds: selectedSources, mode },
                           crypto.randomUUID(),
@@ -568,7 +934,7 @@ export default function OperationalApp() {
                         setNotice(
                           "편입 요청을 수락했습니다. 변경 검토 또는 작업 상태에서 결과를 확인하세요.",
                         );
-                        setTab("review");
+                        setTab(isJobReceipt(accepted) ? "jobs" : "review");
                       })
                     }
                   >
@@ -694,11 +1060,11 @@ export default function OperationalApp() {
                     void perform(async () => {
                       setAnswer(null);
                       setSnapshot(null);
-                      const result = await api.post<Answer>("/query", {
+                      const accepted = await api.post<unknown>("/query", {
                         question,
                         mode,
                       });
-                      setAnswer(result);
+                      setAnswer(await completedJob<Answer>(accepted));
                     });
                   }}
                 >
@@ -826,11 +1192,11 @@ export default function OperationalApp() {
                   disabled={busy || !write}
                   onClick={() =>
                     perform(async () => {
-                      const result = await api.post<{ issues: Issue[] }>(
-                        "/lint",
-                        {},
+                      const accepted = await api.post<unknown>("/lint", {});
+                      setIssues(
+                        (await completedJob<{ issues: Issue[] }>(accepted))
+                          .issues,
                       );
-                      setIssues(result.issues);
                     })
                   }
                 >
@@ -853,52 +1219,76 @@ export default function OperationalApp() {
                 )}
               </section>
             )}
-            {tab === "jobs" && (
-              <section className="op-panel">
-                <div className="op-section-head">
-                  <h2>지속 작업 상태</h2>
-                  <Button disabled={busy} onClick={() => perform(load)}>
-                    새로고침
-                  </Button>
-                </div>
-                <p>실패·취소·미실행은 성공으로 집계하지 않습니다.</p>
-                {!jobs.length ? (
-                  <p>등록된 작업이 없습니다.</p>
-                ) : (
-                  <div
-                    className="op-table-scroll"
-                    tabIndex={0}
-                    aria-label="작업 목록 가로 스크롤"
-                  >
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>작업 ID</th>
-                          <th>종류</th>
-                          <th>상태</th>
-                          <th>오류</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pageItems(jobs, jobPage).map((j) => (
-                          <tr key={j.id}>
-                            <td>{j.id}</td>
-                            <td>{j.kind || j.operation}</td>
-                            <td>{statusLabels[j.status] || j.status}</td>
-                            <td>{j.error_code || j.error || "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-                <ListPager
-                  page={jobPage}
-                  count={jobs.length}
-                  change={setJobPage}
+            {tab === "jobs" && identity.capabilities?.includes("jobs.read") && (
+              <>
+                <p>
+                  서버 접수 작업은 이 창을 닫아도 유지됩니다. 개인 요청은 원래
+                  세션의 로그아웃·만료·IdP 권한 회수 시 재검사로 중단됩니다.
+                  취소 요청과 실제 취소 완료는 구분됩니다.
+                </p>
+                {identity.capabilities.includes("jobs.manage") &&
+                  !directoryConfigured && (
+                    <p role="status">
+                      무인 실행 주체의 현재 디렉터리 확인 경로가 미설정이어서
+                      예약 실행을 차단합니다. 개인 대화형 요청과 구조 점검은
+                      별도입니다.
+                    </p>
+                  )}
+                <JobsPanel
+                  api={api}
+                  capabilities={identity.capabilities ?? []}
+                  executionIdentities={executionIdentities}
+                  onExpired={clearProtected}
                 />
-              </section>
+              </>
             )}
+            {tab === "jobs" &&
+              !identity.capabilities?.includes("jobs.read") && (
+                <section className="op-panel">
+                  <div className="op-section-head">
+                    <h2>지속 작업 상태</h2>
+                    <Button disabled={busy} onClick={() => perform(load)}>
+                      새로고침
+                    </Button>
+                  </div>
+                  <p>실패·취소·미실행은 성공으로 집계하지 않습니다.</p>
+                  {!jobs.length ? (
+                    <p>등록된 작업이 없습니다.</p>
+                  ) : (
+                    <div
+                      className="op-table-scroll"
+                      tabIndex={0}
+                      aria-label="작업 목록 가로 스크롤"
+                    >
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>작업 ID</th>
+                            <th>종류</th>
+                            <th>상태</th>
+                            <th>오류</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pageItems(jobs, jobPage).map((j) => (
+                            <tr key={j.id}>
+                              <td>{j.id}</td>
+                              <td>{j.kind || j.operation}</td>
+                              <td>{statusLabels[j.status] || j.status}</td>
+                              <td>{j.error_code || j.error || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <ListPager
+                    page={jobPage}
+                    count={jobs.length}
+                    change={setJobPage}
+                  />
+                </section>
+              )}
             {tab === "usage" && (
               <section className="op-panel">
                 <h2>서버 사용량</h2>

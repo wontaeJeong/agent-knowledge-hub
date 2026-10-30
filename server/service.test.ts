@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { KnowledgeService } from "./service";
-import { fixture, source } from "./test-support";
+import { fixture, source, adoptFixture } from "./test-support";
+import { AccessService } from "./access";
 import type { Draft } from "../src/domain/wiki";
 
 let f: Awaited<ReturnType<typeof fixture>>;
@@ -29,6 +30,25 @@ test("source registration preserves originals and refuses duplicate identity", a
       )
     ).rows[0].data.content,
   ).toBe(source.content);
+});
+test("domain writes append privacy-minimized operational audit events in the same transaction", async () => {
+  await service.registerSource(f.editor, { ...source, id: "audited-source" }, [
+    "editor",
+    "reviewer",
+  ]);
+  const rows = (
+    await f.pool.query(
+      "SELECT event FROM operations_audit_chain WHERE workspace_id=$1",
+      [f.workspaceId],
+    )
+  ).rows;
+  expect(rows).toHaveLength(1);
+  expect(rows[0].event).toMatchObject({
+    operation: "source.register",
+    resource: { kind: "source", id: "audited-source" },
+  });
+  expect(rows[0].event.actorHash).toMatch(/^[a-f0-9]{64}$/);
+  expect(JSON.stringify(rows[0].event)).not.toContain(source.content);
 });
 
 test("readers cannot register sources and unknown identities cannot read", async () => {
@@ -97,6 +117,94 @@ async function approved() {
   await service.approve(f.ctx, b.id, b.hash);
   return b;
 }
+test("official standards remain read-only until an explicit independent official review policy is configured", async () => {
+  await f.pool.query(
+    "UPDATE pages SET data=jsonb_set(data,'{status}','\"공식 기준\"') WHERE workspace_id=$1",
+    [f.workspaceId],
+  );
+  await expect(
+    service.propose(f.editor, drafts(), [source.id]),
+  ).rejects.toThrow("OFFICIAL_REVIEW_REQUIRED");
+  expect((await service.readPage(f.reader, "topic")).version.content).toBe(
+    "기존 내용",
+  );
+});
+test("publishing changed text never inherits an old execution-verification timestamp", async () => {
+  await f.pool.query(
+    "UPDATE pages SET data=jsonb_set(data,'{verifiedAt}','\"2000-01-01T00:00:00Z\"') WHERE workspace_id=$1",
+    [f.workspaceId],
+  );
+  const b = await approved();
+  await service.publish(f.ctx, b.id, b.hash, "verification-reset");
+  expect(
+    (
+      await f.pool.query(
+        "SELECT data FROM pages WHERE workspace_id=$1 AND id='topic'",
+        [f.workspaceId],
+      )
+    ).rows[0].data.verifiedAt,
+  ).toBeUndefined();
+});
+test("configured official changes require both designated independent humans and retain official classification", async () => {
+  await adoptFixture(f.pool, f.workspaceId);
+  const access = new AccessService(f.pool);
+  const second = `${f.workspaceId}-reviewer2`,
+    ctx = { workspaceId: f.workspaceId, principalId: second };
+  const owner = { workspaceId: f.workspaceId, principalId: "fixture-owner" };
+  let a = await access.effective(owner);
+  await f.pool.query(
+    "INSERT INTO access_principals(id,kind,active) VALUES($1,'human',true)",
+    [second],
+  );
+  await f.pool.query(
+    "INSERT INTO access_team_members VALUES($1,$2,'member',true)",
+    [a.space.namespaceId, second],
+  );
+  await access.setGrant(owner, {
+    principalId: second,
+    role: "maintain",
+    expectedVersion: a.space.policyVersion,
+  });
+  for (const kind of ["page", "source"])
+    await f.pool.query("INSERT INTO resource_readers VALUES($1,$2,$3,$4)", [
+      f.workspaceId,
+      kind,
+      kind === "page" ? "topic" : source.id,
+      second,
+    ]);
+  a = await access.effective(owner);
+  await access.setReviewPolicy(owner, {
+    minimumApprovals: 1,
+    reviewerIds: ["reviewer", second],
+    documentTypes: [
+      {
+        documentType: "official-standard",
+        minimumApprovals: 2,
+        reviewerIds: ["reviewer", second],
+      },
+    ],
+    expectedVersion: a.space.policyVersion,
+  });
+  await f.pool.query(
+    "UPDATE pages SET data=jsonb_set(data,'{status}','\"공식 기준\"') WHERE workspace_id=$1",
+    [f.workspaceId],
+  );
+  const b = await service.propose(f.editor, drafts(), [source.id]);
+  await service.approve(f.ctx, b.id, b.hash);
+  await expect(
+    service.publish(f.ctx, b.id, b.hash, "official-one-review"),
+  ).rejects.toThrow("APPROVAL_STALE");
+  await service.approve(ctx, b.id, b.hash);
+  await service.publish(f.ctx, b.id, b.hash, "official-two-reviews");
+  expect(
+    (
+      await f.pool.query(
+        "SELECT data->>'status' AS status FROM pages WHERE workspace_id=$1 AND id='topic'",
+        [f.workspaceId],
+      )
+    ).rows[0].status,
+  ).toBe("공식 기준");
+});
 
 test("publishes an approved multi-page batch atomically with real audit identity", async () => {
   const b = await approved();
@@ -124,6 +232,42 @@ test("publishes an approved multi-page batch atomically with real audit identity
       )
     ).rows[0].content,
   ).toBe(source.content);
+});
+test("published versions distinguish the responsible proposer and human publisher from unknown generation", async () => {
+  const b = await approved();
+  await service.publish(f.ctx, b.id, b.hash, "actor-attribution");
+  expect((await service.readPage(f.reader, "topic")).version).toMatchObject({
+    batchId: b.id,
+    proposedBy: "editor",
+    publishedBy: "reviewer",
+    producer: { kind: "unknown" },
+  });
+});
+test("a source-create token need not receive proposal authority, while a read-only token still cannot write", async () => {
+  await adoptFixture(f.pool, f.workspaceId);
+  const access = new AccessService(f.pool),
+    expiresAt = new Date(Date.now() + 3600000).toISOString();
+  const issued = await access.issueCredential(f.editor, {
+      actions: ["knowledge.read", "source.create"],
+      expiresAt,
+    }),
+    ctx = await access.authenticateCredential(issued.secret, f.workspaceId);
+  await service.registerSource(ctx, { ...source, id: "scoped-create" }, [
+    "editor",
+  ]);
+  await expect(service.propose(ctx, drafts(), [source.id])).rejects.toThrow(
+    "FORBIDDEN",
+  );
+  const read = await access.issueCredential(f.editor, {
+      actions: ["knowledge.read"],
+      expiresAt,
+    }),
+    readCtx = await access.authenticateCredential(read.secret, f.workspaceId);
+  await expect(
+    service.registerSource(readCtx, { ...source, id: "forbidden-create" }, [
+      "editor",
+    ]),
+  ).rejects.toThrow("FORBIDDEN");
 });
 
 test("concurrent publication and a new service instance replay exactly one version set", async () => {

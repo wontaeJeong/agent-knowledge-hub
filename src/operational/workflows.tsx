@@ -1,0 +1,1349 @@
+import { useEffect, useState, useCallback } from "react";
+import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
+import { StoragePanel } from "./storage";
+import { Button } from "../ui/primitives";
+import type { Page } from "../domain/types";
+
+interface PrivateDraft {
+  id: string;
+  revision: number;
+  title: string;
+  content: string;
+  pageId?: string;
+  baseVersion?: number;
+  sourceIds?: string[];
+  dependencyVersions?: Record<string, number>;
+}
+interface DocumentDetail {
+  page: Page;
+  settings: {
+    revision: number;
+    state: string;
+    parent_id: string | null;
+    data: {
+      protected?: boolean;
+      reason?: string;
+      properties?: Record<string, string>;
+    };
+  };
+}
+interface Comment {
+  id: string;
+  principal_id: string;
+  revision: number;
+  version: number;
+  anchor: string;
+  content: string;
+  resolved: boolean;
+  deleted: boolean;
+}
+interface Notice {
+  id: string;
+  page_id: string;
+  title: string;
+  kind: string;
+  read_at: string | null;
+}
+interface TrashItem {
+  id: string;
+  title: string;
+  revision: number;
+}
+interface Template {
+  id: string;
+  revision: number;
+  title: string;
+  content: string;
+  originPageId?: string;
+  originVersion?: number;
+}
+export function draftInput(
+  draft: PrivateDraft,
+  content: string,
+  _displayedVersion: number,
+) {
+  return {
+    id: draft.id,
+    expectedRevision: draft.revision,
+    title: draft.title,
+    content,
+    pageId: draft.pageId,
+    baseVersion: draft.baseVersion,
+    ...(draft.sourceIds ? { sourceIds: draft.sourceIds } : {}),
+    ...(draft.dependencyVersions
+      ? { dependencyVersions: draft.dependencyVersions }
+      : {}),
+  };
+}
+
+export function SourceLifecycle({
+  api,
+  sourceId,
+  canCorrect,
+  canWithdraw,
+  canSetPolicy = false,
+  perform,
+}: {
+  api: OperationalApi;
+  sourceId: string;
+  canCorrect: boolean;
+  canWithdraw: boolean;
+  canSetPolicy?: boolean;
+  perform: (fn: () => Promise<void>) => Promise<void>;
+}) {
+  const [content, setContent] = useState(""),
+    [reason, setReason] = useState(""),
+    [busy, setBusy] = useState(false),
+    [notice, setNotice] = useState("");
+  if (!canCorrect && !canWithdraw && !canSetPolicy) return null;
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await perform(fn);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <details>
+      <summary>원본 정정·철회</summary>
+      <p>
+        원본을 덮어쓰지 않습니다. 정정본은 별도 원본으로 등록한 뒤 편입·검토해야
+        합니다. 철회하면 관련 지식의 접근과 발행을 다시 검사합니다.
+      </p>
+      {notice && <p role="status">{notice}</p>}
+      <label>
+        정정·철회 이유
+        <input
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          maxLength={2000}
+          disabled={busy}
+        />
+      </label>
+      {canCorrect && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void run(async () => {
+              if (
+                !window.confirm(
+                  "별도 불변 원본을 등록할까요? 기존 원본·발행본은 덮어쓰지 않습니다.",
+                )
+              )
+                return;
+              const created = await api.post<{ id: string }>(
+                `/workflows/sources/${encodeURIComponent(sourceId)}/correct`,
+                { id: crypto.randomUUID(), content, reason },
+              );
+              setNotice(
+                `정정 원본 ${created.id}을 등록했습니다. 별도로 편입·검토하세요.`,
+              );
+              setContent("");
+            });
+          }}
+        >
+          <label>
+            정정된 원본 본문
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              required
+              maxLength={100000}
+              disabled={busy}
+            />
+          </label>
+          <Button type="submit" disabled={busy || !reason.trim()}>
+            별도 원본으로 정정
+          </Button>
+        </form>
+      )}
+      {canWithdraw && (
+        <Button
+          disabled={busy || !reason.trim()}
+          onClick={() =>
+            run(async () => {
+              if (
+                !window.confirm(
+                  "원본을 철회할까요? 이 원본에 의존하는 지식은 보이지 않거나 재검토가 필요해집니다.",
+                )
+              )
+                return;
+              await api.post(
+                `/workflows/sources/${encodeURIComponent(sourceId)}/withdraw`,
+                { reason },
+              );
+              setNotice("원본을 철회했습니다.");
+            })
+          }
+        >
+          원본 철회 확인
+        </Button>
+      )}
+      {canSetPolicy && (
+        <SourceEgressPolicy api={api} sourceId={sourceId} perform={perform} />
+      )}
+    </details>
+  );
+}
+
+function SourceEgressPolicy({
+  api,
+  sourceId,
+  perform,
+}: {
+  api: OperationalApi;
+  sourceId: string;
+  perform: (fn: () => Promise<void>) => Promise<void>;
+}) {
+  const [policy, setPolicy] = useState<{
+      localCopyAllowed: boolean;
+      exportAllowed: boolean;
+      policyVersion: number;
+    } | null>(null),
+    [busy, setBusy] = useState(false);
+  const path = `/sources/${encodeURIComponent(sourceId)}/policy`;
+  return (
+    <details
+      onToggle={(e) => {
+        if (e.currentTarget.open && !policy && !busy) {
+          setBusy(true);
+          void perform(async () => {
+            setPolicy(await api.get(path));
+          }).finally(() => setBusy(false));
+        }
+      }}
+    >
+      <summary>원본 반출 정책 · 관리자</summary>
+      <p>
+        기본은 금지입니다. 승인된 운영 정책에 따라 허용하세요. 이미 복사한
+        파일의 완전한 사후 회수를 보장하지 않습니다. 이 설정 자체는 원본
+        시스템·조직의 승인 증거가 아닙니다.
+      </p>
+      {policy && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (
+              !window.confirm(
+                "현재 원본과 파생 지식의 로컬 복사·내보내기 허용을 변경할까요? 기존 독자 제한은 유지됩니다.",
+              )
+            )
+              return;
+            setBusy(true);
+            void perform(async () => {
+              const next = await api.post<{ policyVersion: number }>(path, {
+                localCopyAllowed: policy.localCopyAllowed,
+                exportAllowed: policy.exportAllowed,
+                expectedVersion: policy.policyVersion,
+              });
+              setPolicy({ ...policy, policyVersion: next.policyVersion });
+            }).finally(() => setBusy(false));
+          }}
+        >
+          <label>
+            <input
+              type="checkbox"
+              checked={policy.localCopyAllowed}
+              onChange={(e) =>
+                setPolicy({ ...policy, localCopyAllowed: e.target.checked })
+              }
+              disabled={busy}
+            />
+            허용된 독자의 로컬 복사 허용
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={policy.exportAllowed}
+              onChange={(e) =>
+                setPolicy({ ...policy, exportAllowed: e.target.checked })
+              }
+              disabled={busy}
+            />
+            허용된 독자의 내보내기 허용
+          </label>
+          <Button type="submit" disabled={busy}>
+            반출 정책 변경 확인
+          </Button>
+        </form>
+      )}
+    </details>
+  );
+}
+function Pager({
+  count,
+  page,
+  set,
+}: {
+  count: number;
+  page: number;
+  set: (p: number) => void;
+}) {
+  if (count <= 25) return null;
+  return (
+    <div className="op-actions">
+      <Button disabled={!page} onClick={() => set(page - 1)}>
+        이전 25건
+      </Button>
+      <span>
+        {page + 1} / {Math.ceil(count / 25)} · 전체 {count}건
+      </span>
+      <Button disabled={(page + 1) * 25 >= count} onClick={() => set(page + 1)}>
+        다음 25건
+      </Button>
+    </div>
+  );
+}
+export function WorkflowPanel({
+  api,
+  pages,
+  capabilities,
+  onChanged,
+  onExpired,
+  principalId,
+  spaceId,
+  initialPageId,
+}: {
+  api: OperationalApi;
+  pages: { id: string; title: string }[];
+  capabilities: string[];
+  onChanged: () => Promise<void>;
+  onExpired: () => void;
+  principalId?: string;
+  spaceId?: string;
+  initialPageId?: string;
+}) {
+  const [selected, setSelected] = useState(initialPageId ?? "");
+  const [detail, setDetail] = useState<DocumentDetail | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [drafts, setDrafts] = useState<PrivateDraft[]>([]);
+  const [notifications, setNotifications] = useState<Notice[]>([]);
+  const [trash, setTrash] = useState<TrashItem[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [draft, setDraft] = useState<PrivateDraft | null>(null);
+  const [content, setContent] = useState("");
+  const [reason, setReason] = useState("");
+  const [comment, setComment] = useState("");
+  const [anchor, setAnchor] = useState("");
+  const [mentions, setMentions] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [commentPage, setCommentPage] = useState(0);
+  const [draftPage, setDraftPage] = useState(0);
+  const [templatePage, setTemplatePage] = useState(0);
+  const [notificationPage, setNotificationPage] = useState(0);
+  const [trashPage, setTrashPage] = useState(0);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [parent, setParent] = useState("");
+  const [properties, setProperties] = useState("{}");
+  const [editingComment, setEditingComment] = useState<{
+    id: string;
+    content: string;
+  } | null>(null);
+  const can = (action: string) => capabilities.includes(action);
+  const write = can("draft.write"),
+    propose = can("changeset.propose"),
+    manage = can("lifecycle.manage");
+  const fail = useCallback(
+    (e: unknown) => {
+      if (e instanceof ApiError && [401, 403, 404].includes(e.status)) {
+        setDetail(null);
+        setComments([]);
+        setDraft(null);
+        setContent("");
+        setDrafts([]);
+        setNotifications([]);
+        setTemplates([]);
+        setTrash([]);
+        if (e.status === 401) onExpired();
+      }
+      setError(e instanceof Error ? e.message : "요청을 완료하지 못했습니다.");
+    },
+    [onExpired],
+  );
+  const load = useCallback(async () => {
+    const [d, n, t, x] = await Promise.all([
+      write
+        ? api.get<{ items: PrivateDraft[] }>("/workflows/drafts")
+        : Promise.resolve({ items: [] }),
+      api.get<{ items: Notice[] }>("/workflows/notifications"),
+      write
+        ? api.get<{ items: Template[] }>("/workflows/templates")
+        : Promise.resolve({ items: [] }),
+      manage
+        ? api.get<{ items: TrashItem[] }>("/workflows/trash")
+        : Promise.resolve({ items: [] }),
+    ]);
+    setDrafts(d.items);
+    setNotifications(n.items);
+    setTemplates(t.items);
+    setTrash(x.items);
+  }, [api, write, manage]);
+  useEffect(() => {
+    let active = true;
+    void load().catch((e) => {
+      if (active) fail(e);
+    });
+    return () => {
+      active = false;
+    };
+  }, [load, fail]);
+  useEffect(() => {
+    let active = true;
+    setDetail(null);
+    setComments([]);
+    setCommentPage(0);
+    setHistoryPage(0);
+    setDraft(null);
+    setContent("");
+    setReason("");
+    if (selected)
+      void Promise.all([
+        api.get<DocumentDetail>(
+          `/workflows/pages/${encodeURIComponent(selected)}`,
+        ),
+        api.get<{ items: Comment[] }>(
+          `/workflows/pages/${encodeURIComponent(selected)}/comments`,
+        ),
+      ])
+        .then(([d, c]) => {
+          if (!active) return;
+          setDetail(d);
+          setComments(c.items);
+          const commentId = window.location.hash.match(
+            /^#comment-([a-zA-Z0-9_-]{1,100})$/,
+          )?.[1];
+          if (commentId) {
+            const index = c.items.findIndex((item) => item.id === commentId);
+            if (index >= 0) setCommentPage(Math.floor(index / 25));
+            else
+              setError(
+                "댓글이 없거나 현재 접근할 수 없습니다. 다른 문단으로 이동하지 않았습니다.",
+              );
+          }
+          setParent(d.settings.parent_id ?? "");
+          setProperties(
+            JSON.stringify(d.settings.data.properties ?? {}, null, 2),
+          );
+        })
+        .catch((e) => {
+          if (active) fail(e);
+        });
+    return () => {
+      active = false;
+    };
+  }, [api, selected, fail]);
+  useEffect(() => {
+    const commentId = window.location.hash.match(
+      /^#comment-([a-zA-Z0-9_-]{1,100})$/,
+    )?.[1];
+    if (!commentId || !comments.length) return;
+    const frame = requestAnimationFrame(() =>
+      document
+        .getElementById(`comment-${commentId}`)
+        ?.scrollIntoView({ block: "center" }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [comments, commentPage]);
+  const refreshDocument = async () => {
+    if (!selected) return;
+    const [d, c] = await Promise.all([
+      api.get<DocumentDetail>(
+        `/workflows/pages/${encodeURIComponent(selected)}`,
+      ),
+      api.get<{ items: Comment[] }>(
+        `/workflows/pages/${encodeURIComponent(selected)}/comments`,
+      ),
+    ]);
+    setDetail(d);
+    setComments(c.items);
+  };
+  const action = async (work: () => Promise<void>) => {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await work();
+      await load();
+      await onChanged();
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const latest = detail?.page.versions.at(-1);
+  const pagePath = `/workflows/pages/${encodeURIComponent(selected)}`;
+  const state = async (next: string) => {
+    if (!detail || !reason.trim())
+      throw Error("문서 상태를 바꾸는 이유를 입력하세요.");
+    if (
+      !window.confirm(
+        `${detail.page.title}: ${next === "trash" ? "휴지통으로 이동" : next === "archived" ? "보관" : "활성화"}할까요? 현재 접근 권한은 유지됩니다.`,
+      )
+    )
+      return;
+    await api.post(`${pagePath}/state`, {
+      expectedRevision: detail.settings.revision,
+      state: next,
+      reason,
+    });
+    if (next === "trash") {
+      setSelected("");
+      setDetail(null);
+    } else await refreshDocument();
+    setNotice("문서 상태를 변경했습니다.");
+  };
+  return (
+    <section className="op-panel">
+      <h2>편집과 협업</h2>
+      <p>
+        개인 초안은 본인에게만 보입니다. 검토·승인 전에는 발행본이 바뀌지
+        않습니다.
+      </p>
+      {error && (
+        <p role="alert" className="op-error">
+          {error}
+        </p>
+      )}
+      {notice && <p role="status">{notice}</p>}
+      {busy && <p role="status">서버에 저장하고 있습니다…</p>}
+      <label>
+        문서 선택
+        <select
+          value={selected}
+          disabled={busy}
+          onChange={(e) => {
+            if (
+              draft &&
+              content !== draft.content &&
+              !window.confirm("저장하지 않은 입력을 닫을까요?")
+            )
+              return;
+            setSelected(e.target.value);
+          }}
+        >
+          <option value="">문서를 선택하세요</option>
+          {pages.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      {detail && latest && (
+        <>
+          <h3>
+            {detail.page.title} · v{latest.number}
+          </h3>
+          {spaceId && (
+            <a href={documentHref(spaceId, detail.page.id)}>문서 고유 링크</a>
+          )}
+          <details open>
+            <summary>현재 발행본 본문 · v{latest.number}</summary>
+            <div
+              className="op-markdown"
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(
+                  marked.parse(latest.content, { async: false }),
+                ),
+              }}
+            />
+          </details>
+          <StoragePanel
+            key={`${spaceId}:${selected}`}
+            api={api}
+            parent={{ kind: "page", id: selected }}
+            baseVersion={latest.number}
+            transport={(path, init) => api.transport(path, init)}
+            canCreate={can("source.create")}
+            canExport={can("data.export")}
+            onChanged={onChanged}
+          />
+          <p>
+            상태:{" "}
+            {detail.settings.state === "active"
+              ? "활성"
+              : detail.settings.state === "archived"
+                ? "보관"
+                : "휴지통"}{" "}
+            · 보호: {detail.settings.data.protected ? "설정됨" : "설정 안 됨"}
+          </p>
+          <div className="op-actions">
+            <Button
+              disabled={busy}
+              onClick={() =>
+                action(async () => {
+                  await api.post(`${pagePath}/favorite`, { enabled: true });
+                  setNotice("즐겨찾기에 추가했습니다.");
+                })
+              }
+            >
+              즐겨찾기 추가
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() =>
+                action(async () => {
+                  await api.post(`${pagePath}/favorite`, { enabled: false });
+                  setNotice("즐겨찾기에서 해제했습니다.");
+                })
+              }
+            >
+              즐겨찾기 해제
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() =>
+                action(async () => {
+                  await api.post(`${pagePath}/subscribe`, { enabled: true });
+                  setNotice("문서 변경 알림을 구독했습니다.");
+                })
+              }
+            >
+              알림 구독
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() =>
+                action(async () => {
+                  await api.post(`${pagePath}/subscribe`, { enabled: false });
+                  setNotice("구독을 해제했습니다.");
+                })
+              }
+            >
+              구독 해제
+            </Button>
+            {write && (
+              <Button
+                disabled={busy || !!draft || detail.settings.state !== "active"}
+                onClick={() => {
+                  setDraft({
+                    id: crypto.randomUUID(),
+                    revision: 0,
+                    title: detail.page.title,
+                    content: latest.content,
+                    pageId: selected,
+                    baseVersion: latest.number,
+                  });
+                  setContent(latest.content);
+                }}
+              >
+                개인 초안 시작
+              </Button>
+            )}
+          </div>
+          {draft && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void action(async () => {
+                  const saved = await api.post<PrivateDraft>(
+                    "/workflows/drafts",
+                    draftInput(draft, content, latest.number),
+                  );
+                  setDraft(saved);
+                  setNotice(
+                    "서버에 개인 초안을 저장했습니다. 발행하지 않았습니다.",
+                  );
+                });
+              }}
+            >
+              <h3>
+                개인 초안 · 기준 v{draft.baseVersion} · 저장 r{draft.revision}
+              </h3>
+              <label>
+                Markdown 본문
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  rows={14}
+                  required
+                  disabled={busy}
+                />
+              </label>
+              <Button type="submit" disabled={busy}>
+                개인 초안 저장
+              </Button>
+              <label>
+                변경 이유
+                <input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  maxLength={2000}
+                  disabled={busy}
+                />
+              </label>
+              <details>
+                <summary>발행본과 제안 비교</summary>
+                <div className="op-diff">
+                  <section>
+                    <h4>현재 발행본 v{latest.number}</h4>
+                    <pre>{latest.content}</pre>
+                  </section>
+                  <section>
+                    <h4>제안 본문 · 기준 v{draft.baseVersion}</h4>
+                    <pre>{content}</pre>
+                  </section>
+                </div>
+              </details>
+              {propose && (
+                <Button
+                  disabled={busy || !reason.trim() || !content.trim()}
+                  onClick={() =>
+                    action(async () => {
+                      if (
+                        !window.confirm(
+                          "이 본문과 변경 이유로 검토를 요청할까요? 승인 전에는 발행되지 않습니다.",
+                        )
+                      )
+                        return;
+                      const saved = await api.post<PrivateDraft>(
+                        "/workflows/drafts",
+                        draftInput(draft, content, latest.number),
+                      );
+                      setDraft(saved);
+                      await api.post(
+                        `/workflows/drafts/${encodeURIComponent(saved.id)}/submit`,
+                        { expectedRevision: saved.revision, reason },
+                      );
+                      setNotice(
+                        "변경 검토함에 제안했습니다. 발행본은 그대로입니다.",
+                      );
+                    })
+                  }
+                >
+                  저장하고 검토 요청
+                </Button>
+              )}
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  action(async () => {
+                    await api.post("/workflows/templates", {
+                      id: crypto.randomUUID(),
+                      expectedRevision: 0,
+                      title: draft.title,
+                      content,
+                      originPageId: selected,
+                    });
+                    setNotice(
+                      "개인 템플릿으로 저장했습니다. 원본 권한을 계속 따릅니다.",
+                    );
+                  })
+                }
+              >
+                템플릿으로 저장
+              </Button>
+            </form>
+          )}
+          <details>
+            <summary>버전 기록 · 복원은 새 변경 제안</summary>
+            {pageItems([...detail.page.versions].reverse(), historyPage).map(
+              (v) => (
+                <article key={v.number}>
+                  <h4>
+                    v{v.number} · {v.at}
+                  </h4>
+                  <p>{v.reason}</p>
+                  <p>
+                    생성 경로:{" "}
+                    {v.producer?.kind === "model"
+                      ? `모델 · ${v.producer.model ?? "실제 모델명 미수집(실행 계측에서 확인)"}`
+                      : v.producer?.kind === "structural"
+                        ? "구조 처리 · 모델 미사용"
+                        : v.producer?.kind === "user-submission"
+                          ? "사용자 제출 · 원작성 여부 미확인"
+                          : v.producer?.kind === "api-submission"
+                            ? "API 제출 · 원작성 여부 미확인"
+                            : v.producer?.kind === "import"
+                              ? "가져온 자료 · 원작성 여부 미확인"
+                              : "기존 기록 · 생성 주체 미구분"}
+                  </p>
+                  {v.publishedBy ? (
+                    <p>
+                      제안 주체 {v.proposedBy ?? "미기록"} · 책임 사용자{" "}
+                      {v.responsibleUserId ?? "미기록"} · 발행자 {v.publishedBy}
+                    </p>
+                  ) : (
+                    <p>기존 author 기록 {v.author} · 작성/발행 역할 미구분</p>
+                  )}
+                  <pre>{v.content}</pre>
+                  {propose && (
+                    <Button
+                      disabled={
+                        busy || !reason.trim() || v.number === latest.number
+                      }
+                      onClick={() =>
+                        action(async () => {
+                          if (
+                            !window.confirm(
+                              `v${v.number} 본문을 복원하는 변경 제안을 만들까요? 현재 ACL과 기준 v${latest.number}을 검사합니다.`,
+                            )
+                          )
+                            return;
+                          await api.post(`${pagePath}/restore`, {
+                            version: v.number,
+                            baseVersion: latest.number,
+                            reason,
+                          });
+                          setNotice("복원 제안을 검토함에 등록했습니다.");
+                        })
+                      }
+                    >
+                      이 버전 복원 제안
+                    </Button>
+                  )}
+                </article>
+              ),
+            )}
+            <Pager
+              count={detail.page.versions.length}
+              page={historyPage}
+              set={setHistoryPage}
+            />
+          </details>
+          <label>
+            작업 이유
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              disabled={busy}
+              placeholder="복원·보호·수명주기 변경 이유"
+              maxLength={2000}
+            />
+          </label>
+          {can("knowledge.protect") && (
+            <details>
+              <summary>문서 구조·속성·보호</summary>
+              <label>
+                상위 문서
+                <select
+                  value={parent}
+                  onChange={(e) => setParent(e.target.value)}
+                >
+                  <option value="">최상위</option>
+                  {pages
+                    .filter((p) => p.id !== selected)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.title}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                속성 (문자열 값의 JSON 객체)
+                <textarea
+                  value={properties}
+                  onChange={(e) => setProperties(e.target.value)}
+                  rows={4}
+                />
+              </label>
+              <Button
+                disabled={busy || !reason.trim()}
+                onClick={() =>
+                  action(async () => {
+                    await api.post(`${pagePath}/state`, {
+                      expectedRevision: detail.settings.revision,
+                      parentId: parent || null,
+                      properties: JSON.parse(properties),
+                      reason,
+                    });
+                    await refreshDocument();
+                    setNotice("구조와 속성을 저장했습니다.");
+                  })
+                }
+              >
+                구조·속성 저장
+              </Button>
+              <Button
+                disabled={busy || !reason.trim()}
+                onClick={() =>
+                  action(async () => {
+                    if (
+                      !window.confirm(
+                        "문서 보호 상태를 변경할까요? 기존 승인은 다시 검토해야 합니다.",
+                      )
+                    )
+                      return;
+                    await api.post(`${pagePath}/state`, {
+                      expectedRevision: detail.settings.revision,
+                      protected: !detail.settings.data.protected,
+                      reason,
+                    });
+                    await refreshDocument();
+                  })
+                }
+              >
+                {detail.settings.data.protected ? "보호 해제" : "문서 보호"}
+              </Button>
+            </details>
+          )}
+          {manage && (
+            <details>
+              <summary>문서 수명주기</summary>
+              <div className="op-actions">
+                <Button
+                  disabled={busy || !reason.trim()}
+                  onClick={() => action(() => state("archived"))}
+                >
+                  보관
+                </Button>
+                <Button
+                  disabled={busy || !reason.trim()}
+                  onClick={() => action(() => state("active"))}
+                >
+                  활성화
+                </Button>
+                <Button
+                  disabled={busy || !reason.trim()}
+                  onClick={() => action(() => state("trash"))}
+                >
+                  휴지통으로 이동
+                </Button>
+              </div>
+            </details>
+          )}
+          <h3>버전·문단 댓글</h3>
+          {can("comment.write") && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void action(async () => {
+                  await api.post(`${pagePath}/comments`, {
+                    content: comment,
+                    version: latest.number,
+                    anchor,
+                    mentions: mentions
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  });
+                  setComment("");
+                  setAnchor("");
+                  setMentions("");
+                  await refreshDocument();
+                });
+              }}
+            >
+              <label>
+                댓글
+                <textarea
+                  required
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  maxLength={20000}
+                  disabled={busy}
+                />
+              </label>
+              <label>
+                문단 앵커 (본문의 정확한 발췌)
+                <input
+                  value={anchor}
+                  onChange={(e) => setAnchor(e.target.value)}
+                  maxLength={1000}
+                  disabled={busy}
+                />
+              </label>
+              <label>
+                멘션할 사용자 ID (쉼표 구분)
+                <input
+                  value={mentions}
+                  onChange={(e) => setMentions(e.target.value)}
+                  disabled={busy}
+                />
+              </label>
+              <Button type="submit" disabled={busy}>
+                댓글 등록
+              </Button>
+            </form>
+          )}
+          {pageItems(comments, commentPage).map((c) => (
+            <article key={c.id} id={`comment-${c.id}`}>
+              <h4>
+                {c.principal_id} · v{c.version} ·{" "}
+                {c.resolved ? "해결됨" : "열림"}
+              </h4>
+              {c.anchor && <blockquote>{c.anchor}</blockquote>}
+              <p style={{ whiteSpace: "pre-wrap" }}>{c.content}</p>
+              {c.version !== latest.number && (
+                <p>
+                  이 댓글은 v{c.version}의 문단에 고정되어 있습니다. 현재 본문의
+                  다른 문단에 자동 연결하지 않습니다. 버전 기록에서 당시 본문을
+                  확인하세요.
+                </p>
+              )}
+              <a
+                href={
+                  spaceId
+                    ? documentHref(spaceId, selected, c.id)
+                    : `#comment-${encodeURIComponent(c.id)}`
+                }
+              >
+                댓글 고유 링크
+              </a>
+              {!c.deleted && c.principal_id === principalId && (
+                <>
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      setEditingComment({ id: c.id, content: c.content })
+                    }
+                  >
+                    내 댓글 수정
+                  </Button>
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      action(async () => {
+                        if (
+                          !window.confirm(
+                            "댓글 본문을 삭제할까요? 댓글 위치와 삭제 표시는 유지됩니다.",
+                          )
+                        )
+                          return;
+                        await api.post(
+                          `/workflows/comments/${encodeURIComponent(c.id)}/delete`,
+                          { expectedRevision: c.revision },
+                        );
+                        await refreshDocument();
+                      })
+                    }
+                  >
+                    내 댓글 삭제
+                  </Button>
+                  {editingComment?.id === c.id && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void action(async () => {
+                          await api.post(
+                            `/workflows/comments/${encodeURIComponent(c.id)}/edit`,
+                            {
+                              expectedRevision: c.revision,
+                              content: editingComment.content,
+                            },
+                          );
+                          setEditingComment(null);
+                          await refreshDocument();
+                        });
+                      }}
+                    >
+                      <label>
+                        댓글 수정 본문
+                        <textarea
+                          value={editingComment.content}
+                          onChange={(e) =>
+                            setEditingComment({
+                              id: c.id,
+                              content: e.target.value,
+                            })
+                          }
+                          maxLength={20000}
+                          required
+                          disabled={busy}
+                        />
+                      </label>
+                      <Button type="submit" disabled={busy}>
+                        댓글 수정 저장
+                      </Button>
+                      <Button
+                        disabled={busy}
+                        onClick={() => setEditingComment(null)}
+                      >
+                        수정 취소
+                      </Button>
+                    </form>
+                  )}
+                </>
+              )}
+              {can("triage.manage") && (
+                <Button
+                  disabled={busy}
+                  onClick={() =>
+                    action(async () => {
+                      await api.post(
+                        `/workflows/comments/${encodeURIComponent(c.id)}/resolve`,
+                        { resolved: !c.resolved },
+                      );
+                      await refreshDocument();
+                    })
+                  }
+                >
+                  {c.resolved ? "다시 열기" : "해결 표시"}
+                </Button>
+              )}
+            </article>
+          ))}
+          <Pager
+            count={comments.length}
+            page={commentPage}
+            set={setCommentPage}
+          />
+        </>
+      )}
+      {write && (
+        <details>
+          <summary>저장된 개인 초안 ({drafts.length})</summary>
+          {pageItems(drafts, draftPage).map((d) => (
+            <article key={d.id}>
+              <strong>{d.title}</strong>
+              <span>
+                {" "}
+                · 기준 v{d.baseVersion} · r{d.revision}
+              </span>
+              <div className="op-actions">
+                <Button
+                  disabled={busy || !d.pageId}
+                  onClick={() => {
+                    if (d.pageId !== selected) {
+                      setSelected(d.pageId!);
+                      setNotice(
+                        "선택한 문서가 열리면 이 초안의 이어 쓰기를 다시 선택하세요.",
+                      );
+                      return;
+                    }
+                    setDraft(d);
+                    setContent(d.content);
+                  }}
+                >
+                  이어 쓰기
+                </Button>
+                <Button
+                  disabled={busy}
+                  onClick={() =>
+                    action(async () => {
+                      if (
+                        !window.confirm(
+                          "이 개인 초안을 삭제할까요? 발행본은 바뀌지 않습니다.",
+                        )
+                      )
+                        return;
+                      await api.post(
+                        `/workflows/drafts/${encodeURIComponent(d.id)}/delete`,
+                        { expectedRevision: d.revision },
+                      );
+                      if (draft?.id === d.id) {
+                        setDraft(null);
+                        setContent("");
+                      }
+                    })
+                  }
+                >
+                  초안 삭제
+                </Button>
+              </div>
+            </article>
+          ))}
+          <Pager count={drafts.length} page={draftPage} set={setDraftPage} />
+        </details>
+      )}
+      {write && (
+        <details>
+          <summary>개인 템플릿 ({templates.length})</summary>
+          {pageItems(templates, templatePage).map((t) => (
+            <article key={t.id}>
+              <strong>{t.title}</strong>
+              <Button
+                disabled={busy || !detail || !latest}
+                onClick={() => {
+                  if (!detail || !latest) return;
+                  setDraft({
+                    id: crypto.randomUUID(),
+                    revision: 0,
+                    title: detail.page.title,
+                    content: t.content,
+                    pageId: selected,
+                    baseVersion: latest.number,
+                    ...(t.originPageId && t.originVersion
+                      ? {
+                          dependencyVersions: {
+                            [t.originPageId]: t.originVersion,
+                          },
+                        }
+                      : {}),
+                  });
+                  setContent(t.content);
+                }}
+              >
+                선택 문서의 초안으로 사용
+              </Button>
+            </article>
+          ))}
+          <Pager
+            count={templates.length}
+            page={templatePage}
+            set={setTemplatePage}
+          />
+        </details>
+      )}
+      <details>
+        <summary>
+          내 알림 ({notifications.filter((n) => !n.read_at).length}건 읽지 않음)
+        </summary>
+        {pageItems(notifications, notificationPage).map((n) => (
+          <article key={n.id}>
+            <Button
+              disabled={busy}
+              onClick={() =>
+                action(async () => {
+                  await api.post(
+                    `/workflows/notifications/${encodeURIComponent(n.id)}/read`,
+                    {},
+                  );
+                  setSelected(n.page_id);
+                })
+              }
+            >
+              {n.title} · 댓글 {n.read_at ? "읽음" : "새 알림"}
+            </Button>
+          </article>
+        ))}
+        <Pager
+          count={notifications.length}
+          page={notificationPage}
+          set={setNotificationPage}
+        />
+      </details>
+      {manage && (
+        <details>
+          <summary>휴지통 ({trash.length})</summary>
+          <p>
+            현재 원본·상위 문서 권한을 만족하는 문서만 표시합니다. 복구로 과거
+            권한은 복원하지 않습니다.
+          </p>
+          {pageItems(trash, trashPage).map((t) => (
+            <article key={t.id}>
+              <strong>{t.title}</strong>
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  action(async () => {
+                    if (
+                      !window.confirm(
+                        `${t.title} 문서를 현재 권한으로 복구할까요?`,
+                      )
+                    )
+                      return;
+                    await api.post(
+                      `/workflows/pages/${encodeURIComponent(t.id)}/state`,
+                      {
+                        expectedRevision: t.revision,
+                        state: "active",
+                        reason: "사용자 확인 후 휴지통 복구",
+                      },
+                    );
+                    setNotice("문서를 복구했습니다.");
+                  })
+                }
+              >
+                문서 복구
+              </Button>
+            </article>
+          ))}
+          <Pager count={trash.length} page={trashPage} set={setTrashPage} />
+        </details>
+      )}
+      <NotificationPreferences api={api} perform={action} />
+    </section>
+  );
+}
+
+interface Preferences {
+  revision: number;
+  mentions: boolean;
+  subscriptions: boolean;
+  dailyDigest: boolean;
+  weeklyDigest: boolean;
+  timezone: string;
+}
+function NotificationPreferences({
+  api,
+  perform,
+}: {
+  api: OperationalApi;
+  perform: (fn: () => Promise<void>) => Promise<void>;
+}) {
+  const [prefs, setPrefs] = useState<Preferences | null>(null),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void api
+      .get<Preferences>("/workflows/preferences")
+      .then((p) => {
+        if (active) setPrefs(p);
+      })
+      .catch((e) => {
+        if (active)
+          setError(
+            e instanceof Error ? e.message : "알림 설정을 불러오지 못했습니다.",
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, [api]);
+  return (
+    <details>
+      <summary>내 알림 수신 설정</summary>
+      {error && <p role="alert">{error}</p>}
+      {prefs && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setBusy(true);
+            void perform(async () => {
+              const { revision, ...data } = prefs;
+              setPrefs(
+                await api.post<Preferences>("/workflows/preferences", {
+                  ...data,
+                  expectedRevision: revision,
+                }),
+              );
+            }).finally(() => setBusy(false));
+          }}
+        >
+          <label>
+            <input
+              type="checkbox"
+              checked={prefs.mentions}
+              onChange={(e) =>
+                setPrefs({ ...prefs, mentions: e.target.checked })
+              }
+              disabled={busy}
+            />
+            멘션 알림 받기
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={prefs.subscriptions}
+              onChange={(e) =>
+                setPrefs({ ...prefs, subscriptions: e.target.checked })
+              }
+              disabled={busy}
+            />
+            구독 문서 댓글 알림 받기
+          </label>
+          <label>
+            알림 시각대
+            <input
+              value={prefs.timezone}
+              onChange={(e) => setPrefs({ ...prefs, timezone: e.target.value })}
+              disabled={busy}
+            />
+          </label>
+          <Button type="submit" disabled={busy}>
+            알림 설정 저장
+          </Button>
+        </form>
+      )}
+    </details>
+  );
+}

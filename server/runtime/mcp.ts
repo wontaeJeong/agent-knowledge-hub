@@ -9,6 +9,14 @@ import { z } from "zod";
 import type { RuntimeService } from "./knowledge";
 import type { Context } from "../service";
 import { ingestInput, queryInput } from "./schema";
+import type { RuntimeJobsBridge } from "../jobs/runtime";
+import { createHash, randomUUID } from "node:crypto";
+const requestKey = z.string().min(1).max(200).optional();
+const jobKey = (kind: string, key: string | undefined) =>
+  "mcp-" +
+  createHash("sha256")
+    .update(kind + "\0" + (key ?? randomUUID()))
+    .digest("hex");
 
 export async function handleMcp(
   req: IncomingMessage,
@@ -16,6 +24,7 @@ export async function handleMcp(
   body: unknown,
   service: RuntimeService,
   ctx: Context,
+  jobs?: RuntimeJobsBridge,
 ) {
   const server = new Server(
     { name: "agent-knowledge-hub", version: "1.0.0" },
@@ -33,6 +42,7 @@ export async function handleMcp(
       properties: {
         question: { type: "string" },
         mode: { enum: ["offline", "model"] },
+        idempotency_key: { type: "string", maxLength: 200 },
       },
       required: ["question", "mode"],
       additionalProperties: false,
@@ -42,13 +52,14 @@ export async function handleMcp(
       properties: {
         sourceIds: { type: "array", items: { type: "string" } },
         mode: { enum: ["offline", "model"] },
+        idempotency_key: { type: "string", maxLength: 200 },
       },
       required: ["sourceIds", "mode"],
       additionalProperties: false,
     },
     knowledge_lint: {
       type: "object",
-      properties: {},
+      properties: { idempotency_key: { type: "string", maxLength: 200 } },
       additionalProperties: false,
     },
     knowledge_jobs: {
@@ -85,22 +96,53 @@ export async function handleMcp(
         break;
       }
       case "knowledge_query": {
-        const data = queryInput.parse(input);
-        result = await service.query(ctx, data.question, data.mode);
+        const { idempotency_key, ...data } = queryInput
+          .extend({ idempotency_key: requestKey })
+          .parse(input);
+        result = jobs
+          ? await jobs.submitInteractive(
+              ctx,
+              "query",
+              data,
+              jobKey("query", idempotency_key),
+            )
+          : await service.query(ctx, data.question, data.mode);
         break;
       }
       case "knowledge_ingest": {
-        const data = ingestInput.parse(input);
-        result = await service.ingest(ctx, data.sourceIds, data.mode);
+        const { idempotency_key, ...data } = ingestInput
+          .extend({ idempotency_key: requestKey })
+          .parse(input);
+        result = jobs
+          ? await jobs.submitInteractive(
+              ctx,
+              "ingest",
+              data,
+              jobKey("ingest", idempotency_key),
+            )
+          : await service.ingest(ctx, data.sourceIds, data.mode);
         break;
       }
-      case "knowledge_lint":
-        z.object({}).strict().parse(input);
-        result = await service.lint(ctx);
+      case "knowledge_lint": {
+        const { idempotency_key } = z
+          .object({ idempotency_key: requestKey })
+          .strict()
+          .parse(input);
+        result = jobs
+          ? await jobs.submitInteractive(
+              ctx,
+              "lint",
+              {},
+              jobKey("lint", idempotency_key),
+            )
+          : await service.lint(ctx);
         break;
+      }
       case "knowledge_jobs":
         z.object({}).strict().parse(input);
-        result = { items: await service.jobs(ctx) };
+        result = jobs
+          ? await jobs.list(ctx)
+          : { items: await service.jobs(ctx) };
         break;
       default:
         throw Error("UNKNOWN_TOOL");

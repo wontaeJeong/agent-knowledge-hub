@@ -20,6 +20,7 @@ export interface Context {
   credentialId?: string;
   /** Server-created request capability; never accepted from a client DTO. */
   authorization?: {
+    sessionId?: string;
     revalidate: () => Promise<void>;
     assertSession: (db: PoolClient) => Promise<void>;
   };

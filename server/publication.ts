@@ -48,6 +48,8 @@ const batchHash = ({
   ...content
 }: Batch & { requestAuthorizationPending?: boolean }) => digest(content);
 type RuntimeBatch = Batch & {
+  producer?: NonNullable<import("../src/domain/types").Version["producer"]>;
+  responsibleUserId?: string;
   contextDependencyIds?: string[];
   inputEnvelope?: InputEnvelope;
 };
@@ -98,6 +100,21 @@ async function permissions(
   }
   const audiences = new Map<string, string[]>();
   for (const d of updates) {
+    const existing = canonicalState.pages.find((p) => p.id === d.id);
+    if (existing?.status === "공식 기준") {
+      const official = await db.query(
+        "SELECT minimum_approvals,reviewer_ids FROM access_review_rules WHERE workspace_id=$1 AND document_type='official-standard'",
+        [ctx.workspaceId],
+      );
+      const rule = official.rows[0];
+      if (
+        !rule ||
+        rule.minimum_approvals < 2 ||
+        new Set(rule.reviewer_ids).size < 2
+      )
+        throw Error("OFFICIAL_REVIEW_REQUIRED");
+      acl[`official:${d.id}`] = rule;
+    }
     const workflow = await db.query(
       "SELECT to_regclass('workflow_document_state') AS present",
     );
@@ -204,6 +221,7 @@ export async function propose(
     answerId?: string;
     inputEnvelope?: InputEnvelope;
     requestAuthorizationPending?: boolean;
+    producer?: NonNullable<import("../src/domain/types").Version["producer"]>;
     /** Trusted integration hook; never accepted in request DTOs. Runs before the same transaction commits. */
     onCreated?: (
       db: PoolClient,
@@ -258,6 +276,20 @@ export async function propose(
           ]);
         }
         if (options?.answerId) batch.answerId = options.answerId;
+        (batch as RuntimeBatch).producer =
+          options?.producer ??
+          (options?.mode === "model"
+            ? { kind: "model", provider: null, model: null }
+            : options?.mode === "offline"
+              ? { kind: "structural" }
+              : { kind: "unknown" });
+        (batch as RuntimeBatch).responsibleUserId =
+          (
+            await db.query(
+              "SELECT sponsor_id FROM access_service_accounts WHERE principal_id=$1",
+              [ctx.principalId],
+            )
+          ).rows[0]?.sponsor_id ?? ctx.principalId;
         if (options?.dependencyIds)
           (batch as RuntimeBatch).contextDependencyIds = options.dependencyIds;
         if (options?.inputEnvelope)
@@ -354,13 +386,24 @@ async function reviewQualification(
   );
   if (!author.rowCount) throw Error("APPROVAL_STALE");
   const types = await db.query(
-    `SELECT DISTINCT coalesce(p.data->>'category','연결된 지식') AS document_type FROM batches b CROSS JOIN LATERAL jsonb_array_elements(b.data->'updates') u LEFT JOIN pages p ON p.workspace_id=b.workspace_id AND p.id=u->>'id' WHERE b.workspace_id=$1 AND b.id=$2`,
+    `SELECT DISTINCT coalesce(p.data->>'category','연결된 지식') AS document_type,p.data->>'status'='공식 기준' AS official FROM batches b CROSS JOIN LATERAL jsonb_array_elements(b.data->'updates') u LEFT JOIN pages p ON p.workspace_id=b.workspace_id AND p.id=u->>'id' WHERE b.workspace_id=$1 AND b.id=$2`,
     [ctx.workspaceId, id],
   );
   const rules = await db.query(
     "SELECT * FROM access_review_rules WHERE workspace_id=$1 AND document_type=ANY($2::text[])",
-    [ctx.workspaceId, types.rows.map((r) => r.document_type)],
+    [
+      ctx.workspaceId,
+      [
+        ...types.rows.map((r) => r.document_type),
+        ...(types.rows.some((r) => r.official) ? ["official-standard"] : []),
+      ],
+    ],
   );
+  if (
+    types.rows.some((r) => r.official) &&
+    a.space.namespaceKind === "personal"
+  )
+    throw Error("OFFICIAL_REVIEW_REQUIRED");
   if (approval && a.space.namespaceKind !== "personal") {
     if (author.rows[0].principal_id === ctx.principalId)
       throw Error("FORBIDDEN");
@@ -547,14 +590,29 @@ export async function publish(
         const published = memory(next).batches.find((b) => b.id === id)!;
         if (published.status !== "published") throw Error("STALE_VERSION");
         const versions: Record<string, number> = {};
+        const proposerRow = await db.query(
+          "SELECT principal_id FROM access_batch_authors WHERE workspace_id=$1 AND batch_id=$2",
+          [ctx.workspaceId, id],
+        );
+        const originalAuthor =
+          proposerRow.rows[0]?.principal_id ??
+          (
+            await db.query(
+              "SELECT principal_id FROM audit WHERE workspace_id=$1 AND operation='batch.propose' AND resource_id=$2 ORDER BY at LIMIT 1",
+              [ctx.workspaceId, id],
+            )
+          ).rows[0]?.principal_id ??
+          null;
         for (const d of batch.updates) {
           const p = next.pages.find((p) => p.id === d.id)!;
           const { versions: history, ...metadata } = p;
+          delete metadata.verifiedAt;
           if (qualification?.personal) {
             metadata.status = "미검증";
             metadata.owner = qualification.authorId;
           }
           const old = state.pages.find((p) => p.id === d.id);
+          if (old?.status === "공식 기준") metadata.status = "공식 기준";
           const inherited = old
             ? inheritedProvenance(old)
             : { pageIds: [], sourceIds: [] };
@@ -581,6 +639,12 @@ export async function publish(
           const v = {
             ...history.at(-1)!,
             author: ctx.principalId,
+            batchId: id,
+            proposedBy: originalAuthor,
+            responsibleUserId:
+              (batch as RuntimeBatch).responsibleUserId ?? originalAuthor,
+            publishedBy: ctx.principalId,
+            producer: (batch as RuntimeBatch).producer ?? { kind: "unknown" },
             provenance,
             sourceIds: [
               ...new Set([

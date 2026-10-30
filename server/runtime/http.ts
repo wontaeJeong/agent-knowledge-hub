@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { RuntimeService } from "./knowledge";
@@ -30,6 +30,21 @@ import { handleAgentRoute } from "../agents/http";
 import { handleAgentMcp } from "../agents/mcp";
 import { accessRoute, routeAction } from "../access/http";
 import type { Context } from "../service";
+import {
+  storageRoutes,
+  type StorageService,
+  type UrlCollector,
+} from "../storage";
+import { handleRefinementRoute } from "../refinement/http";
+import type { RefinementService } from "../refinement/service";
+import { extensionErrorStatuses } from "./errors";
+import type { HttpAdmission } from "./admission";
+import type { OperationsRouteInput } from "../operations/routes";
+import { assertOperationalStartup } from "../operations/recovery";
+import type { ShutdownController } from "../operations/monitoring";
+import { runtimeCapabilities, type RuntimeJobsBridge } from "../jobs/runtime";
+import { handleJobRoute } from "../jobs/http";
+import { readStoredAnswer } from "../workflows/answers";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
@@ -38,12 +53,27 @@ export function createRuntimeHandler(options: {
   workspaceId: string;
   auth?: OidcAuth;
   dist?: string;
+  storage?: StorageService;
+  collector?: UrlCollector;
+  refinement?: RefinementService;
+  admission?: HttpAdmission;
+  operations?: (input: OperationsRouteInput) => Promise<boolean>;
+  jobs?: RuntimeJobsBridge;
+  platformOperatorIds?: readonly string[];
+  probe?: (req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
+  shutdown?: ShutdownController;
 }) {
+  const storageHandler = options.storage
+    ? storageRoutes(options.storage, options.collector)
+    : undefined;
   return async (req: IncomingMessage, res: ServerResponse) => {
     const requestId = randomUUID();
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "same-origin");
+    res.setHeader("X-Request-Id", requestId);
+    let ticket: ReturnType<HttpAdmission["enter"]> | undefined;
+    let releaseShutdown: (() => void) | undefined;
     const send = (status: number, body: unknown) => {
       res.writeHead(status, {
         "Content-Type": "application/json; charset=utf-8",
@@ -58,8 +88,15 @@ export function createRuntimeHandler(options: {
         return send(200, { ok: true });
       if (path === "/readyz" && req.method === "GET") {
         await assertSchemaCurrent(options.pool);
+        await assertOperationalStartup(options.pool);
+        if (options.probe && (await options.probe(req, res))) return;
         return send(200, { ok: true });
       }
+      if (options.probe && (await options.probe(req, res))) return;
+      if (path === "/metrics" && req.method === "GET")
+        return send(403, { code: "FORBIDDEN", requestId });
+      releaseShutdown = options.shutdown?.enter();
+      ticket = options.admission?.enter();
       if (path === "/auth/login" && req.method === "GET" && options.auth)
         return await options.auth.login(res);
       if (path === "/auth/callback" && req.method === "GET" && options.auth)
@@ -115,6 +152,18 @@ export function createRuntimeHandler(options: {
               : undefined,
           )
         : undefined;
+      if (credential) {
+        if (options.jobs) await options.jobs.revalidateCredential(credential);
+        else if (
+          (
+            await options.pool.query(
+              "SELECT 1 FROM access_principals WHERE id=$1 AND kind='service'",
+              [credential.principalId],
+            )
+          ).rowCount
+        )
+          throw Error("DIRECTORY_STATUS_UNKNOWN");
+      }
       const session = credential
         ? { ...credential, role: "reader" as const, csrfToken: "" }
         : await (options.auth?.authenticate(req) ?? Promise.resolve(null));
@@ -127,11 +176,17 @@ export function createRuntimeHandler(options: {
           ? undefined
           : options.auth!.requestGuard(req, session),
       };
+      ticket?.identify(
+        ctx.workspaceId,
+        ctx.principalId,
+        !["GET", "HEAD"].includes(req.method ?? "GET"),
+      );
       let body: unknown;
       if (
         req.method === "POST" ||
         req.method === "PATCH" ||
-        req.method === "DELETE"
+        req.method === "DELETE" ||
+        req.method === "PUT"
       ) {
         if (
           !credential &&
@@ -139,11 +194,85 @@ export function createRuntimeHandler(options: {
             req.headers["x-csrf-token"] !== session.csrfToken)
         )
           return send(403, { code: "CSRF_FAILED" });
+        if (req.method === "PUT" && path === "/api/v1/storage/blobs") {
+          if (!storageHandler) throw Error("STORAGE_NOT_CONFIGURED");
+          if (
+            await storageHandler({
+              method: req.method,
+              path,
+              body: undefined,
+              ctx,
+              send,
+              req,
+              res,
+            })
+          )
+            return;
+          throw Error("NOT_FOUND");
+        }
         if (!req.headers["content-type"]?.startsWith("application/json"))
           return send(415, { code: "JSON_REQUIRED" });
-        body = await readJsonBody(req, 512000);
+        body = await readJsonBody(
+          req,
+          path.startsWith("/api/v1/storage/") ? 5 * 1024 * 1024 : 512000,
+        );
       }
       const service = options.service;
+      if (
+        options.jobs &&
+        req.method === "POST" &&
+        path === "/api/v1/refinement/semantic-lint"
+      ) {
+        const key = z
+          .string()
+          .min(1)
+          .max(200)
+          .parse(req.headers["idempotency-key"]);
+        return send(
+          202,
+          await options.jobs.submitInteractive(
+            ctx,
+            "lint",
+            { semantic: true, context: body },
+            "http-" +
+              createHash("sha256")
+                .update("semantic-lint\0" + key)
+                .digest("hex"),
+          ),
+        );
+      }
+      if (
+        options.operations &&
+        (await options.operations({
+          method: req.method ?? "GET",
+          path,
+          body,
+          ctx,
+          send,
+        }))
+      )
+        return;
+      if (
+        storageHandler &&
+        (await storageHandler({
+          method: req.method ?? "GET",
+          path,
+          body,
+          ctx,
+          send,
+          req,
+          res,
+        }))
+      )
+        return;
+      if (
+        options.refinement &&
+        (await handleRefinementRoute(
+          { method: req.method ?? "GET", path, body, ctx, send },
+          options.refinement,
+        ))
+      )
+        return;
       const accessResult = await accessRoute(
         access,
         ctx,
@@ -172,7 +301,24 @@ export function createRuntimeHandler(options: {
             principalId: ctx.principalId,
             role,
             csrfToken: session.csrfToken,
-            capabilities: a.capabilities,
+            capabilities: options.jobs
+              ? runtimeCapabilities(
+                  a.capabilities,
+                  ctx.principalId,
+                  options.platformOperatorIds,
+                )
+              : a.capabilities,
+            effectiveRole: a.role,
+            spaceRole: {
+              read: "Read",
+              triage: "Triage",
+              write: "Write",
+              maintain: "Maintain",
+              admin: "Admin",
+            }[a.role],
+            canReviewKnowledge:
+              !ctx.credentialId && a.capabilities.includes("changeset.approve"),
+            personalSpace: a.space.namespaceKind === "personal",
             space: a.space,
           });
         } catch (e) {
@@ -200,13 +346,75 @@ export function createRuntimeHandler(options: {
           });
         }
       }
+      if (options.jobs) {
+        if (req.method === "GET" && path === "/api/v1/execution-identities") {
+          const accessState = await authorizeAction(
+            options.pool,
+            ctx,
+            "knowledge.protect",
+          );
+          const ready = options.jobs.readiness();
+          if (!ready.serviceDirectoryConfigured)
+            return send(200, { items: [], directoryConfigured: false });
+          const rows = await options.pool.query(
+            `SELECT c.id AS "credentialId",c.principal_id AS "principalId",c.workspace_id AS "workspaceId",s.name FROM access_credentials c JOIN access_service_accounts s ON s.principal_id=c.principal_id JOIN access_principals p ON p.id=s.principal_id AND p.active AND p.kind='service' JOIN access_principals sponsor ON sponsor.id=s.sponsor_id AND sponsor.active AND sponsor.kind='human' JOIN access_team_members m ON m.team_id=s.namespace_id AND m.principal_id=sponsor.id AND m.active WHERE c.workspace_id=$1 AND s.namespace_id=$2 AND NOT c.revoked AND c.expires_at>clock_timestamp() AND s.expires_at>clock_timestamp() ORDER BY s.name,c.id LIMIT 100`,
+            [ctx.workspaceId, accessState.space.namespaceId],
+          );
+          const items = [];
+          for (const item of rows.rows) {
+            try {
+              const effective = await new AccessService(options.pool).effective(
+                {
+                  workspaceId: ctx.workspaceId,
+                  principalId: item.principalId,
+                  credentialId: item.credentialId,
+                },
+              );
+              if (
+                effective.capabilities.includes("knowledge.read") &&
+                (effective.capabilities.includes("changeset.propose") ||
+                  effective.capabilities.includes("lint.run"))
+              )
+                items.push(item);
+            } catch (e) {
+              if (!(
+                e instanceof Error &&
+                ["NOT_FOUND", "FORBIDDEN", "UNAUTHENTICATED"].includes(
+                  e.message,
+                )
+              ))
+                throw e;
+            }
+          }
+          return send(200, { items, directoryConfigured: true });
+        }
+        if (req.method === "POST" && path === "/api/v1/jobs-v2")
+          return send(202, await options.jobs.submitDelegated(ctx, body));
+        if (
+          await handleJobRoute(
+            {
+              method: req.method ?? "GET",
+              path: path + url.search,
+              body,
+              ctx,
+              send,
+            },
+            options.jobs.jobs,
+          )
+        )
+          return;
+      }
       const agents = new AgentService(
         options.pool,
         service,
         authorizeInTransaction,
+        options.refinement
+          ? (ctx, id) =>
+              options.refinement!.importAgentSignals(ctx, { outcomeId: id })
+          : undefined,
       );
       if (path === "/api/v1/agent/mcp" && req.method === "POST")
-        return await handleAgentMcp(req, res, body, agents, ctx);
+        return await handleAgentMcp(req, res, body, agents, ctx, options.jobs);
       if (
         await handleAgentRoute(
           { method: req.method ?? "GET", path, body, ctx, send },
@@ -226,8 +434,19 @@ export function createRuntimeHandler(options: {
       )
         return;
       if (path === "/mcp" && req.method === "POST")
-        return await handleMcp(req, res, body, service, ctx);
+        return await handleMcp(req, res, body, service, ctx, options.jobs);
       if (req.method === "GET") {
+        const storedAnswer = path.match(/^\/api\/v1\/answers\/([^/]+)$/);
+        if (storedAnswer)
+          return send(
+            200,
+            await readStoredAnswer(
+              options.pool,
+              service,
+              ctx,
+              id.parse(storedAnswer[1]),
+            ),
+          );
         if (path === "/api/v1/pages")
           return send(200, { items: await service.pages(ctx) });
         if (path === "/api/v1/sources")
@@ -288,14 +507,71 @@ export function createRuntimeHandler(options: {
         }
         if (path === "/api/v1/ingest") {
           const b = ingestInput.parse(body);
+          if (options.jobs) {
+            const key = z
+              .string()
+              .min(1)
+              .max(200)
+              .parse(req.headers["idempotency-key"]);
+            return send(
+              202,
+              await options.jobs.submitInteractive(
+                ctx,
+                "ingest",
+                b,
+                "http-" +
+                  createHash("sha256")
+                    .update("ingest\0" + key)
+                    .digest("hex"),
+              ),
+            );
+          }
           return send(201, await service.ingest(ctx, b.sourceIds, b.mode));
         }
         if (path === "/api/v1/query") {
           const b = queryInput.parse(body);
+          if (options.jobs) {
+            const key = z
+              .string()
+              .min(1)
+              .max(200)
+              .parse(req.headers["idempotency-key"]);
+            return send(
+              202,
+              await options.jobs.submitInteractive(
+                ctx,
+                "query",
+                b,
+                "http-" +
+                  createHash("sha256")
+                    .update("query\0" + key)
+                    .digest("hex"),
+              ),
+            );
+          }
           return send(200, await service.query(ctx, b.question, b.mode));
         }
         if (path === "/api/v1/lint") {
           z.object({}).strict().parse(body);
+          if (options.jobs) {
+            const key = z
+              .string()
+              .min(1)
+              .max(200)
+              .parse(req.headers["idempotency-key"]);
+            return send(
+              202,
+              await options.jobs.submitInteractive(
+                ctx,
+                "lint",
+                {},
+                "http-" +
+                  createHash("sha256")
+                    .update("lint\0" + key)
+                    .digest("hex"),
+              ),
+            );
+          }
           return send(200, await service.lint(ctx));
         }
         const file = path.match(/^\/api\/v1\/answers\/([^/]+)\/file$/);
@@ -328,6 +604,10 @@ export function createRuntimeHandler(options: {
       }
       return send(404, { code: "NOT_FOUND", requestId });
     } catch (e) {
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
       if (e instanceof Error && "code" in e && e.code === "ENOENT")
         return send(404, { code: "NOT_FOUND", requestId });
       const code =
@@ -356,10 +636,24 @@ export function createRuntimeHandler(options: {
         MODEL_CONTEXT_LIMIT: 413,
         JOB_CAPACITY: 429,
       };
-      const safe = Object.hasOwn(statuses, code)
-        ? code
-        : "DEPENDENCY_UNAVAILABLE";
-      send(statuses[safe] || 503, { code: safe, requestId });
+      const status = Object.hasOwn(statuses, code)
+        ? statuses[code]
+        : extensionErrorStatuses[code];
+      const safe = status !== undefined ? code : "DEPENDENCY_UNAVAILABLE";
+      if (status === 429) {
+        const retry =
+          e instanceof Error &&
+          "retryAfterSeconds" in e &&
+          typeof e.retryAfterSeconds === "number" &&
+          Number.isSafeInteger(e.retryAfterSeconds)
+            ? Math.max(1, Math.min(3600, e.retryAfterSeconds))
+            : 5;
+        res.setHeader("Retry-After", String(retry));
+      }
+      send(status ?? 503, { code: safe, requestId });
+    } finally {
+      ticket?.release();
+      releaseShutdown?.();
     }
   };
 }

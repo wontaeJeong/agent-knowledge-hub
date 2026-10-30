@@ -45,6 +45,8 @@ spec:
           env:
             - name: PORT
               value: "8080"
+            - name: AKH_BLOB_ROOT
+              value: /data/blobs
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -74,9 +76,14 @@ spec:
               cpu: "1"
               memory: 512Mi
           volumeMounts:
+            - name: content
+              mountPath: /data/blobs
             - name: temporary
               mountPath: /tmp
       volumes:
+        - name: content
+          persistentVolumeClaim:
+            claimName: knowledge-blobs
         - name: temporary
           emptyDir:
             sizeLimit: 128Mi
