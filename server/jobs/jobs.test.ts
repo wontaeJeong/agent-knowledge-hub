@@ -310,6 +310,10 @@ describe("durable PostgreSQL queue", () => {
     expect((await f.service.get(f.ctx, j.id)).status).toBe("dead");
     await worker.stop();
   });
+  it('stop waits for an in-flight scheduler poll and never starts a fresh claim after shutdown',async()=>{
+    const f=await setup();await f.service.enqueue(f.ctx,f.input);let release!:()=>void,began!:()=>void;const blocked=new Promise<void>(r=>release=r),entered=new Promise<void>(r=>began=r);const original=f.service.scheduleTick.bind(f.service);
+    f.service.scheduleTick=async()=>{began();await blocked;return original();};let executions=0;const worker=new JobWorker(f.service,{lint:async()=>{executions++;return {value:1};}},{workerId:'stop-poll'});worker.start();await entered;let stopped=false;const stopping=worker.stop().then(()=>{stopped=true;});await new Promise(r=>setTimeout(r,10));expect(stopped).toBe(false);release();await stopping;await new Promise(r=>setTimeout(r,10));expect(executions).toBe(0);
+  });
   it("reserves model calls before transmission and conservatively accounts crash/unknown usage", async () => {
     const f = await setup();
     await f.service.enqueue(f.ctx, { ...f.input, model: "actual-v1" });

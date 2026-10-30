@@ -9,14 +9,23 @@ export type Authorizer = (
   action: string,
   resource?: Resource,
 ) => Promise<void>;
-/** Only identifiers are persisted. Resolver MUST reject human/session credentials,
- * expiry, revocation, scope changes and disabled service identities on every call. */
+/** Persist identifiers only. Accept either an actual scoped service credential
+ * or an explicit server-minted, one-operation, expiring same-human consent grant.
+ * Reject ambient OIDC sessions/refresh tokens and bare human PATs as durable
+ * identities; a PAT may consent to its own bounded grant without widening scope.
+ * Recheck expiry, revocation, current actor and scope on every resolution. */
 export type ExecutionIdentity = Readonly<{
   workspaceId: string;
   principalId: string;
   credentialId: string;
 }>;
 export interface JobHooks {
+  /** Server-only integration declaration: inputs are read context, while the
+   * attached runtime enforces protection/current scope on ACTUAL output targets
+   * inside its write transaction. Generic queues remain strict by default. */
+  inputsAreReadOnly?: boolean;
+  /** Network/directory/session refresh OUTSIDE all queue/domain transactions. */
+  revalidateIdentity?: (identity: ExecutionIdentity) => Promise<void>;
   authorize: Authorizer;
   resolveIdentity: (
     db: PoolClient,
@@ -30,7 +39,13 @@ export interface JobHooks {
     db: PoolClient,
     ctx: Context,
     input: JobInput,
+    purpose?: "execute" | "schedule" | "read",
   ) => Promise<void>;
+  /** Production bridges must reject human/one-operation grants for schedules. */
+  validateScheduleIdentity?: (
+    db: PoolClient,
+    identity: ExecutionIdentity,
+  ) => Promise<Context>;
 }
 export interface JobInput {
   kind: string;
@@ -60,6 +75,9 @@ export interface Lease {
 }
 export interface Completion {
   value: unknown;
+  /** Trusted executor evidence that no model/gateway was invoked on any stage.
+   * Not accepted in JobInput or HTTP DTOs. */
+  noModelCalls?: boolean;
   /** Short DB-only effect in the SAME fenced transaction. No model/network calls.
    * Publication must use the host's reviewed idempotent publication contract;
    * agent executors only create human-review proposals, never approve/publish. */
@@ -68,7 +86,7 @@ export interface Completion {
 export interface ModelTelemetry {
   callId: string;
   provider: string;
-  model: string;
+  model: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
   costMicros: number | null;

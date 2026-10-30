@@ -68,7 +68,7 @@ const telemetrySchema = z
   .object({
     callId: identifier,
     provider: identifier,
-    model: identifier,
+    model: identifier.nullable(),
     inputTokens: integer.nullable(),
     outputTokens: integer.nullable(),
     costMicros: integer.nullable(),
@@ -78,6 +78,12 @@ const telemetrySchema = z
       .nullable(),
   })
   .strict();
+export function parseJobInput(input: unknown): JobInput {
+  const serialized = JSON.stringify(input);
+  if (!serialized || Buffer.byteLength(serialized) > 500000)
+    throw Error("INPUT_LIMIT");
+  return jobSchema.parse(JSON.parse(serialized));
+}
 const terminal = new Set(["succeeded", "dead", "cancelled"]);
 const permanent =
   /FORBIDDEN|REVOKED|EXPIRED|STALE|POLICY|SCOPE|PROTECTED|VALIDATION|INVALID|NOT_FOUND|BUDGET|TIMEOUT|CANCELLED|EMERGENCY|NOT_CONFIGURED|OUTPUT_LIMIT/;
@@ -210,9 +216,14 @@ export class JobService {
       ).rowCount,
     );
   }
-  private async validate(db: PoolClient, ctx: Context, input: JobInput) {
+  private async validate(
+    db: PoolClient,
+    ctx: Context,
+    input: JobInput,
+    purpose: "execute" | "schedule" | "read" = "execute",
+  ) {
     await this.check(db, ctx, "jobs.run");
-    await this.hooks.validateScope(db, ctx, input);
+    await this.hooks.validateScope(db, ctx, input, purpose);
     if (
       input.limits &&
       input.pageIds.length + input.sourceIds.length > input.limits.documents
@@ -222,7 +233,7 @@ export class JobService {
       await this.hooks.authorize(db, ctx, "jobs.run", { kind: "page", id });
     for (const id of input.sourceIds)
       await this.hooks.authorize(db, ctx, "jobs.run", { kind: "source", id });
-    if (input.pageIds.length) {
+    if (input.pageIds.length && !this.hooks.inputsAreReadOnly) {
       const protectedPages = await db.query(
         "SELECT 1 FROM workflow_document_state WHERE workspace_id=$1 AND page_id=ANY($2::text[]) AND (state<>'active' OR data->>'protected'='true') LIMIT 1",
         [ctx.workspaceId, input.pageIds],
@@ -231,10 +242,9 @@ export class JobService {
     }
   }
   async enqueue(ctx: Context, input: unknown) {
-    const serialized = JSON.stringify(input);
-    if (!serialized || Buffer.byteLength(serialized) > 500000)
-      throw Error("INPUT_LIMIT");
-    const parsed = jobSchema.parse(JSON.parse(serialized));
+    Object.freeze(ctx);
+    const parsed = parseJobInput(input);
+    await this.hooks.revalidateIdentity?.(this.identity(ctx));
     return this.request(ctx, "jobs.run", (db) =>
       this.enqueueIn(db, ctx, parsed),
     );
@@ -387,7 +397,7 @@ export class JobService {
     return row;
   }
   private async readable(db: PoolClient, ctx: Context, row: Row) {
-    await this.hooks.validateScope(db, ctx, row.input);
+    await this.hooks.validateScope(db, ctx, row.input, "read");
     // Do not disclose old output after any input ACL/content changes.
     await assertEnvelope(
       db,
@@ -587,6 +597,17 @@ export class JobService {
     lane?: "interactive" | "maintenance",
   ): Promise<Lease | null> {
     identifier.parse(workerId);
+    if (this.hooks.revalidateIdentity) {
+      const due = (
+        await this.pool.query(
+          "SELECT DISTINCT workspace_id,principal_id,credential_id FROM durable_jobs WHERE ((status='queued' AND available_at<=$1) OR (status='running' AND lease_until<=$1)) AND ($2::text IS NULL OR lane=$2)",
+          [this.clock(), lane ?? null],
+        )
+      ).rows;
+      await Promise.allSettled(
+        due.map((row) => this.hooks.revalidateIdentity!(this.rowIdentity(row))),
+      );
+    }
     return this.tx(async (db) => {
       await this.mutex(db);
       const now = this.clock();
@@ -717,6 +738,11 @@ export class JobService {
     return row;
   }
   async ready(lease: Lease): Promise<Context> {
+    await this.hooks.revalidateIdentity?.({
+      workspaceId: lease.workspaceId,
+      principalId: lease.principalId,
+      credentialId: lease.credentialId,
+    });
     return this.tx(async (db) => {
       await this.mutex(db);
       const row = await this.locked(db, lease);
@@ -730,7 +756,9 @@ export class JobService {
   /** Hook for RuntimeService's OWN transaction, including offline writes. A
    * try-lock avoids lock inversion when runtime already holds its workspace
    * lock. QUEUE_BUSY is transient: roll back and retry the complete transaction. */
-  async assertReadyInTransaction(
+  /** Lightweight parent/credential/fence guard for domain auth's repeated read
+   * checks. Full input/policy/domain sealing still runs at capture and persist. */
+  async assertIdentityInTransaction(
     db: PoolClient,
     lease: Lease,
   ): Promise<Context> {
@@ -742,6 +770,16 @@ export class JobService {
       ctx = await this.resolve(db, this.rowIdentity(row));
     if (+this.clock() >= +new Date(row.started_at) + row.timeout_ms)
       throw Error("TIMEOUT");
+    await this.check(db, ctx, "jobs.run");
+    if (await this.stopped(db, row)) throw Error("EMERGENCY_STOP");
+    return ctx;
+  }
+  async assertReadyInTransaction(
+    db: PoolClient,
+    lease: Lease,
+  ): Promise<Context> {
+    const ctx = await this.assertIdentityInTransaction(db, lease),
+      row = await this.locked(db, lease);
     await this.assertCurrent(db, row, ctx);
     return ctx;
   }
@@ -797,6 +835,11 @@ export class JobService {
     return value;
   }
   async heartbeat(lease: Lease) {
+    await this.hooks.revalidateIdentity?.({
+      workspaceId: lease.workspaceId,
+      principalId: lease.principalId,
+      credentialId: lease.credentialId,
+    });
     return this.tx(async (db) => {
       await this.mutex(db);
       const row = await this.locked(db, lease);
@@ -811,6 +854,11 @@ export class JobService {
     });
   }
   async checkpoint(lease: Lease, value: unknown) {
+    await this.hooks.revalidateIdentity?.({
+      workspaceId: lease.workspaceId,
+      principalId: lease.principalId,
+      credentialId: lease.credentialId,
+    });
     if (Buffer.byteLength(JSON.stringify(value)) > 500000)
       throw Error("CHECKPOINT_LIMIT");
     return this.tx(async (db) => {
@@ -827,7 +875,26 @@ export class JobService {
       );
     });
   }
+  /** Persist a prepared external result under the queue's normal lock order.
+   * Models run BEFORE this transaction; retries can reuse the bounded result
+   * without charging/calling the model again. Raw output is still untrusted. */
+  async savePrepared<T>(lease: Lease, stage: string, value: T): Promise<T> {
+    await this.hooks.revalidateIdentity?.({
+      workspaceId: lease.workspaceId,
+      principalId: lease.principalId,
+      credentialId: lease.credentialId,
+    });
+    return this.tx(async (db) => {
+      await this.mutex(db);
+      return this.commitEffect(db, lease, stage, async () => value);
+    });
+  }
   async complete(lease: Lease, completion: Completion) {
+    await this.hooks.revalidateIdentity?.({
+      workspaceId: lease.workspaceId,
+      principalId: lease.principalId,
+      credentialId: lease.credentialId,
+    });
     return this.tx(async (db) => {
       await this.mutex(db);
       const row = await this.locked(db, lease);
@@ -852,7 +919,10 @@ export class JobService {
         "UPDATE durable_jobs SET status='succeeded',result=$2,lease_until=NULL,updated_at=$3 WHERE id=$1",
         [row.id, JSON.stringify(completion.value ?? null), this.clock()],
       );
-      await this.reconcile(db, row);
+      await this.reconcile(db, {
+        ...row,
+        knownNoModelCalls: completion.noModelCalls === true,
+      });
       await this.event(db, row, "job.succeeded", {
         id: row.id,
         result: completion.value ?? null,
@@ -936,7 +1006,7 @@ export class JobService {
         error: "MODEL_IN_FLIGHT",
       };
       await db.query(
-        "INSERT INTO durable_model_calls(job_id,call_id,attempt,provider,model,error_code,body_hash,created_at) VALUES($1,$2,$3,$4,$5,'MODEL_IN_FLIGHT',$6,$7)",
+        "INSERT INTO durable_model_calls(job_id,call_id,attempt,provider,requested_model,error_code,body_hash,created_at) VALUES($1,$2,$3,$4,$5,'MODEL_IN_FLIGHT',$6,$7)",
         [
           row.id,
           call.callId,
@@ -978,15 +1048,14 @@ export class JobService {
         if (
           previous.error_code !== "MODEL_IN_FLIGHT" ||
           previous.attempt !== lease.attempt ||
-          previous.provider !== usage.provider ||
-          previous.model !== usage.model
+          previous.provider !== usage.provider
         )
           throw Error("TELEMETRY_CONFLICT");
         const before = row.reconciled
           ? this.charges(row, await this.totals(db, row.id))
           : null;
         await db.query(
-          "UPDATE durable_model_calls SET input_tokens=$3,output_tokens=$4,cost_micros=$5,error_code=$6,body_hash=$7 WHERE job_id=$1 AND call_id=$2",
+          "UPDATE durable_model_calls SET input_tokens=$3,output_tokens=$4,cost_micros=$5,error_code=$6,body_hash=$7,model=$8 WHERE job_id=$1 AND call_id=$2",
           [
             row.id,
             usage.callId,
@@ -995,6 +1064,7 @@ export class JobService {
             usage.costMicros,
             usage.error,
             hash,
+            usage.model,
           ],
         );
         if (before) {
@@ -1052,7 +1122,8 @@ export class JobService {
     const failedUnknown =
       row.attempts >= (row.checkpoint?.budgetStartAttempt ?? 1) &&
       t.calls === 0 &&
-      row.input.model;
+      row.input.model &&
+      !row.knownNoModelCalls;
     return {
       tokens:
         t.unknown_tokens || failedUnknown
@@ -1094,7 +1165,7 @@ export class JobService {
       return {
         items: (
           await db.query(
-            "SELECT call_id,attempt,provider,model,input_tokens,output_tokens,cost_micros,error_code,created_at FROM durable_model_calls WHERE job_id=$1 ORDER BY created_at,call_id",
+            "SELECT call_id,attempt,provider,model,requested_model,input_tokens,output_tokens,cost_micros,error_code,created_at FROM durable_model_calls WHERE job_id=$1 ORDER BY created_at,call_id",
             [id],
           )
         ).rows,
@@ -1169,6 +1240,17 @@ export class JobService {
   }
   async claimEvent(workerId: string) {
     identifier.parse(workerId);
+    if (this.hooks.revalidateIdentity) {
+      const rows = (
+        await this.pool.query(
+          "SELECT DISTINCT j.workspace_id,j.principal_id,j.credential_id FROM durable_job_outbox o JOIN durable_jobs j ON j.id=o.job_id WHERE o.delivered_at IS NULL AND (o.lease_until IS NULL OR o.lease_until<=$1)",
+          [this.clock()],
+        )
+      ).rows;
+      await Promise.allSettled(
+        rows.map((r) => this.hooks.revalidateIdentity!(this.rowIdentity(r))),
+      );
+    }
     return this.tx(async (db) => {
       await this.mutex(db);
       const rows = (
@@ -1217,6 +1299,31 @@ export class JobService {
     });
   }
 
+  private async scheduleReadable(db: PoolClient, ctx: Context, config: Row) {
+    const pages = [
+        ...new Set<string>([
+          ...config.job.pageIds,
+          ...(config.approvedPageIds ?? []),
+        ]),
+      ],
+      sources = [
+        ...new Set<string>([
+          ...config.job.sourceIds,
+          ...(config.approvedSourceIds ?? []),
+        ]),
+      ];
+    for (const id of pages)
+      await this.hooks.authorize(db, ctx, "jobs.read", { kind: "page", id });
+    for (const id of sources)
+      await this.hooks.authorize(db, ctx, "jobs.read", { kind: "source", id });
+    await captureEnvelope(
+      db,
+      ctx,
+      await loadState(db, ctx.workspaceId),
+      pages,
+      sources,
+    );
+  }
   async saveSchedule(ctx: Context, input: unknown) {
     const serialized = JSON.stringify(input);
     if (!serialized || Buffer.byteLength(serialized) > 500000)
@@ -1232,12 +1339,23 @@ export class JobService {
       spec.job.sourceIds.some((id) => !spec.approvedSourceIds.includes(id))
     )
       throw Error("SCOPE_CONFLICT");
+    await this.request(ctx, "jobs.manage", (db) =>
+      this.scheduleReadable(db, ctx, spec),
+    );
+    await this.hooks.revalidateIdentity?.(spec.identity);
     return this.request(ctx, "jobs.manage", async (db) => {
+      await this.scheduleReadable(db, ctx, spec);
+      await this.hooks.validateScheduleIdentity?.(db, spec.identity);
       const execution = await this.resolve(db, spec.identity);
-      await this.validate(db, execution, {
-        ...spec.job,
-        key: "schedule-preview",
-      });
+      await this.validate(
+        db,
+        execution,
+        {
+          ...spec.job,
+          key: "schedule-preview",
+        },
+        "schedule",
+      );
       const previous = (
         await db.query(
           "SELECT * FROM durable_schedules WHERE workspace_id=$1 AND schedule_key=$2 FOR UPDATE",
@@ -1272,16 +1390,45 @@ export class JobService {
     });
   }
   async schedules(ctx: Context) {
-    return this.request(ctx, "jobs.manage", async (db) => ({
-      items: (
+    return this.request(ctx, "jobs.manage", async (db) => {
+      const rows = (
+          await db.query(
+            "SELECT id,schedule_key,revision,approved_by,config,enabled,next_at,last_at,last_error FROM durable_schedules WHERE workspace_id=$1 ORDER BY schedule_key LIMIT 100",
+            [ctx.workspaceId],
+          )
+        ).rows,
+        items = [];
+      for (const row of rows) {
+        try {
+          await this.scheduleReadable(db, ctx, row.config);
+          items.push(row);
+        } catch (e) {
+          if (!(
+            e instanceof Error &&
+            ["NOT_FOUND", "FORBIDDEN", "STALE_VERSION"].includes(e.message)
+          ))
+            throw e;
+        }
+      }
+      return { items };
+    });
+  }
+  private async refreshSchedule(ctx: Context, id: string) {
+    const identity = await this.request(ctx, "jobs.manage", async (db) => {
+      const row = (
         await db.query(
-          "SELECT id,schedule_key,revision,approved_by,config,enabled,next_at,last_at,last_error FROM durable_schedules WHERE workspace_id=$1 ORDER BY schedule_key LIMIT 100",
-          [ctx.workspaceId],
+          "SELECT identity,config FROM durable_schedules WHERE id=$1 AND workspace_id=$2",
+          [id, ctx.workspaceId],
         )
-      ).rows,
-    }));
+      ).rows[0];
+      if (!row) throw Error("NOT_FOUND");
+      await this.scheduleReadable(db, ctx, row.config);
+      return row.identity as ExecutionIdentity;
+    });
+    await this.hooks.revalidateIdentity?.(identity);
   }
   async previewSchedule(ctx: Context, id: string) {
+    await this.refreshSchedule(ctx, id);
     return this.request(ctx, "jobs.manage", async (db) => {
       const row = (
         await db.query(
@@ -1290,8 +1437,14 @@ export class JobService {
         )
       ).rows[0];
       if (!row) throw Error("NOT_FOUND");
+      await this.hooks.validateScheduleIdentity?.(db, row.identity);
       const execution = await this.resolve(db, row.identity);
-      await this.validate(db, execution, { ...row.config.job, key: "preview" });
+      await this.validate(
+        db,
+        execution,
+        { ...row.config.job, key: "preview" },
+        "schedule",
+      );
       let at = this.clock();
       const occurrences = [];
       for (let i = 0; i < 5; i++) {
@@ -1312,6 +1465,7 @@ export class JobService {
   }
   async enableSchedule(ctx: Context, id: string, enabled: boolean) {
     z.boolean().parse(enabled);
+    if (enabled) await this.refreshSchedule(ctx, id);
     return this.request(ctx, "jobs.manage", async (db) => {
       const row = (
         await db.query(
@@ -1320,11 +1474,18 @@ export class JobService {
         )
       ).rows[0];
       if (!row) throw Error("NOT_FOUND");
-      if (enabled)
-        await this.validate(db, await this.resolve(db, row.identity), {
-          ...row.config.job,
-          key: "resume",
-        });
+      if (enabled) {
+        await this.hooks.validateScheduleIdentity?.(db, row.identity);
+        await this.validate(
+          db,
+          await this.resolve(db, row.identity),
+          {
+            ...row.config.job,
+            key: "resume",
+          },
+          "schedule",
+        );
+      }
       await db.query(
         "UPDATE durable_schedules SET enabled=$2,updated_at=$3 WHERE id=$1",
         [id, enabled, this.clock()],
@@ -1334,6 +1495,7 @@ export class JobService {
   }
   async runSchedule(ctx: Context, id: string, key: string) {
     z.string().min(1).max(100).parse(key);
+    await this.refreshSchedule(ctx, id);
     return this.request(ctx, "jobs.manage", async (db) => {
       const row = (
         await db.query(
@@ -1342,6 +1504,7 @@ export class JobService {
         )
       ).rows[0];
       if (!row) throw Error("NOT_FOUND");
+      await this.hooks.validateScheduleIdentity?.(db, row.identity);
       return this.enqueueIn(
         db,
         await this.resolve(db, row.identity),
@@ -1369,13 +1532,14 @@ export class JobService {
   async scheduleTick(): Promise<number> {
     const ids = (
       await this.pool.query(
-        "SELECT id FROM durable_schedules WHERE enabled AND next_at<=$1 ORDER BY next_at LIMIT 25",
+        "SELECT id,identity FROM durable_schedules WHERE enabled AND next_at<=$1 ORDER BY next_at LIMIT 25",
         [this.clock()],
       )
     ).rows;
     let total = 0;
-    for (const { id } of ids) {
+    for (const { id, identity } of ids) {
       try {
+        await this.hooks.revalidateIdentity?.(identity);
         total += await this.tx(async (db) => {
           await this.mutex(db);
           const row = (
@@ -1412,6 +1576,7 @@ export class JobService {
           if (spec.catchup === "latest") due = due.slice(-1);
           if (spec.catchup === "bounded")
             due = due.slice(-(spec.catchupLimit ?? 3));
+          await this.hooks.validateScheduleIdentity?.(db, row.identity);
           const execution = await this.resolve(db, row.identity);
           let count = 0;
           for (const occurrence of due) {

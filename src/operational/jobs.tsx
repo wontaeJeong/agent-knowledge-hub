@@ -21,7 +21,8 @@ interface Job {
 interface Usage {
   call_id: string;
   provider: string;
-  model: string;
+  model: string | null;
+  requested_model?: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
   cost_micros: number | null;
@@ -94,7 +95,10 @@ export function JobUsage({ items }: { items: Usage[] }) {
             <tr key={u.call_id}>
               <td>{u.call_id}</td>
               <td>
-                {u.provider} / {u.model}
+                {u.provider} / {u.model ?? "응답 모델 미확인"}
+                {u.requested_model && (
+                  <small> · 요청: {u.requested_model}</small>
+                )}
               </td>
               <td>{actualValue(u.input_tokens, "토큰")}</td>
               <td>{actualValue(u.output_tokens, "토큰")}</td>
