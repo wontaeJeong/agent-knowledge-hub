@@ -14,7 +14,7 @@ import {
   id,
 } from "./schema";
 import { modelConfig } from "./model";
-import { usageSummary } from "../usage";
+import { usageSummary, exportUsageCsv } from "../usage";
 import { handleMcp } from "./mcp";
 import { readJsonBody } from "./body";
 import { assertSchemaCurrent } from "../database";
@@ -138,6 +138,16 @@ export function createRuntimeHandler(options: {
         if (!req.headers["content-type"]?.startsWith("application/json"))
           return send(415, { code: "JSON_REQUIRED" });
         body = await readJsonBody(req, 512000);
+      }
+      if (path === "/api/v1/usage/export" && req.method === "GET") {
+        const days = Number(url.searchParams.get("days") || "30");
+        const output = await exportUsageCsv(options.pool, ctx, days);
+        res.writeHead(200, {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": "attachment; filename=\"agent-knowledge-hub-usage.csv\"",
+          "X-Request-Id": requestId,
+        });
+        return res.end(output);
       }
       const service = options.service;
       if (path === "/api/v1/access/switch" && req.method === "POST") {
@@ -315,6 +325,7 @@ export function createRuntimeHandler(options: {
         FORBIDDEN: 403,
         UNAUTHENTICATED: 401,
         VALIDATION_FAILED: 400,
+        EXPORT_TOO_LARGE: 413,
         INPUT_TOO_LARGE: 413,
         ALREADY_EXISTS: 409,
         STALE_VERSION: 409,

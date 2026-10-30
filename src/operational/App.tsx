@@ -1107,6 +1107,9 @@ export default function OperationalApp({
                 <Button disabled={busy} onClick={() => void refreshUsage()}>
                   집계 새로고침
                 </Button>
+                {!preview && usage && (
+                  <a className="button secondary" href={`/api/v1/usage/export?days=${usageDays}`} download="agent-knowledge-hub-usage.csv">CSV 내보내기</a>
+                )}
                 {usage ? (
                   <Suspense fallback={<p role="status">집계를 불러오는 중…</p>}>
                     <UsageReport data={usage} />
