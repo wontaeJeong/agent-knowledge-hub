@@ -23,6 +23,14 @@ export interface EvidenceView {
   sourceVersion?: string;
   location?: { start: number; end: number; quote: string };
   parentIds?: string[];
+  executionAttestation?: {
+    status: string;
+    reason?: string;
+    provider?: string;
+    executorId?: string;
+    executedAt?: string;
+    outcome?: string;
+  };
 }
 export interface ClaimView {
   id: string;
@@ -46,6 +54,19 @@ export interface ClaimView {
     status: string;
     verifiedAt: string;
     reason?: string;
+    attestationStatus?: string;
+    attestationError?: string;
+    executionReceipts?: {
+      receiptId: string;
+      provider: string;
+      executionId: string;
+      executorId: string;
+      executedAt: string;
+      outcome: string;
+      sourceId: string;
+      sourceVersion: string;
+      location: { start: number; end: number };
+    }[];
   }[];
 }
 export interface ReviewRequest {
@@ -88,6 +109,14 @@ interface SemanticResult {
 }
 const now = () => new Date().toISOString().slice(0, 16);
 const unique = (values: string[]) => [...new Set(values)];
+export function executionEvidenceNotice(e: EvidenceView): string {
+  if (e.kind !== "independent-execution")
+    return "등록된 근거 유형이며 독립 실행의 증명이 아닙니다.";
+  const proof = e.executionAttestation;
+  return proof?.status === "attested-unreviewed"
+    ? `신뢰 게이트웨이 실행 영수증 확인 · 실제 실행 ${proof.executedAt} · 실행자 ${proof.executorId} · 결과 ${proof.outcome}. 별도 인간 검토와 별개이며 공식 채택을 뜻하지 않습니다.`
+    : `신뢰 실행 영수증 미확인 (${proof?.reason ?? "등록 유형/ID만으로 증명할 수 없음"}). 업로드 본문이나 LLM 성공 선언은 실행 증명이 아닙니다.`;
+}
 const parseConditions = (value: string): Record<string, string> => {
   const parsed: unknown = JSON.parse(value || "{}");
   if (
@@ -494,7 +523,38 @@ export function RefinementPanel({
         );
         if (e.status === 401) onExpired();
       }
-      setError(e instanceof Error ? e.message : "요청을 완료하지 못했습니다.");
+      const executionErrors: Record<string, string> = {
+        EXECUTION_VERIFIER_UNCONFIGURED:
+          "승인된 실행 검증 게이트웨이가 미설정입니다. 실행 유형/ID만으로 검증할 수 없습니다.",
+        EXECUTION_VERIFIER_CONFIGURATION:
+          "실행 검증 공급자/서버 설정이 일치하지 않습니다.",
+        TRUSTED_EXECUTION_REQUIRED:
+          "서명된 신뢰 실행 영수증이 없습니다. 원본 본문·LLM 주장만으로 실행 검증할 수 없습니다.",
+        EXECUTION_ATTESTATION_INVALID:
+          "실행 영수증의 원본·위치·ID·요청 결박이 올바르지 않습니다.",
+        EXECUTION_SIGNATURE_INVALID: "실행 영수증 서명이 유효하지 않습니다.",
+        EXECUTION_ATTESTATION_STALE:
+          "실행 영수증이 만료되었거나 시각이 유효하지 않습니다.",
+        EXECUTION_VERIFIER_UNAVAILABLE:
+          "신뢰 실행 검증 게이트웨이 호출에 실패했습니다.",
+        EXECUTION_VERIFIER_OUTPUT_LIMIT:
+          "실행 검증 응답이 허용 크기를 초과했습니다.",
+        EXECUTION_FAILED:
+          "실패 실행은 성공한 실행 검증으로 승격할 수 없습니다. 실패 관찰은 별도로 보존하세요.",
+        EXECUTION_RECEIPT_REPLAY:
+          "이미 등록한 실행 영수증입니다. 기존 근거를 재사용하세요.",
+        EXECUTION_SOURCE_CHANGED:
+          "실행 근거의 원본 버전이 달라졌습니다. 현재 원본을 다시 확인하세요.",
+        EXECUTION_CLAIM_MISMATCH:
+          "실행 영수증이 이 주장의 정확한 원본 위치/버전을 지지하지 않습니다.",
+      };
+      setError(
+        e instanceof ApiError && executionErrors[e.code]
+          ? `${executionErrors[e.code]} (${e.code})`
+          : e instanceof Error
+            ? e.message
+            : "요청을 완료하지 못했습니다.",
+      );
     } finally {
       if (n === epoch.current) setBusy(false);
     }
@@ -621,7 +681,7 @@ export function RefinementPanel({
           evidenceIds: unique([...prev.evidenceIds, e.id]),
         }));
         setMessage(
-          `근거 ${e.id} 등록. 원본 주장·추론·독립 실행 유형은 인간 검증과 별개입니다.`,
+          `근거 ${e.id} 등록. 실행 유형/ID는 그 자체로 실행 증명이 아닙니다. 신뢰 실행 영수증과 별도 인간 검토가 필요합니다. 원본 주장·추론과 구분하세요.`,
         );
       },
       true,
@@ -859,6 +919,7 @@ export function RefinementPanel({
                       <code>{e.id}</code> · {e.kind ?? "유형 미확인"} ·{" "}
                       {e.sourceId ? rootLink(e.sourceId) : "파생 근거"}
                     </p>
+                    <p>{executionEvidenceNotice(e)}</p>
                     <p>
                       원본 버전{" "}
                       <code>{e.sourceVersion ?? "부모 원본 참조"}</code> · 위치{" "}
@@ -874,6 +935,19 @@ export function RefinementPanel({
                   <p key={r.id}>
                     별도 인간 검토 {r.status} · 검증 이벤트 시각 {r.verifiedAt}{" "}
                     · {r.reason}
+                    {r.attestationStatus === "unverified" &&
+                      ` · 신뢰 영수증 미확인 (${r.attestationError}); 현재 실행 검증으로 사용하지 않음`}
+                    {r.executionReceipts?.map((p) => (
+                      <span style={{ display: "block" }} key={p.receiptId}>
+                        서명 확인된 실행 영수증 {p.receiptId} · 공급자{" "}
+                        {p.provider} · 실행 {p.executionId} · 실제 실행 시각{" "}
+                        {p.executedAt} · 실행자 {p.executorId} · 결과{" "}
+                        {p.outcome} · {rootLink(p.sourceId)} · 버전{" "}
+                        <code>{p.sourceVersion}</code> · 위치 {p.location.start}
+                        –{p.location.end}. 인간 검토 시각과 실제 실행 시각은
+                        별개입니다.
+                      </span>
+                    ))}
                   </p>
                 ))}
               </details>
@@ -1065,7 +1139,7 @@ export function RefinementPanel({
                     <option value="inference">파생 추론</option>
                     <option value="hypothesis">가설</option>
                     <option value="independent-execution">
-                      독립 실행 유형 (별도 인간 검증 필요)
+                      독립 실행 주장 (신뢰 영수증 + 별도 인간 검토 필요)
                     </option>
                   </select>
                 </Field>
@@ -1116,6 +1190,10 @@ export function RefinementPanel({
                     maxLength={100}
                   />
                 </Field>
+                <p>
+                  실행 ID는 영수증이 아닙니다. 서버에 승인된 검증 게이트웨이가
+                  없으면 미확인 상태이며 실행 검증으로 승격할 수 없습니다.
+                </p>
                 <Picker
                   label="파생 근거 부모"
                   items={evidenceOptions}
@@ -1505,7 +1583,7 @@ export function RefinementPanel({
                         검토 완료 (진실/실행 검증과 별개)
                       </option>
                       <option value="execution-verified">
-                        독립 실행 근거 검토
+                        신뢰 실행 영수증 + 독립 인간 검토
                       </option>
                     </>
                   ) : (

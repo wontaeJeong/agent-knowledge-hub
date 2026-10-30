@@ -28,6 +28,13 @@ import {
 } from "./logic";
 import type { SemanticLintProvider } from "./semantic";
 import { assertSafeModelInput, validateFindings } from "./semantic";
+import {
+  createExecutionChallenge,
+  type ExecutionBinding,
+  type ExecutionProof,
+  type ExecutionVerifier,
+  type ExecutionVerification,
+} from "./execution";
 
 const contextInput = z
   .object({
@@ -85,7 +92,23 @@ type ClaimReview = {
   verifiedAt: string;
   recordedAt: string;
   recordedBy: string;
+  attestationStatus?: "confirmed" | "unverified";
+  attestationError?: string;
+  executionReceipts?: {
+    receiptId: string;
+    provider: string;
+    executionId: string;
+    executorId: string;
+    executedAt: string;
+    outcome: string;
+    sourceId: string;
+    sourceVersion: string;
+    location: { start: number; end: number };
+  }[];
 };
+export interface RefinementOptions {
+  executionVerifier?: ExecutionVerifier;
+}
 const tables = {
   evidence: "refinement_evidence",
   claims: "refinement_claims",
@@ -166,8 +189,17 @@ export class RefinementService {
     readonly pool: Pool,
     readonly authorize: WorkflowAuthorizer,
     readonly provider?: SemanticLintProvider,
+    readonly options: RefinementOptions = {},
   ) {
     if (typeof authorize !== "function") throw Error("AUTHORIZER_REQUIRED");
+    const verifier = options.executionVerifier;
+    if (
+      verifier &&
+      (!id.safeParse(verifier.provider).success ||
+        typeof verifier.verify !== "function" ||
+        typeof verifier.assertProof !== "function")
+    )
+      throw Error("EXECUTION_VERIFIER_CONFIGURATION");
   }
   private async run<T>(
     ctx: Context,
@@ -354,39 +386,123 @@ export class RefinementService {
       ...this.stamp(ctx),
     });
   }
-  async addEvidence(ctx: Context, input: unknown) {
-    const d = evidenceInput.parse(input);
-    return this.run(ctx, "changeset.propose", undefined, async (db) => {
-      if (d.parentIds.includes(d.id)) throw Error("CIRCULAR_EVIDENCE");
-      if (d.verifiedAt !== null) throw Error("VERIFICATION_REQUIRES_REVIEW");
-      if (d.kind === "review") throw Error("REVIEW_REQUIRES_HUMAN");
+  private async prepareEvidence(
+    db: PoolClient,
+    ctx: Context,
+    d: z.infer<typeof evidenceInput>,
+  ) {
+    if (d.parentIds.includes(d.id)) throw Error("CIRCULAR_EVIDENCE");
+    if (d.verifiedAt !== null) throw Error("VERIFICATION_REQUIRES_REVIEW");
+    if (d.kind === "review") throw Error("REVIEW_REQUIRES_HUMAN");
+    if (
+      d.kind === "independent-execution" &&
+      (!d.executionId || d.parentIds.length || !d.sourceId)
+    )
+      throw Error("EVIDENCE_INVALID");
+    if (
+      (d.kind === "inference" || d.kind === "hypothesis") &&
+      !d.parentIds.length
+    )
+      throw Error("EVIDENCE_MISSING");
+    let root: string | null = null;
+    if (d.sourceId) {
+      const source = await this.source(db, ctx, d.sourceId),
+        loc = d.location;
       if (
-        d.kind === "independent-execution" &&
-        (!d.executionId || d.parentIds.length || !d.sourceId)
+        d.sourceVersion !== digest(source) ||
+        !loc ||
+        loc.end <= loc.start ||
+        source.content.slice(loc.start, loc.end) !== loc.quote
       )
         throw Error("EVIDENCE_INVALID");
-      if (
-        (d.kind === "inference" || d.kind === "hypothesis") &&
-        !d.parentIds.length
-      )
-        throw Error("EVIDENCE_MISSING");
-      let root: string | null = null;
-      if (d.sourceId) {
-        const source = await this.source(db, ctx, d.sourceId),
-          loc = d.location;
-        if (
-          d.sourceVersion !== digest(source) ||
-          !loc ||
-          loc.end <= loc.start ||
-          source.content.slice(loc.start, loc.end) !== loc.quote
-        )
-          throw Error("EVIDENCE_INVALID");
-        // Conservative content fingerprint: duplicate source imports are not independent support.
-        if (!d.parentIds.length) root = `source:${digest(source.content)}`;
-      } else if (d.sourceVersion || d.location) throw Error("EVIDENCE_INVALID");
-      if (!root && !d.parentIds.length) throw Error("EVIDENCE_MISSING");
-      for (const parent of d.parentIds) await this.evidence(db, ctx, parent);
-      const e: Evidence = { ...d, root, ...this.stamp(ctx) };
+      // Conservative content fingerprint: duplicate source imports are not independent support.
+      if (!d.parentIds.length) root = `source:${digest(source.content)}`;
+    } else if (d.sourceVersion || d.location) throw Error("EVIDENCE_INVALID");
+    if (!root && !d.parentIds.length) throw Error("EVIDENCE_MISSING");
+    for (const parent of d.parentIds) await this.evidence(db, ctx, parent);
+    const old = await db.query(
+      "SELECT data FROM refinement_evidence WHERE workspace_id=$1 AND id=$2",
+      [ctx.workspaceId, d.id],
+    );
+    if (old.rowCount) {
+      const {
+        root: _,
+        recordedAt: __,
+        recordedBy: ___,
+        executionVerification: ____,
+        ...prior
+      } = old.rows[0].data as Evidence;
+      if (digest(prior) !== digest(d)) throw Error("IDEMPOTENCY_CONFLICT");
+      await this.evidence(db, ctx, d.id);
+      return { root, existing: old.rows[0].data as Evidence };
+    }
+    return { root, existing: undefined };
+  }
+  private executionBinding(
+    ctx: Context,
+    e: z.infer<typeof evidenceInput>,
+  ): ExecutionBinding {
+    if (!e.executionId || !e.sourceId || !e.sourceVersion || !e.location)
+      throw Error("INDEPENDENT_EXECUTION_REQUIRED");
+    return {
+      workspaceId: ctx.workspaceId,
+      evidenceId: e.id,
+      executionId: e.executionId,
+      sourceId: e.sourceId,
+      sourceVersion: e.sourceVersion,
+      location: e.location,
+    };
+  }
+  async addEvidence(ctx: Context, input: unknown) {
+    const d = evidenceInput.parse(input);
+    const prepared = await this.run(ctx, "changeset.propose", undefined, (db) =>
+      this.prepareEvidence(db, ctx, d),
+    );
+    if (prepared.existing) return prepared.existing;
+    let executionVerification: ExecutionVerification | undefined;
+    const verifier = this.options.executionVerifier;
+    if (d.kind === "independent-execution") {
+      executionVerification = {
+        status: "unverified",
+        reason: "EXECUTION_VERIFIER_UNCONFIGURED",
+      };
+      if (verifier) {
+        const binding = this.executionBinding(ctx, d),
+          challenge = createExecutionChallenge(binding, verifier.provider);
+        // No DB transaction/client/lock is held while invoking the external trusted gateway.
+        executionVerification = verifier.assertProof(
+          await verifier.verify(challenge),
+          binding,
+        );
+      }
+    }
+    return this.run(ctx, "changeset.propose", undefined, async (db) => {
+      // All ACLs, parent provenance and canonical source identity are checked again after the await.
+      const fresh = await this.prepareEvidence(db, ctx, d);
+      if (fresh.existing) return fresh.existing;
+      if (executionVerification?.status === "attested") {
+        const proof = verifier!.assertProof(
+          executionVerification,
+          this.executionBinding(ctx, d),
+        );
+        const replay = await db.query(
+          "SELECT 1 FROM refinement_evidence WHERE workspace_id=$1 AND id<>$2 AND data->'executionVerification'->>'status'='attested' AND data->'executionVerification'->>'provider'=$3 AND (data->'executionVerification'->'receipt'->>'receiptId'=$4 OR data->>'executionId'=$5)",
+          [
+            ctx.workspaceId,
+            d.id,
+            proof.provider,
+            proof.receipt.receiptId,
+            d.executionId,
+          ],
+        );
+        if (replay.rowCount) throw Error("EXECUTION_RECEIPT_REPLAY");
+      }
+      const e: Evidence = {
+        ...d,
+        root: fresh.root,
+        ...(executionVerification ? { executionVerification } : {}),
+        ...this.stamp(ctx),
+      };
       lineageRoots(
         [
           ...(await this.all<Evidence>(db, ctx, "evidence")).filter(
@@ -398,6 +514,62 @@ export class RefinementService {
       );
       return this.put(db, ctx, "evidence", e);
     });
+  }
+  private async trustedExecutions(
+    db: PoolClient,
+    ctx: Context,
+    evidence: Evidence[],
+    claims: Claim[],
+  ): Promise<ExecutionProof[]> {
+    const candidates = evidence.filter(
+      (e) =>
+        e.kind === "independent-execution" &&
+        !e.parentIds.length &&
+        e.executionId,
+    );
+    if (!candidates.length) throw Error("INDEPENDENT_EXECUTION_REQUIRED");
+    const verifier = this.options.executionVerifier;
+    if (!verifier) throw Error("EXECUTION_VERIFIER_UNCONFIGURED");
+    const proofs: ExecutionProof[] = [];
+    for (const e of candidates) {
+      if (e.executionVerification?.status !== "attested") continue;
+      if (e.executionVerification.provider !== verifier.provider)
+        throw Error("EXECUTION_VERIFIER_CONFIGURATION");
+      const currentSource = await this.source(db, ctx, e.sourceId!);
+      if (digest(currentSource) !== e.sourceVersion)
+        throw Error("EXECUTION_SOURCE_CHANGED");
+      proofs.push(
+        verifier.assertProof(
+          e.executionVerification,
+          this.executionBinding(ctx, e),
+        ),
+      );
+    }
+    if (!proofs.length) throw Error("TRUSTED_EXECUTION_REQUIRED");
+    for (const claim of claims) {
+      const referenced: Evidence[] = [],
+        seen = new Set<string>();
+      const visit = async (eid: string): Promise<void> => {
+        if (seen.has(eid)) return;
+        seen.add(eid);
+        const e = await this.evidence(db, ctx, eid);
+        referenced.push(e);
+        for (const p of e.parentIds) await visit(p);
+      };
+      for (const eid of claim.evidenceIds) await visit(eid);
+      if (
+        !proofs.some((p) =>
+          referenced.some(
+            (e) =>
+              e.sourceId === p.receipt.sourceId &&
+              e.sourceVersion === p.receipt.sourceVersion &&
+              digest(e.location) === digest(p.receipt.location),
+          ),
+        )
+      )
+        throw Error("EXECUTION_CLAIM_MISMATCH");
+    }
+    return proofs;
   }
   async addClaim(ctx: Context, input: unknown) {
     const d = claimInput.parse(input);
@@ -471,15 +643,90 @@ export class RefinementService {
           for (const parent of e.parentIds) await collect(parent);
         };
         for (const eid of c.evidenceIds) await collect(eid);
-        const evidence = [...lineage.values()];
+        const evidence = await Promise.all(
+          [...lineage.values()].map(async (e) => {
+            if (e.kind !== "independent-execution")
+              return { ...e, executionAttestation: undefined };
+            try {
+              const [proof] = await this.trustedExecutions(db, ctx, [e], []);
+              return {
+                ...e,
+                executionAttestation: {
+                  status: "attested-unreviewed",
+                  provider: proof.provider,
+                  executorId: proof.receipt.executorId,
+                  executedAt: proof.receipt.executedAt,
+                  outcome: proof.receipt.outcome,
+                },
+              };
+            } catch (error) {
+              if (error instanceof Error && error.message === "NOT_FOUND")
+                throw error;
+              return {
+                ...e,
+                executionAttestation: {
+                  status: "unverified",
+                  reason:
+                    error instanceof Error &&
+                    /^[A-Z_]{1,80}$/.test(error.message)
+                      ? error.message
+                      : "EXECUTION_ATTESTATION_INVALID",
+                },
+              };
+            }
+          }),
+        );
         const verificationReviews: ClaimReview[] = [];
         for (const r of reviews
           .filter((r) => r.claimIds?.includes(c.id))
           .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt)))
           try {
-            for (const cid of r.claimIds) await this.claim(db, ctx, cid);
-            for (const e of r.evidenceIds) await this.evidence(db, ctx, e);
-            verificationReviews.push(r);
+            const reviewClaims = await Promise.all(
+              r.claimIds.map((cid) => this.claim(db, ctx, cid)),
+            );
+            const reviewEvidence = await Promise.all(
+              r.evidenceIds.map((e) => this.evidence(db, ctx, e)),
+            );
+            if (r.status === "execution-verified") {
+              try {
+                const proofs = await this.trustedExecutions(
+                  db,
+                  ctx,
+                  reviewEvidence,
+                  reviewClaims,
+                );
+                verificationReviews.push({
+                  ...r,
+                  attestationStatus: "confirmed",
+                  executionReceipts: proofs.map((p) => ({
+                    receiptId: p.receipt.receiptId,
+                    provider: p.provider,
+                    executionId: p.receipt.executionId,
+                    executorId: p.receipt.executorId,
+                    executedAt: p.receipt.executedAt,
+                    outcome: p.receipt.outcome,
+                    sourceId: p.receipt.sourceId,
+                    sourceVersion: p.receipt.sourceVersion,
+                    location: {
+                      start: p.receipt.location.start,
+                      end: p.receipt.location.end,
+                    },
+                  })),
+                });
+              } catch (error) {
+                if (error instanceof Error && error.message === "NOT_FOUND")
+                  throw error;
+                verificationReviews.push({
+                  ...r,
+                  attestationStatus: "unverified",
+                  attestationError:
+                    error instanceof Error &&
+                    /^[A-Z_]{1,80}$/.test(error.message)
+                      ? error.message
+                      : "EXECUTION_ATTESTATION_INVALID",
+                });
+              }
+            } else verificationReviews.push(r);
           } catch (e) {
             if (!(e instanceof Error && e.message === "NOT_FOUND")) throw e;
           }
@@ -492,7 +739,11 @@ export class RefinementService {
             ),
           ],
           verificationReviews,
-          validation: verificationReviews.at(-1)?.status ?? "unverified",
+          validation:
+            verificationReviews.at(-1)?.status === "execution-verified" &&
+            verificationReviews.at(-1)?.attestationStatus !== "confirmed"
+              ? "unverified"
+              : (verificationReviews.at(-1)?.status ?? "unverified"),
           authority: "review-candidate" as const,
           validAtRequestedTime: selected.items.some((s) => s.id === c.id),
           missingConditions: Object.keys(c.conditions).filter(
@@ -599,8 +850,10 @@ export class RefinementService {
       .parse(input);
     return this.run(ctx, "knowledge.protect", undefined, async (db) => {
       if (ctx.credentialId) throw Error("REVIEW_REQUIRES_HUMAN");
+      const claims: Claim[] = [];
       for (const cid of d.claimIds) {
         const c = await this.claim(db, ctx, cid);
+        claims.push(c);
         await this.authorize(db, ctx, "knowledge.protect", {
           kind: "page",
           id: c.pageId,
@@ -611,18 +864,15 @@ export class RefinementService {
       const evidence = await Promise.all(
         d.evidenceIds.map((e) => this.evidence(db, ctx, e)),
       );
-      if (
-        d.status === "execution-verified" &&
-        !evidence.some(
-          (e) =>
-            e.kind === "independent-execution" &&
-            !e.parentIds.length &&
-            e.executionId,
-        )
-      )
-        throw Error("INDEPENDENT_EXECUTION_REQUIRED");
+      const proofs =
+        d.status === "execution-verified"
+          ? await this.trustedExecutions(db, ctx, evidence, claims)
+          : [];
       return this.put(db, ctx, "reviews", {
         ...d,
+        ...(proofs.length
+          ? { executionReceiptIds: proofs.map((p) => p.receipt.receiptId) }
+          : {}),
         kind: "review" as const,
         verifiedAt: new Date().toISOString(),
         ...this.stamp(ctx),
@@ -920,12 +1170,17 @@ export class RefinementService {
     await this.run(ctx, "lint.run", undefined, recheck);
     if (!this.provider)
       return { status: "unconfigured" as const, findings: [] };
+    // Models receive claims/quotes and public summaries, never signed receipt envelopes.
+    const modelClaims = context.items.map((c) => ({
+      ...c,
+      evidence: c.evidence.map(({ executionVerification: _, ...e }) => e),
+    }));
     let findings;
     try {
-      assertSafeModelInput({ claims: context.items });
+      assertSafeModelInput({ claims: modelClaims });
       findings = validateFindings(
-        await this.provider({ claims: context.items }),
-        context.items,
+        await this.provider({ claims: modelClaims }),
+        modelClaims,
       );
     } catch {
       return { status: "error" as const, code: "MODEL_FAILED", findings: [] };

@@ -10,7 +10,25 @@ import {
   queueRefinement,
   semanticNotice,
   refinementPage,
+  executionEvidenceNotice,
 } from "./refinement";
+test("claimed execution kind/ID without authenticated attestation never renders as independently verified", () => {
+  expect(
+    executionEvidenceNotice({ id: "e1", kind: "independent-execution" }),
+  ).toContain("미확인");
+  expect(
+    executionEvidenceNotice({
+      id: "e1",
+      kind: "independent-execution",
+      executionAttestation: {
+        status: "attested-unreviewed",
+        executedAt: "2026-10-30T00:00:00Z",
+        executorId: "trusted-runner",
+        outcome: "success",
+      },
+    }),
+  ).toContain("인간 검토와 별개");
+});
 
 test("normal context/evidence/claim builders keep distinct time semantics and exact source quote", () => {
   expect(

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ExecutionVerification } from "./execution";
 export const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const time = z.iso.datetime();
 export const conditions = z
@@ -35,6 +36,7 @@ export type Evidence = z.infer<typeof evidenceInput> & {
   root: string | null;
   recordedAt: string;
   recordedBy: string;
+  executionVerification?: ExecutionVerification;
 };
 export const claimInput = z
   .object({

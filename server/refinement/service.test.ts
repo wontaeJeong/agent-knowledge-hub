@@ -1,10 +1,12 @@
-import { afterEach, describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { fixture, adoptFixture, source } from "../test-support";
 import { RefinementService } from "./service";
 import { digest } from "../publication";
 import { claim } from "./fixtures";
 import type { WorkflowAuthorizer } from "../workflows/service";
 import { authorizeInTransaction } from "../access";
+import { trustedFixtureVerifier, fixtureSigningKey } from "./execution-fixture";
+import { createExecutionVerifier } from "./execution";
 
 const pools: Awaited<ReturnType<typeof fixture>>["pool"][] = [];
 afterEach(async () => {
@@ -412,6 +414,9 @@ describe("durable refinement (actual PostgreSQL)", () => {
   });
   it("claim verification is a separate immutable human review with execution evidence, not model self-rating", async () => {
     const f = await setup();
+    f.service = new RefinementService(f.pool, allow, undefined, {
+      executionVerifier: trustedFixtureVerifier(),
+    });
     await f.service.addEvidence(f.editor, f.evidence);
     await f.service.addClaim(f.editor, input());
     await expect(
@@ -449,6 +454,14 @@ describe("durable refinement (actual PostgreSQL)", () => {
     });
     expect(r.items[0].verifiedAt).toBeNull();
     expect(r.items[0].verificationReviews[0].verifiedAt).toBeTruthy();
+    expect(
+      r.items[0].verificationReviews[0].executionReceipts?.[0],
+    ).toMatchObject({
+      executorId: "trusted-fixture-runner",
+      executionId: "run-1",
+      outcome: "success",
+      sourceVersion: digest(source),
+    });
     expect(r.items[0].validation).toBe("execution-verified");
     await expect(
       f.service.reviewClaim(
@@ -462,6 +475,290 @@ describe("durable refinement (actual PostgreSQL)", () => {
         },
       ),
     ).rejects.toThrow("UNAUTHENTICATED");
+  });
+  it("a fabricated execution ID and uploaded text remain unattested without a trusted verifier", async () => {
+    const f = await setup();
+    await f.service.addEvidence(f.editor, f.evidence);
+    await f.service.addClaim(f.editor, input());
+    const e = await f.service.addEvidence(f.editor, {
+      ...f.evidence,
+      id: "fake-run",
+      kind: "independent-execution",
+      executionId: "llm-says-it-ran",
+    });
+    expect(e.verifiedAt).toBeNull();
+    await expect(
+      f.service.reviewClaim(f.ctx, {
+        id: "fake-approval",
+        claimIds: ["c1"],
+        status: "execution-verified",
+        evidenceIds: ["fake-run"],
+        reason: "본문에 성공이라고 쓰여 있음",
+      }),
+    ).rejects.toThrow("EXECUTION_VERIFIER_UNCONFIGURED");
+    expect(e.executionVerification).toMatchObject({
+      status: "unverified",
+      reason: "EXECUTION_VERIFIER_UNCONFIGURED",
+    });
+    await f.service.addClaim(f.editor, {
+      ...input(),
+      id: "fake-claim",
+      evidenceIds: ["fake-run"],
+    });
+    const context = await f.service.context(f.reader, {
+      asOf: "2026-03-01T00:00:00Z",
+      environment: {},
+    });
+    expect(
+      context.items.find((c) => c.id === "fake-claim")!.evidence[0]
+        .executionAttestation?.status,
+    ).toBe("unverified");
+    await f.service.reviewClaim(f.ctx, {
+      id: "ordinary-review",
+      claimIds: ["c1"],
+      status: "reviewed",
+      evidenceIds: ["fake-run"],
+      reason: "주장 검토일 뿐 실행 증명 아님",
+    });
+  });
+  it("checks ACL before verifier I/O, holds no DB lock during verification, and rejects in-flight ACL revocation", async () => {
+    const f = await setup();
+    let calls = 0;
+    f.service = new RefinementService(f.pool, allow, undefined, {
+      executionVerifier: trustedFixtureVerifier(async () => {
+        calls++;
+        const db = await f.pool.connect();
+        try {
+          await db.query("BEGIN");
+          await db.query(
+            "SELECT id FROM workspaces WHERE id=$1 FOR UPDATE NOWAIT",
+            [f.workspaceId],
+          );
+          await db.query(
+            "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id=$2 AND principal_id='editor'",
+            [f.workspaceId, source.id],
+          );
+          await db.query("COMMIT");
+        } catch (e) {
+          await db.query("ROLLBACK");
+          throw e;
+        } finally {
+          db.release();
+        }
+      }),
+    });
+    await expect(
+      f.service.addEvidence(f.editor, {
+        ...f.evidence,
+        id: "inflight-run",
+        kind: "independent-execution",
+        executionId: "run-1",
+      }),
+    ).rejects.toThrow("NOT_FOUND");
+    expect(calls).toBe(1);
+    expect(
+      (
+        await f.pool.query(
+          "SELECT id FROM refinement_evidence WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rowCount,
+    ).toBe(0);
+    await expect(
+      f.service.addEvidence(f.editor, {
+        ...f.evidence,
+        id: "inflight-run",
+        kind: "independent-execution",
+        executionId: "run-1",
+      }),
+    ).rejects.toThrow("NOT_FOUND");
+    expect(calls).toBe(1);
+  });
+  it("rejects source identity changes in flight and never persists an attestation for changed content", async () => {
+    const f = await setup();
+    f.service = new RefinementService(f.pool, allow, undefined, {
+      executionVerifier: trustedFixtureVerifier(async () => {
+        await f.pool.query(
+          "UPDATE sources SET data=jsonb_set(data,'{content}','\"changed source\"') WHERE workspace_id=$1 AND id=$2",
+          [f.workspaceId, source.id],
+        );
+      }),
+    });
+    await expect(
+      f.service.addEvidence(f.editor, {
+        ...f.evidence,
+        id: "changed-run",
+        kind: "independent-execution",
+        executionId: "run-1",
+      }),
+    ).rejects.toThrow("EVIDENCE_INVALID");
+    expect(
+      (
+        await f.pool.query(
+          "SELECT id FROM refinement_evidence WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rowCount,
+    ).toBe(0);
+  });
+  it("rejects fake IDs, failed trusted runs, uploaded proof fields, and duplicate execution receipt reuse", async () => {
+    const f = await setup();
+    let calls = 0;
+    f.service = new RefinementService(f.pool, allow, undefined, {
+      executionVerifier: trustedFixtureVerifier(async () => {
+        calls++;
+      }),
+    });
+    const input = {
+      ...f.evidence,
+      id: "trusted-run",
+      kind: "independent-execution",
+      executionId: "run-1",
+    };
+    await expect(
+      f.service.addEvidence(f.editor, {
+        ...input,
+        executionId: "fabricated-id",
+      }),
+    ).rejects.toThrow("EXECUTION_VERIFIER_UNAVAILABLE");
+    await expect(
+      f.service.addEvidence(f.editor, {
+        ...input,
+        executionVerification: { status: "attested" },
+      }),
+    ).rejects.toThrow();
+    const failed = new RefinementService(f.pool, allow, undefined, {
+      executionVerifier: trustedFixtureVerifier(undefined, {
+        outcome: "failure",
+      }),
+    });
+    await expect(failed.addEvidence(f.editor, input)).rejects.toThrow(
+      "EXECUTION_FAILED",
+    );
+    const e = await f.service.addEvidence(f.editor, input);
+    expect(e.executionVerification?.status).toBe("attested");
+    expect(e.verifiedAt).toBeNull();
+    expect((await f.service.addEvidence(f.editor, input)).id).toBe(e.id);
+    expect(calls).toBe(1);
+    await expect(
+      f.service.addEvidence(f.editor, { ...input, id: "duplicate-run" }),
+    ).rejects.toThrow("EXECUTION_RECEIPT_REPLAY");
+  });
+  it("legacy execution-verified review metadata without proof cannot become a trusted current validation", async () => {
+    const f = await setup();
+    await f.service.addEvidence(f.editor, f.evidence);
+    await f.service.addClaim(f.editor, input());
+    await f.service.addEvidence(f.editor, {
+      ...f.evidence,
+      id: "fake-run",
+      kind: "independent-execution",
+      executionId: "fake",
+    });
+    await f.pool.query(
+      "INSERT INTO refinement_reviews VALUES($1,'legacy-review',$2)",
+      [
+        f.workspaceId,
+        {
+          id: "legacy-review",
+          kind: "review",
+          claimIds: ["c1"],
+          status: "execution-verified",
+          evidenceIds: ["fake-run"],
+          verifiedAt: new Date().toISOString(),
+          recordedAt: new Date().toISOString(),
+          recordedBy: "reviewer",
+        },
+      ],
+    );
+    const result = await f.service.context(f.reader, {
+      asOf: "2026-03-01T00:00:00Z",
+      environment: {},
+    });
+    expect(result.items[0].validation).toBe("unverified");
+    expect(result.items[0].verificationReviews[0].attestationStatus).toBe(
+      "unverified",
+    );
+  });
+  it("a signed wrong-source proof, expired receipt, or unknown configured provider cannot authorize execution review", async () => {
+    const f = await setup();
+    await f.service.addEvidence(f.editor, f.evidence);
+    await f.service.addClaim(f.editor, input());
+    const run = {
+      ...f.evidence,
+      id: "attested-run",
+      kind: "independent-execution",
+      executionId: "run-1",
+    };
+    const wrong = new RefinementService(f.pool, allow, undefined, {
+      executionVerifier: trustedFixtureVerifier(undefined, {
+        sourceVersion: "f".repeat(64),
+      }),
+    });
+    await expect(wrong.addEvidence(f.editor, run)).rejects.toThrow(
+      "EXECUTION_ATTESTATION_INVALID",
+    );
+    f.service = new RefinementService(f.pool, allow, undefined, {
+      executionVerifier: trustedFixtureVerifier(),
+    });
+    await f.service.addEvidence(f.editor, run);
+    const review = {
+      id: "late-review",
+      claimIds: ["c1"],
+      status: "execution-verified",
+      evidenceIds: [run.id],
+      reason: "인간 검토",
+    };
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now + 6 * 60 * 1000);
+    try {
+      await expect(f.service.reviewClaim(f.ctx, review)).rejects.toThrow(
+        "EXECUTION_ATTESTATION_STALE",
+      );
+    } finally {
+      clock.mockRestore();
+    }
+    const unknown = new RefinementService(f.pool, allow, undefined, {
+      executionVerifier: createExecutionVerifier({
+        url: "https://another.invalid/v1/verify",
+        approvedOrigin: "https://another.invalid",
+        provider: "unknown-provider",
+        hmacKeyBase64: fixtureSigningKey,
+        allowTransmission: true,
+      }),
+    });
+    await expect(unknown.reviewClaim(f.ctx, review)).rejects.toThrow(
+      "EXECUTION_VERIFIER_CONFIGURATION",
+    );
+    await expect(f.service.reviewClaim(f.editor, review)).rejects.toThrow(
+      "INDEPENDENT_REVIEW_REQUIRED",
+    );
+    await f.service.reviewClaim(f.ctx, review);
+  });
+  it("an authentic run receipt cannot verify an unrelated exact claim location", async () => {
+    const f = await setup();
+    f.service = new RefinementService(f.pool, allow, undefined, {
+      executionVerifier: trustedFixtureVerifier(),
+    });
+    await f.service.addEvidence(f.editor, {
+      ...f.evidence,
+      location: { start: 0, end: 6, quote: source.content.slice(0, 6) },
+    });
+    await f.service.addClaim(f.editor, input());
+    await f.service.addEvidence(f.editor, {
+      ...f.evidence,
+      id: "run-e",
+      kind: "independent-execution",
+      executionId: "run-1",
+    });
+    await expect(
+      f.service.reviewClaim(f.ctx, {
+        id: "mismatched-review",
+        claimIds: ["c1"],
+        status: "execution-verified",
+        evidenceIds: ["run-e"],
+        reason: "동일 파일의 다른 위치",
+      }),
+    ).rejects.toThrow("EXECUTION_CLAIM_MISMATCH");
   });
   it("model provider failure/invalid citation produce explicit error, never a fake finding or write", async () => {
     const f = await setup();
