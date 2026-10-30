@@ -451,6 +451,10 @@ export function RefinementPanel({
       .map((p) => `${p.id}:${p.version ?? p.versions?.at(-1)?.number}`)
       .join("|");
   function clearProtected() {
+    setSourcePage(0);
+    setContextPage(0);
+    setRequestPage(0);
+    setOutcomePage(0);
     setContext({ items: [] });
     setRequests([]);
     setOutcomes([]);
