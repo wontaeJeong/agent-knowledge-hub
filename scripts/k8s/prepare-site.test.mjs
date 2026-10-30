@@ -13,6 +13,8 @@ const example = (environment = "stg") => ({
   tlsSecretName: "knowledge-tls",
   oidcIssuer: "https://login.example.org/realms/work",
   oidcClientId: "knowledge-" + environment,
+  oidcGroupRoles: { "company-wiki-readers": "reader",
+    "company-wiki-writers": "editor", "company-wiki-reviewers": "reviewer" },
   appImage: "registry.example.org/knowledge/app@" + digest,
   postgresImage: "docker.io/library/postgres@" + digest,
   ingressController: {
@@ -20,7 +22,7 @@ const example = (environment = "stg") => ({
     podLabels: { "app.kubernetes.io/name": "ingress-controller" },
   },
   oidcEgressCidrs: ["10.23.42.10/32"],
-  modelEgressCidrs: ["10.23.42.20/32"],
+  modelEgress: [{ cidr: "10.23.42.20/32", port: 8000 }],
   quota: {
     requestsCpu: "2",
     requestsMemory: "2Gi",
@@ -47,8 +49,9 @@ test("separate site overlays have immutable images, HTTPS and env-specific names
       { "app.kubernetes.io/name": "ingress-controller" });
     const outbound = JSON.parse(files["external-egress.json"]);
     assert.equal(outbound.spec.egress.length, 2);
+    assert.equal(outbound.spec.egress[1].ports[0].port, 8000);
     assert.ok(outbound.spec.egress.every((rule) =>
-      rule.ports[0].port === 443 && rule.to[0].ipBlock.cidr !== "0.0.0.0/0"));
+      rule.ports[0].port > 0 && rule.to[0].ipBlock.cidr !== "0.0.0.0/0"));
     assert.equal(JSON.parse(files["quota.json"]).spec.hard.pods, "8");
     assert.ok(Object.keys(files).every((n) => n !== "secrets.yaml"));
   }
@@ -64,7 +67,9 @@ test("production generation refuses unsafe or incomplete settings", () => {
   bad({ postgresImage: "postgres:17.6-bookworm" });
   bad({ oidcEgressCidrs: [] });
   bad({ oidcEgressCidrs: ["0.0.0.0/0"] });
-  bad({ modelEgressCidrs: ["::/0"] });
+  bad({ modelEgress: [{ cidr: "::/0", port: 443 }] });
+  bad({ modelEgress: [{ cidr: "10.1.0.1/32", port: 65536 }] });
+  bad({ oidcGroupRoles: {} });
   bad({ ingressController: { namespace: "ingress-system", podLabels: {} } });
   bad({ quota: { limitsCpu: "4" } });
   bad({ DATABASE_PASSWORD: "should-not-be-serialized" });
@@ -80,6 +85,6 @@ test("generator never overwrites a reviewed site", () => {
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 test("site without separate model connection allows OIDC only", () => {
-  const files = siteFiles({ ...example("prod"), modelEgressCidrs: [] });
+  const files = siteFiles({ ...example("prod"), modelEgress: [] });
   assert.equal(JSON.parse(files["external-egress.json"]).spec.egress.length, 1);
 });
