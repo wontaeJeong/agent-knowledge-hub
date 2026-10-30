@@ -76,6 +76,56 @@ node scripts/k8s/validate-production.mjs /path/to/reviewed/site-overlay
 
 이 검사는 리소스별 immutable image/개발 placeholder/평문 Secret/HTTPS·TLS/기본 거부 정책을 정적으로 검사한다. 통과가 실제 인증·네트워크·복원·지식 품질을 보장하지는 않는다. 기본 템플릿이 검사에 실패하는 것은 의도된 배포 차단이다.
 
+## STG/PROD 운영 사이트 설정과 단계별 배포 도구 (2026-10-30)
+
+기존 `deploy/overlays/stg`·`prod`는 운영 미설정 템플릿이다. 설정값이 하드코딩된 리소스를 직접 적용하지 않는다. **`deploy/examples/site-*.example.json`을 복사하여 각 사이트의 비밀이 아닌 값만 채운다.** 샘플의 CHANGE-ME·가짜 digest·invalid 호스트로는 생성기가 실패한다. 실제 사이트 파일/생성물은 `/deploy/sites/`에 두고 Git에 올리지 않는다.
+
+| 설정 | 확인할 내용 |
+| --- | --- |
+| `appHost` · `ingressClass` · `tlsSecretName` | 환경별 서로 다른 FQDN, 실제 ingress class, 인증서 Secret |
+| `oidcIssuer` · `oidcClientId` · `oidcGroupRoles` | HTTPS 사내 IdP issuer, 클라이언트 등록, 실제 그룹→reader/editor/reviewer |
+| `appImage` · `postgresImage` | 모든 이미지의 검증된 `@sha256` digest; App 이미지의 STG→PROD 동일 digest 승격 |
+| `ingressController` | Ingress 컨트롤러의 실제 **네임스페이스와 Pod 라벨**. NetworkPolicy의 namespaceSelector + podSelector 일치 필요 |
+| `oidcEgressCidrs` | IdP로 향하는 HTTPS 443의 실제, 필요한 목적지 IP/CIDR만 입력. DNS 반환·로드밸런서 IP가 변할 수 있으므로 운영자와 검토 |
+| `modelEgress` | 선택적인 온프레미스/게이트웨이 목적지 IP/CIDR + 명시적 TCP 포트(예: 8000). 미사용이면 빈 배열 |
+| `quota` · `dbStorageClass` | 실제 네임스페이스 용량 제한 및 PVC StorageClass. STG와 PROD 개별 계산 |
+
+```bash
+cp deploy/examples/site-stg.example.json /secure/path/site-stg.json
+cp deploy/examples/site-prod.example.json /secure/path/site-prod.json
+# 두 JSON을 수정: 실제 호스트/IDP/이미지 digest/네트워크/자원으로 교체
+node scripts/k8s/prepare-site.mjs /secure/path/site-stg.json
+node scripts/k8s/prepare-site.mjs /secure/path/site-prod.json
+
+# 변경 내용을 사람이 리뷰한 다음, 실제 클러스터 적용 전 정적 검증
+node scripts/k8s/validate-production.mjs deploy/sites/stg
+node scripts/k8s/validate-production.mjs deploy/sites/prod
+node scripts/k8s/deploy-site.mjs CONTEXT_NAME stg deploy/sites/stg
+node scripts/k8s/deploy-site.mjs CONTEXT_NAME prod deploy/sites/prod
+```
+
+생성기는 기존 `deploy/sites/stg` 또는 `deploy/sites/prod` 디렉터리를 **덮어쓰지 않는다**. 설정 갱신 시 승인된 원본 JSON을 수정하고 기존 생성 폴더를 보관/이동 후 다시 생성·검토한다. 출력은 Kustomize 설정, 이미지 digest, HTTPS/OIDC 공개 설정, Ingress·IdP/모델 egress NetworkPolicy, ResourceQuota다. DB 비밀번호, OIDC client secret, TLS 개인키 같은 **Secret은 절대 생성하지 않는다.**
+
+운영 대상 네임스페이스는 사전에 생성하고 아래 **서로 다른 Secret**을 승인된 비밀 관리 흐름(External Secrets/Secret 관리 등)으로 주입한다. 비밀번호를 쉘 인자·레포·로그·PR에 기록하지 않는다.
+
+- `knowledge-db-secret`: `password`. 환경별로 서로 다른 충분히 긴 비밀번호.
+- `knowledge-secrets`: `DATABASE_URL` (`postgres://knowledge:<password>@knowledge-db:5432/knowledge`, 실제 비밀번호 URL 인코딩), `OIDC_CLIENT_SECRET`. 다른 모델 키 등 선택적 비밀도 여기서 공급.
+- `knowledge-tls` 또는 사이트에서 명시한 이름: `kubernetes.io/tls` 형식의 유효한 TLS 인증서와 키. Hostname/SAN/체인은 별도로 실제 TLS 검증이 필요.
+
+```bash
+# 별도 승인 후에만 적용한다. 컨텍스트를 명시하며 기본 kubectl context에 의존하지 않는다.
+node scripts/k8s/deploy-site.mjs CONTEXT_NAME stg deploy/sites/stg --apply
+
+# STG의 실사용 SSO 로그인/권한/모델/Ingress/CNI/백업·복원/합성 부하 인수 후
+node scripts/k8s/deploy-site.mjs CONTEXT_NAME prod deploy/sites/prod --apply --approve-prod
+```
+
+운영 스크립트는 리소스가 실제 네임스페이스 1곳을 가리키는지, 기본 격리·허용 네트워크 정책·리소스 제한·TLS·이미지 digest/앱 1·DB 1 상태인지 정적으로 확인한다. `--apply` 때 **대상 컨텍스트/네임스페이스의 Secret 존재와 DB URL↔DB 비밀번호 일치**를 먼저 확인한다. PROD는 같은 컨텍스트의 STG Deployment App 이미지 digest와 다르면 차단한다. 이후 인프라 적용→DB StatefulSet 준비→**별도 migration Job 성공**→App 배포/rollout 순서로 실행한다. Migration Job은 서버 이미지와 동일하며 권한·환경변수·보안설정을 상속하고 앱 readiness/liveness probe는 제거한다. 실패하면 새 App 배포를 진행하지 않는다.
+
+주의: 현재 앱의 `Recreate` 배포는 중단이 발생할 수 있다. DB 스키마 변경은 **하위 호환 마이그레이션만** 기존 앱 실행 중 적용한다. 실행기는 정적 검사·요청 순서 도구이지 DB 롤백/무중단 운영·실제 CNI 정책 집행/IdP·TLS 연결/SSO 그룹 권한·모델 엔드포인트/복원을 보장하지 않는다. 단일 클러스터의 STG·PROD는 공유 노드/Ingress/스토리지 장애의 영향권에 있을 수 있다. 승인된 클러스터, DNS, ingress-controller label, Secret 공급, 스토리지 및 실제 사용자 승인/규정은 운영자가 확인해야 한다.
+
+CI에서는 비밀 없이 `deploy/fixtures/site-ci-*.json`만 렌더링하여 테스트한다. 이 주소·이미지 digest·IP 대역은 **합성 fixture**이며 사용 가능한 실제 서비스 값이 아니다. 운영 인수에는 반드시 실제 환경 확인이 추가로 필요하다.
+
 ## DB 백업과 폐기용 복원 검증
 
 ```sh
