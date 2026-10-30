@@ -4,6 +4,7 @@ import type { Pool, PoolClient } from "pg";
 import * as oidc from "openid-client";
 import type { Role } from "../../src/domain/types";
 import type { Context } from "../service";
+import { workspaceHref } from "../../src/entry";
 
 export const sessionHash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -225,7 +226,7 @@ export class OidcAuth {
       session,
       Math.min(tokens.expires_in || 300, 3600),
     );
-    res.writeHead(302, { Location: "/" });
+    res.writeHead(302, { Location: workspaceHref });
     res.end();
   }
   async authenticate(req: IncomingMessage): Promise<Session | null> {

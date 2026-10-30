@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-30",
+  "browser": "153.0.8010.0",
+  "build": "production dist",
+  "measures": [
+    {
+      "width": 320,
+      "scrollWidth": 320,
+      "tableWidth": 278,
+      "tableScroll": 660
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "tableWidth": 348,
+      "tableScroll": 660
+    },
+    {
+      "width": 768,
+      "scrollWidth": 768,
+      "tableWidth": 718,
+      "tableScroll": 718
+    },
+    {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "tableWidth": 1138,
+      "tableScroll": 1138
+    }
+  ],
+  "checks": [
+    "public landing requests no API/auth or application chunks",
+    "one h1 and no full-page overflow at 320/390/768/1440",
+    "Memory/RAG/Wiki interaction and Enter keyboard activation",
+    "FAQ expand",
+    "light/dark persistence across reload",
+    "mobile comparison table internal scroll",
+    "workspace CTA leads to login on mocked 401",
+    "demo CTA and existing hash roadmap",
+    "storage blocked render and theme interaction"
+  ],
+  "pageErrors": [],
+  "limitations": [
+    "workspace authentication state uses a mocked 401; no real IdP or database in this browser run",
+    "Pretendard installed only in isolated QA fontconfig; product uses installed fonts and fallback"
+  ]
+}
