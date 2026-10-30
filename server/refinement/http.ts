@@ -24,6 +24,8 @@ export async function handleRefinementRoute(
     if (route === "outcomes") return reply(await service.outcomes(ctx));
   }
   if (method !== "POST") return false;
+  if (route === "source-snapshot")
+    return reply(await service.sourceSnapshot(ctx, body));
   if (route === "evidence")
     return reply(await service.addEvidence(ctx, body), 201);
   if (route === "claims") return reply(await service.addClaim(ctx, body), 201);

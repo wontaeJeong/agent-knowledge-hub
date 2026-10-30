@@ -16,6 +16,7 @@ it("pure refinement routes hand typed bodies to authorized service without openi
       "outcomes",
       "semanticLint",
       "importAgentSignals",
+      "sourceSnapshot",
     ].map((name) => [
       name,
       async () => {
@@ -40,6 +41,7 @@ it("pure refinement routes hand typed bodies to authorized service without openi
     ["GET", "outcomes"],
     ["POST", "semantic-lint"],
     ["POST", "import-agent-signals"],
+    ["POST", "source-snapshot"],
   ])
     expect(
       await handleRefinementRoute(
@@ -58,6 +60,7 @@ it("pure refinement routes hand typed bodies to authorized service without openi
     "outcomes",
     "semanticLint",
     "importAgentSignals",
+    "sourceSnapshot",
   ]);
   expect(
     await handleRefinementRoute(
@@ -71,5 +74,5 @@ it("pure refinement routes hand typed bodies to authorized service without openi
       service,
     ),
   ).toBe(false);
-  expect(responses).toHaveLength(10);
+  expect(responses).toHaveLength(11);
 });

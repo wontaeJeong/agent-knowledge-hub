@@ -34,6 +34,23 @@ const input = () => {
   return c;
 };
 describe("durable refinement (actual PostgreSQL)", () => {
+  it("source snapshot for structured UI returns canonical digest only under current source ACL", async () => {
+    const f = await setup();
+    expect(
+      await f.service.sourceSnapshot(f.reader, { sourceId: source.id }),
+    ).toMatchObject({
+      id: source.id,
+      sourceVersion: digest(source),
+      content: source.content,
+    });
+    await f.pool.query(
+      "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id=$2 AND principal_id='reader'",
+      [f.workspaceId, source.id],
+    );
+    await expect(
+      f.service.sourceSnapshot(f.reader, { sourceId: source.id }),
+    ).rejects.toThrow("NOT_FOUND");
+  });
   it("uses the production shared authorizer without inventing action names or reader write grants", async () => {
     const f = await setup(authorizeInTransaction);
     await expect(f.service.addEvidence(f.reader, f.evidence)).rejects.toThrow(
@@ -71,6 +88,12 @@ describe("durable refinement (actual PostgreSQL)", () => {
     await f.service.addEvidence(f.editor, f.evidence);
     const c = await f.service.addClaim(f.editor, input());
     expect(c.verifiedAt).toBeNull();
+    expect((await f.service.requests(f.reader)).items[0]!.rootLineage).toEqual([
+      expect.objectContaining({
+        sourceId: source.id,
+        sourceVersion: digest(source),
+      }),
+    ]);
     expect(
       (
         await f.service.context(f.reader, {

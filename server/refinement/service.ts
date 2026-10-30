@@ -180,6 +180,23 @@ export class RefinementService {
       recordedBy: ctx.principalId,
     };
   }
+  async sourceSnapshot(ctx: Context, input: unknown) {
+    const d = z.object({ sourceId: id }).strict().parse(input);
+    return this.run(
+      ctx,
+      "knowledge.read",
+      { kind: "source", id: d.sourceId },
+      async (db) => {
+        const source = await this.source(db, ctx, d.sourceId);
+        return {
+          id: d.sourceId,
+          title: source.title,
+          content: source.content,
+          sourceVersion: digest(source),
+        };
+      },
+    );
+  }
   private async page(
     db: PoolClient,
     ctx: Context,
@@ -580,7 +597,30 @@ export class RefinementService {
         items = [];
       for (const r of rows)
         try {
-          for (const c of r.claimIds) await this.claim(db, ctx, c);
+          const roots: Array<{
+            sourceId: string;
+            sourceVersion?: string;
+            location?: unknown;
+            root?: string | null;
+          }> = [...(r.rootLineage ?? [])];
+          const seen = new Set<string>();
+          const collect = async (eid: string): Promise<void> => {
+            if (seen.has(eid)) return;
+            seen.add(eid);
+            const e = await this.evidence(db, ctx, eid);
+            if (e.sourceId)
+              roots.push({
+                sourceId: e.sourceId,
+                sourceVersion: e.sourceVersion,
+                location: e.location,
+                root: e.root,
+              });
+            for (const p of e.parentIds) await collect(p);
+          };
+          for (const cid of r.claimIds) {
+            const c = await this.claim(db, ctx, cid);
+            for (const eid of c.evidenceIds) await collect(eid);
+          }
           for (const v of r.usedVersions ?? [])
             await this.page(db, ctx, v.page_id, v.version);
           for (const root of r.rootLineage ?? [])
@@ -590,11 +630,16 @@ export class RefinementService {
           if (r.outcomeId) {
             const o = await this.get<Outcome>(db, ctx, "outcomes", r.outcomeId);
             for (const c of o.claimIds) await this.claim(db, ctx, c);
-            for (const e of o.evidenceIds) await this.evidence(db, ctx, e);
+            for (const e of o.evidenceIds) await collect(e);
             for (const v of o.usedVersions)
               await this.page(db, ctx, v.pageId, v.version);
           }
-          items.push(r);
+          items.push({
+            ...r,
+            rootLineage: [
+              ...new Map(roots.map((root) => [digest(root), root])).values(),
+            ],
+          } as Request);
         } catch (e) {
           if (!(e instanceof Error && e.message === "NOT_FOUND")) throw e;
         }
