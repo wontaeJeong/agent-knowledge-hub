@@ -26,7 +26,7 @@ describe("operational client boundary", () => {
     ]).toEqual(rows);
     expect(pageItems(rows, 2)).toHaveLength(13);
   });
-  it("defaults to server mode and only explicitly enables demo", () => {
+  it("only explicitly enables demo", () => {
     expect(isDemoRequested("")).toBe(false);
     expect(isDemoRequested("?demo=0")).toBe(false);
     expect(isDemoRequested("?demo=1")).toBe(true);

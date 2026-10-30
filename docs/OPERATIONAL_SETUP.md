@@ -8,7 +8,7 @@
 - 로컬도 앱/DB/Keycloak을 kind에 올린다. Compose는 필수 개발 경로가 아니다.
 - 신원은 표준 OIDC issuer+subject, 개발 Keycloak 그룹을 역할로 매핑한다. 운영에서는 실제 사내 SSO/가입 허용/그룹 정책을 입력해야 한다.
 - 모델은 서버의 OpenAI 호환 adapter다. 현재 DeepSeek 설정을 쓰고 사내에서는 base URL/model/key를 온프레미스 endpoint로 교체한다.
-- 운영 UI는 `/`, 기존 합성 시연은 명시적인 `/?demo=1`이다. 정적 데모 실행기는 로그인/DB/API를 제공하지 않는다.
+- 공개 소개는 `/`, 운영 UI는 `/?app=1`, 기존 합성 시연은 명시적인 `/?demo=1`이다. 소개는 로그인/API 없이 표시되며 SSO 성공 후에는 운영 UI로 복귀한다. 정적 데모 실행기는 로그인/DB/API를 제공하지 않는다.
 
 ## 로컬 준비
 

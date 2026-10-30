@@ -1,5 +1,12 @@
 # 에이전트 인계
 
+## 2026-10-30 PR #12와 공개 랜딩 PR #13 통합
+
+- 최신 `main@e89921c`를 PR #12에 병합했다. `server/runtime/auth.ts`의 충돌은 Organization/개인 공간 권한 처리에 필요한 import와 공개 랜딩의 `workspaceHref` import를 모두 보존해 해결했다. OIDC 로그인 성공 후 `/?app=1`로 복귀하며, 자료 편입·조직/Team/공간 권한 동작은 유지한다. 이 인계 문서의 두 작업 기록도 모두 보존했다.
+- 관련 기준: GOV-001/003, ACL·INT·SEC 및 CORE 순환. 요구사항·North Star·런타임 위키 규칙의 의미는 변경하지 않았다.
+- 통합 상태에서 `npm ci`와 `npm run check`를 통과했다. 클라이언트 43개, Node 회귀 48개, 편입 순수 15개, 251개 요구사항 연결, 서버 타입 검사, 프로덕션 빌드와 정적 HTTP smoke를 확인했다. `git diff --check`도 통과했다.
+- PostgreSQL/OIDC 통합과 OS·Node 매트릭스·Docker 회귀는 이 병합 커밋의 GitHub CI를 기준으로 확인한다. 이번 충돌 해결이 실제 사내 IdP·모델 의미 품질·운영 인수를 새로 검증했다는 뜻은 아니다.
+
 ## 2026-10-30 웹 자료 편입과 실제 조직 권한 구현 (구현 PR #12)
 
 - 사용자의 추가 지시: 이전 열린 PR 모두 머지, 설계뿐 아니라 실제 기능 구현·PR. #11을 main@1e521db1에 squash merge했다. 이번 변경은 그 뒤의 구현이다.
@@ -10,6 +17,16 @@
 - 현재 로컬 근거: npm run check 통과(기존 테스트 + 편입 순수 15개, 서버 타입/빌드/요구사항/정적 smoke), PGlite 보조 DB에서 새 편입/HTTP/SDK MCP·접근 관리 회귀 24개 통과. 실제 PostgreSQL 첫 CI는 116개 중 115개 통과 후 기존 /me DTO 호환성 기대 한 건으로 실패했고, 미이관 공간의 응답 형태를 보존해 수정했다. 개인 저장·OIDC 회수·Triage/사용량 회귀를 추가했다. 최종 PG CI는 PR 커밋 상태를 따른다.
 - 의미 품질은 실제 외부 LLM/실사용 자료 대조로 아직 측정하지 않았다. 브라우저 Chromium 153에서 실제 웹 붙여넣기→서버 분석→개인 정리→별도 원본 공개 검토→독립 지식 승인/원자 발행→독자 열람을 통과했다. 1440px/390px에서 가로 넘침/JS 오류가 없었고 캡처·JSON 증거는 docs/pr-assets/ingestion에 둔다. QA 모델은 결정적 계약 fixture다. Company/Guest/Public·범위 Bearer/서비스 주체·실제 로컬 커넥터 통합·전체 251개 구현/운영 인수 완료라고 표시하지 않는다. Organization 관리 전환·Team 생성/멤버 추가/공간 Write 부여도 같은 실제 UI에서 확인했다. 500개 발언의 원문 근거를 청크 통합 후에도 보존하는 회귀를 추가했다. 아래 이전 인계는 당시 변경 범위의 기록이다.
 
+## 2026-10-30 공개 랜딩과 Memory·RAG·Wiki 역할 안내
+
+- 사용자 요청: 웹 첫 진입에 랜딩페이지를 두고 왜 위키를 쓰는지, Memory·RAG와 무엇이 다른지 명확히 설명한다. 기준 `main@1e521db`에서 별도 브랜치로 구현하며 병렬 진행 중인 웹 편입/권한 PR의 완료를 전제하지 않는다.
+- 화면: 기존 브랜드 심볼/plum 토큰의 라이트·다크 소개, 목적·원본→연결 지식 예시, 역할 비교표, 일주일치 대화의 Memory/RAG/Wiki 선택형 결과, Ingest→Review→Query→Lint & Feedback, 근거/권한/사람·에이전트 원칙, FAQ와 시작 버튼. 실제 처리 결과/장기 목표와 현재 기능을 구분한다. 새 안내 계약은 [LANDING_PAGE.md](LANDING_PAGE.md).
+- 진입: `/`는 로그인·API 없이 소개를 표시한다. `/?app=1` 서버 UI와 `/?demo=1` 합성 시연은 각각 지연 로드한다. 기존 데모 hash 경로를 유지하고 OIDC 성공 후에는 고정 `/?app=1`로 복귀한다. 원본/지식/ACL/승인/발행 엔진을 변경하지 않으며 루트 주소 자체가 권한을 부여하지 않는다.
+- 변경 파일: `src/landing/`, `src/entry.ts`와 테스트, `src/main.tsx`, `index.html`, `server/runtime/auth.ts`의 성공 redirect와 기존 DB 회귀 assertion, 기존 명시 데모 테스트명, README·ARCHITECTURE·OPERATIONAL_SETUP·이 인계 및 화면 계약/증거.
+- 관련 기준: GOV-001, CORE-002~007·009의 목적과 순환을 사람이 이해하도록 설명한다. 기존 251개 요구사항/운영 인수 상태를 완료로 바꾸지 않는다. 새 지식·후속 에이전트 성능 효과를 주장하지 않고 EVALUATION의 대조 실험 대상으로 유지한다. North Star·런타임 규칙의 의미는 변경하지 않았다.
+- 실제 검증: Node 24.22.1/npm 11.9.0에서 `npm ci`, `npm run check` 통과(클라이언트 43개 + Node 48개, 251개 연결 검사, 서버 타입 검사, 빌드·정적 HTTP smoke). 새 테스트는 공개 렌더링의 API 미호출/앵커/CTA와 명시 진입 경계를 검증한다. `git diff --check` 통과.
+- 브라우저: production dist + Chromium153에서 320/390/768/1440px의 페이지 가로 넘침 없음, 소개 API/앱 청크 미요청, 선택 예시·Enter·FAQ·테마/저장 차단·모바일 표 내부 스크롤, 서버 로그인 안내(합성401)·데모/hash 이동을 확인했고 pageerror는0개다. [캡처와 고정 결과](pr-assets/landing/README.md).
+- 제한: 브라우저의 보호 앱 진입은 합성401로 확인했다. 실제 IdP/DB 로그인·운영 배포·모델 의미 품질·SEO·전체 접근성 인수를 로컬에서 새로 검증한 것은 아니다. OIDC 성공 redirect assertion은 PR CI의 PostgreSQL 회귀에서 실제 실행한다. 클라이언트 렌더링과 query 기반 앱 진입을 유지한다. GitHub CI 결과는 PR의 실제 상태를 따른다.
 
 ## 2026-10-30 로컬·개인·팀 GitHub식 권한 설계 (문서만)
 
