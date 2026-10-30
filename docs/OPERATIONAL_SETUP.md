@@ -106,7 +106,7 @@ node scripts/k8s/deploy-site.mjs CONTEXT_NAME prod deploy/sites/prod
 
 생성기는 기존 `deploy/sites/stg` 또는 `deploy/sites/prod` 디렉터리를 **덮어쓰지 않는다**. 설정 갱신 시 승인된 원본 JSON을 수정하고 기존 생성 폴더를 보관/이동 후 다시 생성·검토한다. 출력은 Kustomize 설정, 이미지 digest, HTTPS/OIDC 공개 설정, Ingress·IdP/모델 egress NetworkPolicy, ResourceQuota다. DB 비밀번호, OIDC client secret, TLS 개인키 같은 **Secret은 절대 생성하지 않는다.**
 
-운영 대상 네임스페이스는 사전에 생성하고 아래 **서로 다른 Secret**을 승인된 비밀 관리 흐름(External Secrets/Secret 관리 등)으로 주입한다. 비밀번호를 쉘 인자·레포·로그·PR에 기록하지 않는다.
+운영 대상 네임스페이스는 사전에 생성하고 아래 **서로 다른 Secret**을 승인된 비밀 관리 흐름(External Secrets/Secret 관리 등)으로 주입한다. 환경에 따라 namespace 생성 예: `kubectl --context CONTEXT_NAME apply -f deploy/overlays/stg/namespace.yaml` 및 `deploy/overlays/prod/namespace.yaml` (다른 컨텍스트나 클러스터에 잘못 생성하지 않도록 주의). 비밀번호를 쉘 인자·레포·로그·PR에 기록하지 않는다.
 
 - `knowledge-db-secret`: `password`. 환경별로 서로 다른 충분히 긴 비밀번호.
 - `knowledge-secrets`: `DATABASE_URL` (`postgres://knowledge:<password>@knowledge-db:5432/knowledge`, 실제 비밀번호 URL 인코딩), `OIDC_CLIENT_SECRET`. 다른 모델 키 등 선택적 비밀도 여기서 공급.
