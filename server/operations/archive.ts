@@ -1,13 +1,19 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Context } from "../service";
-import { requireRead } from "../repository";
+import type { PoolClient } from "pg";
 import {
   sealExport,
   openExport,
   verifyAudit,
+  authorizeAuditResources,
   type AuditRow,
   type OperationsService,
 } from "./service";
+import {
+  prepareAuditAnchorOnClient,
+  commitAuditAnchorOnClient,
+  type AuditHeadStore,
+} from "./audit-protocol";
 export interface AuditArchiveTarget {
   put: (name: string, body: string) => Promise<unknown>;
   get: (name: string) => Promise<string>;
@@ -65,10 +71,17 @@ export async function archiveAudit(
     signingKey: string;
     batchSize?: number;
     confirm: string;
+    readAnchor: AuditHeadStore["readAnchor"];
+    anchor: AuditHeadStore["anchor"];
     includeUnexpired?: boolean;
   },
 ) {
   const size = config.batchSize ?? 1000;
+  if (
+    typeof config.readAnchor !== "function" ||
+    typeof config.anchor !== "function"
+  )
+    throw Error("AUDIT_INDEPENDENT_HEAD_STORE_REQUIRED");
   if (
     !Number.isInteger(size) ||
     size < 1 ||
@@ -85,6 +98,13 @@ export async function archiveAudit(
   for (;;) {
     const n = await service.withAdminTransaction(ctx, async (db) => {
       await service.authorize(db, ctx, "data.export");
+      const commitment = await prepareAuditAnchorOnClient(
+        service,
+        ctx,
+        db,
+        config,
+        true,
+      );
       const days =
         (
           await db.query(
@@ -113,12 +133,7 @@ export async function archiveAudit(
       }
       if (!rows.length) return 0;
       if (!verifyAudit(rows, checkpoint)) throw Error("AUDIT_TAMPER_DETECTED");
-      for (const row of rows) {
-        const r = (
-          row.event as { resource?: { kind: "source" | "page"; id: string } }
-        ).resource;
-        if (r) await requireRead(db, ctx, r.kind, r.id);
-      }
+      await authorizeAuditResources(db, ctx, rows, service.authorize);
       const first = rows[0],
         last = rows.at(-1)!,
         segment: Segment = {
@@ -146,6 +161,13 @@ export async function archiveAudit(
         !verifyArchivedSegment(returned, config.key, config.signingKey, receipt)
       )
         throw Error("AUDIT_ARCHIVE_TARGET_TAMPERED");
+      await commitAuditAnchorOnClient(
+        service,
+        ctx,
+        db,
+        commitment.encrypted,
+        config,
+      );
       await db.query(
         "INSERT INTO operations_audit_archives(workspace_id,id,first_sequence,last_sequence,previous_hash,head_hash,target_name,encrypted_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
         [
@@ -193,90 +215,140 @@ export async function verifyArchiveHistory(
   ctx: Context,
   config: { target: AuditArchiveTarget; key: string; signingKey: string },
 ) {
-  return service.withAdminTransaction(ctx, async (db) => {
-    let checkpoint = { sequence: "0", hash: "0".repeat(64) };
-    const receipts = (
+  return service.withAdminTransaction(ctx, (db) =>
+    verifyArchiveHistoryOnClient(service, ctx, db, config),
+  );
+}
+export async function verifyArchiveHistoryOnClient(
+  service: OperationsService,
+  ctx: Context,
+  db: PoolClient,
+  config: { target: AuditArchiveTarget; key: string; signingKey: string },
+) {
+  const seen = new Set<string>();
+  let checkpoint = { sequence: "0", hash: "0".repeat(64) };
+  const receipts = (
+    await db.query(
+      "SELECT * FROM operations_audit_archives WHERE workspace_id=$1 ORDER BY first_sequence",
+      [ctx.workspaceId],
+    )
+  ).rows;
+  if (!config.target.list)
+    throw Error("AUDIT_INDEPENDENT_HISTORY_LIST_REQUIRED");
+  const external = await config.target.list();
+  if (external.length > 100000) throw Error("AUDIT_ARCHIVE_INDEX_BOUND");
+  const receiptNames = new Set(receipts.map((r) => r.target_name));
+  const prefix = `audit-${ctx.workspaceId}-`;
+  for (const entry of external) {
+    if (
+      !entry.name.startsWith(prefix) ||
+      !/^\d+-\d+-[a-f0-9]{16}\.akh-backup$/.test(
+        entry.name.slice(prefix.length),
+      ) ||
+      receiptNames.has(entry.name)
+    )
+      continue;
+    const raw = await config.target.get(entry.name),
+      d = openExport(raw, config.key, config.signingKey) as Segment;
+    if (
+      d.version !== 1 ||
+      d.workspaceId !== ctx.workspaceId ||
+      !verifyArchivedSegment(raw, config.key, config.signingKey, {
+        workspace_id: ctx.workspaceId,
+        first_sequence: d.firstSequence,
+        last_sequence: d.lastSequence,
+        previous_hash: d.previousHash,
+        head_hash: d.headHash,
+        encrypted_hash: digest(raw),
+      })
+    )
+      throw Error("AUDIT_EXTERNAL_ANCHOR_INVALID");
+    const overlapping = (
       await db.query(
-        "SELECT * FROM operations_audit_archives WHERE workspace_id=$1 ORDER BY first_sequence",
-        [ctx.workspaceId],
+        "SELECT hash FROM operations_audit_chain WHERE workspace_id=$1 AND sequence=$2",
+        [ctx.workspaceId, d.lastSequence],
       )
-    ).rows;
-    if (!config.target.list)
-      throw Error("AUDIT_INDEPENDENT_HISTORY_LIST_REQUIRED");
-    const external = await config.target.list();
-    if (external.length > 100000) throw Error("AUDIT_ARCHIVE_INDEX_BOUND");
-    const receiptNames = new Set(receipts.map((r) => r.target_name));
-    const prefix = `audit-${ctx.workspaceId}-`;
-    for (const entry of external) {
-      if (
-        !entry.name.startsWith(prefix) ||
-        !/^\d+-\d+-[a-f0-9]{16}\.akh-backup$/.test(
-          entry.name.slice(prefix.length),
-        ) ||
-        receiptNames.has(entry.name)
+    ).rows[0];
+    const archived = (
+      await db.query(
+        "SELECT head_hash FROM operations_audit_archives WHERE workspace_id=$1 AND last_sequence=$2",
+        [ctx.workspaceId, d.lastSequence],
       )
-        continue;
-      const raw = await config.target.get(entry.name),
-        d = openExport(raw, config.key, config.signingKey) as Segment;
-      if (
-        d.version !== 1 ||
-        d.workspaceId !== ctx.workspaceId ||
-        !verifyArchivedSegment(raw, config.key, config.signingKey, {
-          workspace_id: ctx.workspaceId,
-          first_sequence: d.firstSequence,
-          last_sequence: d.lastSequence,
-          previous_hash: d.previousHash,
-          head_hash: d.headHash,
-          encrypted_hash: digest(raw),
-        })
+    ).rows[0];
+    if ((overlapping?.hash ?? archived?.head_hash) !== d.headHash)
+      throw Error("AUDIT_EXTERNAL_HISTORY_MISSING_FROM_DATABASE");
+    await authorizeAuditResources(db, ctx, d.rows, service.authorize, seen);
+  }
+  for (const receipt of receipts) {
+    const encrypted = await config.target.get(receipt.target_name);
+    if (
+      BigInt(receipt.first_sequence) !== BigInt(checkpoint.sequence) + 1n ||
+      receipt.previous_hash !== checkpoint.hash ||
+      !verifyArchivedSegment(encrypted, config.key, config.signingKey, receipt)
+    )
+      throw Error("AUDIT_ARCHIVE_ROOT_MISMATCH");
+    checkpoint = { sequence: receipt.last_sequence, hash: receipt.head_hash };
+    await authorizeAuditResources(
+      db,
+      ctx,
+      (openExport(encrypted, config.key, config.signingKey) as Segment).rows,
+      service.authorize,
+      seen,
+    );
+  }
+  const archivedCheckpoint = { ...checkpoint };
+  for (;;) {
+    const rows = (
+      await db.query(
+        "SELECT sequence,event,previous_hash,hash FROM operations_audit_chain WHERE workspace_id=$1 AND sequence>$2 ORDER BY sequence LIMIT 1000",
+        [ctx.workspaceId, checkpoint.sequence],
       )
-        throw Error("AUDIT_EXTERNAL_ANCHOR_INVALID");
-      const overlapping = (
-        await db.query(
-          "SELECT hash FROM operations_audit_chain WHERE workspace_id=$1 AND sequence=$2",
-          [ctx.workspaceId, d.lastSequence],
-        )
-      ).rows[0];
-      const archived = (
-        await db.query(
-          "SELECT head_hash FROM operations_audit_archives WHERE workspace_id=$1 AND last_sequence=$2",
-          [ctx.workspaceId, d.lastSequence],
-        )
-      ).rows[0];
-      if ((overlapping?.hash ?? archived?.head_hash) !== d.headHash)
-        throw Error("AUDIT_EXTERNAL_HISTORY_MISSING_FROM_DATABASE");
-    }
-    for (const receipt of receipts) {
-      if (
-        BigInt(receipt.first_sequence) !== BigInt(checkpoint.sequence) + 1n ||
-        receipt.previous_hash !== checkpoint.hash ||
-        !verifyArchivedSegment(
-          await config.target.get(receipt.target_name),
-          config.key,
-          config.signingKey,
-          receipt,
-        )
-      )
-        throw Error("AUDIT_ARCHIVE_ROOT_MISMATCH");
-      checkpoint = { sequence: receipt.last_sequence, hash: receipt.head_hash };
-    }
-    for (;;) {
-      const rows = (
-        await db.query(
-          "SELECT sequence,event,previous_hash,hash FROM operations_audit_chain WHERE workspace_id=$1 AND sequence>$2 ORDER BY sequence LIMIT 1000",
-          [ctx.workspaceId, checkpoint.sequence],
-        )
-      ).rows as AuditRow[];
-      if (!verifyAudit(rows, checkpoint)) throw Error("AUDIT_TAMPER_DETECTED");
-      if (!rows.length) break;
-      const last = rows.at(-1)!;
-      checkpoint = { sequence: last.sequence, hash: last.hash };
-      if (rows.length < 1000) break;
-    }
-    return {
-      verified: true,
-      segments: receipts.length,
-      rootHash: checkpoint.hash,
-    };
-  });
+    ).rows as AuditRow[];
+    if (!verifyAudit(rows, checkpoint)) throw Error("AUDIT_TAMPER_DETECTED");
+    await authorizeAuditResources(db, ctx, rows, service.authorize, seen);
+    if (!rows.length) break;
+    const last = rows.at(-1)!;
+    checkpoint = { sequence: last.sequence, hash: last.hash };
+    if (rows.length < 1000) break;
+  }
+  return {
+    verified: true,
+    segments: receipts.length,
+    rootHash: checkpoint.hash,
+    checkpoint: archivedCheckpoint,
+    head: { ...checkpoint },
+  };
+}
+export async function auditHashAt(
+  db: PoolClient,
+  workspaceId: string,
+  sequence: string,
+  config: { target: AuditArchiveTarget; key: string; signingKey: string },
+) {
+  if (sequence === "0") return "0".repeat(64);
+  const hot = (
+    await db.query(
+      "SELECT hash FROM operations_audit_chain WHERE workspace_id=$1 AND sequence=$2",
+      [workspaceId, sequence],
+    )
+  ).rows[0];
+  if (hot) return hot.hash as string;
+  const receipt = (
+    await db.query(
+      "SELECT * FROM operations_audit_archives WHERE workspace_id=$1 AND first_sequence<=$2 AND last_sequence>=$2 LIMIT 1",
+      [workspaceId, sequence],
+    )
+  ).rows[0];
+  if (!receipt) throw Error("AUDIT_ANCHOR_HISTORY_MISSING");
+  const encrypted = await config.target.get(receipt.target_name);
+  if (!verifyArchivedSegment(encrypted, config.key, config.signingKey, receipt))
+    throw Error("AUDIT_ARCHIVE_ROOT_MISMATCH");
+  const segment = openExport(
+    encrypted,
+    config.key,
+    config.signingKey,
+  ) as Segment;
+  const row = segment.rows.find((r) => r.sequence === sequence);
+  if (!row) throw Error("AUDIT_ANCHOR_HISTORY_MISSING");
+  return row.hash;
 }

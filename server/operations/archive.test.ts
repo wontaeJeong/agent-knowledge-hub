@@ -38,21 +38,27 @@ test("over10000 actual DB audit records archive bounded segments BEFORE hot dele
       get: async (name: string) => objects.get(name)!,
       list: async () => [...objects.keys()].map((name) => ({ name })),
     };
+  let head: string | null = null;
   const result = await archiveAudit(service, ctx, {
     target,
     key,
     signingKey: signing,
+    readAnchor: async () => head,
+    anchor: async (name, body) => {
+      objects.set(name, body);
+      head = body;
+    },
     batchSize: 1000,
     confirm: "ARCHIVE_AND_PRUNE_EXPIRED_AUDIT",
   });
   expect(result.archived).toBe(10020 + initial);
-  expect(objects.size).toBe(11);
   const receipts = (
     await f.pool.query(
       "SELECT * FROM operations_audit_archives WHERE workspace_id=$1 ORDER BY last_sequence",
       [f.workspaceId],
     )
   ).rows;
+  expect(receipts.length).toBe(11);
   expect(receipts.at(-1).last_sequence).toBe(String(10020 + initial));
   for (const r of receipts)
     expect(
@@ -102,6 +108,8 @@ test("failed independent target cannot delete unarchived audit", async () => {
       },
       key: "key".repeat(20),
       signingKey: "signing".repeat(10),
+      readAnchor: async () => null,
+      anchor: async () => {},
       batchSize: 1000,
       confirm: "ARCHIVE_AND_PRUNE_EXPIRED_AUDIT",
     }),

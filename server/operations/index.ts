@@ -9,3 +9,5 @@ export * from "./archive";
 export * from "./erasure";
 export * from "./current-policy";
 export * from "./authorization";
+export * from "./audit-protocol";
+export * from "./released-imports";

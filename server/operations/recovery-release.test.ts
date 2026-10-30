@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { createServer, type Server } from "node:http";
+import { createServer, type Server, type IncomingMessage } from "node:http";
 import { generateKeyPairSync, sign, randomUUID, createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { Pool } from "pg";
@@ -12,6 +12,7 @@ import {
   readRecoveryLedger,
   secureRestoredDatabase,
   assertOperationalStartup,
+  refreshRestoredLedger,
 } from "./recovery";
 import {
   previewCurrentPolicyRelease,
@@ -19,6 +20,7 @@ import {
   verifiedRestoreIdentity,
 } from "./current-policy";
 import { sealExport } from "./service";
+import { assertReleasedImportContext } from "./released-imports";
 const digest = (s: string | Buffer) =>
   createHash("sha256").update(s).digest("hex");
 const base = [
@@ -182,6 +184,21 @@ test("actual dump restore→signed current owner/qualified reviewer import→exp
       "INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,subject,access_token,expires_at) VALUES($1,$2,$3,'csrf','owner','old-token',now()+interval '1 hour')",
       [sessionHash("old-cookie"), f.workspaceId, owner],
     );
+    if (
+      !(await f.pool.query("SELECT to_regclass('public.imports') AS t")).rows[0]
+        .t
+    )
+      await f.pool.query(
+        execFileSync(
+          "git",
+          ["show", "origin/main:server/migrations/006-imports.sql"],
+          { encoding: "utf8" },
+        ),
+      );
+    await f.pool.query(
+      "INSERT INTO imports(workspace_id,id,principal_id,title,selection,parsed,request_key,request_hash,status) VALUES($1,'retained-input',$2,'retained input','{}','{\"records\":[],\"warnings\":[]}',$3,$4,'ready')",
+      [f.workspaceId, owner, randomUUID(), "a".repeat(64)],
+    );
     await f.pool.query(
       "INSERT INTO access_credentials(id,hash,principal_id,workspace_id,actions,expires_at) VALUES($1,$2,$3,$4,$5,now()+interval '1 hour')",
       [
@@ -263,6 +280,20 @@ test("actual dump restore→signed current owner/qualified reviewer import→exp
     await expect(assertOperationalStartup(restored)).rejects.toThrow(
       "QUARANTINED",
     );
+    const savedBefore = (
+      await restored.query("SELECT count(*) FROM operations_recovery_acl")
+    ).rows[0].count;
+    await restored.query(
+      "UPDATE operations_recovery_releases SET policy_hash='recovery-ledger:2020-01-01T00:00:00Z' WHERE id='restore-binding'",
+    );
+    await expect(verifiedRestoreIdentity(restored)).rejects.toThrow(
+      "RECOVERY_LEDGER_STALE_REPLAY_REQUIRED",
+    );
+    await refreshRestoredLedger(restored, ledger);
+    expect(
+      (await restored.query("SELECT count(*) FROM operations_recovery_acl"))
+        .rows[0].count,
+    ).toBe(savedBefore);
     const identity = await verifiedRestoreIdentity(restored),
       spaces = (
         await restored.query("SELECT id FROM workspaces ORDER BY id")
@@ -336,6 +367,7 @@ test("actual dump restore→signed current owner/qualified reviewer import→exp
       operatorId: owner,
     };
     const preview = await previewCurrentPolicyRelease(restored, config);
+    const unusedPreview = await previewCurrentPolicyRelease(restored, config);
     await expect(
       releaseCurrentPolicy(restored, {
         ...config,
@@ -392,6 +424,15 @@ test("actual dump restore→signed current owner/qualified reviewer import→exp
       }),
     ).toMatchObject({ released: true, requiresNewSsoLogin: true });
     await assertOperationalStartup(restored);
+    const unauthenticatedGuard=await restored.connect();try{
+    await expect(
+      assertReleasedImportContext(
+        unauthenticatedGuard,
+        { workspaceId: f.workspaceId, principalId: owner },
+        "retained-input",
+      ),
+    ).rejects.toThrow("AUTHORIZATION_REQUIRED");
+    }finally{unauthenticatedGuard.release();}
     expect(
       (
         await restored.query(
@@ -452,6 +493,19 @@ test("actual dump restore→signed current owner/qualified reviewer import→exp
     );
     expect(callback.status).toBe(302);
     const cookie = callback.headers.get("set-cookie")!.split(";")[0];
+    const authenticatedRequest = { headers: { cookie } } as IncomingMessage,
+      authenticated = await auth.authenticate(authenticatedRequest);
+    expect(authenticated).not.toBeNull();
+    const authenticatedGuard=await restored.connect();try{
+    await assertReleasedImportContext(
+      authenticatedGuard,
+      {
+        ...authenticated!,
+        authorization: auth.requestGuard(authenticatedRequest, authenticated!),
+      },
+      "retained-input",
+    );
+    }finally{authenticatedGuard.release();}
     const read = await fetch(origin + "/api/v1/sources", {
       headers: { Cookie: cookie },
     });
@@ -461,6 +515,18 @@ test("actual dump restore→signed current owner/qualified reviewer import→exp
         expect.objectContaining({ id: "source-a", content: source.content }),
       ]),
     );
+    expect(
+      (await restored.query("SELECT count(*) FROM runtime_sessions")).rows[0]
+        .count,
+    ).toBe("1");
+    await expect(
+      releaseCurrentPolicy(restored, {
+        ...config,
+        previewId: unusedPreview.id,
+        previewHash: unusedPreview.previewHash,
+        confirm: "RELEASE_VERIFIED_CURRENT_POLICY_NEW_SSO_ONLY",
+      }),
+    ).rejects.toThrow("RESTORE_NOT_QUARANTINED");
     expect(
       (await restored.query("SELECT count(*) FROM runtime_sessions")).rows[0]
         .count,

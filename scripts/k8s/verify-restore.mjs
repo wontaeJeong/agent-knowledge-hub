@@ -1,5 +1,12 @@
 import { execFileSync, spawn } from "node:child_process";
-import { readFile, mkdtemp, realpath, open, rm } from "node:fs/promises";
+import {
+  readFile,
+  mkdtemp,
+  realpath,
+  open,
+  rm,
+  unlink,
+} from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { randomUUID } from "node:crypto";
@@ -157,6 +164,14 @@ try {
   if (streaming) {
     await promoteVerifiedArchive(verified, destination, security.deletedHashes);
     verified = null;
+    // The dump is a temporary restore input, NOT content. Never retain pre-erasure plaintext DB copies.
+    await unlink(join(destination, "database.dump"));
+    const dir = await open(destination, "r");
+    try {
+      await dir.sync();
+    } finally {
+      await dir.close();
+    }
   } else await restoreFiles(bundle, destination, security.deletedHashes);
   successful = true;
   console.log(

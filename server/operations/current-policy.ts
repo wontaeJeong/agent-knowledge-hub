@@ -256,6 +256,14 @@ export async function revokeHistoricalAuthority(db: PoolClient) {
     await db.query(
       "UPDATE runtime_jobs SET status='failed',error_code='RESTORE_REQUIRES_NEW_AUTHORIZATION',finished_at=now() WHERE status='running'",
     );
+  if (existing.has("import_runs"))
+    await db.query(
+      "UPDATE import_runs SET status='cancelled',stage='cancelled',cancel_requested=true,lease_token=lease_token+1,lease_until=NULL,session_id=NULL,grant_role='reader',grant_expires_at=clock_timestamp(),error_code=CASE WHEN error_code='LEGAL_ERASURE' THEN error_code ELSE 'RESTORE_REQUIRES_NEW_AUTHORIZATION' END,updated_at=now()",
+    );
+  if (existing.has("import_disclosures"))
+    await db.query(
+      "UPDATE import_disclosures SET status='revoked',approved_at=NULL,audience='[]'",
+    );
   if (existing.has("access_source_policy"))
     await db.query(
       "UPDATE access_source_policy SET local_copy_allowed=false,export_allowed=false,revision=revision+1",
@@ -274,7 +282,19 @@ async function boundIdentity(db: PoolClient): Promise<RestoreIdentity> {
       "SELECT * FROM operations_recovery_releases WHERE id='restore-binding'",
     )
   ).rows[0];
-  if (!binding) throw Error("VERIFIED_BACKUP_BINDING_REQUIRED");
+  if (!binding || binding.status !== "previewed")
+    throw Error("VERIFIED_BACKUP_BINDING_REQUIRED");
+  const ledgerAt =
+    typeof binding.policy_hash === "string" &&
+    binding.policy_hash.startsWith("recovery-ledger:")
+      ? Date.parse(binding.policy_hash.slice("recovery-ledger:".length))
+      : NaN;
+  if (
+    !Number.isFinite(ledgerAt) ||
+    Date.now() - ledgerAt > 900000 ||
+    Date.now() - ledgerAt < -60000
+  )
+    throw Error("RECOVERY_LEDGER_STALE_REPLAY_REQUIRED");
   return {
     source: {
       database: binding.source_database,
@@ -414,6 +434,14 @@ export async function releaseCurrentPolicy(
   },
 ) {
   return locked(pool, async (db) => {
+    if (
+      !(
+        await db.query(
+          "SELECT 1 FROM operations_tombstones WHERE id='restore-quarantine' LIMIT 1",
+        )
+      ).rowCount
+    )
+      throw Error("RESTORE_NOT_QUARANTINED");
     const identity = await boundIdentity(db),
       p = readCurrentPolicy(
         config.encrypted,

@@ -9,6 +9,12 @@ import {
   allContentReferences,
   hashHasLiveReference,
 } from "../../scripts/k8s/operations-storage-graph.mjs";
+import {
+  releasedImportTables,
+  redactReleasedImportRow,
+  unmappedReleasedImports,
+  releasedImportProjection,
+} from "./released-imports";
 type Resource = { kind: "source" | "page"; id: string };
 export interface ProductRow {
   table: string;
@@ -48,6 +54,8 @@ const referenceKeys: Record<string, string> = {
   evidence_id: "evidence",
   evidenceIds: "evidence",
   import_id: "import",
+  importId: "released-import",
+  importRunId: "released-run",
   draftId: "draft",
   draft_id: "draft",
   template_id: "template",
@@ -169,7 +177,7 @@ async function recordStorageErasure(
     ];
     for (const h of ownHashes) hashes.add(h);
     await db.query(
-      "INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,'import',$2,$3,$4,$5) ON CONFLICT(workspace_id,artifact_kind,artifact_id) DO UPDATE SET hashes=operations_erased_artifacts.hashes||excluded.hashes,preview_hash=excluded.preview_hash",
+      "INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,'import',$2,$3,$4,$5) ON CONFLICT(workspace_id,artifact_kind,artifact_id) DO UPDATE SET hashes=operations_erased_artifacts.hashes||excluded.hashes,preview_hash=excluded.preview_hash,approved_by=excluded.approved_by,created_at=now()",
       [
         ctx.workspaceId,
         id,
@@ -189,7 +197,9 @@ function own(row: ProductRow) {
     id = d.id;
   const result = new Set<string>();
   let kind: string | undefined;
-  if (t === "sources") kind = "source";
+  if (t === "imports") kind = "released-import";
+  else if (t === "import_runs") kind = "released-run";
+  else if (t === "sources") kind = "source";
   else if (t === "pages" || t === "versions") kind = "page";
   else if (t === "batches") kind = "batch";
   else if (/draft/.test(t)) kind = "draft";
@@ -204,6 +214,13 @@ function own(row: ProductRow) {
   return result;
 }
 function lineageRefs(row: ProductRow) {
+  if (releasedImportTables.has(row.table))
+    return refs({
+      ...row.data,
+      import_id: undefined,
+      importId: row.data.import_id,
+      importRunId: row.data.run_id,
+    });
   return refs(
     row.table === "storage_import_sources"
       ? { ...row.data, sourceId: row.data.target_id }
@@ -230,6 +247,13 @@ export function selectErasureRows(
       if ([...tokens].some((t) => affected.has(t))) {
         selected.add(row);
         for (const t of own(row)) affected.add(t);
+        if (row.table === "sources" || row.table === "import_runs")
+          for (const ref of lineageRefs(row))
+            if (
+              ref.startsWith("released-import:") ||
+              ref.startsWith("released-run:")
+            )
+              affected.add(ref);
         changed = true;
       }
     }
@@ -317,7 +341,10 @@ async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
     ).rows,
     columns = new Map<string, { name: string; type: string }[]>();
   for (const r of metadata)
-    if (tablePattern.test(r.table_name)) {
+    if (
+      tablePattern.test(r.table_name) ||
+      releasedImportTables.has(r.table_name)
+    ) {
       const arr = columns.get(r.table_name) ?? [];
       arr.push({ name: r.column_name, type: r.data_type });
       columns.set(r.table_name, arr);
@@ -331,7 +358,7 @@ async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
     let offset = 0;
     for (;;) {
       const result = await db.query(
-        `SELECT t.ctid::text AS locator,to_jsonb(t) AS data FROM "${table}" t WHERE ${scoped ? "t.workspace_id=$1" : "t.job_id IN(SELECT id FROM durable_jobs WHERE workspace_id=$1)"} ORDER BY t.ctid LIMIT 1000 OFFSET $2`,
+        `SELECT t.ctid::text AS locator,${releasedImportProjection(table) ?? "to_jsonb(t)"} AS data FROM "${table}" t WHERE ${scoped ? "t.workspace_id=$1" : "t.job_id IN(SELECT id FROM durable_jobs WHERE workspace_id=$1)"} ORDER BY t.ctid LIMIT 1000 OFFSET $2 FOR UPDATE OF t`,
         [ctx.workspaceId, offset],
       );
       for (const r of result.rows)
@@ -348,11 +375,15 @@ export async function replayProductErasure(
   db: PoolClient,
   workspaceId: string,
   resources: Resource[],
+  entireWorkspace = false,
 ) {
-  if (!resources.length) return;
+  if (!resources.length && !entireWorkspace) return;
   const ctx = { workspaceId, principalId: "signed-recovery-ledger" },
     all = await inventory(db, ctx),
-    selected = selectErasureRows(all.rows, resources),
+    selected = selectErasureRows(
+      all.rows,
+      entireWorkspace ? undefined : resources,
+    ),
     selectedRefs = new Set(
       selected.flatMap((r) => [...own(r), ...refs(r.data)]),
     );
@@ -366,6 +397,7 @@ export async function replayProductErasure(
     held.some(
       (h) =>
         h.resource_kind === "workspace" ||
+        entireWorkspace ||
         selectedRefs.has(`${h.resource_kind}:${h.resource_id}`),
     )
   )
@@ -375,10 +407,21 @@ export async function replayProductErasure(
     db,
     ctx,
     selected,
-    resources,
+    entireWorkspace
+      ? (
+          await db.query(
+            "SELECT kind,id FROM resources WHERE workspace_id=$1",
+            [workspaceId],
+          )
+        ).rows
+      : resources,
     fingerprint(resources),
   );
   for (const row of selected) {
+    if (await redactReleasedImportRow(db, row)) {
+      counts[row.table] = (counts[row.table] ?? 0) + 1;
+      continue;
+    }
     const replacements: Record<string, unknown> = {};
     for (const c of all.columns.get(row.table) ?? []) {
       if (identityColumns.test(c.name)) continue;
@@ -398,24 +441,28 @@ export async function replayProductErasure(
       );
     counts[row.table] = (counts[row.table] ?? 0) + 1;
   }
-  const opaque = all.rows.filter(
-    (r) =>
-      !selected.includes(r) &&
-      own(r).size === 0 &&
-      lineageRefs(r).size === 0 &&
-      Object.values(r.data).some(
-        (v) =>
-          typeof v === "object" || (typeof v === "string" && v.length > 100),
-      ),
-  ).length;
+  const opaque = entireWorkspace
+    ? 0
+    : all.rows.filter(
+        (r) =>
+          !selected.includes(r) &&
+          own(r).size === 0 &&
+          lineageRefs(r).size === 0 &&
+          Object.values(r.data).some(
+            (v) =>
+              typeof v === "object" ||
+              (typeof v === "string" && v.length > 100),
+          ),
+      ).length + unmappedReleasedImports(all.rows, selected);
   counts.unresolved_unlineaged_rows = opaque;
   counts.shared_live_blob_hashes = storage.shared;
   await db.query(
-    "INSERT INTO operations_erasure_receipts(workspace_id,id,preview_hash,scope,approved_by,status,counts,error_code) VALUES($1,$2,$3,'resource','signed-recovery-ledger',$4,$5,$6)",
+    "INSERT INTO operations_erasure_receipts(workspace_id,id,preview_hash,scope,approved_by,status,counts,error_code) VALUES($1,$2,$3,$4,'signed-recovery-ledger',$5,$6,$7)",
     [
       workspaceId,
       randomUUID(),
       fingerprint(resources),
+      entireWorkspace ? "workspace" : "resource",
       opaque || storage.shared ? "blocked" : "completed",
       JSON.stringify(counts),
       opaque
@@ -450,16 +497,17 @@ async function calculate(db: PoolClient, ctx: Context, input: unknown) {
       d.scope === "workspace" ||
       selectedRefs.has(`${h.resource_kind}:${h.resource_id}`),
   );
-  const opaque = all.rows.filter(
-    (r) =>
-      !selected.includes(r) &&
-      own(r).size === 0 &&
-      refs(r.data).size === 0 &&
-      Object.values(r.data).some(
-        (v) =>
-          typeof v === "object" || (typeof v === "string" && v.length > 100),
-      ),
-  ).length;
+  const opaque =
+    all.rows.filter(
+      (r) =>
+        !selected.includes(r) &&
+        own(r).size === 0 &&
+        refs(r.data).size === 0 &&
+        Object.values(r.data).some(
+          (v) =>
+            typeof v === "object" || (typeof v === "string" && v.length > 100),
+        ),
+    ).length + unmappedReleasedImports(all.rows, selected);
   const graph = await allContentReferences(db),
     resourceIds = new Set(
       selected
@@ -595,6 +643,7 @@ export async function executeErasure(
         );
         // Privileged append-only refinement redaction happens only inside this explicit, preview-bound operation.
         for (const row of p.selected) {
+          if (await redactReleasedImportRow(db, row)) continue;
           const replacements: Record<string, unknown> = {};
           for (const c of p.all.columns.get(row.table) ?? []) {
             if (identityColumns.test(c.name)) continue;
@@ -634,15 +683,19 @@ export async function executeErasure(
           [ctx.workspaceId],
         );
         counts.shared_live_blob_hashes = storage.shared;
+        counts.pending_blob_hashes = storage.hashes.length;
+        counts.unresolved_unlineaged_rows = p.opaque;
         status =
-          (p.opaque && d.scope === "resource") || storage.shared
+          (p.opaque && d.scope === "resource") || storage.hashes.length
             ? "blocked"
             : "completed";
         code =
           status === "blocked"
-            ? storage.shared
-              ? "SHARED_LIVE_BLOB_RETAINED"
-              : "UNLINEAGED_CONTENT_REQUIRES_SEPARATE_PREVIEW"
+            ? p.opaque && d.scope === "resource"
+              ? "UNLINEAGED_CONTENT_REQUIRES_SEPARATE_PREVIEW"
+              : storage.shared
+                ? "SHARED_LIVE_BLOB_RETAINED"
+                : "PHYSICAL_BLOB_PURGE_REQUIRED"
             : undefined;
         const id = randomUUID();
         await db.query(

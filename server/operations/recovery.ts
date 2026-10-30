@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { randomUUID } from "node:crypto";
 import {
   MUTATION_GATE,
   sealExport,
@@ -8,6 +9,7 @@ import {
 } from "./service";
 import { revokeHistoricalAuthority } from "./current-policy";
 import { replayProductErasure } from "./erasure";
+import { replayReleasedInputRemoval } from "./released-imports";
 import { hashHasLiveReference } from "../../scripts/k8s/operations-storage-graph.mjs";
 /** Infrastructure/operator-only recovery ledger; not a per-space browser export. Contains no source content. */
 export async function captureRecoveryLedger(
@@ -39,6 +41,21 @@ export async function captureRecoveryLedger(
         "SELECT workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by FROM operations_erased_artifacts",
       )
     ).rows;
+    const erasureScopes = (
+      await db.query(
+        "SELECT workspace_id,preview_hash,approved_by,scope FROM operations_erasure_receipts WHERE scope='workspace' AND status IN('completed','blocked') AND (error_code IS NULL OR error_code IN('PHYSICAL_BLOB_PURGE_REQUIRED','SHARED_LIVE_BLOB_RETAINED'))",
+      )
+    ).rows;
+    const source = (
+      await db.query(
+        'SELECT current_database() AS database,(SELECT system_identifier::text FROM pg_control_system()) AS "systemIdentifier"',
+      )
+    ).rows[0];
+    const nativeInputRemovals = (
+      await db.query(
+        "SELECT DISTINCT workspace_id,resource_id AS import_id,principal_id FROM audit WHERE operation='import.remove'",
+      )
+    ).rows;
     const sealed = sealExport(
       {
         version: 2,
@@ -47,6 +64,9 @@ export async function captureRecoveryLedger(
         readers,
         legalHolds,
         erasedArtifacts,
+        erasureScopes,
+        source,
+        nativeInputRemovals,
       },
       key,
       signingKey,
@@ -62,6 +82,18 @@ export async function captureRecoveryLedger(
 }
 interface RecoveryLedger {
   version: 1 | 2;
+  source?: { database: string; systemIdentifier: string };
+  nativeInputRemovals?: {
+    workspace_id: string;
+    import_id: string;
+    principal_id: string;
+  }[];
+  erasureScopes?: {
+    workspace_id: string;
+    preview_hash: string;
+    approved_by: string;
+    scope: "workspace";
+  }[];
   legalHolds?: {
     workspace_id: string;
     id: string;
@@ -118,6 +150,7 @@ export async function secureRestoredDatabase(
     systemIdentifier: string;
     databaseSha256: string;
   },
+  refreshExisting = false,
 ) {
   const name = (await pool.query("SELECT current_database() AS name")).rows[0]
     .name as string;
@@ -127,6 +160,16 @@ export async function secureRestoredDatabase(
   await pool.query(
     "INSERT INTO operations_tombstones(workspace_id,id,resource_kind,resource_id,blob_hashes,allowed_readers,delete_content,approved_by) SELECT id,'restore-quarantine','source','__all__','[]','[]',false,'recovery-verifier' FROM workspaces ON CONFLICT DO NOTHING",
   );
+  // A backup may contain a previous restore's binding. It is NOT proof for this restore attempt.
+  if (refreshExisting)
+    await pool.query(
+      "UPDATE operations_recovery_releases SET status='failed' WHERE id='restore-binding'",
+    );
+  else
+    await pool.query(
+      "UPDATE operations_recovery_releases SET id=$1,status='failed' WHERE id='restore-binding'",
+      ["inherited-" + randomUUID()],
+    );
   const revoke = await pool.connect();
   try {
     await revoke.query("BEGIN");
@@ -139,6 +182,14 @@ export async function secureRestoredDatabase(
   } finally {
     revoke.release();
   }
+  if (
+    backupIdentity &&
+    ledger.version === 2 &&
+    (!ledger.source ||
+      ledger.source.database !== backupIdentity.database ||
+      ledger.source.systemIdentifier !== backupIdentity.systemIdentifier)
+  )
+    throw Error("RECOVERY_LEDGER_SOURCE_MISMATCH");
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
@@ -151,7 +202,7 @@ export async function secureRestoredDatabase(
         [r.workspace_id, r.kind, r.resource_id, r.principal_id],
       );
     await db.query(
-      "DELETE FROM resource_readers r WHERE NOT EXISTS(SELECT 1 FROM current_recovery_readers c WHERE c.workspace_id=r.workspace_id AND c.kind=r.kind AND c.resource_id=r.resource_id AND c.principal_id=r.principal_id)",
+      `DELETE FROM ${refreshExisting ? "operations_recovery_acl" : "resource_readers"} r WHERE NOT EXISTS(SELECT 1 FROM current_recovery_readers c WHERE c.workspace_id=r.workspace_id AND c.kind=r.kind AND c.resource_id=r.resource_id AND c.principal_id=r.principal_id)`,
     );
     await db.query("COMMIT");
   } catch (e) {
@@ -166,12 +217,21 @@ export async function secureRestoredDatabase(
   try {
     await quarantine.query("BEGIN");
     await quarantine.query("SELECT pg_advisory_xact_lock($1)", [MUTATION_GATE]);
-    await quarantine.query("DELETE FROM operations_recovery_acl");
-    await quarantine.query(
-      "INSERT INTO operations_recovery_acl SELECT workspace_id,kind,resource_id,principal_id FROM resource_readers",
-    );
+    if (!refreshExisting) {
+      await quarantine.query("DELETE FROM operations_recovery_acl");
+      await quarantine.query(
+        "INSERT INTO operations_recovery_acl SELECT workspace_id,kind,resource_id,principal_id FROM resource_readers",
+      );
+    }
     await quarantine.query("DELETE FROM resource_readers");
     await revokeHistoricalAuthority(quarantine);
+    if (
+      ledger.version === 1 &&
+      (await quarantine.query("SELECT to_regclass('public.imports') AS t"))
+        .rows[0].t &&
+      (await quarantine.query("SELECT 1 FROM imports LIMIT 1")).rowCount
+    )
+      throw Error("CURRENT_IMPORT_REMOVAL_LEDGER_REQUIRED");
     if (ledger.version === 2) {
       if (!Array.isArray(ledger.erasedArtifacts))
         throw Error("CURRENT_ARTIFACT_DELETION_LEDGER_REQUIRED");
@@ -220,11 +280,14 @@ export async function secureRestoredDatabase(
           );
       }
     }
-    for (const workspaceId of new Set(
-      ledger.tombstones
+    if (ledger.version === 2 && !Array.isArray(ledger.erasureScopes))
+      throw Error("CURRENT_ERASURE_SCOPE_LEDGER_REQUIRED");
+    for (const workspaceId of new Set([
+      ...ledger.tombstones
         .filter((t) => t.delete_content)
         .map((t) => t.workspace_id),
-    ))
+      ...(ledger.erasureScopes ?? []).map((s) => s.workspace_id),
+    ]))
       if (
         (
           await quarantine.query("SELECT 1 FROM workspaces WHERE id=$1", [
@@ -238,10 +301,26 @@ export async function secureRestoredDatabase(
           ledger.tombstones
             .filter((t) => t.workspace_id === workspaceId && t.delete_content)
             .map((t) => ({ kind: t.resource_kind, id: t.resource_id })),
+          (ledger.erasureScopes ?? []).some(
+            (s) => s.workspace_id === workspaceId && s.scope === "workspace",
+          ),
         );
     await quarantine.query(
       "INSERT INTO operations_tombstones(workspace_id,id,resource_kind,resource_id,blob_hashes,allowed_readers,delete_content,approved_by) SELECT id,'restore-quarantine','source','__all__','[]','[]',false,'recovery-verifier' FROM workspaces ON CONFLICT DO NOTHING",
     );
+    if (ledger.version === 2) {
+      if (!Array.isArray(ledger.nativeInputRemovals))
+        throw Error("CURRENT_IMPORT_REMOVAL_LEDGER_REQUIRED");
+      for (const removal of ledger.nativeInputRemovals)
+        if (
+          (
+            await quarantine.query("SELECT 1 FROM workspaces WHERE id=$1", [
+              removal.workspace_id,
+            ])
+          ).rowCount
+        )
+          await replayReleasedInputRemoval(quarantine, removal);
+    }
     if (backupIdentity) {
       if (
         !/^[a-zA-Z0-9_-]{1,100}$/.test(backupIdentity.backupId) ||
@@ -250,12 +329,13 @@ export async function secureRestoredDatabase(
       )
         throw Error("INVALID_VERIFIED_BACKUP_IDENTITY");
       await quarantine.query(
-        "INSERT INTO operations_recovery_releases(id,backup_id,source_database,source_system_identifier,policy_hash,preview_hash,operator_id,status) VALUES('restore-binding',$1,$2,$3,'verified-archive',$4,'restore-verifier','previewed') ON CONFLICT(id) DO UPDATE SET backup_id=excluded.backup_id,source_database=excluded.source_database,source_system_identifier=excluded.source_system_identifier,preview_hash=excluded.preview_hash",
+        "INSERT INTO operations_recovery_releases(id,backup_id,source_database,source_system_identifier,policy_hash,preview_hash,operator_id,status) VALUES('restore-binding',$1,$2,$3,$5,$4,'restore-verifier','previewed') ON CONFLICT(id) DO UPDATE SET backup_id=excluded.backup_id,source_database=excluded.source_database,source_system_identifier=excluded.source_system_identifier,preview_hash=excluded.preview_hash,policy_hash=excluded.policy_hash,status='previewed'",
         [
           backupIdentity.backupId,
           backupIdentity.database,
           backupIdentity.systemIdentifier,
           backupIdentity.databaseSha256,
+          "recovery-ledger:" + ledger.at,
         ],
       );
     }
@@ -297,4 +377,47 @@ export async function assertOperationalStartup(pool: Pool) {
     throw Error(
       "RESTORED_DATABASE_QUARANTINED_CURRENT_IDENTITY_IMPORT_REQUIRED",
     );
+}
+/** Reapply a freshly signed ledger to the SAME still-quarantined verified restore, preserving only saved∩current ACL. */
+export async function refreshRestoredLedger(
+  pool: Pool,
+  ledger: RecoveryLedger,
+) {
+  const name = (await pool.query("SELECT current_database() AS name")).rows[0]
+    .name;
+  if (
+    !/^akh_ops_restore_[a-f0-9]{32}$/.test(name) ||
+    (
+      await pool.query(
+        "SELECT 1 FROM operations_tombstones WHERE id='restore-quarantine' LIMIT 1",
+      )
+    ).rowCount === 0
+  )
+    throw Error("QUARANTINED_RESTORE_REQUIRED");
+  const binding = (
+    await pool.query(
+      "SELECT * FROM operations_recovery_releases WHERE id='restore-binding'",
+    )
+  ).rows[0];
+  if (!binding) throw Error("VERIFIED_BACKUP_BINDING_REQUIRED");
+  const age = Date.now() - Date.parse(ledger.at);
+  if (!Number.isFinite(age) || age < -60000 || age > 900000)
+    throw Error("RECOVERY_LEDGER_STALE_OR_INVALID");
+  if (
+    !ledger.source ||
+    ledger.source.database !== binding.source_database ||
+    ledger.source.systemIdentifier !== binding.source_system_identifier
+  )
+    throw Error("RECOVERY_LEDGER_SOURCE_MISMATCH");
+  return secureRestoredDatabase(
+    pool,
+    ledger,
+    {
+      backupId: binding.backup_id,
+      database: binding.source_database,
+      systemIdentifier: binding.source_system_identifier,
+      databaseSha256: binding.preview_hash,
+    },
+    true,
+  );
 }

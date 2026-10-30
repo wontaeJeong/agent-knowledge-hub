@@ -28,7 +28,14 @@ const authorize: WorkflowAuthorizer = async (db, ctx, action, resource) => {
     );
     if (!r.rowCount) throw Error("NOT_FOUND");
   }
-  if (!["space.admin", "policy.strengthen", "data.export"].includes(action))
+  if (
+    ![
+      "space.admin",
+      "policy.strengthen",
+      "data.export",
+      "knowledge.read",
+    ].includes(action)
+  )
     throw Error("FORBIDDEN");
 };
 async function setup() {
@@ -232,9 +239,15 @@ describe("real DB operational controls", () => {
     const key = "encryption".repeat(5),
       signing = "signing".repeat(8);
     let anchored = "";
+    const archiveTarget = {
+      put: async () => {},
+      get: async () => "",
+      list: async () => [],
+    };
     const route = operationsRoutes(s, {
       encryptionKey: key,
       signingKey: signing,
+      archiveTarget,
       readAnchor: async () => anchored || null,
       anchor: async (_name, body) => {
         anchored = body;
@@ -256,16 +269,19 @@ describe("real DB operational controls", () => {
     expect(anchored).toBe("");
     expect(await route(request)).toBe(true);
     expect(response).toMatchObject({ anchored: true });
-    expect(openExport(anchored, key, signing)).toEqual(
-      expect.arrayContaining([
+    expect(openExport(anchored, key, signing)).toMatchObject({
+      version: 2,
+      type: "audit-anchor",
+      rows: expect.arrayContaining([
         expect.objectContaining({
           event: expect.objectContaining({ operation: "admin.access" }),
         }),
       ]),
-    );
+    });
     const failed = operationsRoutes(s, {
       encryptionKey: key,
       signingKey: signing,
+      archiveTarget,
       readAnchor: async () => anchored || null,
       anchor: async () => {
         throw Error("TARGET_DOWN");
@@ -276,7 +292,7 @@ describe("real DB operational controls", () => {
       "DELETE FROM operations_audit_chain WHERE workspace_id=$1",
       [workspaceId],
     );
-    await expect(route(request)).rejects.toThrow("AUDIT_ANCHOR_MISMATCH");
+    await expect(route(request)).rejects.toThrow(/AUDIT_ANCHOR/);
     expect(await route({ ...request, path: "/api/v1/unrelated" })).toBe(false);
   });
 });

@@ -352,6 +352,11 @@ test("actual PostgreSQL dump + filesystem, quiescence blocks concurrent mutation
       },
     );
     assert.match(v3Restore, /삭제\/권한 제한 재적용 검증/);
+    const restoredContent = v3Restore.match(/폐기용 파일: (.+)/)[1].trim();
+    await assert.rejects(
+      readFile(join(restoredContent, "database.dump")),
+      "verified content root must not retain the original plaintext database dump",
+    );
     await assert.rejects(
       withBackupRetentionPolicy(pool, 30, async () => null),
       /POLICY_CONFLICT/,

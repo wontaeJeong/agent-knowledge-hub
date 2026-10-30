@@ -44,6 +44,33 @@ export interface AuditRow {
   previous_hash: string;
   hash: string;
 }
+/** Canonical authorization, including EVERY historical page version and its complete input ancestry. */
+export async function authorizeAuditResources(
+  db: PoolClient,
+  ctx: Context,
+  rows: AuditRow[],
+  authorize: WorkflowAuthorizer,
+  seen = new Set<string>(),
+) {
+  for (const row of rows) {
+    const r = (row.event as { resource?: WorkflowResource }).resource;
+    if (!r || seen.has(`${r.kind}:${r.id}`)) continue;
+    seen.add(`${r.kind}:${r.id}`);
+    await authorize(db, ctx, "knowledge.read", r);
+    await authorize(db, ctx, "data.export", r);
+    if (r.kind === "page")
+      for (const v of (
+        await db.query(
+          "SELECT number FROM versions WHERE workspace_id=$1 AND page_id=$2 ORDER BY number",
+          [ctx.workspaceId, r.id],
+        )
+      ).rows) {
+        const historical = { ...r, version: v.number };
+        await authorize(db, ctx, "knowledge.read", historical);
+        await authorize(db, ctx, "data.export", historical);
+      }
+  }
+}
 export function verifyAudit(
   rows: AuditRow[],
   checkpoint?: { sequence: string; hash: string },
@@ -311,9 +338,22 @@ export class OperationsService {
           [ctx.workspaceId],
         )
       ).rows[0];
+      let importDepth = 0;
+      if (
+        (await db.query("SELECT to_regclass('public.import_runs') AS t"))
+          .rows[0].t
+      )
+        importDepth = Number(
+          (
+            await db.query(
+              "SELECT count(*)::text AS n FROM import_runs WHERE workspace_id=$1 AND status IN('queued','running')",
+              [ctx.workspaceId],
+            )
+          ).rows[0].n,
+        );
       return {
         lastBackup: row.last_backup,
-        queueDepth: Number(row.queue_depth),
+        queueDepth: Number(row.queue_depth) + importDepth,
         blobBytes: row.blob_bytes === null ? null : Number(row.blob_bytes),
       };
     });
@@ -405,10 +445,7 @@ export class OperationsService {
         )
       ).rows[0];
       if (!verifyAudit(rows, checkpoint)) throw Error("AUDIT_TAMPER_DETECTED");
-      for (const row of rows) {
-        const r = (row.event as { resource?: WorkflowResource }).resource;
-        if (r) await requireRead(db, ctx, r.kind, r.id);
-      }
+      await authorizeAuditResources(db, ctx, rows, this.authorize);
       return rows;
     });
   }
@@ -511,8 +548,70 @@ export class OperationsService {
           // Backup manifests exclude explicitly deleted parent references, so erased bytes are not required.
           removed++;
         }
+        const finalized: { id: string; previewHash: string }[] = [];
+        const pending = (
+          await db.query(
+            "SELECT * FROM operations_erasure_receipts WHERE workspace_id=$1 AND approved_by=$2 AND status='blocked' AND error_code IN('PHYSICAL_BLOB_PURGE_REQUIRED','SHARED_LIVE_BLOB_RETAINED') AND coalesce((counts->>'unresolved_unlineaged_rows')::integer,0)=0 ORDER BY created_at",
+            [ctx.workspaceId, ctx.principalId],
+          )
+        ).rows;
+        for (const receipt of pending) {
+          const hashes = (
+            await db.query(
+              "SELECT DISTINCT value AS hash FROM operations_tombstones t CROSS JOIN LATERAL jsonb_array_elements_text(t.blob_hashes) WHERE t.workspace_id=$1 AND t.approved_by=$2 AND t.delete_content AND t.created_at=(SELECT created_at FROM operations_erasure_receipts WHERE workspace_id=$1 AND id=$3) UNION SELECT DISTINCT value AS hash FROM operations_erased_artifacts a CROSS JOIN LATERAL jsonb_array_elements_text(a.hashes) WHERE a.workspace_id=$1 AND a.approved_by=$2 AND a.preview_hash=$4",
+              [
+                ctx.workspaceId,
+                ctx.principalId,
+                receipt.id,
+                receipt.preview_hash,
+              ],
+            )
+          ).rows;
+          if (
+            !hashes.length ||
+            hashes.length !== receipt.counts.pending_blob_hashes
+          )
+            continue;
+          let live = false;
+          for (const { hash } of hashes)
+            if (await hashHasLiveReference(db, hash)) {
+              live = true;
+              break;
+            }
+          if (live) continue;
+          if (
+            (
+              await db.query(
+                "SELECT 1 FROM operations_erasure_receipts WHERE workspace_id=$1 AND preview_hash=$2 AND status='completed' LIMIT 1",
+                [ctx.workspaceId, receipt.preview_hash],
+              )
+            ).rowCount
+          )
+            continue;
+          const id = randomUUID(),
+            counts = {
+              ...receipt.counts,
+              pending_blob_hashes: 0,
+              shared_live_blob_hashes: 0,
+              physically_absent_hashes: hashes.length,
+            };
+          await db.query(
+            "INSERT INTO operations_erasure_receipts(workspace_id,id,preview_hash,scope,resource_kind,resource_id,approved_by,status,counts) VALUES($1,$2,$3,$4,$5,$6,$7,'completed',$8)",
+            [
+              ctx.workspaceId,
+              id,
+              receipt.preview_hash,
+              receipt.scope,
+              receipt.resource_kind,
+              receipt.resource_id,
+              ctx.principalId,
+              JSON.stringify(counts),
+            ],
+          );
+          finalized.push({ id, previewHash: receipt.preview_hash });
+        }
         await this.append(db, ctx, { operation: "content.blob-purge" });
-        return { removed, allCopiesErased: false };
+        return { removed, finalized, allCopiesErased: false };
       },
       true,
     );

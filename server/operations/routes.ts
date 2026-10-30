@@ -1,17 +1,16 @@
 import { z } from "zod";
 import type { Context } from "../service";
-import {
-  OperationsService,
-  sealExport,
-  verifyAuditAnchor,
-  appendOperationalAudit,
-} from "./service";
+import { OperationsService, appendOperationalAudit } from "./service";
 import {
   archiveAudit,
   auditArchives,
-  verifyArchiveHistory,
   type AuditArchiveTarget,
 } from "./archive";
+import {
+  exportAuditAnchor,
+  verifyAuditAnchorHistory,
+  type AuditHeadStore,
+} from "./audit-protocol";
 import { previewErasure, executeErasure } from "./erasure";
 import { effectiveAccess } from "../access";
 import { requireRead } from "../repository";
@@ -26,7 +25,7 @@ export interface OperationsRouteInput {
 export interface AuditExportConfig {
   encryptionKey: string;
   signingKey: string;
-  anchor: (name: string, body: string) => Promise<void>;
+  anchor: AuditHeadStore["anchor"];
   readAnchor: (workspaceId: string) => Promise<string | null>;
   archiveTarget?: AuditArchiveTarget;
 }
@@ -53,10 +52,12 @@ export function operationsRoutes(
         .parse(body);
       send(
         200,
-        await verifyArchiveHistory(service, ctx, {
+        await verifyAuditAnchorHistory(service, ctx, {
           target: exportConfig.archiveTarget,
           key: exportConfig.encryptionKey,
           signingKey: exportConfig.signingKey,
+          readAnchor: exportConfig.readAnchor,
+          anchor: exportConfig.anchor,
         }),
       );
       return true;
@@ -66,7 +67,23 @@ export function operationsRoutes(
       return true;
     }
     if (method === "POST" && route === "erasure/execute") {
-      send(200, await executeErasure(service, ctx, body));
+      const receipt = await executeErasure(service, ctx, body);
+      if (deletionAdapter && service.options.physicalDeletionGateConfirmed) {
+        const physical = await service.purgeApprovedBlobs(ctx, (h) =>
+          deletionAdapter.remove(h),
+        );
+        const completion = physical.finalized.find(
+          (r) =>
+            r.previewHash === (body as { previewHash: string }).previewHash,
+        );
+        send(200, {
+          ...receipt,
+          ...(completion
+            ? { status: "completed", completionReceiptId: completion.id }
+            : {}),
+          physical,
+        });
+      } else send(200, receipt);
       return true;
     }
     if (method === "POST" && route === "audit/archives") {
@@ -97,6 +114,8 @@ export function operationsRoutes(
           target: exportConfig.archiveTarget,
           key: exportConfig.encryptionKey,
           signingKey: exportConfig.signingKey,
+          readAnchor: exportConfig.readAnchor,
+          anchor: exportConfig.anchor,
         }),
       );
       return true;
@@ -224,31 +243,21 @@ export function operationsRoutes(
       return true;
     }
     if (method === "POST" && route === "audit/export") {
-      if (!exportConfig) throw Error("AUDIT_EXPORT_NOT_CONFIGURED");
+      if (!exportConfig?.archiveTarget)
+        throw Error("AUDIT_EXPORT_NOT_CONFIGURED");
       z.object({ confirm: z.literal("EXPORT_ENCRYPTED_AUDIT") })
         .strict()
         .parse(body);
-      const rows = await service.auditRows(ctx);
-      const previous = await exportConfig.readAnchor(ctx.workspaceId);
-      if (
-        previous !== null &&
-        !verifyAuditAnchor(
-          rows,
-          previous,
-          exportConfig.encryptionKey,
-          exportConfig.signingKey,
-        )
-      )
-        throw Error("AUDIT_ANCHOR_MISMATCH");
-      const encrypted = sealExport(
-        rows,
-        exportConfig.encryptionKey,
-        exportConfig.signingKey,
+      send(
+        200,
+        await exportAuditAnchor(service, ctx, {
+          target: exportConfig.archiveTarget,
+          key: exportConfig.encryptionKey,
+          signingKey: exportConfig.signingKey,
+          readAnchor: exportConfig.readAnchor,
+          anchor: exportConfig.anchor,
+        }),
       );
-      const name = `audit-${ctx.workspaceId}-${Date.now()}.akh-backup`;
-      // An independently retained signed encrypted copy detects later DB rewrite/truncation.
-      await exportConfig.anchor(name, encrypted);
-      send(200, { encrypted, anchored: true, count: rows.length });
       return true;
     }
     return false;

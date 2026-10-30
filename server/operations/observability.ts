@@ -25,10 +25,26 @@ export async function operationalTelemetry(pool: Pool) {
   };
   const db = await pool.query(query);
   const r = db.rows[0];
+  let importQueueDepth = 0,
+    importExpiredLeases = 0;
+  if (
+    (await pool.query("SELECT to_regclass('public.import_runs') AS t")).rows[0]
+      .t
+  ) {
+    const native = (
+      await pool.query(
+        "SELECT count(*) FILTER(WHERE status IN('queued','running'))::text AS depth,count(*) FILTER(WHERE status='running' AND lease_until<clock_timestamp())::text AS expired FROM import_runs",
+      )
+    ).rows[0];
+    importQueueDepth = Number(native.depth);
+    importExpiredLeases = Number(native.expired);
+  }
   return {
     databaseBytes: Number(r.bytes),
-    queueDepth: Number(r.queue_depth),
-    expiredLeases: Number(r.expired_leases),
+    queueDepth: Number(r.queue_depth) + importQueueDepth,
+    expiredLeases: Number(r.expired_leases) + importExpiredLeases,
+    durableQueueDepth: Number(r.queue_depth),
+    importQueueDepth,
     lastBackup: r.last_backup as Date | null,
     inputTokens: r.input_tokens === null ? null : Number(r.input_tokens),
     outputTokens: r.output_tokens === null ? null : Number(r.output_tokens),
@@ -103,6 +119,8 @@ export function operationsProbeHandler(c: ProbeConfig) {
     for (const [name, value] of Object.entries({
       database_bytes: t?.databaseBytes ?? null,
       expired_leases: t?.expiredLeases ?? null,
+      durable_queue_depth: t?.durableQueueDepth ?? null,
+      import_queue_depth: t?.importQueueDepth ?? null,
       model_input_tokens: t?.inputTokens ?? null,
       model_output_tokens: t?.outputTokens ?? null,
       model_cost_micros: t?.costMicros ?? null,

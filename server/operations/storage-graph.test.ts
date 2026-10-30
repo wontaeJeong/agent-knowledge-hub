@@ -167,7 +167,11 @@ test("old immutable slot version and mapped import effect retain shared bytes ev
 test("actual StorageService CAS upload and metadata transaction cannot race exclusive physical unlink", async () => {
   const f = await setup();
   const { bytes, sha } = f;
-  await erase(f, "source-a");
+  const pending = await erase(f, "source-a");
+  expect(pending).toMatchObject({
+    status: "blocked",
+    errorCode: "PHYSICAL_BLOB_PURGE_REQUIRED",
+  });
   let entered!: () => void, release!: () => void;
   const deleting = new Promise<void>((r) => (entered = r)),
     continueDelete = new Promise<void>((r) => (release = r));
@@ -197,7 +201,9 @@ test("actual StorageService CAS upload and metadata transaction cannot race excl
   await new Promise((r) => setTimeout(r, 20));
   expect(finished).toBe(false);
   release();
-  expect((await purge).removed).toBe(1);
+  const purged = await purge;
+  expect(purged.removed).toBe(1);
+  expect(purged.finalized.length).toBe(1);
   const result = await upload;
   expect(result.sha256).toBe(sha);
   expect(await f.files.get(sha)).toEqual(bytes);

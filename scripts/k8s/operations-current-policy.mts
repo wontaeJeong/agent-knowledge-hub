@@ -3,6 +3,11 @@ import { Pool } from "pg";
 import { sealExport } from "../../server/operations/service";
 import { OperationsService } from "../../server/operations/service";
 import { authorizeInTransaction } from "../../server/access";
+import { PhysicalDeletionStore } from "../../server/operations/filesystem";
+import {
+  readRecoveryLedger,
+  refreshRestoredLedger,
+} from "../../server/operations/recovery";
 import {
   previewErasure,
   executeErasure,
@@ -47,7 +52,30 @@ try {
       connectionString: env.DATABASE_URL,
       connectionTimeoutMillis: 5000,
     });
-    if (command === "identity")
+    if (command === "replay-ledger") {
+      if (
+        !file ||
+        !env.AUDIT_EXPORT_KEY ||
+        !env.AUDIT_SIGNING_KEY ||
+        env.RECOVERY_RELEASE_CONFIRMATION !==
+          "REFRESH_SIGNED_LEDGER_KEEP_QUARANTINE"
+      )
+        throw Error("CURRENT_LEDGER_REPLAY_CONFIRMATION_REQUIRED");
+      console.log(
+        JSON.stringify(
+          await refreshRestoredLedger(
+            pool,
+            readRecoveryLedger(
+              await readFile(file, "utf8"),
+              env.AUDIT_EXPORT_KEY,
+              env.AUDIT_SIGNING_KEY,
+            ),
+          ),
+          null,
+          2,
+        ),
+      );
+    } else if (command === "identity")
       console.log(JSON.stringify(await verifiedRestoreIdentity(pool), null, 2));
     else {
       if (
@@ -85,7 +113,11 @@ try {
             2,
           ),
         );
-      else if (command === "erasure-preview" || command === "erasure-execute") {
+      else if (
+        command === "erasure-preview" ||
+        command === "erasure-execute" ||
+        command === "erasure-purge"
+      ) {
         const p = readCurrentPolicy(
           config.encrypted,
           config.key,
@@ -101,24 +133,49 @@ try {
           )
         )
           throw Error("EXPLICIT_CURRENT_OWNER_REQUIRED");
-        const service = new OperationsService(pool, authorizeInTransaction),
+        const service = new OperationsService(pool, authorizeInTransaction, {
+            physicalDeletionGateConfirmed:
+              env.RECOVERY_PHYSICAL_DELETION_GATE_CONFIRMED === "true",
+          }),
           ctx = {
             workspaceId: outputOrPreviewId,
             principalId: config.operatorId,
           };
-        console.log(
-          JSON.stringify(
-            command === "erasure-preview"
-              ? await previewErasure(service, ctx, { scope: "workspace" })
-              : await executeErasure(service, ctx, {
-                  scope: "workspace",
-                  previewHash,
-                  confirm: env.RECOVERY_ERASURE_CONFIRMATION ?? "",
-                }),
-            null,
-            2,
-          ),
-        );
+        if (command === "erasure-purge") {
+          if (
+            env.RECOVERY_ERASURE_CONFIRMATION !==
+              "PURGE_PREVIOUSLY_APPROVED_BLOBS" ||
+            !service.options.physicalDeletionGateConfirmed
+          )
+            throw Error("EXPLICIT_PHYSICAL_PURGE_CONFIRMATION_REQUIRED");
+          const deletion = new PhysicalDeletionStore(
+            env.AKH_BLOB_ROOT ?? env.CONTENT_DIRECTORY ?? "",
+          );
+          if (
+            !/\/akh-verified-restore-[a-zA-Z0-9]+\/content$/.test(deletion.root)
+          )
+            throw Error("ISOLATED_RESTORE_CONTENT_DIRECTORY_REQUIRED");
+          console.log(
+            JSON.stringify(
+              await service.purgeApprovedBlobs(ctx, (h) => deletion.remove(h)),
+              null,
+              2,
+            ),
+          );
+        } else
+          console.log(
+            JSON.stringify(
+              command === "erasure-preview"
+                ? await previewErasure(service, ctx, { scope: "workspace" })
+                : await executeErasure(service, ctx, {
+                    scope: "workspace",
+                    previewHash,
+                    confirm: env.RECOVERY_ERASURE_CONFIRMATION ?? "",
+                  }),
+              null,
+              2,
+            ),
+          );
       } else throw Error("COMMAND_REQUIRED");
     }
   }
