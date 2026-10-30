@@ -4,14 +4,14 @@
 >
 > 결정 근거: [ADR 003](adr/003-single-cluster-initial-release.md) · 장기 규모: [SCALING_PLAN.md](SCALING_PLAN.md) · 기존 요구사항: [ROADMAP.md](ROADMAP.md)
 
-후속 코드 상태: [서버 기반 서비스](SERVER_FOUNDATION.md)의 PostgreSQL 원자 발행·권한·사용량 저장을 로컬 시험 DB에서 검증했다. 이는 기본 UI/운영 DB·SSO 연결이나 K8s 배포가 아니며 아래 1차 실사용 필수 게이트는 아직 미완료다.
+현재 별도 Node 서버에는 PostgreSQL 기반 원자 발행·사용량 기록, OIDC 인증·서버 ACL, 웹 자료 편입·조직/팀 접근 관리가 구현돼 있다. [운영 경로](OPERATIONAL_SETUP.md)와 [실제 구현 범위](IMPLEMENTATION_GUIDE.md)를 참고한다. **사내 SSO/TLS/CNI/PVC·백업·복원/부하의 운영 인수는 미실행**이며 아래 필수 게이트는 별도로 검증해야 한다.
 
 ## 1. 범위와 배포 원칙
 
 - **클러스터:** 단일 Kubernetes 클러스터(기존 사내 공용 인프라 사용 가정).
 - **환경:** `agent-knowledge-hub-stg`, `agent-knowledge-hub-prod` 두 네임스페이스. 별도 DB, Secret, 설정, 서비스 계정, PVC, 권한, 백업 대상.
-- **애플리케이션:** 환경별 정상 상태 `replicas: 1`인 Deployment 1개를 목표로 한다. 1차 버전에서는 프런트/백 API의 실제 프로세스 구성은 기존 코드 전환 시 정하되, DB를 앱 컨테이너와 같은 Pod에 넣지 않는다.
-- **DB:** 각 환경에 독립적인 PostgreSQL **인스턴스 1개**. 클러스터 표준 PostgreSQL 오퍼레이터(예: CNPG)가 이미 있다면 1-instance 클러스터를 우선 검토한다. 아니라면 백업·운영 책임을 포함하여 단일 DB StatefulSet 또는 관리형 DB를 평가한다. 오퍼레이터 설치 여부는 미확인이다.
+- **애플리케이션:** 환경별 정상 상태 `replicas: 1`인 Deployment 1개를 목표로 한다. 현재 목표 이미지는 `Dockerfile.server`의 Node 서버(UI/API/OIDC 포함)이며 PostgreSQL은 별도 StatefulSet/Pod로 운영한다.
+- **DB:** 각 환경에 독립적인 PostgreSQL **인스턴스 1개**. 현재 구현은 별도 단일 PostgreSQL StatefulSet/PVC다. 클러스터 표준 DB 오퍼레이터(CNPG 등)로 전환할지는 별도 운영 검토 대상이고, 현재 백업/HA가 검증됐다는 뜻이 아니다.
 - **도메인/Ingress/TLS:** STG/PROD에 서로 다른 호스트·라우트·인증 경계 사용. 실제 FQDN은 사내 배포 시 결정한다.
 - **파일/원본:** 첨부·원본은 DB와 구별되는 영속 저장소(승인된 오브젝트 저장소 등)로 분리한다. Pod 임시 파일시스템을 원본 저장소로 사용하지 않는다.
 - **이미지:** 같은 immutable 이미지 digest를 STG 검증 후 PROD로 승격하고, 설정/Secret은 환경별로 주입한다. `latest` 태그 의존 배포 금지.
@@ -87,10 +87,10 @@ STG가 PROD 데이터베이스, 원본 저장소, Secret 또는 사용자 토큰
 
 ## 7. 기존 실행 계획(현재 상태 기준으로 재평가)
 
-1. 실제 서버 API 및 PostgreSQL 스키마·SSO/권한·원본 저장소가 준비되면 컨테이너 구성을 확정한다.
-2. Kustomize overlays(`stg`, `prod`) 또는 팀 표준 Helm 방식 중 **하나**를 선택하여 동일 템플릿에서 두 환경을 선언적으로 생성한다. 현재 레포에는 배포 템플릿이 없다.
-3. 네임스페이스 기본 정책, app/DB/PVC/Ingress, Secret 공급 방식을 선언적으로 반영한다.
-4. STG에서 실제 배포·마이그레이션·장애·복구를 검증한 뒤 동일 이미지 digest를 PROD로 승격한다.
+1. 현재 Kustomize base·STG/PROD overlays와 `prepare-site.mjs`로 site별 **비밀 없는** 배포 입력을 생성한다.
+2. 실제 사내 도메인·IdP·Ingress controller 라벨/CIDR·StorageClass·TLS/DB/OIDC Secret을 운영자가 공급한다.
+3. 정적 production guard와 실제 Secret 사전 검사 후 STG에 DB→migration→App 순서로 배포하고 SSO/CNI/백업·복원·모델·부하를 인수한다.
+4. STG에서 검증한 동일 App 이미지 digest를 PROD로 승격하며 별도 운영 승인과 장애 대응 계획을 기록한다.
 5. 실측 지표가 쌓이면 [SCALING_PLAN.md](SCALING_PLAN.md)의 순서로 증설한다.
 
 ### 참조
