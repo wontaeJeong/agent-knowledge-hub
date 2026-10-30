@@ -48,9 +48,84 @@ export function storageRoutes(
         },
         filename: decodeURIComponent(header),
         mime: req.headers["content-type"],
+        slotId: req.headers["x-attachment-slot"],
+        expectedHead: req.headers["x-expected-head"],
+        expectedRevision:
+          req.headers["x-expected-revision"] === undefined
+            ? undefined
+            : Number(
+                z
+                  .string()
+                  .regex(/^[1-9][0-9]{0,8}$/)
+                  .parse(req.headers["x-expected-revision"]),
+              ),
       };
       send(201, await service.upload(ctx, d, req));
       return true;
+    }
+    const attachment =
+      /^attachments\/([a-zA-Z0-9_-]+)(?:\/(preview|history|withdraw|propose-link|versions\/([1-9][0-9]{0,8})(?:\/(preview))?))?$/.exec(
+        suffix,
+      );
+    if (attachment) {
+      if (
+        method === "GET" &&
+        (attachment[2] === "preview" || attachment[4] === "preview")
+      ) {
+        send(
+          200,
+          await service.previewAttachment(
+            ctx,
+            attachment[1],
+            attachment[3] ? Number(attachment[3]) : undefined,
+          ),
+        );
+        return true;
+      }
+      if (method === "GET" && (!attachment[2] || attachment[3])) {
+        const result = await service.downloadAttachment(
+          ctx,
+          attachment[1],
+          attachment[3] ? Number(attachment[3]) : undefined,
+        );
+        if (!res) throw Error("RAW_RESPONSE_REQUIRED");
+        res.writeHead(200, {
+          "content-type": "application/octet-stream",
+          "content-length": result.bytes.length,
+          "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(result.filename)}`,
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+          "content-security-policy": "default-src 'none'; sandbox",
+        });
+        res.end(result.bytes);
+        return true;
+      }
+      if (method === "GET" && attachment[2] === "history") {
+        send(200, await service.attachmentHistory(ctx, attachment[1]));
+        return true;
+      }
+      if (method === "POST" && attachment[2] === "history") {
+        const d = z
+          .object({ offset: z.number().int().min(0).max(1000000).default(0) })
+          .strict()
+          .parse(body);
+        send(
+          200,
+          await service.attachmentHistory(ctx, attachment[1], d.offset),
+        );
+        return true;
+      }
+      if (method === "POST" && attachment[2] === "withdraw") {
+        send(200, await service.withdrawAttachment(ctx, attachment[1], body));
+        return true;
+      }
+      if (method === "POST" && attachment[2] === "propose-link") {
+        send(
+          201,
+          await service.proposeAttachmentLink(ctx, attachment[1], body),
+        );
+        return true;
+      }
     }
     const match =
       /^blobs\/([a-zA-Z0-9_-]+)(?:\/(extract|ticket|local-copy))?$/.exec(
@@ -155,6 +230,11 @@ export function storageRoutes(
       return true;
     }
     const proposal = /^imports\/([a-zA-Z0-9_-]+)$/.exec(suffix);
+    const submitImport = /^imports\/([a-zA-Z0-9_-]+)\/propose$/.exec(suffix);
+    if (method === "POST" && submitImport) {
+      send(201, await service.proposeImport(ctx, submitImport[1], body));
+      return true;
+    }
     if (method === "GET" && proposal) {
       send(200, await service.importProposal(ctx, proposal[1]));
       return true;

@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { mkdtemp, realpath, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fixture, source } from "../test-support";
+import { fixture, source, page } from "../test-support";
 import { StorageService } from "./service";
 import { FileBlobStore, MAX_BYTES, bounded } from "./content";
 import { storageRoutes } from "./routes";
@@ -55,7 +55,8 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  if (server)
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   await f?.pool.end();
   if (root) await rm(root, { recursive: true, force: true });
 });
@@ -143,4 +144,96 @@ it("registers a selected actual tool artifact through HTTP without granting exec
   expect(
     (await fetch(base + "/api/v1/storage/blobs/" + registered.blobId)).status,
   ).toBe(200);
+});
+it("consumes an archived import through HTTP into an actual non-published core changeset", async () => {
+  const json = (path: string, body: unknown) =>
+    fetch(base + "/api/v1/storage/" + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  const exported = await json("export", { pageIds: [page.id] }),
+    manifest = await exported.json();
+  manifest.pages[0].versions[0].content = "HTTP 가져오기 검토";
+  const staged = await json("import", manifest);
+  expect(staged.status).toBe(201);
+  const archive = await staged.json();
+  const submitted = await json(`imports/${archive.id}/propose`, {
+    baseVersions: { [page.id]: 1 },
+    reason: "HTTP 검토 경로",
+  });
+  expect(submitted.status).toBe(201);
+  const result = await submitted.json();
+  const batch = (
+    await f.pool.query(
+      "SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, result.id],
+    )
+  ).rows[0].data;
+  expect(batch.status).toBe("pending");
+  expect(batch.updates[0].content).toBe("HTTP 가져오기 검토");
+  expect(
+    (await fetch(base + `/api/v1/storage/imports/${archive.id}`)).status,
+  ).toBe(200);
+  await f.pool.query(
+    "UPDATE batches SET data=jsonb_set(data,'{status}','\"rejected\"') WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, result.id],
+  );
+});
+it("serves raw replacement headers, immutable version previews and reviewed editor association over real HTTP", async () => {
+  const put = (text: string, extra: Record<string, string> = {}) =>
+    fetch(base + "/api/v1/storage/blobs", {
+      method: "PUT",
+      headers: {
+        "content-type": "text/plain",
+        "x-parent-kind": "page",
+        "x-parent-id": page.id,
+        "x-filename": "version.txt",
+        ...extra,
+      },
+      body: text,
+    });
+  const initial = await (await put("HTTP 버전 1")).json(),
+    replacement = await put("HTTP 버전 2", {
+      "x-attachment-slot": initial.slotId,
+      "x-expected-head": initial.id,
+      "x-expected-revision": "1",
+    });
+  expect(replacement.status).toBe(201);
+  const current = await replacement.json();
+  expect(
+    await (
+      await fetch(base + `/api/v1/storage/attachments/${initial.slotId}`)
+    ).text(),
+  ).toBe("HTTP 버전 2");
+  const preview = await fetch(
+    base + `/api/v1/storage/attachments/${initial.slotId}/versions/1/preview`,
+  );
+  expect(preview.status).toBe(200);
+  expect((await preview.json()).text).toBe("HTTP 버전 1");
+  const association = await fetch(
+    base + `/api/v1/storage/attachments/${initial.slotId}/propose-link`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        baseVersion: 1,
+        expectedHead: current.id,
+        reason: "HTTP 편집 연결",
+      }),
+    },
+  );
+  expect(association.status).toBe(201);
+  const withdrawal = await fetch(
+    base + `/api/v1/storage/attachments/${initial.slotId}/withdraw`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ expectedRevision: 2, reason: "HTTP 철회 확인" }),
+    },
+  );
+  expect(withdrawal.status).toBe(200);
+  expect(
+    (await fetch(base + `/api/v1/storage/blobs/${initial.id}`)).status,
+  ).toBe(400);
 });

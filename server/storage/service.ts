@@ -2,6 +2,10 @@ import { randomUUID, randomBytes } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import type { Context } from "../service";
+import { ImportWorkflow, readImportArchive } from "./imports";
+import { AttachmentWorkflow } from "./attachments";
+import { acquireSharedMutationGate } from "../operations/gate";
+import { statfs } from "node:fs/promises";
 import { transaction } from "../database";
 import {
   membership,
@@ -27,13 +31,27 @@ export type StorageAuthorizer = (
   action: string,
   resource?: StorageResource,
 ) => Promise<void>;
-const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
+export interface StorageOptions {
+  minimumAvailableBytes?: number;
+  /** Trusted test/deployment adapter, never a request field. */ capacityProbe?: (
+    root: string,
+  ) => Promise<bigint>;
+}
+const id = z
+  .string()
+  .regex(/^[a-zA-Z0-9_-]{1,100}$/)
+  .refine(
+    (value) => !["__proto__", "constructor", "prototype"].includes(value),
+  );
 const resource = z.object({ kind: z.enum(["source", "page"]), id }).strict();
 const uploadSchema = z
   .object({
     parent: resource,
     filename: z.string().max(200),
     mime: z.string().max(100),
+    slotId: id.optional(),
+    expectedHead: id.optional(),
+    expectedRevision: z.number().int().positive().optional(),
   })
   .strict();
 type BlobRow = {
@@ -45,6 +63,12 @@ type BlobRow = {
   mime: string;
   filename: string;
   scan_state: string;
+  attachment?: {
+    slotId: string;
+    revision: number;
+    headId: string;
+    headRevision: number;
+  } | null;
 };
 const manifestSchema = z
   .object({
@@ -94,12 +118,23 @@ const manifestSchema = z
             filename: z.string(),
             base64: z.string().max(Math.ceil(MAX_BYTES / 3) * 4),
             scanState: z.literal("clean"),
+            attachment: z
+              .object({
+                slotId: id,
+                revision: z.number().int().positive(),
+                headId: id,
+                headRevision: z.number().int().positive(),
+              })
+              .strict()
+              .nullable()
+              .optional(),
           })
           .strict(),
       )
       .max(100),
   })
   .strict();
+export type StorageManifest = z.infer<typeof manifestSchema>;
 
 /** Host must authenticate and resolve selected space before constructing Context. */
 export class StorageService {
@@ -107,10 +142,55 @@ export class StorageService {
     readonly pool: Pool,
     readonly files: FileBlobStore,
     readonly authorize: StorageAuthorizer,
+    readonly options: StorageOptions = {},
   ) {
     if (typeof authorize !== "function") throw Error("AUTHORIZER_REQUIRED");
+    if (
+      options.minimumAvailableBytes !== undefined &&
+      (!Number.isSafeInteger(options.minimumAvailableBytes) ||
+        options.minimumAvailableBytes < MAX_BYTES)
+    )
+      throw Error("INVALID_STORAGE_RESERVE");
   }
-  private async run<T>(
+  async writeContent(db: PoolClient, bytes: Buffer) {
+    await acquireSharedMutationGate(db);
+    await this.files.prepareRoot();
+    let available: bigint;
+    try {
+      available = this.options.capacityProbe
+        ? await this.options.capacityProbe(this.files.root)
+        : await statfs(this.files.root, { bigint: true }).then(
+            (s) => s.bavail * s.bsize,
+          );
+      if (typeof available !== "bigint" || available < 0n)
+        throw Error("UNKNOWN");
+    } catch {
+      throw Error("STORAGE_CAPACITY_UNKNOWN");
+    }
+    if (
+      available <
+      BigInt(this.options.minimumAvailableBytes ?? 64 * 1024 * 1024) +
+        BigInt(bytes.length)
+    )
+      throw Error("STORAGE_CAPACITY_LOW");
+    return this.files.put(
+      (async function* () {
+        yield bytes;
+      })(),
+    );
+  }
+  async recheck(
+    db: PoolClient,
+    ctx: Context,
+    action: string,
+    parent?: StorageResource,
+  ) {
+    await membership(db, ctx);
+    await ctx.authorization?.assertSession(db);
+    await this.authorize(db, ctx, action, parent);
+    if (parent) await this.parent(db, ctx, parent);
+  }
+  async run<T>(
     ctx: Context,
     action: string,
     parent: StorageResource | undefined,
@@ -118,6 +198,7 @@ export class StorageService {
   ): Promise<T> {
     await ctx.authorization?.revalidate();
     const result = await transaction(this.pool, ctx.workspaceId, async (db) => {
+      await acquireSharedMutationGate(db);
       await membership(db, ctx);
       await ctx.authorization?.assertSession(db);
       await this.authorize(db, ctx, action, parent);
@@ -126,7 +207,7 @@ export class StorageService {
     await ctx.authorization?.revalidate();
     return result;
   }
-  private async parent(db: PoolClient, ctx: Context, p: StorageResource) {
+  async parent(db: PoolClient, ctx: Context, p: StorageResource) {
     resource.parse(p);
     await requireRead(db, ctx, p.kind, p.id);
     if (
@@ -177,11 +258,7 @@ export class StorageService {
       if (parent.rows[0]?.parent_id) pending.push(parent.rows[0].parent_id);
     }
   }
-  private async blob(
-    db: PoolClient,
-    ctx: Context,
-    blobId: string,
-  ): Promise<BlobRow> {
+  async blob(db: PoolClient, ctx: Context, blobId: string): Promise<BlobRow> {
     const r = await db.query(
       "SELECT * FROM storage_blobs WHERE workspace_id=$1 AND id=$2",
       [ctx.workspaceId, id.parse(blobId)],
@@ -189,6 +266,11 @@ export class StorageService {
     if (!r.rowCount) throw Error("NOT_FOUND");
     const b = r.rows[0] as BlobRow;
     await this.parent(db, ctx, { kind: b.parent_kind, id: b.parent_id });
+    const slot = await db.query(
+      "SELECT s.withdrawn FROM storage_attachment_versions v JOIN storage_attachment_slots s ON s.workspace_id=v.workspace_id AND s.id=v.slot_id WHERE v.workspace_id=$1 AND v.blob_id=$2",
+      [ctx.workspaceId, blobId],
+    );
+    if (slot.rows[0]?.withdrawn) throw Error("NOT_FOUND");
     return b;
   }
   async preflightUpload(ctx: Context, parent: StorageResource) {
@@ -232,11 +314,6 @@ export class StorageService {
     });
     const bytes = Buffer.from(d.content);
     inspectContent(bytes, "text/plain", "source.txt");
-    const saved = await this.files.put(
-      (async function* () {
-        yield bytes;
-      })(),
-    );
     return this.run(ctx, "source.create", undefined, async (db) => {
       if (d.targetPageId)
         await this.parent(db, ctx, { kind: "page", id: d.targetPageId });
@@ -244,7 +321,7 @@ export class StorageService {
         JSON.stringify({
           tool: d.tool,
           external: d.external ?? null,
-          hash: saved.sha256,
+          hash: sha256(bytes),
         }),
       );
       if (d.external) {
@@ -258,11 +335,15 @@ export class StorageService {
           if (p.external.version > d.external.version)
             return { id: p.sourceId, duplicate: true, stale: true };
           if (p.external.version === d.external.version) {
-            if (p.hash !== saved.sha256) throw Error("EVENT_CONFLICT");
+            if (p.hash !== sha256(bytes)) throw Error("EVENT_CONFLICT");
             return { id: p.sourceId, duplicate: true, stale: false };
           }
         }
       }
+      const saved = await this.writeContent(db, bytes);
+      await this.recheck(db, ctx, "source.create");
+      if (d.targetPageId)
+        await this.parent(db, ctx, { kind: "page", id: d.targetPageId });
       const sourceId = randomUUID(),
         blobId = randomUUID(),
         snapshotId = randomUUID();
@@ -337,18 +418,49 @@ export class StorageService {
     stream: AsyncIterable<Uint8Array>,
   ) {
     const d = uploadSchema.parse(metadata);
-    await this.run(ctx, "source.create", d.parent, (db) =>
-      this.parent(db, ctx, d.parent),
-    );
+    if (
+      (d.slotId !== undefined) !== (d.expectedHead !== undefined) ||
+      (d.slotId !== undefined) !== (d.expectedRevision !== undefined)
+    )
+      throw Error("UPLOAD_CAS_REQUIRED");
+    const attachments = new AttachmentWorkflow(this);
+    await this.run(ctx, "source.create", d.parent, async (db) => {
+      await attachments.writableParent(db, ctx, d.parent);
+      if (d.slotId)
+        await attachments.expectedSlot(
+          db,
+          ctx,
+          d.slotId,
+          d.expectedHead!,
+          d.expectedRevision!,
+          d.parent,
+        );
+    });
     const bytes = await bounded(stream);
     const check = inspectContent(bytes, d.mime, d.filename);
-    const saved = await this.files.put(
-      (async function* () {
-        yield bytes;
-      })(),
-    );
     return this.run(ctx, "source.create", d.parent, async (db) => {
-      await this.parent(db, ctx, d.parent);
+      await attachments.writableParent(db, ctx, d.parent);
+      if (d.slotId)
+        await attachments.expectedSlot(
+          db,
+          ctx,
+          d.slotId,
+          d.expectedHead!,
+          d.expectedRevision!,
+          d.parent,
+        );
+      const saved = await this.writeContent(db, bytes);
+      await this.recheck(db, ctx, "source.create", d.parent);
+      await attachments.writableParent(db, ctx, d.parent);
+      if (d.slotId)
+        await attachments.expectedSlot(
+          db,
+          ctx,
+          d.slotId,
+          d.expectedHead!,
+          d.expectedRevision!,
+          d.parent,
+        );
       const blobId = randomUUID();
       await db.query(
         "INSERT INTO storage_blobs(workspace_id,id,parent_kind,parent_id,sha256,size,mime,filename,scan_state,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
@@ -365,8 +477,32 @@ export class StorageService {
           ctx.principalId,
         ],
       );
+      const slotId = d.slotId ?? randomUUID(),
+        revision = (d.expectedRevision ?? 0) + 1;
+      if (d.slotId)
+        await db.query(
+          "UPDATE storage_attachment_slots SET head_id=$3,revision=$4 WHERE workspace_id=$1 AND id=$2",
+          [ctx.workspaceId, slotId, blobId, revision],
+        );
+      else
+        await db.query(
+          "INSERT INTO storage_attachment_slots(workspace_id,id,parent_kind,parent_id,head_id,revision) VALUES($1,$2,$3,$4,$5,1)",
+          [ctx.workspaceId, slotId, d.parent.kind, d.parent.id, blobId],
+        );
+      await db.query(
+        "INSERT INTO storage_attachment_versions VALUES($1,$2,$3,$4)",
+        [ctx.workspaceId, slotId, revision, blobId],
+      );
       await audit(db, ctx, "blob.upload", blobId);
-      return { id: blobId, ...saved, ...check, text: undefined };
+      return {
+        id: blobId,
+        slotId,
+        revision,
+        downloadPath: `/api/v1/storage/blobs/${blobId}`,
+        ...saved,
+        ...check,
+        text: undefined,
+      };
     });
   }
   async list(ctx: Context, parent: StorageResource, offset = 0) {
@@ -374,7 +510,7 @@ export class StorageService {
     return this.run(ctx, "knowledge.read", parent, async (db) => {
       await this.parent(db, ctx, parent);
       const r = await db.query(
-        "SELECT id,filename,mime,size,scan_state,created_at FROM storage_blobs WHERE workspace_id=$1 AND parent_kind=$2 AND parent_id=$3 ORDER BY created_at DESC,id DESC LIMIT 25 OFFSET $4",
+        "SELECT b.id,b.filename,b.mime,b.size,b.scan_state,b.created_at,v.slot_id,v.revision AS file_revision,s.revision AS head_revision,s.head_id,s.withdrawn,(s.head_id=b.id) AS is_head FROM storage_blobs b LEFT JOIN storage_attachment_versions v ON v.workspace_id=b.workspace_id AND v.blob_id=b.id LEFT JOIN storage_attachment_slots s ON s.workspace_id=v.workspace_id AND s.id=v.slot_id WHERE b.workspace_id=$1 AND b.parent_kind=$2 AND b.parent_id=$3 ORDER BY b.created_at DESC,b.id DESC LIMIT 25 OFFSET $4",
         [ctx.workspaceId, parent.kind, parent.id, offset],
       );
       const count = await db.query(
@@ -466,11 +602,6 @@ export class StorageService {
     });
     const bytes = Buffer.from(JSON.stringify(source));
     inspectContent(bytes, "application/json", "source.json");
-    const saved = await this.files.put(
-      (async function* () {
-        yield bytes;
-      })(),
-    );
     return this.run(ctx, "source.create", p, async (db) => {
       await this.parent(db, ctx, p);
       const s = await db.query(
@@ -481,9 +612,11 @@ export class StorageService {
         throw Error("STALE_VERSION");
       const old = await db.query(
         "SELECT id,blob_id FROM storage_snapshots WHERE workspace_id=$1 AND source_id=$2 AND content_hash=$3",
-        [ctx.workspaceId, sourceId, saved.sha256],
+        [ctx.workspaceId, sourceId, sha256(bytes)],
       );
       if (old.rowCount) return old.rows[0];
+      const saved = await this.writeContent(db, bytes);
+      await this.recheck(db, ctx, "source.create", p);
       const blobId = randomUUID(),
         snapshotId = randomUUID();
       await db.query(
@@ -615,7 +748,7 @@ export class StorageService {
           });
         }
         const blobs = await db.query(
-          "SELECT * FROM storage_blobs WHERE workspace_id=$1 AND ((parent_kind='page' AND parent_id=ANY($2::text[])) OR (parent_kind='source' AND parent_id=ANY($3::text[])))",
+          "SELECT b.*,CASE WHEN v.slot_id IS NOT NULL THEN jsonb_build_object('slotId',v.slot_id,'revision',v.revision,'headId',s.head_id,'headRevision',s.revision) ELSE NULL END AS attachment FROM storage_blobs b LEFT JOIN storage_attachment_versions v ON v.workspace_id=b.workspace_id AND v.blob_id=b.id LEFT JOIN storage_attachment_slots s ON s.workspace_id=v.workspace_id AND s.id=v.slot_id WHERE b.workspace_id=$1 AND ((b.parent_kind='page' AND b.parent_id=ANY($2::text[])) OR (b.parent_kind='source' AND b.parent_id=ANY($3::text[])))",
           [ctx.workspaceId, [...pageIds], [...sourceIds]],
         );
         if (blobs.rows.some((b) => b.scan_state !== "clean"))
@@ -637,6 +770,7 @@ export class StorageService {
         filename: b.filename,
         base64: bytes.toString("base64"),
         scanState: "clean" as const,
+        attachment: b.attachment ?? null,
       });
     }
     await this.run(ctx, "knowledge.read", undefined, async (db) => {
@@ -743,31 +877,31 @@ export class StorageService {
         throw Error("HASH_MISMATCH");
       inspectContent(bytes, b.mime, b.filename);
     }
+    for (const b of d.blobs) {
+      if (!b.attachment) continue;
+      const group = d.blobs.filter(
+        (other) => other.attachment?.slotId === b.attachment!.slotId,
+      );
+      const head = group.find((other) => other.id === b.attachment!.headId);
+      const revisions = group.map((other) => other.attachment!.revision);
+      if (
+        !head ||
+        new Set(revisions).size !== revisions.length ||
+        Math.max(...revisions) !== b.attachment.headRevision ||
+        head.attachment!.revision !== b.attachment.headRevision ||
+        group.some(
+          (other) =>
+            other.attachment!.headId !== head.id ||
+            other.attachment!.headRevision !== b.attachment!.headRevision ||
+            other.parent.kind !== b.parent.kind ||
+            other.parent.id !== b.parent.id,
+        )
+      )
+        throw Error("INCOMPLETE_ATTACHMENT_HISTORY");
+    }
     await this.run(ctx, "source.create", undefined, (db) =>
       this.authorize(db, ctx, "changeset.propose"),
     );
-    const stagedBlobs: {
-      id: string;
-      sha256: string;
-      size: number;
-      scanState: "clean" | "pending";
-    }[] = [];
-    for (const b of d.blobs) {
-      const saved = await this.files.put(
-        (async function* () {
-          yield Buffer.from(b.base64, "base64");
-        })(),
-      );
-      stagedBlobs.push({
-        id: b.id,
-        ...saved,
-        scanState: inspectContent(
-          Buffer.from(b.base64, "base64"),
-          b.mime,
-          b.filename,
-        ).scanState,
-      });
-    }
     const digest = sha256(JSON.stringify(d));
     return this.run(ctx, "source.create", undefined, async (db) => {
       await this.authorize(db, ctx, "changeset.propose");
@@ -802,6 +936,24 @@ export class StorageService {
       );
       if (previous.rowCount)
         return { id: previous.rows[0].id, status: "proposed", duplicate: true };
+      const stagedBlobs: {
+        id: string;
+        sha256: string;
+        size: number;
+        scanState: "clean" | "pending";
+      }[] = [];
+      for (const b of d.blobs) {
+        const bytes = Buffer.from(b.base64, "base64");
+        const saved = await this.writeContent(db, bytes);
+        stagedBlobs.push({
+          id: b.id,
+          ...saved,
+          scanState: inspectContent(bytes, b.mime, b.filename).scanState,
+        });
+      }
+      await this.recheck(db, ctx, "source.create");
+      await this.authorize(db, ctx, "changeset.propose");
+      for (const bound of boundResources) await this.parent(db, ctx, bound);
       const proposalId = randomUUID();
       await db.query(
         "INSERT INTO storage_imports(workspace_id,id,principal_id,digest,manifest) VALUES($1,$2,$3,$4,$5)",
@@ -827,31 +979,54 @@ export class StorageService {
   }
   async importProposal(ctx: Context, proposalId: string) {
     return this.run(ctx, "changeset.propose", undefined, async (db) => {
-      const r = await db.query(
-        "SELECT manifest FROM storage_imports WHERE workspace_id=$1 AND id=$2 AND principal_id=$3 AND manifest->>'type'='import-proposal'",
-        [ctx.workspaceId, id.parse(proposalId), ctx.principalId],
+      const archive = await readImportArchive(
+        this,
+        db,
+        ctx,
+        id.parse(proposalId),
       );
-      if (!r.rowCount) throw Error("NOT_FOUND");
-      const stored = r.rows[0].manifest;
-      for (const bound of stored.boundResources ?? [])
-        await this.parent(db, ctx, bound);
-      for (const item of [
-        ...stored.manifest.pages.map((p: { id: string }) => ({
-          kind: "page" as const,
-          id: p.id,
-        })),
-        ...stored.manifest.sources.map((p: { id: string }) => ({
-          kind: "source" as const,
-          id: p.id,
-        })),
-      ]) {
-        const exists = await db.query(
-          "SELECT 1 FROM resources WHERE workspace_id=$1 AND kind=$2 AND id=$3",
-          [ctx.workspaceId, item.kind, item.id],
+      const blobs = [];
+      for (const b of archive.manifest.blobs) {
+        const check = inspectContent(
+          Buffer.from(b.base64, "base64"),
+          b.mime,
+          b.filename,
         );
-        if (exists.rowCount) await this.parent(db, ctx, item);
+        const registered = await db.query(
+          "SELECT scan_state,sha256 FROM storage_blobs WHERE workspace_id=$1 AND id=$2",
+          [ctx.workspaceId, b.id],
+        );
+        const approved =
+          check.scanState === "clean" ||
+          (registered.rows[0]?.scan_state === "clean" &&
+            registered.rows[0]?.sha256 === b.sha256);
+        blobs.push({
+          ...b,
+          base64: approved ? b.base64 : "",
+          contentOmitted: !approved,
+          effectiveScanState: approved ? "clean" : "pending",
+          omissionReason: approved ? null : "SCAN_REQUIRED",
+        });
       }
-      return { id: proposalId, status: "proposed", ...stored };
+      return { ...archive, manifest: { ...archive.manifest, blobs } };
     });
+  }
+  proposeImport(ctx: Context, proposalId: string, input: unknown) {
+    return new ImportWorkflow(this).propose(ctx, proposalId, input);
+  }
+  downloadAttachment(ctx: Context, slotId: string, revision?: number) {
+    return new AttachmentWorkflow(this).download(ctx, slotId, revision);
+  }
+  previewAttachment(ctx: Context, slotId: string, revision?: number) {
+    return new AttachmentWorkflow(this).preview(ctx, slotId, revision);
+  }
+  withdrawAttachment(ctx: Context, slotId: string, input: unknown) {
+    return new AttachmentWorkflow(this).withdraw(ctx, slotId, input);
+  }
+  attachmentHistory(ctx: Context, slotId: string, offset = 0) {
+    return new AttachmentWorkflow(this).history(ctx, slotId, offset);
+  }
+  proposeAttachmentLink(ctx: Context, slotId: string, input: unknown) {
+    return new AttachmentWorkflow(this).proposeLink(ctx, slotId, input);
   }
 }

@@ -122,6 +122,9 @@ export class FileBlobStore {
     if (!root) throw Error("STORAGE_NOT_CONFIGURED");
     this.root = resolve(root);
   }
+  async prepareRoot() {
+    await this.ready();
+  }
   private async ready() {
     await mkdir(this.root, { recursive: true, mode: 0o700 });
     if (

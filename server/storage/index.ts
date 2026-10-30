@@ -1,5 +1,10 @@
 export { StorageService } from "./service";
-export type { StorageAuthorizer, StorageResource } from "./service";
+export type {
+  StorageAuthorizer,
+  StorageResource,
+  StorageOptions,
+  StorageManifest,
+} from "./service";
 export { FileBlobStore, MAX_BYTES } from "./content";
 export { storageRoutes } from "./routes";
 export type { StorageRouteInput } from "./routes";
