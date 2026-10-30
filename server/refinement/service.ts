@@ -13,7 +13,11 @@ import type {
 } from "../workflows/service";
 import { transaction } from "../database";
 import { audit, loadState, membership, requireRead } from "../repository";
-import { visiblePageIds } from "../provenance";
+import {
+  visiblePageIds,
+  captureEnvelope,
+  inheritedProvenance,
+} from "../provenance";
 import { digest } from "../publication";
 import {
   claimInput,
@@ -27,7 +31,12 @@ import {
   type Evidence,
 } from "./logic";
 import type { SemanticLintProvider } from "./semantic";
-import { assertSafeModelInput, validateFindings } from "./semantic";
+import {
+  assertSafeModelInput,
+  validateFindings,
+  SEMANTIC_LINT_CONTRACT_VERSION,
+} from "./semantic";
+import type { RuntimeExecution } from "../runtime/knowledge";
 import {
   createExecutionChallenge,
   type ExecutionBinding,
@@ -45,6 +54,40 @@ const contextInput = z
     includeHistory: z.boolean().default(false),
   })
   .strict();
+type ContextOptions = z.infer<typeof contextInput>;
+const semanticPublicInput = z
+  .object({ semantic: z.literal(true), context: contextInput })
+  .strict();
+const semanticSealedInput = semanticPublicInput
+  .extend({
+    context: contextInput.extend({
+      asOf: z.iso.datetime(),
+      includeHistory: z.literal(true),
+    }),
+    contractVersion: z.literal(SEMANTIC_LINT_CONTRACT_VERSION),
+    claimIds: z
+      .array(id)
+      .max(100)
+      .refine((ids) => new Set(ids).size === ids.length),
+    contextFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
+export interface SemanticJobAdapter {
+  prepare(
+    db: PoolClient,
+    ctx: Context,
+    input: unknown,
+  ): Promise<{
+    payload: Record<string, unknown>;
+    pageIds: string[];
+    sourceIds: string[];
+  }>;
+  execute(
+    ctx: Context,
+    payload: Record<string, unknown>,
+    execution: RuntimeExecution,
+  ): Promise<unknown>;
+}
 const outcomeInput = z
   .object({
     id,
@@ -616,166 +659,177 @@ export class RefinementService {
   }
   async context(ctx: Context, input: unknown) {
     const d = contextInput.parse(input);
-    return this.run(ctx, "knowledge.read", undefined, async (db) => {
-      const all = await this.all<Claim>(db, ctx, "claims"),
-        visible: Claim[] = [];
-      for (const c of all) {
-        if (d.pageIds && !d.pageIds.includes(c.pageId)) continue;
-        try {
-          await this.claim(db, ctx, c.id);
-          visible.push(c);
-        } catch (e) {
-          if (!(e instanceof Error && e.message === "NOT_FOUND")) throw e;
-        }
+    return this.run(ctx, "knowledge.read", undefined, (db) =>
+      this.contextDb(db, ctx, d),
+    );
+  }
+  /** DB-only projection: usable under the queue admission lock; never calls pool/model/verifier I/O. */
+  private async contextDb(
+    db: PoolClient,
+    ctx: Context,
+    d: ContextOptions,
+    pinned?: readonly string[],
+  ) {
+    await membership(db, ctx);
+    await ctx.authorization?.assertSession(db);
+    await this.authorize(db, ctx, "knowledge.read");
+    const all = await this.all<Claim>(db, ctx, "claims"),
+      visible: Claim[] = [];
+    for (const c of all) {
+      if (pinned && !pinned.includes(c.id)) continue;
+      if (d.pageIds && !d.pageIds.includes(c.pageId)) continue;
+      try {
+        await this.claim(db, ctx, c.id);
+        visible.push(c);
+      } catch (e) {
+        if (!(e instanceof Error && e.message === "NOT_FOUND")) throw e;
       }
-      const asOf = d.asOf ?? new Date().toISOString(),
-        selected = selectContext(visible, asOf, d.environment);
-      const candidates = d.includeHistory ? visible : selected.items;
-      const items = [];
-      const allEvidence = await this.all<Evidence>(db, ctx, "evidence");
-      const reviews = await this.all<ClaimReview>(db, ctx, "reviews");
-      for (const c of candidates.slice(0, d.limit)) {
-        const lineage = new Map<string, Evidence>();
-        const collect = async (eid: string): Promise<void> => {
-          if (lineage.has(eid)) return;
-          const e = await this.evidence(db, ctx, eid);
-          lineage.set(eid, e);
-          for (const parent of e.parentIds) await collect(parent);
-        };
-        for (const eid of c.evidenceIds) await collect(eid);
-        const evidence = await Promise.all(
-          [...lineage.values()].map(async (e) => {
-            if (e.kind !== "independent-execution")
-              return { ...e, executionAttestation: undefined };
+    }
+    const asOf = d.asOf ?? new Date().toISOString(),
+      selected = selectContext(visible, asOf, d.environment);
+    const candidates = d.includeHistory ? visible : selected.items;
+    const items = [];
+    const allEvidence = await this.all<Evidence>(db, ctx, "evidence");
+    const reviews = await this.all<ClaimReview>(db, ctx, "reviews");
+    for (const c of candidates.slice(0, d.limit)) {
+      const lineage = new Map<string, Evidence>();
+      const collect = async (eid: string): Promise<void> => {
+        if (lineage.has(eid)) return;
+        const e = await this.evidence(db, ctx, eid);
+        lineage.set(eid, e);
+        for (const parent of e.parentIds) await collect(parent);
+      };
+      for (const eid of c.evidenceIds) await collect(eid);
+      const evidence = await Promise.all(
+        [...lineage.values()].map(async (e) => {
+          if (e.kind !== "independent-execution")
+            return { ...e, executionAttestation: undefined };
+          try {
+            const [proof] = await this.trustedExecutions(db, ctx, [e], []);
+            return {
+              ...e,
+              executionAttestation: {
+                status: "attested-unreviewed",
+                provider: proof.provider,
+                executorId: proof.receipt.executorId,
+                executedAt: proof.receipt.executedAt,
+                outcome: proof.receipt.outcome,
+              },
+            };
+          } catch (error) {
+            if (error instanceof Error && error.message === "NOT_FOUND")
+              throw error;
+            return {
+              ...e,
+              executionAttestation: {
+                status: "unverified",
+                reason:
+                  error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message)
+                    ? error.message
+                    : "EXECUTION_ATTESTATION_INVALID",
+              },
+            };
+          }
+        }),
+      );
+      const verificationReviews: ClaimReview[] = [];
+      for (const r of reviews
+        .filter((r) => r.claimIds?.includes(c.id))
+        .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt)))
+        try {
+          const reviewClaims = await Promise.all(
+            r.claimIds.map((cid) => this.claim(db, ctx, cid)),
+          );
+          const reviewEvidence = await Promise.all(
+            r.evidenceIds.map((e) => this.evidence(db, ctx, e)),
+          );
+          if (r.status === "execution-verified") {
             try {
-              const [proof] = await this.trustedExecutions(db, ctx, [e], []);
-              return {
-                ...e,
-                executionAttestation: {
-                  status: "attested-unreviewed",
-                  provider: proof.provider,
-                  executorId: proof.receipt.executorId,
-                  executedAt: proof.receipt.executedAt,
-                  outcome: proof.receipt.outcome,
-                },
-              };
+              const proofs = await this.trustedExecutions(
+                db,
+                ctx,
+                reviewEvidence,
+                reviewClaims,
+              );
+              verificationReviews.push({
+                ...r,
+                attestationStatus: "confirmed",
+                executionReceipts: proofs.map((p) => ({
+                  receiptId: p.receipt.receiptId,
+                  provider: p.provider,
+                  executionId: p.receipt.executionId,
+                  executorId: p.receipt.executorId,
+                  executedAt: p.receipt.executedAt,
+                  outcome: p.receipt.outcome,
+                  sourceId: p.receipt.sourceId,
+                  sourceVersion: p.receipt.sourceVersion,
+                  location: {
+                    start: p.receipt.location.start,
+                    end: p.receipt.location.end,
+                  },
+                })),
+              });
             } catch (error) {
               if (error instanceof Error && error.message === "NOT_FOUND")
                 throw error;
-              return {
-                ...e,
-                executionAttestation: {
-                  status: "unverified",
-                  reason:
-                    error instanceof Error &&
-                    /^[A-Z_]{1,80}$/.test(error.message)
-                      ? error.message
-                      : "EXECUTION_ATTESTATION_INVALID",
-                },
-              };
+              verificationReviews.push({
+                ...r,
+                attestationStatus: "unverified",
+                attestationError:
+                  error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message)
+                    ? error.message
+                    : "EXECUTION_ATTESTATION_INVALID",
+              });
             }
-          }),
-        );
-        const verificationReviews: ClaimReview[] = [];
-        for (const r of reviews
-          .filter((r) => r.claimIds?.includes(c.id))
-          .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt)))
-          try {
-            const reviewClaims = await Promise.all(
-              r.claimIds.map((cid) => this.claim(db, ctx, cid)),
-            );
-            const reviewEvidence = await Promise.all(
-              r.evidenceIds.map((e) => this.evidence(db, ctx, e)),
-            );
-            if (r.status === "execution-verified") {
-              try {
-                const proofs = await this.trustedExecutions(
-                  db,
-                  ctx,
-                  reviewEvidence,
-                  reviewClaims,
-                );
-                verificationReviews.push({
-                  ...r,
-                  attestationStatus: "confirmed",
-                  executionReceipts: proofs.map((p) => ({
-                    receiptId: p.receipt.receiptId,
-                    provider: p.provider,
-                    executionId: p.receipt.executionId,
-                    executorId: p.receipt.executorId,
-                    executedAt: p.receipt.executedAt,
-                    outcome: p.receipt.outcome,
-                    sourceId: p.receipt.sourceId,
-                    sourceVersion: p.receipt.sourceVersion,
-                    location: {
-                      start: p.receipt.location.start,
-                      end: p.receipt.location.end,
-                    },
-                  })),
-                });
-              } catch (error) {
-                if (error instanceof Error && error.message === "NOT_FOUND")
-                  throw error;
-                verificationReviews.push({
-                  ...r,
-                  attestationStatus: "unverified",
-                  attestationError:
-                    error instanceof Error &&
-                    /^[A-Z_]{1,80}$/.test(error.message)
-                      ? error.message
-                      : "EXECUTION_ATTESTATION_INVALID",
-                });
-              }
-            } else verificationReviews.push(r);
-          } catch (e) {
-            if (!(e instanceof Error && e.message === "NOT_FOUND")) throw e;
-          }
-        items.push({
-          ...c,
-          evidence,
-          independentRoots: [
-            ...new Set(
-              c.evidenceIds.flatMap((e) => lineageRoots(allEvidence, e)),
-            ),
-          ],
-          verificationReviews,
-          validation:
-            verificationReviews.at(-1)?.status === "execution-verified" &&
-            verificationReviews.at(-1)?.attestationStatus !== "confirmed"
-              ? "unverified"
-              : (verificationReviews.at(-1)?.status ?? "unverified"),
-          authority: "review-candidate" as const,
-          validAtRequestedTime: selected.items.some((s) => s.id === c.id),
-          missingConditions: Object.keys(c.conditions).filter(
-            (k) => d.environment[k] === undefined,
-          ),
-        });
-      }
-      const conflicts = [];
-      for (let i = 0; i < items.length; i++)
-        for (const b of items.slice(i + 1)) {
-          const a = items[i],
-            kind = compareClaims(a, b);
-          if (kind !== "unrelated" && kind !== "agreement")
-            conflicts.push({
-              claimIds: [a.id, b.id],
-              kind,
-              resolution: "review-required",
-            });
+          } else verificationReviews.push(r);
+        } catch (e) {
+          if (!(e instanceof Error && e.message === "NOT_FOUND")) throw e;
         }
-      return {
-        asOf,
-        acl: "current" as const,
-        temporalMode: d.includeHistory
-          ? "history-not-current-recommendation"
-          : "as-of",
-        items,
-        conflicts,
-        unknownTime: selected.unknownTime,
-        omitted: Math.max(0, candidates.length - items.length),
-        more: "POST /api/v1/refinement/context with pageIds/limit; all evidence and exceptions stay intact",
-      };
-    });
+      items.push({
+        ...c,
+        evidence,
+        independentRoots: [
+          ...new Set(
+            c.evidenceIds.flatMap((e) => lineageRoots(allEvidence, e)),
+          ),
+        ],
+        verificationReviews,
+        validation:
+          verificationReviews.at(-1)?.status === "execution-verified" &&
+          verificationReviews.at(-1)?.attestationStatus !== "confirmed"
+            ? "unverified"
+            : (verificationReviews.at(-1)?.status ?? "unverified"),
+        authority: "review-candidate" as const,
+        validAtRequestedTime: selected.items.some((s) => s.id === c.id),
+        missingConditions: Object.keys(c.conditions).filter(
+          (k) => d.environment[k] === undefined,
+        ),
+      });
+    }
+    const conflicts = [];
+    for (let i = 0; i < items.length; i++)
+      for (const b of items.slice(i + 1)) {
+        const a = items[i],
+          kind = compareClaims(a, b);
+        if (kind !== "unrelated" && kind !== "agreement")
+          conflicts.push({
+            claimIds: [a.id, b.id],
+            kind,
+            resolution: "review-required",
+          });
+      }
+    return {
+      asOf,
+      acl: "current" as const,
+      temporalMode: d.includeHistory
+        ? "history-not-current-recommendation"
+        : "as-of",
+      items,
+      conflicts,
+      unknownTime: selected.unknownTime,
+      omitted: Math.max(0, candidates.length - items.length),
+      more: "POST /api/v1/refinement/context with pageIds/limit; all evidence and exceptions stay intact",
+    };
   }
   async reportOutcome(ctx: Context, input: unknown) {
     const d = outcomeInput.parse(input);
@@ -1154,7 +1208,275 @@ export class RefinementService {
       };
     });
   }
+  private async semanticSnapshot(
+    db: PoolClient,
+    ctx: Context,
+    context: ContextOptions,
+    pinned?: readonly string[],
+  ) {
+    await this.authorize(db, ctx, "lint.run");
+    if (pinned) for (const cid of pinned) await this.claim(db, ctx, cid);
+    const view = await this.contextDb(db, ctx, context, pinned);
+    const claimIds = view.items.map((c) => c.id);
+    if (pinned && digest(claimIds) !== digest(pinned))
+      throw Error("INPUT_CHANGED");
+    const modelClaims = view.items.map((c) => ({
+      ...c,
+      evidence: c.evidence.map(({ executionVerification: _, ...e }) => e),
+    }));
+    const pageIds = new Set<string>(),
+      sourceIds = new Set<string>(),
+      seenClaims = new Set<string>(),
+      seenEvidence = new Set<string>();
+    const visitEvidence = async (eid: string): Promise<void> => {
+      if (seenEvidence.has(eid)) return;
+      seenEvidence.add(eid);
+      const e = await this.evidence(db, ctx, eid);
+      if (e.sourceId) sourceIds.add(e.sourceId);
+      for (const p of e.parentIds) await visitEvidence(p);
+    };
+    const visitClaim = async (cid: string): Promise<void> => {
+      if (seenClaims.has(cid)) return;
+      seenClaims.add(cid);
+      const c = await this.claim(db, ctx, cid);
+      pageIds.add(c.pageId);
+      for (const eid of c.evidenceIds) await visitEvidence(eid);
+      for (const parent of c.supersedes) await visitClaim(parent);
+    };
+    for (const c of view.items) {
+      await visitClaim(c.id);
+      for (const r of c.verificationReviews) {
+        for (const cid of r.claimIds) await visitClaim(cid);
+        for (const eid of r.evidenceIds) await visitEvidence(eid);
+      }
+    }
+    const state = await loadState(db, ctx.workspaceId);
+    const flags = (
+      await db.query(
+        "SELECT page_id,parent_id,state,revision,data FROM workflow_document_state WHERE workspace_id=$1 ORDER BY page_id",
+        [ctx.workspaceId],
+      )
+    ).rows;
+    const byId = new Map(state.pages.map((p) => [p.id, p])),
+      byFlag = new Map(flags.map((p) => [p.page_id, p]));
+    const pending = [...pageIds],
+      visited = new Set<string>();
+    while (pending.length) {
+      const pid = pending.pop()!;
+      if (visited.has(pid)) continue;
+      visited.add(pid);
+      const p = byId.get(pid);
+      if (!p) throw Error("NOT_FOUND");
+      const inherited = inheritedProvenance(p);
+      for (const sid of inherited.sourceIds) sourceIds.add(sid);
+      pending.push(
+        ...inherited.pageIds,
+        ...(p.links ?? []).filter((id) => byId.has(id)),
+      );
+      const parent = byFlag.get(pid)?.parent_id;
+      if (parent) pending.push(parent);
+      if (visited.size > 200 || sourceIds.size > 200)
+        throw Error("INPUT_SCOPE_MISMATCH");
+    }
+    const envelope = await captureEnvelope(
+      db,
+      ctx,
+      state,
+      [...visited],
+      [...sourceIds],
+    );
+    if (envelope.pageIds.length > 200 || envelope.sourceIds.length > 200)
+      throw Error("INPUT_SCOPE_MISMATCH");
+    for (const pid of envelope.pageIds)
+      await this.authorize(db, ctx, "knowledge.read", {
+        kind: "page",
+        id: pid,
+      });
+    for (const sid of envelope.sourceIds)
+      await this.authorize(db, ctx, "knowledge.read", {
+        kind: "source",
+        id: sid,
+      });
+    const fingerprint = digest({
+      contractVersion: SEMANTIC_LINT_CONTRACT_VERSION,
+      context,
+      claims: modelClaims,
+      envelope,
+      flags: flags.filter((f) => visited.has(f.page_id)),
+    });
+    await ctx.authorization?.assertSession(db);
+    const usedVersions = envelope.pageIds.map((pid) => ({
+      page_id: pid,
+      version: byId.get(pid)!.versions.at(-1)!.number,
+    }));
+    const rootLineage = envelope.sourceIds.map((sid) => ({
+      sourceId: sid,
+      sourceVersion: envelope.sources[sid],
+      location: "content",
+      root: `source:${digest(state.sources.find((s) => s.id === sid)!.content)}`,
+    }));
+    return {
+      modelClaims,
+      claimIds,
+      contextFingerprint: fingerprint,
+      pageIds: envelope.pageIds,
+      sourceIds: envelope.sourceIds,
+      usedVersions,
+      rootLineage,
+    };
+  }
+  semanticJobAdapter(): SemanticJobAdapter {
+    return {
+      prepare: async (db, ctx, input) => {
+        await membership(db, ctx);
+        await ctx.authorization?.assertSession(db);
+        const hasSeal =
+          !!input &&
+          typeof input === "object" &&
+          ("contractVersion" in input ||
+            "contextFingerprint" in input ||
+            "claimIds" in input);
+        const sealed = hasSeal ? semanticSealedInput.parse(input) : undefined;
+        const raw =
+          sealed?.context ??
+          (!!input && typeof input === "object" && "semantic" in input
+            ? semanticPublicInput.parse(input).context
+            : contextInput.parse(input));
+        const context = contextInput.parse({
+          ...raw,
+          asOf: raw.asOf ?? new Date().toISOString(),
+          includeHistory: true,
+        });
+        const snapshot = await this.semanticSnapshot(
+          db,
+          ctx,
+          context,
+          sealed?.claimIds,
+        );
+        if (sealed && snapshot.contextFingerprint !== sealed.contextFingerprint)
+          throw Error("INPUT_CHANGED");
+        return {
+          payload: {
+            semantic: true,
+            contractVersion: SEMANTIC_LINT_CONTRACT_VERSION,
+            context,
+            claimIds: snapshot.claimIds,
+            contextFingerprint: snapshot.contextFingerprint,
+          },
+          pageIds: snapshot.pageIds,
+          sourceIds: snapshot.sourceIds,
+        };
+      },
+      execute: (ctx, payload, execution) =>
+        this.executeSemanticJob(ctx, payload, execution),
+    };
+  }
+  private async executeSemanticJob(
+    ctx: Context,
+    payload: Record<string, unknown>,
+    execution: RuntimeExecution,
+  ): Promise<unknown> {
+    const sealed = semanticSealedInput.parse(payload);
+    const recheck = async (db: PoolClient) => {
+      // One parent session assertion per projection transaction. Resource ACL checks are NEVER cached;
+      // captureInputs/beforeWrite/persist and run's final original-context guard still recheck the lease.
+      let asserted: Promise<void> | undefined;
+      const local = ctx.authorization
+        ? Object.freeze({
+            ...ctx,
+            authorization: {
+              revalidate: ctx.authorization.revalidate,
+              assertSession: (client: PoolClient) => {
+                if (client !== db) throw Error("INVALID_TRANSACTION_CONTEXT");
+                return (asserted ??= Promise.resolve().then(() =>
+                  ctx.authorization!.assertSession(client),
+                ));
+              },
+            },
+          })
+        : ctx;
+      const fresh = await this.semanticSnapshot(
+        db,
+        local,
+        sealed.context,
+        sealed.claimIds,
+      );
+      if (fresh.contextFingerprint !== sealed.contextFingerprint)
+        throw Error("INPUT_CHANGED");
+      await execution.captureInputs(db, fresh.pageIds, fresh.sourceIds);
+      await execution.beforeWrite(db);
+      return fresh;
+    };
+    const prepared = await this.run(ctx, "lint.run", undefined, recheck);
+    let findings: ReturnType<typeof validateFindings> = [];
+    if (prepared.modelClaims.length) {
+      if (!this.provider) throw Error("MODEL_NOT_CONFIGURED");
+      assertSafeModelInput({ claims: prepared.modelClaims });
+      const raw = await execution.modelResult("semantic-lint", () =>
+        this.provider!(
+          { claims: prepared.modelClaims },
+          execution.modelOptions,
+        ),
+      );
+      try {
+        findings = validateFindings(raw, prepared.modelClaims);
+      } catch {
+        throw Error("MODEL_INVALID");
+      }
+      if (findings.length > execution.maxChanges) throw Error("CHANGE_LIMIT");
+    }
+    return this.run(ctx, "lint.run", undefined, async (db) => {
+      await recheck(db);
+      return execution.persist(db, "semantic-lint", async () => {
+        execution.modelOptions.signal?.throwIfAborted();
+        if (!prepared.modelClaims.length)
+          return {
+            status: "no-inputs",
+            kind: "not-executed",
+            modelAnalysisPerformed: false,
+            contextFingerprint: sealed.contextFingerprint,
+            findings: [],
+            requestIds: [],
+          };
+        const producer = await execution.producer("model", db),
+          requestIds: string[] = [];
+        for (const f of findings) {
+          const request = await this.request(
+            db,
+            ctx,
+            f.claimIds,
+            "semantic-lint",
+            `lint_${randomUUID()}`,
+            {
+              finding: f,
+              producer,
+              contextFingerprint: sealed.contextFingerprint,
+              usedVersions: prepared.usedVersions,
+              rootLineage: prepared.rootLineage,
+              evidenceKind: "model-proposal",
+              independentExecution: false,
+            },
+          );
+          requestIds.push(request.id);
+        }
+        return {
+          status: "completed",
+          kind: "model-proposal",
+          modelAnalysisPerformed: true,
+          contextFingerprint: sealed.contextFingerprint,
+          producer,
+          findings,
+          requestIds,
+        };
+      });
+    });
+  }
   async semanticLint(ctx: Context, input: unknown) {
+    // Production sessions/delegated identities MUST enter the durable job adapter, never inline HTTP.
+    if (ctx.authorization || ctx.credentialId)
+      return this.run(ctx, "lint.run", undefined, async () => {
+        throw Error("SEMANTIC_JOB_REQUIRED");
+      });
     const d = contextInput.parse(input);
     // Always authorize even when no provider is configured.
     const context = await this.context(ctx, { ...d, includeHistory: true });
@@ -1168,6 +1490,12 @@ export class RefinementService {
       }
     };
     await this.run(ctx, "lint.run", undefined, recheck);
+    if (!context.items.length)
+      return {
+        status: "no-inputs" as const,
+        modelAnalysisPerformed: false,
+        findings: [],
+      };
     if (!this.provider)
       return { status: "unconfigured" as const, findings: [] };
     // Models receive claims/quotes and public summaries, never signed receipt envelopes.

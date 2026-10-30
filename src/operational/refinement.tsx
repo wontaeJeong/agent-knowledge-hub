@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiError, OperationalApi, pageItems, snapshotPath } from "./api";
+import { resolveJob, isJobReceipt } from "./jobs-client";
 
 type Mode = "model" | "offline";
 type EvidenceKind =
@@ -102,7 +103,7 @@ interface ContextView {
   temporalMode?: string;
   conflicts?: { claimIds: string[]; kind: string; resolution: string }[];
 }
-interface SemanticResult {
+export interface SemanticResult {
   status: string;
   findings?: { kind: string; explanation: string; claimIds: string[] }[];
   requestIds?: string[];
@@ -265,16 +266,58 @@ export async function queueRefinement(
     status?: string;
   }>("/ingest", { sourceIds: unique(sourceIds), mode }, key);
   const id = result.id ?? result.jobId ?? result.job_id;
-  if (!id || result.status !== "queued")
+  const receipt = { ...result, id };
+  if (!isJobReceipt(receipt))
     throw Error(
       "서버가 작업 대기 접수를 확인하지 못했습니다. 완료로 표시하지 않습니다.",
     );
+  const labels: Record<string, string> = {
+    queued: "대기",
+    running: "실행 중",
+    paused: "일시 중지",
+    cancel_requested: "취소 요청 중",
+    succeeded: "기존 실행 종료",
+    dead: "실행 실패",
+    cancelled: "취소됨",
+  };
   return {
-    id,
-    message: `작업 ${id} 대기 접수 — 편입·검토·발행 완료가 아닙니다. ${mode === "offline" ? "오프라인 명시 구조 검사이며 의미 종합이 아닙니다." : "모델 실행 결과와 인간 변경 집합 검토를 확인하세요."}`,
+    id: receipt.id,
+    status: receipt.status,
+    message: `작업 ${receipt.id} · ${labels[receipt.status]} (${receipt.status}) — ${receipt.status === "queued" ? "편입·검토·발행 완료가 아닙니다." : "현재 실행 상태이며 인간 검토·발행 완료와는 별개입니다."} ${mode === "offline" ? "오프라인 명시 구조 검사이며 의미 종합이 아닙니다." : "모델 실행 결과와 인간 변경 집합 검토를 확인하세요."}`,
   };
 }
+export async function submitSemanticLint(
+  api: OperationalApi,
+  context: unknown,
+  options: {
+    expectQueued?: boolean;
+    signal?: AbortSignal;
+    onProgress?: (job: { id: string; status: string }) => void;
+    key?: string;
+    pollMs?: number;
+  } = {},
+) {
+  const { key, ...wait } = options;
+  const live = () => {
+    if (wait.signal?.aborted)
+      throw Error(
+        "이전 화면의 의미 점검 결과 대기를 중단했습니다. 서버 작업은 작업 목록에서 확인하세요.",
+      );
+  };
+  live();
+  const receipt = await api.post<unknown>(
+    "/refinement/semantic-lint",
+    context,
+    key,
+  );
+  live();
+  const result = await resolveJob<SemanticResult>(api, receipt, wait);
+  live();
+  return result;
+}
 export function semanticNotice(result: SemanticResult) {
+  if (result.status === "no-inputs")
+    return "현재 권한의 분석 대상 주장이 없어 의미 분석을 실행하지 않았습니다. 모델 품질 검증 결과가 아닙니다.";
   if (result.status === "unconfigured")
     return "의미 점검 모델 미설정 — 실행 결과가 없습니다.";
   if (result.status !== "completed")
@@ -457,7 +500,8 @@ export function RefinementPanel({
     [review, setReview] = useState(emptyReview),
     [job, setJob] = useState("");
   const epoch = useRef(0),
-    keys = useRef(new Map<string, string>());
+    keys = useRef(new Map<string, string>()),
+    semanticWait = useRef<AbortController | null>(null);
   const [accessBlocked, setAccessBlocked] = useState(false);
   const availablePages = accessBlocked ? [] : (pages ?? loadedPages);
   const knownEvidence = [
@@ -480,6 +524,8 @@ export function RefinementPanel({
       .map((p) => `${p.id}:${p.version ?? p.versions?.at(-1)?.number}`)
       .join("|");
   function clearProtected() {
+    semanticWait.current?.abort();
+    semanticWait.current = null;
     setSourcePage(0);
     setContextPage(0);
     setRequestPage(0);
@@ -619,6 +665,8 @@ export function RefinementPanel({
     );
     return () => {
       epoch.current++;
+      semanticWait.current?.abort();
+      semanticWait.current = null;
     };
     // The selected-space API, capability set and current resource versions define the privacy boundary.
   }, [api, permissions, pageKey]);
@@ -727,6 +775,50 @@ export function RefinementPanel({
       },
       true,
     );
+  const runSemantic = () =>
+    void run(
+      async () => {
+        const generation = epoch.current,
+          controller = new AbortController();
+        semanticWait.current?.abort();
+        semanticWait.current = controller;
+        setSemantic(null);
+        let terminal = false,
+          fingerprint = "";
+        try {
+          const body = contextBody(asOf, environment, filterPage, true),
+            key = mutationId("semantic-lint", body);
+          fingerprint = `mutation:semantic-lint:${JSON.stringify(body)}`;
+          const result = await submitSemanticLint(api, body, {
+            key,
+            expectQueued: capabilities.includes("jobs.read"),
+            signal: controller.signal,
+            onProgress: (progress) => {
+              terminal = ["succeeded", "dead", "cancelled"].includes(
+                progress.status,
+              );
+              if (generation !== epoch.current || controller.signal.aborted)
+                return;
+              setJob(progress.id);
+              setMessage(
+                `의미 점검 작업 ${progress.id} · ${progress.status}. 작업 결과와 현재 권한을 확인하는 중이며 아직 의미 품질/발행 완료를 뜻하지 않습니다.`,
+              );
+            },
+          });
+          terminal = true;
+          return result;
+        } finally {
+          if (terminal && generation === epoch.current)
+            keys.current.delete(fingerprint);
+          if (semanticWait.current === controller) semanticWait.current = null;
+        }
+      },
+      (result) => {
+        setSemantic(result);
+        setMessage(semanticNotice(result));
+      },
+      true,
+    );
   return (
     <section className="panel refinement-panel" aria-label="지식 정련">
       <style>{`.refinement-panel{font-size:14px;min-width:0}.refinement-panel h2{font-size:22px}.refinement-panel p{line-height:1.6}.refinement-panel form,.refinement-panel fieldset,.refinement-panel article,.refinement-panel details{min-width:0;margin:12px 0;padding:12px;border:1px solid #d9cddd;border-radius:8px}.refinement-panel label.ref-field{display:grid;gap:6px;margin:10px 0}.refinement-panel input:not([type=checkbox]),.refinement-panel select,.refinement-panel textarea{min-width:0;max-width:100%;width:100%;padding:8px;font:inherit;box-sizing:border-box}.refinement-panel textarea{min-height:80px}.refinement-panel .ref-check{display:flex;gap:8px;align-items:flex-start;margin:8px 0}.refinement-panel button{font:inherit;min-height:36px;margin:4px;padding:6px 10px;white-space:normal}.refinement-panel nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.refinement-panel code,.refinement-panel dd,.refinement-panel li{overflow-wrap:anywhere}.refinement-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}.refinement-panel dl{display:grid;grid-template-columns:minmax(80px,1fr) minmax(0,3fr);gap:6px}.refinement-panel dd{margin:0}.refinement-panel a{color:#663f70}.refinement-panel summary{cursor:pointer;min-height:32px}.refinement-panel :focus-visible{outline:3px solid #79526e;outline-offset:2px}.refinement-panel .ref-notice{background:#f4edf5;border-left:4px solid #79526e;padding:12px}.refinement-panel fieldset:disabled{opacity:.75}`}</style>
@@ -742,7 +834,7 @@ export function RefinementPanel({
       {error && <p role="alert">{error}</p>}
       {job && (
         <p>
-          <a href="#durable-jobs-title">대기 작업 {job} 확인</a> · 작업 목록에서
+          <a href="#durable-jobs-title">지속 작업 {job} 확인</a> · 작업 목록에서
           실행/실패와 변경 집합을 확인하세요.
         </p>
       )}
@@ -829,23 +921,7 @@ export function RefinementPanel({
         </button>
       )}
       {canLint && (
-        <button
-          disabled={busy}
-          onClick={() =>
-            void run(
-              () =>
-                api.post<SemanticResult>(
-                  "/refinement/semantic-lint",
-                  contextBody(asOf, environment, filterPage, true),
-                ),
-              (r) => {
-                setSemantic(r);
-                setMessage(semanticNotice(r));
-              },
-              true,
-            )
-          }
-        >
+        <button disabled={busy} onClick={runSemantic}>
           모델 의미 점검 요청
         </button>
       )}

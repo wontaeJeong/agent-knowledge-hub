@@ -11,6 +11,7 @@ import {
   semanticNotice,
   refinementPage,
   executionEvidenceNotice,
+  submitSemanticLint,
 } from "./refinement";
 test("claimed execution kind/ID without authenticated attestation never renders as independently verified", () => {
   expect(
@@ -149,6 +150,9 @@ test("review candidate becomes a common ingest job with stable retry key, never 
   );
   expect(semanticNotice({ status: "unconfigured" })).toContain("미설정");
   expect(semanticNotice({ status: "error" })).toContain("실패");
+  expect(semanticNotice({ status: "no-inputs" })).toContain(
+    "실행하지 않았습니다",
+  );
 });
 test("read-only panel offers Korean context/as-of/review exploration but no privileged submit controls", () => {
   const html = renderToStaticMarkup(
@@ -178,6 +182,95 @@ test("legacy synchronous responses are not labelled queued and offline jobs do n
   expect(
     (await queueRefinement(queue, ["s1"], "offline", "key")).message,
   ).toContain("의미 종합이 아닙니다");
+});
+test.each([
+  "running",
+  "succeeded",
+  "paused",
+  "cancel_requested",
+  "dead",
+  "cancelled",
+])(
+  "ingest receipt replay displays actual %s status without inventing a new queue admission",
+  async (status) => {
+    const api = {
+      post: async () => ({ id: "existing-job", status }),
+    } as unknown as OperationalApi;
+    const result = await queueRefinement(api, ["s1"], "model", "stable-key");
+    expect(result.status).toBe(status);
+    expect(result.message).toContain(status);
+    expect(result.message).not.toContain("대기 접수");
+  },
+);
+test("semantic jobs resolve through fresh ACL-checked GET even for completed receipt replays", async () => {
+  const paths: string[] = [],
+    actual = {
+      status: "completed",
+      findings: [],
+      requestIds: ["request-fresh"],
+    };
+  const api = {
+    post: async () => ({
+      id: "semantic-job",
+      status: "succeeded",
+      result: { status: "completed", requestIds: ["untrusted-post-cache"] },
+    }),
+    get: async (path: string) => {
+      paths.push(path);
+      return { id: "semantic-job", status: "succeeded", result: actual };
+    },
+  } as unknown as OperationalApi;
+  expect(
+    await submitSemanticLint(
+      api,
+      { environment: {} },
+      { expectQueued: true, pollMs: 0 },
+    ),
+  ).toEqual(actual);
+  expect(paths).toEqual(["/jobs-v2/semantic-job"]);
+});
+test("semantic cancellation/failure cannot become empty success and fixture inline statuses remain explicit", async () => {
+  const cancelled = {
+    post: async () => ({ id: "job-cancelled", status: "running" }),
+    get: async () => ({ id: "job-cancelled", status: "cancelled" }),
+  } as unknown as OperationalApi;
+  await expect(
+    submitSemanticLint(
+      cancelled,
+      { environment: {} },
+      { expectQueued: true, pollMs: 0 },
+    ),
+  ).rejects.toMatchObject({ code: "JOB_CANCELLED" });
+  const inline = {
+    post: async () => ({ status: "unconfigured", findings: [] }),
+  } as unknown as OperationalApi;
+  expect(
+    await submitSemanticLint(
+      inline,
+      { environment: {} },
+      { expectQueued: false },
+    ),
+  ).toEqual({ status: "unconfigured", findings: [] });
+  await expect(
+    submitSemanticLint(inline, { environment: {} }, { expectQueued: true }),
+  ).rejects.toMatchObject({ code: "INVALID_JOB_RECEIPT" });
+  const signal = new AbortController();
+  const abandoned = {
+    post: async () => {
+      signal.abort();
+      return { id: "old-view", status: "queued" };
+    },
+    get: async () => {
+      throw Error("must not poll abandoned view");
+    },
+  } as unknown as OperationalApi;
+  await expect(
+    submitSemanticLint(
+      abandoned,
+      { environment: {} },
+      { expectQueued: true, signal: signal.signal },
+    ),
+  ).rejects.toThrow("이전 화면");
 });
 test("writer panel exposes structured source/claim/outcome forms without frontend model key or direct publish", () => {
   const html = renderToStaticMarkup(
