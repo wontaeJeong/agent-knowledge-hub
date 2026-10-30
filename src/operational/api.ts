@@ -22,6 +22,8 @@ export interface Identity {
   workspaceId: string;
   role: "reader" | "editor" | "reviewer";
   spaceRole?: import("../domain/access").SpaceRole | null;
+  canReviewKnowledge?: boolean;
+  personalSpace?: boolean;
   csrfToken: string;
 }
 export class OperationalApi {

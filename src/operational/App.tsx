@@ -29,6 +29,8 @@ interface ChangeSet {
   hash: string;
   status: string;
   updates: Draft[];
+  triage?: string;
+  proposedBy?: string;
 }
 interface Job {
   id: string;
@@ -232,7 +234,7 @@ export default function OperationalApp() {
       setUsage(await api.get<UsageSummary>(`/usage?days=${days}`));
     });
   const write = identity?.role !== "reader";
-  const review = identity?.role === "reviewer";
+  const review = identity?.canReviewKnowledge ?? identity?.role === "reviewer";
   const [pageNumber, setPageNumber] = useState(0);
   const filtered = pages.filter((p) =>
     `${p.title} ${p.summary} ${p.content}`
@@ -643,6 +645,28 @@ export default function OperationalApp() {
                     <small className="op-id">
                       {c.id} · 내용 해시 {c.hash}
                     </small>
+                    {identity.spaceRole && identity.spaceRole !== "Read" && (
+                      <label>
+                        검토 큐 분류
+                        <select
+                          aria-label={"검토 큐 분류 " + c.id}
+                          disabled={busy}
+                          value={c.triage ?? "untriaged"}
+                          onChange={(e) =>
+                            void perform(async () => {
+                              await api.post(`/changesets/${c.id}/triage`, {
+                                label: e.target.value,
+                              });
+                            })
+                          }
+                        >
+                          <option value="untriaged">미분류</option>
+                          <option value="needs-review">검토 요청</option>
+                          <option value="duplicate">중복 후보</option>
+                          <option value="blocked">확인 필요</option>
+                        </select>
+                      </label>
+                    )}
                     {c.updates.map((d) => (
                       <details key={d.id}>
                         <summary>
@@ -665,59 +689,63 @@ export default function OperationalApp() {
                         <p>근거: {d.sourceIds.join(", ")}</p>
                       </details>
                     ))}
-                    {review && (
-                      <div className="op-actions">
-                        <Button
-                          disabled={busy || c.status !== "pending"}
-                          onClick={() =>
-                            perform(async () => {
-                              await api.post(
-                                `/changesets/${encodeURIComponent(c.id)}/approve`,
-                                { hash: c.hash },
-                              );
-                              setNotice(
-                                "해당 내용과 기준을 고정해 승인했습니다. 발행은 별도 작업입니다.",
-                              );
-                            })
-                          }
-                        >
-                          승인
-                        </Button>
-                        <Button
-                          variant="primary"
-                          disabled={busy || c.status !== "approved"}
-                          onClick={() =>
-                            perform(async () => {
-                              await api.post(
-                                `/changesets/${encodeURIComponent(c.id)}/publish`,
-                                { hash: c.hash },
-                                crypto.randomUUID(),
-                              );
-                              setNotice("변경 집합 전체를 발행했습니다.");
-                            })
-                          }
-                        >
-                          승인 집합 발행
-                        </Button>
-                        <Button
-                          variant="danger"
-                          disabled={
-                            busy || !["pending", "approved"].includes(c.status)
-                          }
-                          onClick={() =>
-                            perform(async () => {
-                              await api.post(
-                                `/changesets/${encodeURIComponent(c.id)}/reject`,
-                                { hash: c.hash },
-                              );
-                              setNotice("변경 집합을 반려했습니다.");
-                            })
-                          }
-                        >
-                          반려
-                        </Button>
-                      </div>
-                    )}
+                    {review &&
+                      (identity.personalSpace ||
+                        !identity.spaceRole ||
+                        c.proposedBy !== identity.principalId) && (
+                        <div className="op-actions">
+                          <Button
+                            disabled={busy || c.status !== "pending"}
+                            onClick={() =>
+                              perform(async () => {
+                                await api.post(
+                                  `/changesets/${encodeURIComponent(c.id)}/approve`,
+                                  { hash: c.hash },
+                                );
+                                setNotice(
+                                  "해당 내용과 기준을 고정해 승인했습니다. 발행은 별도 작업입니다.",
+                                );
+                              })
+                            }
+                          >
+                            승인
+                          </Button>
+                          <Button
+                            variant="primary"
+                            disabled={busy || c.status !== "approved"}
+                            onClick={() =>
+                              perform(async () => {
+                                await api.post(
+                                  `/changesets/${encodeURIComponent(c.id)}/publish`,
+                                  { hash: c.hash },
+                                  crypto.randomUUID(),
+                                );
+                                setNotice("변경 집합 전체를 발행했습니다.");
+                              })
+                            }
+                          >
+                            승인 집합 발행
+                          </Button>
+                          <Button
+                            variant="danger"
+                            disabled={
+                              busy ||
+                              !["pending", "approved"].includes(c.status)
+                            }
+                            onClick={() =>
+                              perform(async () => {
+                                await api.post(
+                                  `/changesets/${encodeURIComponent(c.id)}/reject`,
+                                  { hash: c.hash },
+                                );
+                                setNotice("변경 집합을 반려했습니다.");
+                              })
+                            }
+                          >
+                            반려
+                          </Button>
+                        </div>
+                      )}
                   </article>
                 ))}
                 <ListPager

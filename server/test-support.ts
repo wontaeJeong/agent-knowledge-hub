@@ -50,7 +50,7 @@ export async function fixture() {
     connectionTimeoutMillis: 3000,
   });
   await migrate(pool);
-  const workspaceId = randomUUID();
+  const workspaceId:string = randomUUID();
   await pool.query("INSERT INTO workspaces VALUES($1)", [workspaceId]);
   for (const [id, role] of [
     ["editor", "editor"],

@@ -42,6 +42,23 @@ const outputSchema = z
       .max(20_000),
   })
   .strict();
+const consolidationSchema = z
+  .object({
+    topics: z
+      .array(
+        topicSchema
+          .omit({ statements: true })
+          .extend({ candidateIds: z.array(z.string().max(40)).min(1).max(400) })
+          .strict(),
+      )
+      .max(20),
+    excludedCandidates: z
+      .array(
+        z.object({ candidateId: z.string().max(40), reason: short }).strict(),
+      )
+      .max(400),
+  })
+  .strict();
 export type ContextPage = {
   id: string;
   title: string;
@@ -77,7 +94,7 @@ export async function organizeRecords(
   for (const r of records) {
     const bytes = Buffer.byteLength(JSON.stringify(r));
     if (bytes > 100_000) throw Error("MODEL_CONTEXT_LIMIT");
-    if (size + bytes > 100_000 && chunk.length) {
+    if ((size + bytes > 100_000 || chunk.length >= 50) && chunk.length) {
       chunks.push(chunk);
       chunk = [];
       size = 0;
@@ -141,19 +158,75 @@ export async function organizeRecords(
   let output = outputs[0] || { topics: [], excluded: [] };
   if (outputs.length > 1) {
     await check();
+    const candidates = outputs.flatMap((o, i) =>
+      o.topics.map((topic, j) => ({ id: `c${i}-${j}`, topic })),
+    );
     const context = {
       phase: "consolidate",
-      recordIds: records.map((r) => r.id),
       pages,
-      candidates: outputs,
+      candidates: candidates.map(({ id, topic }) => ({
+        id,
+        key: topic.key,
+        title: topic.title,
+        summary: topic.summary,
+        content: topic.content,
+        targetPageId: topic.targetPageId,
+        relatedPageIds: topic.relatedPageIds,
+        signals: topic.statements.map(({ kind, text, context }) => ({
+          kind,
+          text,
+          context,
+        })),
+      })),
       instruction:
-        "Reconcile ALL chunks: preserve negations, later corrections, environment differences and failed attempts. Account for every input record.",
+        "Reconcile ALL candidates: preserve negations, later corrections, environment differences and failed attempts. Assign every candidate id exactly once, to a topic or excludedCandidates. The server carries forward validated source evidence; do not rewrite quotes or record IDs.",
     };
     if (Buffer.byteLength(JSON.stringify(context)) > 290_000)
       throw Error("MODEL_CONTEXT_LIMIT");
     calls++;
     await checkpoint(calls);
-    output = validate(await model("organize", context), records);
+    const merged = consolidationSchema.parse(await model("organize", context));
+    const assigned = new Set<string>();
+    const claim = (id: string) => {
+      const candidate = candidates.find((c) => c.id === id);
+      if (!candidate || assigned.has(id)) throw Error("INVALID_MODEL_EVIDENCE");
+      assigned.add(id);
+      return candidate.topic;
+    };
+    const exclusions = outputs.flatMap((o) => o.excluded);
+    const topics = merged.topics.map(({ candidateIds, ...topic }) => {
+      if (
+        (topic.targetPageId && !pageIds.has(topic.targetPageId)) ||
+        topic.relatedPageIds.some((id) => !pageIds.has(id))
+      )
+        throw Error("INVALID_MODEL_EVIDENCE");
+      const statements = candidateIds.flatMap((id) => claim(id).statements);
+      return {
+        ...topic,
+        statements: [
+          ...new Map(statements.map((s) => [JSON.stringify(s), s])).values(),
+        ],
+      };
+    });
+    for (const e of merged.excludedCandidates)
+      for (const s of claim(e.candidateId).statements)
+        exclusions.push({ recordId: s.recordId, reason: e.reason });
+    if (assigned.size !== candidates.length) throw Error("CONTEXT_INCOMPLETE");
+    if (new Set(topics.map((t) => t.key)).size !== topics.length)
+      throw Error("INVALID_MODEL_EVIDENCE");
+    const used = new Set(
+      topics.flatMap((t) => t.statements.map((s) => s.recordId)),
+    );
+    output = {
+      topics,
+      excluded: [
+        ...new Map(
+          exclusions
+            .filter((e) => !used.has(e.recordId))
+            .map((e) => [e.recordId, e]),
+        ).values(),
+      ],
+    };
     await check();
   }
   // Page identity is server validated; two independent candidates cannot overwrite one existing page.

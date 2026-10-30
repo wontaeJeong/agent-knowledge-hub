@@ -6,11 +6,42 @@ import type { ModelCall } from "../runtime/model";
 import { defaultSelection } from "../../src/domain/imports";
 import { hash } from "./parser";
 import { PART_SIZE } from "./service";
+import { AccessService } from "../access";
 
 const pools: Awaited<ReturnType<typeof fixture>>[] = [];
 afterEach(async () => {
   delete process.env.IMPORT_DISCLOSURE_REVIEWERS;
+  delete process.env.ACCESS_BOOTSTRAP_OWNERS;
   await Promise.all(pools.splice(0).map((f) => f.pool.end()));
+});
+
+test("space policy revision changes during a model call fence the result even when the actor keeps the same action role", async () => {
+  let access: AccessService;
+  const f = await setup(async (op, raw) => {
+    await access.grant(f.editor, { principalId: "reader", role: "Triage" });
+    return model(op, raw);
+  });
+  process.env.ACCESS_BOOTSTRAP_OWNERS = "editor";
+  access = new AccessService(f.pool);
+  await access.bootstrap(f.editor, "Team");
+  const item = await upload(f);
+  await f.runtime.imports.tick();
+  let view = await f.runtime.imports.view(f.editor, item.id);
+  await f.runtime.imports.select(f.editor, item.id, view.revision, {
+    ...view.selection,
+    acknowledgeWarnings: true,
+  });
+  const run = await f.runtime.imports.start(
+    f.editor,
+    item.id,
+    { revision: view.revision, mode: "model" },
+    randomUUID(),
+  );
+  await f.runtime.imports.tick();
+  const result = await f.runtime.imports.runViewFor(f.editor, run.id);
+  expect(result.status).toBe("failed");
+  expect(result.errorCode).toBe("POLICY_CHANGED");
+  expect(result.result).toBeNull();
 });
 const model: ModelCall = async (op, raw) => {
   if (op !== "organize") throw Error("UNEXPECTED_MODEL_OPERATION");
@@ -127,6 +158,45 @@ test("raw upload is durable, bounded, idempotent and isolated even from workspac
   await expect(
     next.imports.create(f.editor, { ...item.input, title: "other" }, key),
   ).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+});
+
+test("personal owner explicitly saves private wiki changes idempotently without a team disclosure authority", async () => {
+  const f = await setup();
+  const p = await new AccessService(f.pool).createSpace(
+    f.editor,
+    "My private wiki",
+  );
+  const personal = {
+    ...f,
+    workspaceId: p.id,
+    editor: { workspaceId: p.id, principalId: "editor" },
+  };
+  const item = await organized(personal);
+  expect((await f.runtime.imports.config(personal.editor)).personal).toBe(true);
+  const first = await f.runtime.imports.savePersonal(
+    personal.editor,
+    item.runId,
+  );
+  const second = await f.runtime.imports.savePersonal(
+    personal.editor,
+    item.runId,
+  );
+  expect(second).toEqual(first);
+  expect((await f.runtime.pages(personal.editor))[0].content).toContain(
+    "300초는 제안",
+  );
+  await expect(
+    f.runtime.pages({ workspaceId: p.id, principalId: "reviewer" }),
+  ).rejects.toThrow("NOT_FOUND");
+  const readers = await f.pool.query(
+    "SELECT DISTINCT principal_id FROM resource_readers WHERE workspace_id=$1",
+    [p.id],
+  );
+  expect(readers.rows.map((r) => r.principal_id)).toEqual(["editor"]);
+  const team = await organized(f);
+  await expect(
+    f.runtime.imports.savePersonal(f.editor, team.runId),
+  ).rejects.toThrow("FORBIDDEN");
 });
 test("incomplete files/checksum changes/oversized parts never finalize or silently overwrite", async () => {
   const f = await setup(),

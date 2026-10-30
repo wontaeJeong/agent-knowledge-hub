@@ -788,15 +788,18 @@ export default function ImportWorkbench({
                       ? `기존 페이지 갱신 제안: ${t.targetPageId}`
                       : "신규 지식 후보"}
                   </p>
-                  {t.statements.map((s, i) => (
-                    <div className="import-statement" key={i}>
-                      <Badge>{kinds[s.kind]}</Badge>
-                      <p>{s.text}</p>
-                      <p className="op-muted">{s.context}</p>
-                      <blockquote>{s.quote}</blockquote>
-                      <small>원문 근거 {s.recordId}</small>
-                    </div>
-                  ))}
+                  <details open={t.statements.length <= 10}>
+                    <summary>발언과 원문 근거 {t.statements.length}건</summary>
+                    {t.statements.map((s, i) => (
+                      <div className="import-statement" key={i}>
+                        <Badge>{kinds[s.kind]}</Badge>
+                        <p>{s.text}</p>
+                        <p className="op-muted">{s.context}</p>
+                        <blockquote>{s.quote}</blockquote>
+                        <small>원문 근거 {s.recordId}</small>
+                      </div>
+                    ))}
+                  </details>
                   <details>
                     <summary>제안할 전체 Markdown</summary>
                     <pre>{t.content}</pre>

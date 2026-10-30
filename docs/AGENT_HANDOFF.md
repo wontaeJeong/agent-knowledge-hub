@@ -1,14 +1,14 @@
 # 에이전트 인계
 
-## 2026-10-30 웹 자료 편입과 실제 조직 권한 구현 (PR 작업 중)
+## 2026-10-30 웹 자료 편입과 실제 조직 권한 구현 (구현 PR #12)
 
 - 사용자의 추가 지시: 이전 열린 PR 모두 머지, 설계뿐 아니라 실제 기능 구현·PR. #11을 main@1e521db1에 squash merge했다. 이번 변경은 그 뒤의 구현이다.
 - 실행 계약: [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md). 개인 붙여넣기/파일 업로드, 안전한 파싱, 영속 worker/재개/취소, 기존 위키와 모델 정리, 원본 공개 검토, 독립 지식 검토/원자 발행, 같은 REST/SDK MCP 경로를 구현했다. 개인 Owner는 본인 전용 위키 저장 경로를 사용한다.
 - 실제 권한: Organization Owner/Member, Team, 개인/조직 공간, 직접/Team 5역할·만료·실효 경로, 수락/만료/취소 초대, 마지막 Owner, 지정 검토자, 감사·철회·명시적 기존 공간 이관. OIDC 그룹은 이관 후 제품 grant를 덮어쓰지 않는다. 원본 ACL은 Owner에게도 상한이다.
 - 주요 파일: server/imports/*, server/access{,-http,.test}.ts, migrations/006·007, runtime auth/http/mcp/model, repository/publication, domain imports/access, 운영 UI ImportWorkbench/AccessManager. 초기 App1/DB1에서 원본 조각은 제한된 PostgreSQL bytea로 보관하며 별도 broker/object store를 필수화하지 않는다.
 - 관련 요구사항: COL-002/005/012/013, JOB 지속 작업, GOV/ACL/SHR/REV/VER/INT/SEC/OPS와 CORE 순환. 기존 251개 요구사항·35개 인수 시나리오는 변경하지 않았다. North Star·wiki/SCHEMA.md 의미도 변경하지 않는다.
-- 현재 로컬 근거: npm run check 통과(기존 테스트 + 편입 순수 13개, 서버 타입/빌드/요구사항/정적 smoke), PGlite 보조 DB에서 편입 서비스/HTTP/SDK MCP 14개와 접근 관리 6개 통과. 네이티브 PG CI·최종 브라우저 증거는 PR 최종 커밋에 추가한다.
-- 의미 품질은 실제 외부 LLM/실사용 자료 대조로 아직 측정하지 않았다. 브라우저 QA 모델은 결정적 계약 fixture다. Company/Guest/Public·범위 Bearer/서비스 주체·실제 로컬 커넥터 통합·전체 251개 구현/운영 인수 완료라고 표시하지 않는다. 아래 이전 인계는 당시 변경 범위의 기록이다.
+- 현재 로컬 근거: npm run check 통과(기존 테스트 + 편입 순수 15개, 서버 타입/빌드/요구사항/정적 smoke), PGlite 보조 DB에서 새 편입/HTTP/SDK MCP·접근 관리 회귀 24개 통과. 실제 PostgreSQL 첫 CI는 116개 중 115개 통과 후 기존 /me DTO 호환성 기대 한 건으로 실패했고, 미이관 공간의 응답 형태를 보존해 수정했다. 개인 저장·OIDC 회수·Triage/사용량 회귀를 추가했다. 최종 PG CI는 PR 커밋 상태를 따른다.
+- 의미 품질은 실제 외부 LLM/실사용 자료 대조로 아직 측정하지 않았다. 브라우저 Chromium 153에서 실제 웹 붙여넣기→서버 분석→개인 정리→별도 원본 공개 검토→독립 지식 승인/원자 발행→독자 열람을 통과했다. 1440px/390px에서 가로 넘침/JS 오류가 없었고 캡처·JSON 증거는 docs/pr-assets/ingestion에 둔다. QA 모델은 결정적 계약 fixture다. Company/Guest/Public·범위 Bearer/서비스 주체·실제 로컬 커넥터 통합·전체 251개 구현/운영 인수 완료라고 표시하지 않는다. Organization 관리 전환·Team 생성/멤버 추가/공간 Write 부여도 같은 실제 UI에서 확인했다. 500개 발언의 원문 근거를 청크 통합 후에도 보존하는 회귀를 추가했다. 아래 이전 인계는 당시 변경 범위의 기록이다.
 
 
 ## 2026-10-30 로컬·개인·팀 GitHub식 권한 설계 (문서만)

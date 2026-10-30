@@ -328,7 +328,14 @@ export async function parseImport(
         let rows: { record: Record<string, string>; info: { lines: number } }[];
         try {
           rows = csvParse(text, {
-            columns: true,
+            columns: (names: string[]) => {
+              if (
+                new Set(names).size !== names.length ||
+                names.some((n) => !n.trim())
+              )
+                throw Error("INVALID_CSV");
+              return names;
+            },
             bom: true,
             skip_empty_lines: true,
             info: true,

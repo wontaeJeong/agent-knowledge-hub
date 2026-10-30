@@ -135,3 +135,22 @@ test("budget exhaustion happens before spending on incomplete input", async () =
   ).rejects.toThrow("BUDGET_EXCEEDED");
   expect(model).not.toHaveBeenCalled();
 });
+
+test('a 500-message week uses bounded extraction and compact candidate reconciliation without re-generating source quotes',async()=>{
+ const seed=(await records())[0];const rs=Array.from({length:500},(_,i)=>({...seed,id:'m'+i,text:`검토 발언 ${i}: 운영은 60초 유지합니다.`}));let n=0;
+ const result=await organizeRecords(rs,[],async(_op,raw)=>{
+  const c=raw as {phase:string;records?:typeof rs;candidates?:{id:string}[]};n++;
+  if(c.phase==='extract'){expect(c.records!.length).toBeLessThanOrEqual(50);return candidate(c.records!);}
+  expect(c).not.toHaveProperty('recordIds');const {statements:_,...topic}=candidate(rs.slice(0,1)).topics[0];
+  return{topics:[{...topic,candidateIds:c.candidates!.map(c=>c.id)}],excludedCandidates:[]};
+ },'model',async()=>{},async()=>{});
+ expect(n).toBe(11);expect(result.topics[0].statements).toHaveLength(500);expect(result.coverage).toEqual({selected:500,processed:500});
+ expect(result.topics[0].statements[499].quote).toBe(rs[499].text);
+});
+test('consolidation cannot silently drop or duplicate a validated chunk candidate',async()=>{
+ const seed=(await records())[0],rs=Array.from({length:51},(_,i)=>({...seed,id:'m'+i}));
+ for(const ids of [['c0-0'],['c0-0','c0-0']])await expect(organizeRecords(rs,[],async(_op,raw)=>{
+  const c=raw as {phase:string;records:typeof rs};if(c.phase==='extract')return candidate(c.records);
+  const {statements:_,...t}=candidate(rs.slice(0,1)).topics[0];return{topics:[{...t,candidateIds:ids}],excludedCandidates:[]};
+ },'model',async()=>{},async()=>{})).rejects.toThrow();
+});

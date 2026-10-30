@@ -27,6 +27,7 @@
 | 지식 편입·질문·점검·모델 | wiki/SCHEMA.md, docs/MODEL_SETUP.md, docs/AGENT_INTERFACE.md |
 | 로컬 개인 위키·공통 지식 서비스 통합 | docs/LOCAL_WIKI.md, docs/KNOWLEDGE_INTEGRATION.md, docs/adr/004-unified-knowledge-service.md |
 | 소유권·공간 역할·멤버십·공유·권한 이관 | docs/ACCESS_CONTROL.md, docs/adr/005-github-style-access-control.md, docs/SECURITY.md |
+| 웹 자료 입력·대화·영속 편입 | docs/IMPLEMENTATION_GUIDE.md, docs/DATA_INGESTION.md, docs/CONVERSATION_IMPORT.md |
 | 업무 에이전트 API/MCP·환류 | docs/AGENT_INTERFACE.md, docs/API_CONTRACT.md, docs/SECURITY.md |
 | 평가·효과 주장 | docs/EVALUATION.md, docs/TESTING.md, docs/requirements/core-requirements.json |
 | UI·사내 이식 | docs/UI_INTEGRATION.md, docs/REUSE.md |
@@ -66,7 +67,7 @@ README.md, docs/ARCHITECTURE.md, docs/UI_INTEGRATION.md, docs/ROADMAP.md, docs/S
 5. 초기 상태·실험 데이터·실제 사내 자료를 분리한다. 비밀키를 VITE_ 변수와 클라이언트 코드에 넣지 않는다.
 6. 외부 검색·모델·도구·전송은 회사 정책이 허용한 대상만 사용한다.
 
-권한 후속 설계는 `docs/ACCESS_CONTROL.md`와 ADR 005를 참조한다. 두 문서는 **제안**이며 현행 3역할/인증을 교체한 구현이 아니다. 로컬 위치·개인/팀 소유권·공개 범위·공간 역할·원본 제한을 혼동하거나 reviewer를 자동 Admin/Owner로 승격하지 않는다.
+권한 후속 설계는 `docs/ACCESS_CONTROL.md`와 ADR 005를 참조한다. 전체 확장 계약과 실제 구현 범위는 docs/IMPLEMENTATION_GUIDE.md에서 구별한다. 핵심 Organization/Team/공간 5역할은 명시적으로 이관한 공간에 적용하며, 미이관 공간은 기존 3역할/인증을 유지한다. 로컬 위치·개인/팀 소유권·공개 범위·공간 역할·원본 제한을 혼동하거나 reviewer를 자동 Admin/Owner로 승격하지 않는다.
 
 ## 작업 완료와 문서
 

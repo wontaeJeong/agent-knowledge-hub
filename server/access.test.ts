@@ -5,10 +5,50 @@ import { RuntimeService } from "./runtime/knowledge";
 import { membership } from "./repository";
 import { transaction } from "./database";
 import { randomUUID } from "node:crypto";
+import { usageSummary } from "./usage";
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
   vi.unstubAllEnvs();
+});
+
+test("Triage classifies only currently readable proposals and Maintain has no organization usage aggregate", async () => {
+  const f = await setup();
+  const batch = await f.runtime.core.propose(
+    f.editor,
+    [
+      {
+        id: "topic",
+        title: "Topic",
+        summary: "Summary",
+        scope: "team",
+        content: "New proposal",
+        baseVersion: 1,
+        links: [],
+        facts: [],
+        sourceIds: [source.id],
+      },
+    ],
+    [source.id],
+  );
+  await expect(f.runtime.triage(f.reader, batch.id, "blocked")).rejects.toThrow(
+    "FORBIDDEN",
+  );
+  await f.access.grant(f.editor, { principalId: "reader", role: "Triage" });
+  await f.runtime.triage(f.reader, batch.id, "needs-review");
+  expect((await f.runtime.changesets(f.reader))[0].triage).toBe("needs-review");
+  await expect(
+    f.runtime.core.approve(f.reader, batch.id, batch.hash),
+  ).rejects.toThrow("FORBIDDEN");
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reader'",
+    [f.workspaceId],
+  );
+  await expect(
+    f.runtime.triage(f.reader, batch.id, "duplicate"),
+  ).rejects.toThrow("NOT_FOUND");
+  expect((await usageSummary(f.pool, f.ctx, 7)).scope).toBe("self");
+  expect((await usageSummary(f.pool, f.editor, 7)).scope).toBe("workspace");
 });
 async function setup() {
   const f = await fixture();
@@ -37,7 +77,7 @@ test("adoption requires explicit operator binding; legacy reviewer is Maintain, 
   expect((await a.state(f.ctx)).capabilities.manageSpace).toBe(false);
   expect((await a.state(f.editor)).space?.role).toBe("Admin");
 });
-test("organization and space invitations grant nothing before acceptance; last owner survives concurrent removal", async () => {
+test("organization and space invitations grant nothing before acceptance; last owner remains protected during transfer", async () => {
   const f = await setup();
   const who = "new-" + randomUUID();
   await registerPrincipal(f.pool, who, "New member");

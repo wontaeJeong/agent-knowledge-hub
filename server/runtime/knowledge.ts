@@ -100,40 +100,66 @@ export class RuntimeService {
     }));
   }
   async changesets(ctx: Context) {
+    return transaction(this.pool, ctx.workspaceId, (db) =>
+      this.changesetsDb(db, ctx),
+    );
+  }
+  private async changesetsDb(db: PoolClient, ctx: Context) {
+    const { state } = await this.view(db, ctx);
+    const ids = new Set(state.sources.map((s) => s.id));
+    const pageIds = new Set(state.pages.map((p) => p.id));
+    const result = await db.query(
+      "SELECT b.id,b.hash,b.data,t.label AS triage FROM batches b LEFT JOIN access_triage t ON t.workspace_id=b.workspace_id AND t.batch_id=b.id WHERE b.workspace_id=$1 ORDER BY b.id",
+      [ctx.workspaceId],
+    );
+    return result.rows
+      .filter(
+        (r) =>
+          !r.data.requestAuthorizationPending &&
+          (r.data as Batch).snapshots.every((s) => ids.has(s.id)) &&
+          (
+            (r.data as Batch & { contextDependencyIds?: string[] })
+              .contextDependencyIds ?? []
+          ).every((id) => pageIds.has(id)) &&
+          (r.data as Batch).updates.every(
+            (d) =>
+              d.sourceIds.every((id) => ids.has(id)) &&
+              (d.baseVersion === 0 || pageIds.has(d.id)) &&
+              d.links.every(
+                (id) =>
+                  pageIds.has(id) ||
+                  (r.data as Batch).updates.some((x) => x.id === id),
+              ),
+          ),
+      )
+      .map((r) => ({
+        id: r.id,
+        hash: r.hash,
+        status: r.data.status,
+        updates: r.data.updates,
+        triage: r.triage ?? "untriaged",
+        proposedBy: r.data.importAuthorId ?? r.data.proposedBy,
+      }));
+  }
+  async triage(ctx: Context, id: string, label: string) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
-      const { state } = await this.view(db, ctx);
-      const ids = new Set(state.sources.map((s) => s.id));
-      const pageIds = new Set(state.pages.map((p) => p.id));
-      const result = await db.query(
-        "SELECT id,hash,data FROM batches WHERE workspace_id=$1 ORDER BY id",
-        [ctx.workspaceId],
+      const role = await db.query("SELECT access_role($1,$2) AS role", [
+        ctx.workspaceId,
+        ctx.principalId,
+      ]);
+      if (
+        !["Triage", "Write", "Maintain", "Admin"].includes(role.rows[0]?.role)
+      )
+        throw Error("FORBIDDEN");
+      await ctx.authorization?.assertSession(db);
+      if (!(await this.changesetsDb(db, ctx)).some((b) => b.id === id))
+        throw Error("NOT_FOUND");
+      await db.query(
+        "INSERT INTO access_triage VALUES($1,$2,$3,$4) ON CONFLICT(workspace_id,batch_id) DO UPDATE SET principal_id=excluded.principal_id,label=excluded.label",
+        [ctx.workspaceId, id, ctx.principalId, label],
       );
-      return result.rows
-        .filter(
-          (r) =>
-            !r.data.requestAuthorizationPending &&
-            (r.data as Batch).snapshots.every((s) => ids.has(s.id)) &&
-            (
-              (r.data as Batch & { contextDependencyIds?: string[] })
-                .contextDependencyIds ?? []
-            ).every((id) => pageIds.has(id)) &&
-            (r.data as Batch).updates.every(
-              (d) =>
-                d.sourceIds.every((id) => ids.has(id)) &&
-                (d.baseVersion === 0 || pageIds.has(d.id)) &&
-                d.links.every(
-                  (id) =>
-                    pageIds.has(id) ||
-                    (r.data as Batch).updates.some((x) => x.id === id),
-                ),
-            ),
-        )
-        .map((r) => ({
-          id: r.id,
-          hash: r.hash,
-          status: r.data.status,
-          updates: r.data.updates,
-        }));
+      await audit(db, ctx, "changeset.triage", id);
+      return { ok: true };
     });
   }
   async job<T>(
@@ -426,6 +452,21 @@ export class RuntimeService {
   async reject(ctx: Context, id: string, hash: string) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
       if ((await membership(db, ctx)) !== "reviewer") throw Error("FORBIDDEN");
+      const managed = await db.query(
+        "SELECT owner_id FROM access_spaces WHERE workspace_id=$1",
+        [ctx.workspaceId],
+      );
+      if (
+        managed.rowCount &&
+        managed.rows[0].owner_id !== ctx.principalId &&
+        !(
+          await db.query(
+            "SELECT 1 FROM access_reviewers WHERE workspace_id=$1 AND principal_id=$2",
+            [ctx.workspaceId, ctx.principalId],
+          )
+        ).rowCount
+      )
+        throw Error("FORBIDDEN");
       if (!(await this.changesetsForDb(db, ctx)).includes(id))
         throw Error("NOT_FOUND");
       const r = await db.query(

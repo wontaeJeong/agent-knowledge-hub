@@ -56,6 +56,10 @@ export default function AccessManager({
     setInvitations(i.items);
     setOrganizations(o.items);
   }, [api]);
+  useEffect(() => {
+    if (state?.managed && !state.capabilities.manageOrganization)
+      setInviteKind("space");
+  }, [state?.managed, state?.capabilities.manageOrganization]);
   const act = async (fn: () => Promise<unknown>, message = "변경했습니다.") => {
     setBusy(true);
     setError("");
@@ -579,6 +583,7 @@ export default function AccessManager({
                   <label>
                     역할을 부여할 Team
                     <select
+                      aria-label="역할을 부여할 Team"
                       value={team}
                       onChange={(e) => setTeam(e.target.value)}
                     >

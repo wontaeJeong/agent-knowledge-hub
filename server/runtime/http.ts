@@ -258,10 +258,24 @@ export function createRuntimeHandler(options: {
           return send(201, await service.file(ctx, id.parse(file[1])));
         }
         const action = path.match(
-          /^\/api\/v1\/changesets\/([^/]+)\/(approve|publish|reject)$/,
+          /^\/api\/v1\/changesets\/([^/]+)\/(approve|publish|reject|triage)$/,
         );
         if (action) {
           const batchId = id.parse(action[1]);
+          if (action[2] === "triage") {
+            const b = z
+              .object({
+                label: z.enum([
+                  "untriaged",
+                  "needs-review",
+                  "duplicate",
+                  "blocked",
+                ]),
+              })
+              .strict()
+              .parse(body);
+            return send(200, await service.triage(ctx, batchId, b.label));
+          }
           const { hash } = approvalInput.parse(body);
           if (action[2] === "publish") {
             const key = z
@@ -309,6 +323,12 @@ export function createRuntimeHandler(options: {
         MODEL_CONTEXT_LIMIT: 413,
         JOB_CAPACITY: 429,
         INPUT_CHANGED: 409,
+        LAST_OWNER: 409,
+        INVITATION_REQUIRED: 409,
+        ORGANIZATION_MEMBERSHIP_REQUIRED: 409,
+        ALREADY_MANAGED: 409,
+        POLICY_CHANGED: 409,
+        MODEL_CONFIGURATION_CHANGED: 409,
         INPUT_FROZEN: 409,
         IMPORT_BUSY: 409,
         UPLOAD_INCOMPLETE: 409,

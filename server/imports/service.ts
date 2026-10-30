@@ -356,7 +356,16 @@ export class ImportService {
         role,
         key,
         fingerprint,
-        executionConfig(),
+        {
+          ...executionConfig(),
+          accessRevision:
+            (
+              await db.query(
+                "SELECT revision FROM access_spaces WHERE workspace_id=$1",
+                [ctx.workspaceId],
+              )
+            ).rows[0]?.revision ?? null,
+        },
       ],
     );
     await audit(db, ctx, "import.enqueue", id);
@@ -629,7 +638,13 @@ export class ImportService {
       throw Error("POLICY_CHANGED");
     if (
       r?.mode === "model" &&
-      digest(r.execution_config) !== digest(executionConfig())
+      digest(
+        Object.fromEntries(
+          Object.entries(r.execution_config).filter(
+            ([key]) => key !== "accessRevision",
+          ),
+        ),
+      ) !== digest(executionConfig())
     )
       throw Error("MODEL_CONFIGURATION_CHANGED");
     if (
@@ -647,6 +662,7 @@ export class ImportService {
       : { workspaceId: r.workspace_id, principalId: r.principal_id };
     if (r.session_id && !this.authorizer) throw Error("AUTHORIZATION_REQUIRED");
     await transaction(this.pool, ctx.workspaceId, async (db) => {
+      await this.assertPolicy(db, ctx, r);
       if ((await this.authorize(db, ctx)) !== r.grant_role)
         throw Error("AUTHORIZATION_REQUIRED");
       const imported = await this.own(db, ctx, r.import_id);
@@ -660,6 +676,20 @@ export class ImportService {
         );
     });
     return ctx;
+  }
+  private async assertPolicy(db: PoolClient, ctx: Context, row: Row) {
+    const revision =
+      (
+        await db.query(
+          "SELECT revision FROM access_spaces WHERE workspace_id=$1",
+          [ctx.workspaceId],
+        )
+      ).rows[0]?.revision ?? null;
+    if (
+      revision !== (row.execution_config?.accessRevision ?? null) ||
+      row.policy_version !== IMPORT_POLICY_VERSION
+    )
+      throw Error("POLICY_CHANGED");
   }
   async tick(): Promise<boolean> {
     if (this.running || this.stopping) return false;
@@ -801,6 +831,7 @@ export class ImportService {
         );
         if (!checked.rowCount || checked.rows[0].cancel_requested)
           throw Error("IMPORT_CANCELLED");
+        await this.assertPolicy(db, ctx, checked.rows[0]);
         if (
           checked.rows[0].status !== "running" ||
           new Date(checked.rows[0].lease_until).getTime() <= Date.now()
@@ -1145,7 +1176,7 @@ export class ImportService {
         }
         if (buffer) chunks.push(buffer);
         const serialized = chunks.join("");
-        if (serialized.length > 950_000) throw Error("BUDGET_EXCEEDED");
+        if (serialized.length > 9_000_000) throw Error("BUDGET_EXCEEDED");
         const sourceIds: string[] = [];
         let index = 0;
         for (const content of chunks) {

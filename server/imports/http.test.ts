@@ -7,9 +7,66 @@ import { RuntimeService } from "../runtime/knowledge";
 import { OidcAuth, sessionHash } from "../runtime/auth";
 import { createRuntimeHandler } from "../runtime/http";
 import { hash } from "./parser";
+import { AccessService } from "../access";
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
+  delete process.env.ACCESS_BOOTSTRAP_OWNERS;
   for (const close of cleanup.splice(0).reverse()) await close();
+});
+
+test("managed organization permissions survive real OIDC admission checks without resurrecting a revoked role", async () => {
+  const a = await app();
+  process.env.ACCESS_BOOTSTRAP_OWNERS = "editor";
+  const access = new AccessService(a.pool);
+  expect(
+    (
+      await a.post("/api/v1/access/bootstrap", {
+        name: "Platform",
+        confirm: "adopt-existing-members-and-preserve-source-acls",
+      })
+    ).status,
+  ).toBe(201);
+  const state = await (
+    await fetch(a.base + "/api/v1/access", { headers: a.headers })
+  ).json();
+  expect(state.space.role).toBe("Admin");
+  expect(
+    (
+      await a.post("/api/v1/access/visibility", {
+        visibility: "company",
+        revision: state.space.revision,
+        confirm: "source-acls-remain-restricted",
+      })
+    ).status,
+  ).toBe(400);
+  const invitation = await access.invite(a.editor, {
+    principalId: "reviewer",
+    role: "owner",
+  });
+  await access.invitation(a.ctx, invitation.id, "accept");
+  await access.member(a.ctx, "editor", null);
+  expect(
+    (await fetch(a.base + "/api/v1/pages", { headers: a.headers })).status,
+  ).toBe(401);
+  const replacement = randomUUID();
+  await a.pool.query(
+    "INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,subject,access_token,expires_at) VALUES($1,$2,'editor','csrf','editor','unused',now()+interval '1 hour')",
+    [sessionHash(replacement), a.workspaceId],
+  );
+  expect(
+    (
+      await fetch(a.base + "/api/v1/me", {
+        headers: { ...a.headers, Cookie: "akh_session=" + replacement },
+      })
+    ).status,
+  ).toBe(401);
+  expect(
+    (
+      await a.pool.query("SELECT access_role($1,'editor') AS role", [
+        a.workspaceId,
+      ])
+    ).rows[0].role,
+  ).toBeNull();
 });
 async function app() {
   const f = await fixture();

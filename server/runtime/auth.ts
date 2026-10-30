@@ -20,6 +20,8 @@ export type Session = Context & {
   role: Role;
   csrfToken: string;
   spaceRole?: SpaceRole | null;
+  canReviewKnowledge?: boolean;
+  personalSpace?: boolean;
 };
 export class OidcAuth {
   requestGuard(req: IncomingMessage, expected: Session) {
@@ -358,7 +360,26 @@ export class OidcAuth {
         principalId: s.principal_id,
         role,
         csrfToken: s.csrf,
-        spaceRole: managed.rows[0]?.role ?? null,
+        ...(managed.rowCount
+          ? {
+              spaceRole: managed.rows[0].role,
+              personalSpace:
+                (
+                  await this.pool.query(
+                    "SELECT 1 FROM access_spaces WHERE workspace_id=$1 AND owner_id=$2",
+                    [s.workspace_id, s.principal_id],
+                  )
+                ).rowCount === 1,
+              canReviewKnowledge:
+                role === "reviewer" &&
+                (
+                  await this.pool.query(
+                    "SELECT 1 FROM access_spaces s WHERE s.workspace_id=$1 AND (s.owner_id=$2 OR EXISTS(SELECT 1 FROM access_reviewers r WHERE r.workspace_id=s.workspace_id AND r.principal_id=$2))",
+                    [s.workspace_id, s.principal_id],
+                  )
+                ).rowCount === 1,
+            }
+          : {}),
       };
     } catch {
       await this.pool.query("DELETE FROM runtime_sessions WHERE id=$1", [
