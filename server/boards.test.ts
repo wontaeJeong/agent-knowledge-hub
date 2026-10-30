@@ -48,6 +48,7 @@ test("revoked membership and stale authorization cannot mutate posts",async()=>{
  const id=await create(f.editor,"voc");
  const denied={...f.editor,authorization:{sessionId:"stale",revalidate:async()=>{},assertSession:async()=>{throw Error("UNAUTHENTICATED");}}};
  await expect(call(denied,"POST","posts/"+id+"/comments",{body:"stale"})).rejects.toThrow("UNAUTHENTICATED");
+ await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND principal_id=$2",[f.workspaceId,"editor"]);
  await f.pool.query("DELETE FROM memberships WHERE workspace_id=$1 AND principal_id=$2",[f.workspaceId,"editor"]);
  await expect(call(f.editor,"GET","posts/"+id)).rejects.toThrow("NOT_FOUND");
 });

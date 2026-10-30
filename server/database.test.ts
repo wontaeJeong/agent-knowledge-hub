@@ -32,6 +32,6 @@ test("migration is repeatable and transactions roll back all writes", async () =
     ).rowCount,
   ).toBe(0);
   expect((await pool.query("SELECT * FROM schema_migrations")).rowCount).toBe(
-    7,
+    8,
   );
 });

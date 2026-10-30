@@ -91,7 +91,7 @@ export async function handleBoardRequest(
    const {reviewer,manager}=await access(db,ctx);
    const post=await getPost(db,ctx,id,reviewer,true);
    if(post.revision!==b.revision)throw Error("STALE_VERSION");
-   const canEdit=post.kind==="notice"?manager:post.kind==="internal"?reviewer:post.author_id===ctx.principalId;
+   const canEdit=post.kind==="notice"?manager:post.kind==="internal"?reviewer:(post.author_id===ctx.principalId||manager);
    if(!canEdit)throw Error("FORBIDDEN");
    if((b.status!==undefined||b.pinned!==undefined)&&!manager)throw Error("FORBIDDEN");
    await db.query("UPDATE board_posts SET title=COALESCE($3,title),body=COALESCE($4,body),status=COALESCE($5,status),pinned=COALESCE($6,pinned),revision=revision+1,updated_at=clock_timestamp() WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,id,b.title??null,b.body??null,b.status??null,b.pinned??null]);
