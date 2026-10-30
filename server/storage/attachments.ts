@@ -8,6 +8,7 @@ import { digest } from "../publication";
 import { current, draftOf } from "../../src/domain/wiki";
 import { inspectContent } from "./content";
 import { randomUUID } from "node:crypto";
+import { FileReadAccess } from "./file-read";
 const id = z
   .string()
   .regex(/^[a-zA-Z0-9_-]{1,100}$/)
@@ -77,30 +78,47 @@ export class AttachmentWorkflow {
   }
   async download(ctx: Context, slotId: string, revision?: number) {
     if (revision !== undefined) z.number().int().positive().parse(revision);
-    const selected = await this.host.run(
+    const resolve = async (db: PoolClient) => {
+      const r = await db.query(
+        "SELECT * FROM storage_attachment_slots WHERE workspace_id=$1 AND id=$2",
+        [ctx.workspaceId, id.parse(slotId)],
+      );
+      if (!r.rowCount || r.rows[0].withdrawn) throw Error("NOT_FOUND");
+      const slot = r.rows[0] as Slot;
+      const v = await db.query(
+        "SELECT blob_id FROM storage_attachment_versions WHERE workspace_id=$1 AND slot_id=$2 AND revision=$3",
+        [ctx.workspaceId, slotId, revision ?? slot.revision],
+      );
+      if (!v.rowCount) throw Error("NOT_FOUND");
+      return { slot, blobId: v.rows[0].blob_id as string };
+    };
+    const read = new FileReadAccess(this.host);
+    let candidate: Awaited<ReturnType<typeof resolve>>;
+    const selected = await read.run(
       ctx,
-      "knowledge.read",
-      undefined,
       async (db) => {
-        const slot = await this.slot(db, ctx, slotId);
-        const r = await db.query(
-          "SELECT blob_id FROM storage_attachment_versions WHERE workspace_id=$1 AND slot_id=$2 AND revision=$3",
-          [ctx.workspaceId, slotId, revision ?? slot.revision],
-        );
-        if (!r.rowCount) throw Error("NOT_FOUND");
-        return { slot, blobId: r.rows[0].blob_id as string };
+        candidate = await resolve(db);
+        return candidate.blobId;
       },
+      async () => candidate,
     );
     const result = await this.host.download(ctx, selected.blobId);
-    await this.host.run(ctx, "knowledge.read", undefined, async (db) => {
-      const now = await this.slot(db, ctx, slotId);
-      if (
-        revision === undefined &&
-        (now.head_id !== selected.slot.head_id ||
-          now.revision !== selected.slot.revision)
-      )
-        throw Error("STALE_VERSION");
-    });
+    await read.run(
+      ctx,
+      async (db) => {
+        candidate = await resolve(db);
+        return candidate.blobId;
+      },
+      async () => {
+        const now = candidate.slot;
+        if (
+          revision === undefined &&
+          (now.head_id !== selected.slot.head_id ||
+            now.revision !== selected.slot.revision)
+        )
+          throw Error("STALE_VERSION");
+      },
+    );
     return result;
   }
   async preview(ctx: Context, slotId: string, revision?: number) {

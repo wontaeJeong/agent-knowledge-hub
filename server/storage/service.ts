@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Context } from "../service";
 import { ImportWorkflow, readImportArchive } from "./imports";
 import { AttachmentWorkflow } from "./attachments";
+import { FileReadAccess } from "./file-read";
 import { acquireSharedMutationGate } from "../operations/gate";
 import { statfs } from "node:fs/promises";
 import { transaction } from "../database";
@@ -24,7 +25,11 @@ import {
   MAX_BYTES,
 } from "./content";
 
-export type StorageResource = { kind: "source" | "page"; id: string };
+export type StorageResource = {
+  kind: "source" | "page";
+  id: string;
+  version?: number;
+};
 export type StorageAuthorizer = (
   db: PoolClient,
   ctx: Context,
@@ -526,6 +531,8 @@ export class StorageService {
     });
   }
   async download(ctx: Context, blobId: string, action = "knowledge.read") {
+    if (action === "knowledge.read")
+      return new FileReadAccess(this).download(ctx, blobId);
     const b = await this.run(ctx, "knowledge.read", undefined, async (db) => {
       const b = await this.blob(db, ctx, blobId);
       await this.authorizeParent(db, ctx, action, {
@@ -642,39 +649,57 @@ export class StorageService {
     if (!Number.isInteger(seconds) || seconds < 1 || seconds > 300)
       throw Error("VALIDATION_FAILED");
     const token = randomBytes(32).toString("base64url");
-    return this.run(ctx, "knowledge.read", undefined, async (db) => {
-      const b = await this.blob(db, ctx, blobId);
-      if (b.scan_state !== "clean") throw Error("SCAN_REQUIRED");
-      await db.query(
-        "INSERT INTO storage_tickets(workspace_id,token_hash,blob_id,principal_id,expires_at) VALUES($1,$2,$3,$4,now()+$5*interval '1 second')",
-        [ctx.workspaceId, sha256(token), blobId, ctx.principalId, seconds],
-      );
-      return { token, expiresIn: seconds };
-    });
+    return new FileReadAccess(this).run(
+      ctx,
+      async () => blobId,
+      async (db, b) => {
+        if (b.scan_state !== "clean") throw Error("SCAN_REQUIRED");
+        await db.query(
+          "INSERT INTO storage_tickets(workspace_id,token_hash,blob_id,principal_id,expires_at) VALUES($1,$2,$3,$4,now()+$5*interval '1 second')",
+          [ctx.workspaceId, sha256(token), blobId, ctx.principalId, seconds],
+        );
+        return { token, expiresIn: seconds };
+      },
+    );
   }
   async redeem(ctx: Context, token: string) {
     const get = () =>
-      this.run(ctx, "knowledge.read", undefined, async (db) => {
-        const r = await db.query(
-          "SELECT blob_id FROM storage_tickets WHERE workspace_id=$1 AND token_hash=$2 AND principal_id=$3 AND NOT revoked AND expires_at>now()",
-          [ctx.workspaceId, sha256(token), ctx.principalId],
-        );
-        if (!r.rowCount) throw Error("NOT_FOUND");
-        return r.rows[0].blob_id as string;
-      });
+      new FileReadAccess(this).run(
+        ctx,
+        async (db) => {
+          const r = await db.query(
+            "SELECT blob_id FROM storage_tickets WHERE workspace_id=$1 AND token_hash=$2 AND principal_id=$3 AND NOT revoked AND expires_at>clock_timestamp()",
+            [ctx.workspaceId, sha256(token), ctx.principalId],
+          );
+          if (!r.rowCount) throw Error("NOT_FOUND");
+          return r.rows[0].blob_id as string;
+        },
+        async (_db, b) => b.id,
+      );
     const blobId = await get();
     const result = await this.download(ctx, blobId);
     await get();
     return result;
   }
   async revokeTicket(ctx: Context, token: string) {
-    return this.run(ctx, "knowledge.read", undefined, async (db) => {
-      await db.query(
-        "UPDATE storage_tickets SET revoked=true WHERE workspace_id=$1 AND token_hash=$2 AND principal_id=$3",
-        [ctx.workspaceId, sha256(token), ctx.principalId],
-      );
-      return { revoked: true };
-    });
+    return new FileReadAccess(this).run(
+      ctx,
+      async (db) => {
+        const r = await db.query(
+          "SELECT blob_id FROM storage_tickets WHERE workspace_id=$1 AND token_hash=$2 AND principal_id=$3",
+          [ctx.workspaceId, sha256(token), ctx.principalId],
+        );
+        if (!r.rowCount) throw Error("NOT_FOUND");
+        return r.rows[0].blob_id as string;
+      },
+      async (db) => {
+        await db.query(
+          "UPDATE storage_tickets SET revoked=true WHERE workspace_id=$1 AND token_hash=$2 AND principal_id=$3",
+          [ctx.workspaceId, sha256(token), ctx.principalId],
+        );
+        return { revoked: true };
+      },
+    );
   }
   async export(ctx: Context, input: unknown) {
     const request = z
