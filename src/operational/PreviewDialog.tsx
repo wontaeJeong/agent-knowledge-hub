@@ -25,12 +25,15 @@ export function PreviewDialog({
   close: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    ref.current?.showModal();
+    previousFocus.current ??= document.activeElement as HTMLElement | null;
+    const dialog = ref.current;
+    dialog?.showModal();
     return () => {
-      previous?.focus();
+      dialog?.close();
+      previousFocus.current?.focus();
     };
   }, []);
   return (
@@ -38,6 +41,23 @@ export function PreviewDialog({
       className="console-dialog"
       ref={ref}
       aria-labelledby="preview-dialog-title"
+      onKeyDown={(e) => {
+        if (e.key !== "Tab") return;
+        const controls = [
+          ...e.currentTarget.querySelectorAll<HTMLElement>(
+            "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href]",
+          ),
+        ];
+        const first = controls[0],
+          last = controls.at(-1);
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }}
       onCancel={(e) => {
         e.preventDefault();
         close();

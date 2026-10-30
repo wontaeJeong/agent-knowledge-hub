@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { marked } from "marked";
@@ -163,7 +164,11 @@ export default function OperationalApp({
   const [usageDays, setUsageDays] = useState<7 | 30>(7);
   const [usageError, setUsageError] = useState("");
   const [usageRetry, setUsageRetry] = useState(0);
+  const [dataReady, setDataReady] = useState(false);
+  const sessionEpoch = useRef(0);
   const clearProtected = useCallback(() => {
+    sessionEpoch.current += 1;
+    setDataReady(false);
     setIdentity(null);
     setPages([]);
     setSources([]);
@@ -174,6 +179,8 @@ export default function OperationalApp({
     setSnapshot(null);
     setUsage(null);
     setIssues(null);
+    setModel({ configured: false, model: null });
+    setSearch("");
     setTitle("");
     setContent("");
     setQuestion("");
@@ -185,6 +192,8 @@ export default function OperationalApp({
   }, []);
 
   const load = useCallback(async () => {
+    const epoch = sessionEpoch.current;
+    setDataReady(false);
     const [p, s, c, m, j, config] = await Promise.all([
       api.get<{ items: PublishedPage[] }>("/pages"),
       api.get<{ items: Source[] }>("/sources"),
@@ -193,12 +202,14 @@ export default function OperationalApp({
       api.get<{ items: Job[] }>("/jobs"),
       api.get<{ configured: boolean; model: string | null }>("/model"),
     ]);
+    if (epoch !== sessionEpoch.current) return;
     setPages(p.items);
     setSources(s.items);
     setChanges(c.items);
     setMembers(m.items);
     setJobs(j.items);
     setModel(config);
+    setDataReady(true);
   }, [api]);
   useEffect(() => {
     let active = true;
@@ -248,6 +259,7 @@ export default function OperationalApp({
     if (!identity || !["overview", "usage"].includes(tab)) return;
     let active = true;
     setUsage(null);
+    const epoch = sessionEpoch.current;
     setUsageError("");
     api
       .get<UsageSummary>(`/usage?days=${tab === "overview" ? 7 : usageDays}`)
@@ -255,8 +267,14 @@ export default function OperationalApp({
         if (active) setUsage(data);
       })
       .catch((e: unknown) => {
+        // An obsolete tab response must still revoke the session, not just its UI data.
+        if (
+          e instanceof ApiError &&
+          e.status === 401 &&
+          epoch === sessionEpoch.current
+        )
+          clearProtected();
         if (!active) return;
-        if (e instanceof ApiError && e.status === 401) clearProtected();
         setUsageError(e instanceof Error ? e.message : "집계 실패");
       });
     return () => {
@@ -390,7 +408,7 @@ export default function OperationalApp({
                 서버에서 처리하고 있습니다. 창을 반복 제출하지 마세요.
               </p>
             )}
-            {tab === "overview" && (
+            {tab === "overview" && dataReady && (
               <Overview
                 summary={summarizeConsole({
                   pages,
@@ -406,6 +424,16 @@ export default function OperationalApp({
                 retry={refreshUsage}
                 preview={preview}
               />
+            )}
+            {tab === "overview" && !dataReady && (
+              <section className="op-panel" role="status">
+                <h2>운영 현황을 아직 집계할 수 없습니다</h2>
+                <p>
+                  접근 가능한 목록 조회가 완료되지 않았습니다. 미확인을 0건으로
+                  표시하지 않습니다. 연결 오류가 있으면 ‘다시 연결’로
+                  재시도하세요.
+                </p>
+              </section>
             )}
             <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
               <Management section={tab} preview={preview} navigate={navigate} />

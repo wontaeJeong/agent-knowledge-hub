@@ -288,6 +288,7 @@ export function Management({
                   </Button>
                   <Button
                     variant="danger"
+                    disabled={person.status === "초대 취소"}
                     onClick={() =>
                       confirm(
                         person.status === "초대 대기"
@@ -307,11 +308,13 @@ export function Management({
                       )
                     }
                   >
-                    {person.status === "초대 대기"
-                      ? "초대 취소"
-                      : person.status === "중지"
-                        ? "활성화 예시"
-                        : "중지 예시"}
+                    {person.status === "초대 취소"
+                      ? "초대 취소됨"
+                      : person.status === "초대 대기"
+                        ? "초대 취소"
+                        : person.status === "중지"
+                          ? "활성화 예시"
+                          : "중지 예시"}
                   </Button>
                   <Button
                     onClick={() =>
@@ -766,7 +769,10 @@ export function Management({
                   "작업별 호출 예산",
                   `${state.budget}건 · 예시 · 실제 과금 제한 아님`,
                 ],
-                ["실행 보장", "지속 worker/임대/재시도·자동 실행 미연결"],
+                [
+                  "실행 보장",
+                  "이 예약 유지관리 목업은 미연결. 실제 자료 편입은 별도 영속 worker·임대·재시도를 사용합니다.",
+                ],
                 [
                   "로컬 커넥터",
                   "호스트 연결 중에만 동기화. 연결 종료 후 daemon/예약 실행 없음.",

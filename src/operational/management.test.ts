@@ -43,6 +43,26 @@ test("mock cannot disable last Owner or promote an inactive invite", () => {
   ).toThrow();
   expect(s.people[0].status).toBe("활성");
 });
+
+test("cancelled invitations cannot be laundered through suspension into activation", () => {
+  const invited = changeManagement(createManagement(), {
+    type: "invite",
+    name: "미수락",
+    email: "unaccepted@example.test",
+  });
+  const id = invited.people.at(-1)!.id;
+  const cancelled = changeManagement(invited, {
+    type: "person",
+    id,
+    status: "초대 취소",
+  });
+  expect(() =>
+    changeManagement(cancelled, { type: "person", id, status: "중지" }),
+  ).toThrow();
+  expect(() =>
+    changeManagement(cancelled, { type: "person", id, status: "활성" }),
+  ).toThrow();
+});
 test("mock agent credentials exclude approval and require accountable expiry", () => {
   const s = createManagement();
   expect(() =>

@@ -264,6 +264,13 @@ export function changeManagement(
       const p = s.people.find((p) => p.id === action.id);
       if (!p) throw Error("구성원을 찾을 수 없습니다.");
       if (
+        (p.status === "초대 대기" || p.status === "초대 취소") &&
+        action.status !== "초대 취소"
+      )
+        throw Error(
+          "미수락 초대는 계정 상태로 전환할 수 없습니다. 초대 취소만 가능합니다.",
+        );
+      if (
         p.owner &&
         action.status !== "활성" &&
         s.people.filter((x) => x.owner && x.status === "활성").length <= 1

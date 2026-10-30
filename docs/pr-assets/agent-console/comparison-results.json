@@ -1,0 +1,50 @@
+[
+  {
+    "phase": "before",
+    "width": 390,
+    "scrollWidth": 390,
+    "height": 2738,
+    "firstConclusionTop": 779.28125,
+    "headingTop": 145.140625,
+    "chartTextSize": "14px",
+    "tableRowHeight": 53.75,
+    "tableWidth": 600,
+    "navHeight": 141.28125
+  },
+  {
+    "phase": "after",
+    "width": 390,
+    "scrollWidth": 390,
+    "height": 2616,
+    "firstConclusionTop": 522.21875,
+    "headingTop": 227.046875,
+    "chartTextSize": "14px",
+    "tableRowHeight": 53.75,
+    "tableWidth": 600,
+    "navHeight": 122.25
+  },
+  {
+    "phase": "before",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "height": 2280,
+    "firstConclusionTop": 581.109375,
+    "headingTop": 107.140625,
+    "chartTextSize": "14px",
+    "tableRowHeight": 53.75,
+    "tableWidth": 1028,
+    "navHeight": 46.75
+  },
+  {
+    "phase": "after",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "height": 2145,
+    "firstConclusionTop": 380.3125,
+    "headingTop": 100,
+    "chartTextSize": "14px",
+    "tableRowHeight": 53.75,
+    "tableWidth": 1026,
+    "navHeight": 1000
+  }
+]
