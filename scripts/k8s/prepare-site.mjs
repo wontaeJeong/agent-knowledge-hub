@@ -92,7 +92,7 @@ export function validateSiteConfig(config) {
   return config;
 }
 function json(value) { return JSON.stringify(value, null, 2) + "\n"; }
-function policy(name, namespace, selector, direction, rules) {
+function policy(name, namespace, direction, rules) {
   return {
     apiVersion: "networking.k8s.io/v1", kind: "NetworkPolicy",
     metadata: { name, namespace },
@@ -154,7 +154,7 @@ export function siteFiles(input) {
       }],
     },
   };
-  const ingressPolicy = policy("trusted-ingress-to-app", namespace, "knowledge-app",
+  const ingressPolicy = policy("trusted-ingress-to-app", namespace,
     "Ingress", [{
       from: [{
         namespaceSelector: { matchLabels: {
@@ -170,7 +170,7 @@ export function siteFiles(input) {
     ...(config.modelEgressCidrs ?? []).map((block) => ({ to: [{ ipBlock: { cidr: block } }],
       ports: [{ protocol: "TCP", port: 443 }] })),
   ];
-  const egressPolicy = policy("reviewed-https-egress", namespace, "knowledge-app",
+  const egressPolicy = policy("reviewed-https-egress", namespace,
     "Egress", outbound);
   const quota = {
     apiVersion: "v1", kind: "ResourceQuota",
@@ -205,6 +205,7 @@ export function writeSite(config, outputRoot) {
   const validated = validateSiteConfig(config);
   const target = resolve(outputRoot, validated.environment);
   // Refuse to overwrite an existing site (may contain manually reviewed edits).
+  mkdirSync(resolve(outputRoot), { recursive: true });
   mkdirSync(target, { recursive: false });
   const files = siteFiles(validated);
   for (const [name, content] of Object.entries(files))
