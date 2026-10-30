@@ -81,6 +81,7 @@ export function Management({
     setOperation(null);
   }, [section]);
   if (!sections.includes(section)) return null;
+  if (section === "access" && !preview) return null;
   if (section === "coverage") return <Coverage navigate={navigate} />;
   if (!preview)
     return (
@@ -89,9 +90,10 @@ export function Management({
         <Badge tone="amber">관리 API 미연결 · 목업 별도 제공</Badge>
         <h2>{consoleLabel(section)}</h2>
         <p>
-          현재 운영 서버는 이 관리 기능을 제공하지 않습니다. 현행
-          reader/editor/reviewer 권한은 그대로이며, 이 화면이 Admin/Owner 권한을
-          부여하지 않습니다.
+          이 화면의 추가 관리 기능은 독립 목업입니다. Organization·Team·공간
+          역할과 초대는 실제 ‘공간 · 접근’에서 관리합니다. 전역 계정 중지·세션
+          철회·범위 토큰 등은 아직 연결되지 않았습니다. 목업이 Admin/Owner
+          권한을 부여하지 않습니다.
         </p>
         <p>
           독립 미리보기에서 합성 사용자·공간·에이전트로 화면과 동작을 확인할 수
@@ -100,6 +102,9 @@ export function Management({
         <a className="button primary" href={`/?preview=1#${section}`}>
           독립 목업 열기 <ArrowUpRight size={16} />
         </a>
+        <Button onClick={() => navigate("access")}>
+          실제 조직 · 공간 접근 관리
+        </Button>
         <Button variant="ghost" onClick={() => navigate("coverage")}>
           전체 기능과 남은 조건
         </Button>
@@ -145,9 +150,10 @@ export function Management({
       <div className="console-management-boundary">
         <ShieldCheck size={18} />
         <span>
-          <strong>합성 관리 시나리오</strong> · ADR 005의 역할·소유권은
-          제안입니다. 현행 인증/권한 구현을 교체하지 않습니다. 모든 동작은
-          새로고침하면 사라집니다.
+          <strong>합성 관리 시나리오</strong> · 실제 조직/공간 관리는 서버
+          앱에서 제공합니다. 이 목업은 기존 인증/권한을 변경하지 않으며, 범위
+          토큰·수신자 공유 등 확장 기능은 미연결입니다. 모든 동작은 새로고침하면
+          사라집니다.
         </span>
         <Button
           variant="ghost"

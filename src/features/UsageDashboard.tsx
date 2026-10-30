@@ -24,9 +24,9 @@ export function UsageReport({ data }: { data: UsageSummary }) {
         <p>{`${number(data.total)}건 중 ${number(data.succeeded)}건 성공 · ${number(data.failed)}건 실패`}</p>
         <p>
           계측된 서비스 호출 기준입니다. 페이지 단건/고정 버전 조회, 원본 등록,
-          변경 제안·승인·발행만 포함하며 질문·Lint·목록 조회 등 전체 API 사용량이
-          아닙니다. 재시도도 호출에 포함되며 실제 발행 건수와 구분합니다.
-          로컬 데모 화면의 활동은 수집하지 않습니다.
+          변경 제안·승인·발행만 포함하며 질문·Lint·목록 조회 등 전체 API
+          사용량이 아닙니다. 재시도도 호출에 포함되며 실제 발행 건수와
+          구분합니다. 로컬 데모 화면의 활동은 수집하지 않습니다.
         </p>
         <p className="muted">
           {data.from.slice(0, 10)} ~ {data.to.slice(0, 10)} · UTC · 오늘은 집계
@@ -52,7 +52,10 @@ export function UsageReport({ data }: { data: UsageSummary }) {
           </section>
         ))}
       </div>
-      <p className="muted">활성 사용자는 선택 기간에 기록된 호출 주체의 고유 수입니다. 로그인 사용자·전체 멤버·에이전트 재사용 성공 수가 아닙니다.</p>
+      <p className="muted">
+        활성 사용자는 선택 기간에 기록된 호출 주체의 고유 수입니다. 로그인
+        사용자·전체 멤버·에이전트 재사용 성공 수가 아닙니다.
+      </p>
       {data.total === 0 && (
         <Empty
           title="기록된 사용량이 없습니다"

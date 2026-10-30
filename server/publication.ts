@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { Context } from "./service";
+import type { Source } from "../src/domain/types";
 import type { Batch, Draft } from "../src/domain/wiki";
 import {
   createBatch,
@@ -47,6 +48,9 @@ const batchHash = ({
   ...content
 }: Batch & { requestAuthorizationPending?: boolean }) => digest(content);
 type RuntimeBatch = Batch & {
+  proposedBy?: string;
+  importRunId?: string;
+  importAuthorId?: string;
   contextDependencyIds?: string[];
   inputEnvelope?: InputEnvelope;
 };
@@ -59,6 +63,11 @@ async function permissions(
   dependencyIds: string[] = [],
 ) {
   const acl: Record<string, unknown> = {};
+  const policy = await db.query(
+    "SELECT revision FROM access_spaces WHERE workspace_id=$1",
+    [ctx.workspaceId],
+  );
+  if (policy.rowCount) acl.spacePolicyRevision = policy.rows[0].revision;
   const canonicalState = await loadState(db, ctx.workspaceId);
   const retainedDependencies = new Set(dependencyIds);
   const audienceOf = async (kind: string, id: string) => {
@@ -166,6 +175,8 @@ export async function propose(
     answerId?: string;
     inputEnvelope?: InputEnvelope;
     requestAuthorizationPending?: boolean;
+    importRunId?: string;
+    importAuthorId?: string;
   },
 ) {
   return transaction(
@@ -174,6 +185,23 @@ export async function propose(
     async (db) => {
       if ((await membership(db, ctx)) === "reader") throw Error("FORBIDDEN");
       await ctx.authorization?.assertSession(db);
+      if (options?.importRunId) {
+        const previous = await db.query(
+          "SELECT id,hash,data FROM batches WHERE workspace_id=$1 AND data->>'importRunId'=$2",
+          [ctx.workspaceId, options.importRunId],
+        );
+        if (previous.rowCount) {
+          const old = previous.rows[0];
+          await permissions(
+            db,
+            ctx,
+            old.data.updates,
+            old.data.snapshots.map((s: Source) => s.id),
+            old.data.contextDependencyIds,
+          );
+          return { id: old.id, hash: old.hash };
+        }
+      }
       await permissions(db, ctx, updates, sourceIds, options?.dependencyIds);
       if (options?.inputEnvelope)
         await assertEnvelope(
@@ -196,6 +224,7 @@ export async function propose(
           sourceIds,
           options?.mode ?? "offline",
         );
+        (batch as RuntimeBatch).proposedBy = ctx.principalId;
         for (const id of options?.dependencyIds ?? []) {
           const p = state.pages.find((p) => p.id === id);
           if (!p) throw Error("NOT_FOUND");
@@ -209,6 +238,11 @@ export async function propose(
           ]);
         }
         if (options?.answerId) batch.answerId = options.answerId;
+        if (options?.importRunId)
+          Object.assign(batch, {
+            importRunId: options.importRunId,
+            importAuthorId: options.importAuthorId,
+          });
         if (options?.dependencyIds)
           (batch as RuntimeBatch).contextDependencyIds = options.dependencyIds;
         if (options?.inputEnvelope)
@@ -246,6 +280,71 @@ async function checkedBatch(
   );
   if (!r.rowCount) throw Error("NOT_FOUND");
   const batch = r.rows[0].data as Batch;
+  const managed = await db.query(
+    "SELECT owner_id FROM access_spaces WHERE workspace_id=$1",
+    [ctx.workspaceId],
+  );
+  const personal = managed.rows[0]?.owner_id === ctx.principalId;
+  if (managed.rowCount && !personal) {
+    if (
+      !(
+        await db.query(
+          "SELECT 1 FROM access_reviewers WHERE workspace_id=$1 AND principal_id=$2",
+          [ctx.workspaceId, ctx.principalId],
+        )
+      ).rowCount
+    )
+      throw Error("FORBIDDEN");
+    const authorId =
+      (batch as RuntimeBatch).importAuthorId ??
+      (batch as RuntimeBatch).proposedBy;
+    if (!authorId || authorId === ctx.principalId) throw Error("FORBIDDEN");
+    if (
+      (await membership(db, {
+        workspaceId: ctx.workspaceId,
+        principalId: authorId,
+      })) === "reader"
+    )
+      throw Error("FORBIDDEN");
+  }
+  if (
+    (batch as RuntimeBatch).importRunId &&
+    batch.status !== "published" &&
+    !personal
+  ) {
+    const disclosure = await db.query(
+      "SELECT d.status,d.reviewer_id,effective_membership(m.workspace_id,m.principal_id) AS role FROM import_disclosures d JOIN memberships m ON m.workspace_id=d.workspace_id AND m.principal_id=d.reviewer_id WHERE d.workspace_id=$1 AND d.run_id=$2",
+      [ctx.workspaceId, (batch as RuntimeBatch).importRunId],
+    );
+    const allowed = new Set(
+      (process.env.IMPORT_DISCLOSURE_REVIEWERS || "")
+        .split(",")
+        .map((s) => s.trim()),
+    );
+    if (
+      !disclosure.rowCount ||
+      disclosure.rows[0].status !== "approved" ||
+      disclosure.rows[0].role !== "reviewer" ||
+      !allowed.has(disclosure.rows[0].reviewer_id)
+    )
+      throw Error("APPROVAL_STALE");
+  }
+  if ((batch as RuntimeBatch).importAuthorId === ctx.principalId && !personal)
+    throw Error("FORBIDDEN");
+  if ((batch as RuntimeBatch).importAuthorId) {
+    const author = {
+      workspaceId: ctx.workspaceId,
+      principalId: (batch as RuntimeBatch).importAuthorId!,
+    };
+    if ((await membership(db, author)) === "reader") throw Error("FORBIDDEN");
+    await permissions(
+      db,
+      author,
+      batch.updates,
+      batch.snapshots.map((s) => s.id),
+      (batch as RuntimeBatch).contextDependencyIds,
+    );
+  }
   if (
     (batch as Batch & { requestAuthorizationPending?: boolean })
       .requestAuthorizationPending

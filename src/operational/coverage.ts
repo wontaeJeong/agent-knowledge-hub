@@ -39,6 +39,10 @@ const special: Record<string, ConsoleTab> = {
   "CORE-012": "evaluation",
   "IAM-009": "agents",
   "IAM-010": "agents",
+  "COL-002": "imports",
+  "COL-010": "imports",
+  "COL-012": "imports",
+  "COL-013": "imports",
   "INT-005": "integrations",
   "INT-007": "integrations",
 };

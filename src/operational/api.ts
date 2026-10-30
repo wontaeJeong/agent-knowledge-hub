@@ -21,6 +21,9 @@ export interface Identity {
   principalId: string;
   workspaceId: string;
   role: "reader" | "editor" | "reviewer";
+  spaceRole?: import("../domain/access").SpaceRole | null;
+  canReviewKnowledge?: boolean;
+  personalSpace?: boolean;
   csrfToken: string;
 }
 export class OperationalApi {
@@ -31,12 +34,14 @@ export class OperationalApi {
     method = "GET",
     body?: unknown,
     key?: string,
+    extraHeaders?: Record<string, string>,
   ): Promise<T> {
     const res = await fetch(`${this.origin}/api/v1${path}`, {
       method,
       credentials: "same-origin",
       redirect: "error",
       headers: {
+        ...extraHeaders,
         ...(body !== undefined
           ? { "Content-Type": "application/json", "X-CSRF-Token": this.csrf }
           : {}),
@@ -53,7 +58,44 @@ export class OperationalApi {
           ? data.code
           : "REQUEST_FAILED";
       const messages: Record<string, string> = {
-        MODEL_OUTPUT_LIMIT: "모델 출력이 토큰 한도로 잘려 반영하지 않았습니다. 입력 규모와 추론 모드 설정을 확인하세요.",
+        LAST_OWNER:
+          "마지막 Organization Owner를 제거하거나 강등할 수 없습니다. 다른 멤버가 Owner 초대를 수락한 뒤 변경하세요.",
+        INVITATION_REQUIRED:
+          "첫 공간 권한이나 Owner 지정은 초대를 보내고 대상자의 수락을 받아야 합니다.",
+        ORGANIZATION_MEMBERSHIP_REQUIRED:
+          "먼저 같은 Organization에 가입해야 합니다.",
+        ALREADY_MANAGED: "이미 조직 권한으로 관리되는 공간입니다.",
+        IMPORT_QUOTA:
+          "개인 250 MiB 또는 공간 1 GiB 수집 한도에 도달했습니다. 불필요한 수집 자료를 정리하세요.",
+        MODEL_CONFIGURATION_CHANGED:
+          "실행 중 모델 설정이 바뀌었습니다. 새 정리 작업을 시작하세요.",
+        POLICY_CHANGED:
+          "편입 정책 버전이 바뀌었습니다. 입력을 다시 확인해 새 작업을 시작하세요.",
+        INPUT_CHANGED: "입력 선택이 변경됐습니다. 최신 미리보기를 확인하세요.",
+        INPUT_FROZEN: "처리 중이거나 공유 제안된 입력은 바꿀 수 없습니다.",
+        WARNINGS_REQUIRE_ACKNOWLEDGEMENT:
+          "누락·불확실성 안내를 확인한 뒤 정리를 시작하세요.",
+        ENCODING_REQUIRED: "원본 인코딩을 확인하고 다시 분석하세요.",
+        CSV_MAPPING_REQUIRED: "CSV 본문 컬럼을 지정하세요.",
+        INVALID_MODEL_EVIDENCE:
+          "모델이 원문과 다른 근거를 제시해 결과를 반영하지 않았습니다.",
+        CONTEXT_INCOMPLETE:
+          "모든 입력의 처리 여부를 확인하지 못했습니다. 범위를 조정해 다시 실행하세요.",
+        BUDGET_EXCEEDED:
+          "자료·모델 처리 예산을 초과했습니다. 기간/대상을 줄여 다시 선택하세요.",
+        CHECKSUM_MISMATCH:
+          "파일 전송 검증에 실패했습니다. 같은 파일로 재전송하세요.",
+        UPLOAD_INCOMPLETE: "파일 전송이 아직 끝나지 않았습니다.",
+        UNSAFE_ARCHIVE:
+          "지원하지 않는 압축 내용/경로/형식을 발견해 처리하지 않았습니다.",
+        ARCHIVE_LIMIT: "압축 해제 크기 또는 파일 수 한도를 초과했습니다.",
+        UNSUPPORTED_FORMAT: "지원하지 않는 파일 형식입니다.",
+        AUTHORIZATION_REQUIRED: "실행 권한/세션을 다시 확인한 뒤 재개하세요.",
+        NO_RECORDS: "선택 범위에 처리할 자료가 없습니다.",
+        ALREADY_PROPOSED:
+          "이미 공유 제안된 결과입니다. 변경 검토에서 확인하세요.",
+        MODEL_OUTPUT_LIMIT:
+          "모델 출력이 토큰 한도로 잘려 반영하지 않았습니다. 입력 규모와 추론 모드 설정을 확인하세요.",
         MODEL_CONFIGURATION: "서버의 모델 설정이 올바르지 않습니다.",
         UNAUTHENTICATED: "세션이 만료되었습니다. 다시 로그인하세요.",
         FORBIDDEN: "이 작업 권한이 없습니다.",

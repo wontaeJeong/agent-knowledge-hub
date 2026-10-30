@@ -10,7 +10,7 @@ Markdown은 DOMPurify로 정제해 렌더링하고 외부 HTML 원문 실행을 
 
 ## 공간 권한 확장 설계 (제안)
 
-[ACCESS_CONTROL.md](ACCESS_CONTROL.md)와 [ADR 005](adr/005-github-style-access-control.md)는 개인/팀 소유권·공간별 5역할·기본 독자·자료 제한·독립 인간 검토·위임 상한·철회/이관 계약을 정의한다. 아직 구현되지 않았으며 아래 불변식을 축소하지 않는다. Admin/Owner도 원본/전체 모델 입력 계보 제한을 우회하지 못하고, Company 공개와 공식 기준은 별도다. 현행 OIDC 단일 역할 매핑과 reviewer 권한은 이관 전까지 현재 코드 계약이며, 재로그인으로 회수한 grant가 복구되지 않도록 전환해야 한다. AC-01~24는 운영 회귀 설계이며 통과 결과가 아니다.
+[ACCESS_CONTROL.md](ACCESS_CONTROL.md)와 [ADR 005](adr/005-github-style-access-control.md)는 개인/팀 소유권·공간별 5역할·기본 독자·자료 제한·독립 인간 검토·위임 상한·철회/이관 계약을 정의한다. 핵심 Organization/Team/공간 역할·Owner·초대·지정 검토자·명시적 이관은 구현했으며, 범위 토큰·Company·문서 한정 공유 등은 후속이다. 아래 불변식을 축소하지 않는다. Admin/Owner도 원본/전체 모델 입력 계보 제한을 우회하지 못하고, Company 공개와 공식 기준은 별도다. 현행 OIDC 단일 역할 매핑과 reviewer 권한은 이관 전까지 현재 코드 계약이며, 이관한 공간은 제품 grant를 재로그인의 그룹 매핑으로 복구하지 않는다. AC-01~24는 운영 회귀 설계이며 통과 결과가 아니다.
 
 ## 서버 구현의 불변식
 
@@ -28,3 +28,8 @@ Markdown은 DOMPurify로 정제해 렌더링하고 외부 HTML 원문 실행을 
 ## 0.2 모델 중계 경계
 
 Node 실행기의 /api/model은 localhost Host·브라우저 Origin·JSON·요청 크기·서버 환경의 URL과 키를 사용한다. 자격증명은 VITE_나 응답에 넣지 않는다. 실제 모델 결과도 원본 범위·스키마·정확한 인용과 발행 검사를 통과해야 한다. 이 로컬 통제는 사내 SSO·사용자별 서버 ACL·토큰 위임·감사 보호를 구현한 것이 아니다. 원본·위키 본문의 지시문은 정책 데이터로 취급한다.
+
+
+## 웹 편입 · 조직 접근 관리 구현 (2026-10-30)
+
+[실제 실행 계약·설정·검증과 남은 범위](IMPLEMENTATION_GUIDE.md), [웹 자료 편입 설계](DATA_INGESTION.md), [대화 기록](CONVERSATION_IMPORT.md)를 참조한다. 웹/REST/MCP의 개인 원본 접수·서버 영속 정리·선택 원본 공개 승인·독립 지식 검토/발행을 연결했다. Organization/Team/공간별 역할·초대·Owner·현재 권한 철회를 구현하며 기존 공간은 명시적 이관 전까지 기존 OIDC 역할을 유지한다. 원본 제한은 관리자에게도 적용한다. 새 기능의 구현은 전체 251개 요구사항이나 실제 LLM 의미 품질/운영 인수 통과를 뜻하지 않는다.

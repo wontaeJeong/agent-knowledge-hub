@@ -38,6 +38,7 @@ export const consoleGroups = [
     label: "지식 순환",
     items: [
       { id: "knowledge", label: "발행 지식" },
+      { id: "imports", label: "자료 넣기 · 자동 정리" },
       { id: "sources", label: "원본 · 편입" },
       { id: "review", label: "변경 검토" },
       { id: "query", label: "질문 · 재편입" },
@@ -45,11 +46,11 @@ export const consoleGroups = [
     ],
   },
   {
-    label: "환경과 거버넌스 · 목업",
+    label: "환경과 거버넌스",
     items: [
       { id: "agents", label: "에이전트 · 토큰" },
       { id: "integrations", label: "연동 · 자동화" },
-      { id: "users", label: "사용자 · 팀" },
+      { id: "users", label: "사용자 · 세션 목업" },
       { id: "access", label: "공간 · 접근" },
       { id: "policies", label: "검토 · 공유 정책" },
       { id: "lifecycle", label: "편집 · 수명주기" },

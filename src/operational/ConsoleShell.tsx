@@ -34,6 +34,7 @@ const icons = {
   usage: Activity,
   jobs: ListChecks,
   knowledge: BookOpen,
+  imports: Database,
   sources: Database,
   review: ClipboardCheck,
   query: Layers3,
@@ -72,7 +73,14 @@ export function ConsoleShell({
   }, [dark]);
   return (
     <div className="operational-app console-app">
-      <a className="op-skip" href="#op-main" onClick={e => {e.preventDefault(); document.getElementById("op-main")?.focus();}}>
+      <a
+        className="op-skip"
+        href="#op-main"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById("op-main")?.focus();
+        }}
+      >
         본문으로 이동
       </a>
       <aside className="console-sidebar">

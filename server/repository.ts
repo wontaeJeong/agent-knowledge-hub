@@ -5,10 +5,10 @@ import type { Batch } from "../src/domain/wiki";
 
 export async function membership(db: PoolClient, ctx: Context): Promise<Role> {
   const r = await db.query(
-    "SELECT role FROM memberships WHERE workspace_id=$1 AND principal_id=$2 FOR SHARE",
+    "SELECT effective_membership(workspace_id,principal_id) AS role FROM memberships WHERE workspace_id=$1 AND principal_id=$2 FOR SHARE",
     [ctx.workspaceId, ctx.principalId],
   );
-  if (!r.rowCount) throw Error("NOT_FOUND");
+  if (!r.rowCount || !r.rows[0].role) throw Error("NOT_FOUND");
   return r.rows[0].role;
 }
 export async function readers(
@@ -18,7 +18,7 @@ export async function readers(
   id: string,
 ): Promise<string[]> {
   const r = await db.query(
-    "SELECT principal_id FROM resource_readers WHERE workspace_id=$1 AND kind=$2 AND resource_id=$3 FOR SHARE",
+    "SELECT principal_id FROM resource_readers WHERE workspace_id=$1 AND kind=$2 AND resource_id=$3 AND effective_membership(workspace_id,principal_id) IS NOT NULL FOR SHARE",
     [workspace, kind, id],
   );
   return r.rows.map((r) => r.principal_id);
