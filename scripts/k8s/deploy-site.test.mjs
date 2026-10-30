@@ -24,6 +24,10 @@ test("live secrets agree on DB credentials and required OIDC/TLS keys", () => {
   mismatch.db.data.password = encoded("different-db-password");
   assert.ok(liveSecretFailures(mismatch, "knowledge-tls")
     .some((e) => e.includes("DATABASE_URL")));
+  const override = goodSecrets();
+  override.app.data.OIDC_ALLOW_HTTP = encoded("true");
+  assert.ok(liveSecretFailures(override, "knowledge-tls")
+    .some((e) => e.includes("environment override")));
   const development = goodSecrets();
   development.app.data.OIDC_CLIENT_SECRET = encoded("local-test-only");
   assert.ok(liveSecretFailures(development, "knowledge-tls")
