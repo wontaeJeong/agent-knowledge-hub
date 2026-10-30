@@ -14,13 +14,14 @@ import {
   id,
 } from "./schema";
 import { modelConfig } from "./model";
-import { usageSummary } from "../usage";
+import { usageSummary, exportUsageCsv } from "../usage";
 import { handleMcp } from "./mcp";
 import { readJsonBody } from "./body";
 import { assertSchemaCurrent } from "../database";
 import { handleImportRequest } from "../imports/http";
 import { AccessService } from "../access";
 import { handleAccessRequest } from "../access-http";
+import { handleBoardRequest } from "../boards";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
@@ -138,6 +139,16 @@ export function createRuntimeHandler(options: {
           return send(415, { code: "JSON_REQUIRED" });
         body = await readJsonBody(req, 512000);
       }
+      if (path === "/api/v1/usage/export" && req.method === "GET") {
+        const days = Number(url.searchParams.get("days") || "30");
+        const output = await exportUsageCsv(options.pool, ctx, days);
+        res.writeHead(200, {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": "attachment; filename=\"agent-knowledge-hub-usage.csv\"",
+          "X-Request-Id": requestId,
+        });
+        return res.end(output);
+      }
       const service = options.service;
       if (path === "/api/v1/access/switch" && req.method === "POST") {
         const b = z.object({ spaceId: id }).strict().parse(body);
@@ -155,6 +166,10 @@ export function createRuntimeHandler(options: {
           body,
           url.searchParams,
         );
+        if (result) return send(result.status, result.body);
+      }
+      if (path.startsWith("/api/v1/board/")) {
+        const result = await handleBoardRequest(options.pool, ctx, req.method || "GET", path, body, url.searchParams);
         if (result) return send(result.status, result.body);
       }
       if (path.startsWith("/api/v1/import")) {
@@ -188,7 +203,7 @@ export function createRuntimeHandler(options: {
         if (path === "/api/v1/model") return send(200, modelConfig());
         if (path === "/api/v1/usage") {
           const days = url.searchParams.get("days") || "7";
-          if (!["7", "30"].includes(days)) throw Error("VALIDATION_FAILED");
+          if (!["7", "14", "30", "90"].includes(days)) throw Error("VALIDATION_FAILED");
           return send(200, await usageSummary(options.pool, ctx, Number(days)));
         }
         if (path === "/api/v1/members")
@@ -310,6 +325,7 @@ export function createRuntimeHandler(options: {
         FORBIDDEN: 403,
         UNAUTHENTICATED: 401,
         VALIDATION_FAILED: 400,
+        EXPORT_TOO_LARGE: 413,
         INPUT_TOO_LARGE: 413,
         ALREADY_EXISTS: 409,
         STALE_VERSION: 409,

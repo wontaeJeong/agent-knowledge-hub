@@ -9,7 +9,7 @@ export async function usageSummary(
   ctx: Context,
   days: number,
 ): Promise<UsageSummary> {
-  if (![7, 30].includes(days)) throw Error("VALIDATION_FAILED");
+  if (![7, 14, 30, 90].includes(days)) throw Error("VALIDATION_FAILED");
   return transaction(pool, ctx.workspaceId, async (db) => {
     const role = await membership(db, ctx);
     const now = new Date(
@@ -80,5 +80,42 @@ export async function usageSummary(
       operations,
       model: { inputTokens: null, outputTokens: null, cost: null },
     };
+  });
+}
+
+
+/** CSV includes recorded operations only, never source content or prompts. */
+export async function exportUsageCsv(pool: Pool, ctx: Context, days: number): Promise<string> {
+  if (![7, 14, 30, 90].includes(days)) throw Error("VALIDATION_FAILED");
+  const escapeCsv = (value: unknown) => {
+    if (value === null || value === undefined) return "";
+    const raw = String(value);
+    const safe = /^[=+\-@\t\r]/.test(raw) ? "'" + raw : raw;
+    return '"' + safe.replace(/"/g, '""') + '"';
+  };
+  return transaction(pool, ctx.workspaceId, async (db) => {
+    const role = await membership(db, ctx);
+    const managed = await db.query(
+      "SELECT access_role(workspace_id,$2) AS role FROM access_spaces WHERE workspace_id=$1",
+      [ctx.workspaceId, ctx.principalId],
+    );
+    const all = managed.rowCount ? managed.rows[0].role === "Admin" : role === "reviewer";
+    const now = (await db.query("SELECT clock_timestamp() AS now")).rows[0].now as Date;
+    const from = new Date(now);
+    from.setUTCHours(0, 0, 0, 0);
+    from.setUTCDate(from.getUTCDate() - days + 1);
+    const events = await db.query(
+      "SELECT at,operation,succeeded,duration_ms,principal_id FROM usage_events WHERE workspace_id=$1 AND ($2::text IS NULL OR principal_id=$2) AND at >= $3::timestamptz AND at <= $4::timestamptz ORDER BY at DESC,id DESC LIMIT 100001",
+      [ctx.workspaceId, all ? null : ctx.principalId, from.toISOString(), now.toISOString()],
+    );
+    if (events.rows.length > 100000) throw Error("EXPORT_TOO_LARGE");
+    const headers = ["at_utc", "operation", "succeeded", "duration_ms", "principal_id"];
+    return [
+      headers.join(","),
+      ...events.rows.map((row) =>
+        [new Date(row.at).toISOString(), row.operation, row.succeeded, row.duration_ms, row.principal_id]
+          .map(escapeCsv).join(","),
+      ),
+    ].join("\r\n") + "\r\n";
   });
 }

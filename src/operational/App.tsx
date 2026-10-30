@@ -55,6 +55,7 @@ const Management = lazy(() =>
   import("./ManagementPreview").then((m) => ({ default: m.Management })),
 );
 const ImportWorkbench = lazy(() => import("./ImportWorkbench"));
+const BoardsWorkbench = lazy(() => import("./BoardsWorkbench"));
 const AccessManager = lazy(() => import("./AccessManager"));
 const ImportPreview = lazy(() =>
   import("./ImportPreview").then((m) => ({ default: m.ImportPreview })),
@@ -161,7 +162,7 @@ export default function OperationalApp({
   const [changePage, setChangePage] = useState(0);
   const [jobPage, setJobPage] = useState(0);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
-  const [usageDays, setUsageDays] = useState<7 | 30>(7);
+  const [usageDays, setUsageDays] = useState<7 | 14 | 30 | 90>(7);
   const [usageError, setUsageError] = useState("");
   const [usageRetry, setUsageRetry] = useState(0);
   const [dataReady, setDataReady] = useState(false);
@@ -438,6 +439,14 @@ export default function OperationalApp({
             <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
               <Management section={tab} preview={preview} navigate={navigate} />
             </Suspense>
+            {tab === "boards" && !preview && (
+              <Suspense fallback={<p role="status">공지·VOC를 불러오는 중…</p>}>
+                <BoardsWorkbench key={identity.workspaceId} api={api} identity={identity} onExpired={clearProtected} />
+              </Suspense>
+            )}
+            {tab === "boards" && preview && (
+              <section className="op-panel"><h2>게시판은 운영 서버 전용입니다</h2><p>합성 목업에서는 실제 공지·내부 검토·VOC를 읽거나 변경하지 않습니다.</p></section>
+            )}
             {tab === "imports" && !preview && (
               <Suspense fallback={<p>자료 입력 화면을 불러오는 중…</p>}>
                 <ImportWorkbench
@@ -1085,17 +1094,22 @@ export default function OperationalApp({
                     value={usageDays}
                     disabled={busy}
                     onChange={(e) => {
-                      const days = Number(e.target.value) as 7 | 30;
+                      const days = Number(e.target.value) as 7 | 14 | 30 | 90;
                       setUsageDays(days);
                     }}
                   >
                     <option value={7}>최근 7일</option>
+                    <option value={14}>최근 14일</option>
                     <option value={30}>최근 30일</option>
+                    <option value={90}>최근 90일</option>
                   </select>
                 </label>
                 <Button disabled={busy} onClick={() => void refreshUsage()}>
                   집계 새로고침
                 </Button>
+                {!preview && usage && (
+                  <a className="button secondary" href={`/api/v1/usage/export?days=${usageDays}`} download="agent-knowledge-hub-usage.csv">CSV 내보내기</a>
+                )}
                 {usage ? (
                   <Suspense fallback={<p role="status">집계를 불러오는 중…</p>}>
                     <UsageReport data={usage} />

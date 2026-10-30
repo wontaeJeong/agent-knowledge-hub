@@ -20,7 +20,7 @@ export function validateUsage(value: unknown): UsageSummary {
     d.total !== d.succeeded + d.failed ||
     d.activeUsers > d.total ||
     !Array.isArray(d.daily) ||
-    d.daily.length > 30 ||
+    d.daily.length > 90 ||
     !d.daily.every(
       (r) =>
         r &&
