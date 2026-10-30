@@ -6,7 +6,11 @@
 
 [실행 구성과 제한](OPERATIONAL_SETUP.md), [실제 시험/남은 범위](AGENT_HANDOFF.md)를 따른다. 동시접속 10명 이하를 초기 목표로 하고 K8s 앱1/DB1, 로컬 kind를 제공하지만 무인 worker·전체 편집/협업·서비스 주체 MCP·개인 커넥터 통합·실제 사내 운영 인수는 아직 미완료다. 공통 서버 정본 방향을 구현한 것이 ADR004의 모든 범위/제품 승인을 자동 완료한 것은 아니다.
 
-## 현재 구현
+## 소유권·공간 역할 확장 제안 (2026-10-30)
+
+[권한 모델](ACCESS_CONTROL.md)과 [ADR 005](adr/005-github-style-access-control.md)는 로컬 저장 위치와 개인/팀 소유권, Private/Team/Company 공개 범위, 공간별 Read/Triage/Write/Maintain/Admin을 분리하는 **미구현 제안**이다. 현행 `workspaces`를 지식 공간으로 유지하고 namespace·팀/그룹·grant·자료 제한을 추가하는 이관 경계를 정의한다. 서버의 현재 3역할·OIDC·전체 입력 계보 검사는 실제 구현이며, 새 역할·토큰·개인 커넥터 통합이 완료된 것으로 해석하지 않는다. 과거 데모 설명보다 최신 실행 범위는 위 후속 서버 경로를 우선한다.
+
+## 기존 로컬 데모 구현
 
 React와 TypeScript, Vite로 만든 정적 앱이다. 데이터는 합성 fixture에서 시작하며 같은 origin의 localStorage에 저장된다. Node 로컬 실행기는 정적 파일과 선택적 /api/model 중계를 제공한다. 제품용 DB·인증 세션·서버 ACL은 없다.
 

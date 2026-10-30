@@ -97,6 +97,7 @@ agent-admission-gate의 실제 소스는 포함하지 않았습니다. 기존 �
 | [North Star](docs/LLM_WIKI_CORE.md) | 제품 목표·원전·확장 비전·불변식·설계 판단·현재 구현 |
 | [지식·에이전트 평가](docs/EVALUATION.md) | 누적·발전·근거·상충·시간·후속 업무 효과의 검증 계획 |
 | [로컬 위키–지식 누적 통합 계획](docs/KNOWLEDGE_INTEGRATION.md) | 최신 개인 위키 MCP와 Ingest·Query·Lint 공통 서비스의 통합 경계·수용 시나리오 (제안) |
+| [로컬·개인·팀 권한 모델](docs/ACCESS_CONTROL.md) | GitHub식 공간 역할·소유권·공개 범위·검토/토큰·이관·24개 수용 시나리오 (ADR 005 제안, 미구현) |
 | [에이전트 인터페이스](docs/AGENT_INTERFACE.md) | MCP 도구·호출 시점·공통 서비스 목표 계약 |
 | [런타임 위키 규칙](wiki/SCHEMA.md) | 지식을 유지하는 에이전트의 실제 모델 지침 |
 | [모델 연결](docs/MODEL_SETUP.md) | 오프라인 및 실제 모델 실행·제약 |
