@@ -4,6 +4,8 @@ import { z } from "zod";
 import type { Context } from "../service";
 import { transaction } from "../database";
 import { readers } from "../repository";
+import { acquireSharedMutationGate } from "../operations/gate";
+import { appendOperationalAudit } from "../operations/service";
 
 export const spaceRoles = [
   "read",
@@ -61,10 +63,26 @@ export async function recordAccessAudit(
   targetId: string,
   data: unknown = {},
 ) {
+  const workspace = await db.query("SELECT id FROM workspaces WHERE id=$1", [
+    ctx.workspaceId,
+  ]);
   await db.query(
     "INSERT INTO access_audit(principal_id,operation,workspace_id,target_id,data) VALUES($1,$2,$3,$4,$5)",
-    [ctx.principalId, operation, ctx.workspaceId, targetId, data],
+    [
+      ctx.principalId,
+      operation,
+      workspace.rowCount ? ctx.workspaceId : null,
+      targetId,
+      data,
+    ],
   );
+  if (workspace.rowCount)
+    await appendOperationalAudit(db as PoolClient, ctx, {
+      operation,
+      ...(operation === "source.egress-policy"
+        ? { resource: { kind: "source" as const, id: targetId } }
+        : {}),
+    });
 }
 export type SpaceDescriptor = {
   id: string;
@@ -163,7 +181,8 @@ export async function effectiveAccess(
     );
   } else if (s.principal_kind === "human") {
     capabilities.push("space.create");
-    if (s.team_create) capabilities.push("team.create");
+    if (s.team_create || process.env.ACCESS_ALLOW_ORG_CREATE === "true")
+      capabilities.push("team.create");
     if (owner && s.kind === "team") capabilities.push("team.admin");
   }
   return {
@@ -485,6 +504,13 @@ export async function bootstrapAccess(pool: Pool, input: AccessBootstrap) {
       await db.query(
         "INSERT INTO audit(workspace_id,principal_id,operation,resource_id) VALUES($1,$2,'access.bootstrap',$1)",
         [s.workspaceId, owners[0]],
+      );
+      await recordAccessAudit(
+        db,
+        { workspaceId: s.workspaceId, principalId: owners[0] },
+        "access.bootstrap",
+        s.workspaceId,
+        { namespaceId: ns, owners },
       );
     });
 }
@@ -994,20 +1020,24 @@ export class AccessService {
             ).rows.map((r) => r.principal_id as string);
       const result = [];
       for (const principalId of candidates) {
-        const a = await effectiveAccess(db, {
-          workspaceId: ctx.workspaceId,
-          principalId,
-        });
-        if (a.role)
-          result.push({
+        try {
+          const a = await effectiveAccess(db, {
+            workspaceId: ctx.workspaceId,
             principalId,
-            role: a.capabilities.includes("changeset.approve")
-              ? "reviewer"
-              : a.capabilities.includes("changeset.propose")
-                ? "editor"
-                : "reader",
-            spaceRole: a.role,
           });
+          if (a.role)
+            result.push({
+              principalId,
+              role: a.capabilities.includes("changeset.approve")
+                ? "reviewer"
+                : a.capabilities.includes("changeset.propose")
+                  ? "editor"
+                  : "reader",
+              spaceRole: a.role,
+            });
+        } catch (e) {
+          if (!(e instanceof Error) || e.message !== "NOT_FOUND") throw e;
+        }
       }
       return result;
     });
@@ -1071,7 +1101,17 @@ export class AccessService {
       [ctx.workspaceId, expected],
     );
     if (!r.rowCount) throw Error("STALE_VERSION");
+    await this.retireApprovals(db, [ctx.workspaceId]);
     return r.rows[0].policy_version as number;
+  }
+  async retireApprovals(db: DB, spaceIds: string[]) {
+    await db.query("DELETE FROM approvals WHERE workspace_id=ANY($1::text[])", [
+      spaceIds,
+    ]);
+    await db.query(
+      "UPDATE batches SET data=jsonb_set(data,'{status}','\"pending\"') WHERE workspace_id=ANY($1::text[]) AND data->>'status'='approved'",
+      [spaceIds],
+    );
   }
   async createTeam(ctx: Context, input: unknown) {
     const b = z
@@ -1080,7 +1120,13 @@ export class AccessService {
       .parse(input);
     return this.globalTransaction(ctx, "team.create", async (db) => {
       const p = await this.principal(db, ctx);
-      if (!p.team_create) throw Error("FORBIDDEN");
+      if (!p.team_create && process.env.ACCESS_ALLOW_ORG_CREATE !== "true")
+        throw Error("FORBIDDEN");
+      const owned = await db.query(
+        "SELECT count(*)::int AS n FROM access_team_members WHERE principal_id=$1 AND role='owner' AND active",
+        [ctx.principalId],
+      );
+      if (owned.rows[0].n >= 20) throw Error("RATE_LIMITED");
       const id = randomUUID();
       await db.query(
         "INSERT INTO access_namespaces(id,kind,slug,name) VALUES($1,'team',$2,$3)",
@@ -1101,6 +1147,9 @@ export class AccessService {
     const db = await this.pool.connect();
     try {
       await db.query("BEGIN");
+      await db.query("SET LOCAL lock_timeout='5s'");
+      await db.query("SET LOCAL statement_timeout='15s'");
+      await acquireSharedMutationGate(db);
       await db.query("SELECT pg_advisory_xact_lock(720292)");
       await ctx.authorization?.assertSession(db);
       const r = await run(db);
@@ -1154,6 +1203,7 @@ export class AccessService {
         id,
         ctx.principalId,
       ]);
+      if (b.teamId) await this.ensureCompatibilityMembers(db, ns, id);
       return (await effectiveAccess(db, { ...ctx, workspaceId: id })).space;
     });
   }
@@ -1163,6 +1213,17 @@ export class AccessService {
       [teamId, principalId],
     );
     if (!r.rowCount) throw Error("NOT_FOUND");
+  }
+  /** FK rows only: effective_membership/authorizeAction still return NONE without a grant. */
+  async ensureCompatibilityMembers(
+    db: DB,
+    namespaceId: string,
+    workspaceId?: string,
+  ) {
+    await db.query(
+      "INSERT INTO memberships(workspace_id,principal_id,role) SELECT s.workspace_id,m.principal_id,'reader' FROM access_spaces s JOIN access_team_members m ON m.team_id=s.namespace_id AND m.active JOIN access_principals p ON p.id=m.principal_id AND p.active WHERE s.namespace_id=$1 AND s.active AND ($2::text IS NULL OR s.workspace_id=$2) ON CONFLICT DO NOTHING",
+      [namespaceId, workspaceId ?? null],
+    );
   }
   async invite(ctx: Context, teamId: string, input: unknown) {
     const b = z
@@ -1207,21 +1268,73 @@ export class AccessService {
       );
       if (!r.rowCount) throw Error("NOT_FOUND");
       const i = r.rows[0];
-      const owner = await db.query(
-        "SELECT 1 FROM access_team_members WHERE team_id=$1 AND principal_id=$2 AND active AND role='owner'",
-        [i.team_id, i.from_id],
-      );
-      if (!owner.rowCount) throw Error("NOT_FOUND");
+      // Inert protocol metadata, written only by authorized server code/migration.
+      // All qualification and resulting rights still use canonical tables/actions.
+      const metadata = (
+        await db.query(
+          "SELECT data FROM access_audit WHERE operation='legacy.invitation' AND target_id=$1 ORDER BY id DESC LIMIT 1",
+          [i.id],
+        )
+      ).rows[0]?.data;
+      const targetSpace =
+        typeof metadata?.workspaceId === "string" ? metadata.workspaceId : null;
+      const inviter = {
+        workspaceId: targetSpace ?? ctx.workspaceId,
+        principalId: i.from_id,
+      };
+      if (targetSpace) await authorizeActionDb(db, inviter, "space.admin");
+      else await this.teamOwner(db, inviter, i.team_id);
       await this.lockTeamSpaces(db, i.team_id);
-      await db.query(
-        "INSERT INTO access_team_members VALUES($1,$2,$3,true) ON CONFLICT(team_id,principal_id) DO UPDATE SET active=true,role=excluded.role",
-        [
-          i.team_id,
-          ctx.principalId,
-          i.kind === "owner-transfer" ? "owner" : "member",
-        ],
-      );
-      if (i.kind === "owner-transfer")
+      if (targetSpace) {
+        await authorizeActionDb(db, inviter, "space.admin");
+        const target = await db.query(
+          "SELECT 1 FROM access_spaces WHERE workspace_id=$1 AND namespace_id=$2 AND active",
+          [targetSpace, i.team_id],
+        );
+        if (!target.rowCount) throw Error("NOT_FOUND");
+        try {
+          await this.activeMember(db, i.team_id, ctx.principalId);
+        } catch {
+          throw Error("ORGANIZATION_MEMBERSHIP_REQUIRED");
+        }
+        const grantedRole = role.parse(
+          z
+            .enum(["Read", "Triage", "Write", "Maintain", "Admin"])
+            .parse(metadata.role)
+            .toLowerCase(),
+        );
+        const grant = await db.query(
+          "SELECT id FROM access_grants WHERE workspace_id=$1 AND principal_id=$2",
+          [targetSpace, ctx.principalId],
+        );
+        if (grant.rowCount)
+          await db.query(
+            "UPDATE access_grants SET role=$2,expires_at=NULL,revoked=false WHERE id=$1",
+            [grant.rows[0].id, grantedRole],
+          );
+        else
+          await db.query(
+            "INSERT INTO access_grants(id,workspace_id,principal_id,role) VALUES($1,$2,$3,$4)",
+            [randomUUID(), targetSpace, ctx.principalId, grantedRole],
+          );
+        await db.query(
+          "INSERT INTO memberships VALUES($1,$2,'reader') ON CONFLICT DO NOTHING",
+          [targetSpace, ctx.principalId],
+        );
+      } else
+        await db.query(
+          "INSERT INTO access_team_members VALUES($1,$2,$3,true) ON CONFLICT(team_id,principal_id) DO UPDATE SET active=true,role=CASE WHEN access_team_members.active AND access_team_members.role='owner' THEN 'owner' ELSE excluded.role END",
+          [
+            i.team_id,
+            ctx.principalId,
+            i.kind === "owner-transfer" ? "owner" : "member",
+          ],
+        );
+      if (
+        !targetSpace &&
+        i.kind === "owner-transfer" &&
+        metadata?.retainPreviousOwner !== true
+      )
         await db.query(
           "UPDATE access_team_members SET role='member' WHERE team_id=$1 AND principal_id=$2",
           [i.team_id, i.from_id],
@@ -1230,6 +1343,7 @@ export class AccessService {
         "UPDATE access_invitations SET status='accepted' WHERE id=$1",
         [id],
       );
+      if (!targetSpace) await this.ensureCompatibilityMembers(db, i.team_id);
       await this.invalidateTeam(db, i.team_id);
       return { id, status: "accepted" };
     });
@@ -1254,6 +1368,14 @@ export class AccessService {
     await db.query(
       "UPDATE access_spaces SET policy_version=policy_version+1 WHERE namespace_id=$1",
       [teamId],
+    );
+    const spaces = await db.query(
+      "SELECT workspace_id FROM access_spaces WHERE namespace_id=$1",
+      [teamId],
+    );
+    await this.retireApprovals(
+      db,
+      spaces.rows.map((r) => r.workspace_id),
     );
     await db.query(
       "UPDATE access_namespaces SET version=version+1 WHERE id=$1",
@@ -1283,6 +1405,10 @@ export class AccessService {
       await db.query(
         "UPDATE access_team_members SET active=false WHERE team_id=$1 AND principal_id=$2",
         [teamId, ident.parse(principalId)],
+      );
+      await db.query(
+        "UPDATE access_invitations SET status='revoked' WHERE team_id=$1 AND (principal_id=$2 OR from_id=$2) AND status='pending'",
+        [teamId, principalId],
       );
       await db.query(
         "UPDATE access_grants SET revoked=true WHERE principal_id=$2 AND workspace_id IN (SELECT workspace_id FROM access_spaces WHERE namespace_id=$1)",
