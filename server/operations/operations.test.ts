@@ -12,6 +12,7 @@ import {
 } from "./service";
 import { healthSnapshot, metricsText, ShutdownController } from "./monitoring";
 import { operationsRoutes } from "./routes";
+import { previewErasure, executeErasure } from "./erasure";
 import { operationalTelemetry } from "./observability";
 import type { WorkflowAuthorizer } from "../workflows/service";
 const pools: Pool[] = [];
@@ -109,11 +110,15 @@ describe("real DB operational controls", () => {
       "INSERT INTO storage_blobs(workspace_id,id,parent_kind,parent_id,sha256,size,mime,filename,scan_state,created_by) VALUES($1,'ops-blob','source','source-a',$2,1,'text/plain','a.txt','clean','fixture-owner')",
       [workspaceId, hash],
     );
-    await s.tombstone(admin, {
+    const request = {
+      scope: "resource",
       resource: { kind: "source", id: "source-a" },
-      readers: [],
-      deleteContent: true,
-      confirm: "DELETE_CONTENT_AND_QUARANTINE",
+    };
+    const preview = await previewErasure(s, admin, request);
+    await executeErasure(s, admin, {
+      ...request,
+      previewHash: preview.previewHash,
+      confirm: "ERASE_PREVIEWED_RESOURCE_LINEAGE",
     });
     // The bytes are shared by an unrelated live page: purging a hash must not damage that page.
     await pool.query(
@@ -174,17 +179,19 @@ describe("real DB operational controls", () => {
       [workspaceId],
     );
     expect(result.rows).toEqual([{ principal_id: "fixture-owner" }]);
-    await s.tombstone(admin, {
-      resource: { kind: "source", id: "source-a" },
-      readers: [],
-      deleteContent: true,
-      confirm: "DELETE_CONTENT_AND_QUARANTINE",
-    });
+    await expect(
+      s.tombstone(admin, {
+        resource: { kind: "source", id: "source-a" },
+        readers: [],
+        deleteContent: true,
+        confirm: "DELETE_CONTENT_AND_QUARANTINE",
+      }),
+    ).rejects.toThrow("ERASURE_PREVIEW_REQUIRED");
     const source = await pool.query(
       "SELECT data FROM sources WHERE workspace_id=$1 AND id=$2",
       [workspaceId, "source-a"],
     );
-    expect(source.rows[0].data.content).toBe("");
+    expect(source.rows[0].data.content).not.toBe("");
     expect(
       (
         await pool.query(
@@ -192,7 +199,7 @@ describe("real DB operational controls", () => {
           [workspaceId],
         )
       ).rows[0].count,
-    ).toBe("0");
+    ).not.toBe("0");
   });
   test("durable deduplicated alert retry survives service recreation", async () => {
     const { pool, s } = await setup();
@@ -249,9 +256,13 @@ describe("real DB operational controls", () => {
     expect(anchored).toBe("");
     expect(await route(request)).toBe(true);
     expect(response).toMatchObject({ anchored: true });
-    expect(openExport(anchored, key, signing)).toMatchObject([
-      { event: { operation: "admin.access" } },
-    ]);
+    expect(openExport(anchored, key, signing)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: expect.objectContaining({ operation: "admin.access" }),
+        }),
+      ]),
+    );
     const failed = operationsRoutes(s, {
       encryptionKey: key,
       signingKey: signing,

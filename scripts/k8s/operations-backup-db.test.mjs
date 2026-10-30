@@ -13,8 +13,10 @@ import {
   restoreFiles,
   FileTarget,
   MUTATION_GATE,
+  retainBackups,
 } from "./operations-backup.mjs";
 import { releaseGate } from "./operations-release.mjs";
+import { withBackupRetentionPolicy } from "./operations-retention-policy.mjs";
 const base = [
   "--context",
   "kind-knowledge-hub-dev",
@@ -32,6 +34,9 @@ const run = (args, input) =>
   });
 test("actual PostgreSQL dump + filesystem, quiescence blocks concurrent mutation, restore & fault", async () => {
   assert.ok(process.env.TEST_DATABASE_URL?.includes("/akh_operations_test"));
+  const sourceDatabase = new URL(process.env.TEST_DATABASE_URL).pathname.slice(
+    1,
+  );
   const pool = new pg.Pool({
     connectionString: process.env.TEST_DATABASE_URL,
     max: 4,
@@ -40,9 +45,9 @@ test("actual PostgreSQL dump + filesystem, quiescence blocks concurrent mutation
     await tsImport("../../server/operations/gate.ts", import.meta.url);
   assert.equal(serverGate, MUTATION_GATE);
   const root = await mkdtemp(join(await realpath(tmpdir()), "akh-db-backup-")),
-    content = join(root, "content");
+    content = process.env.OPERATIONS_TEST_BLOB_ROOT ?? join(root, "content");
   const { mkdir } = await import("node:fs/promises");
-  await mkdir(content);
+  await mkdir(content, { recursive: true });
   const bytes = Buffer.from("private real blob"),
     sha = createHash("sha256").update(bytes).digest("hex"),
     ws = randomUUID();
@@ -92,14 +97,7 @@ test("actual PostgreSQL dump + filesystem, quiescence blocks concurrent mutation
         })();
         await new Promise((r) => setTimeout(r, 30));
         assert.equal(wrote, false);
-        return run([
-          "pg_dump",
-          "-U",
-          "knowledge",
-          "-d",
-          "akh_operations_test",
-          "-Fc",
-        ]);
+        return run(["pg_dump", "-U", "knowledge", "-d", sourceDatabase, "-Fc"]);
       },
     });
     await writer;
@@ -273,7 +271,7 @@ test("actual PostgreSQL dump + filesystem, quiescence blocks concurrent mutation
             [ws],
           )
         ).rows[0].content,
-        "",
+        "[법정 삭제]",
       );
       assert.equal(
         Number(
@@ -314,12 +312,74 @@ test("actual PostgreSQL dump + filesystem, quiescence blocks concurrent mutation
           AGENT_KNOWLEDGE_HUB_BACKUP_KEY: key,
           BACKUP_KEY_ID: "cli-v1",
           BACKUP_MUTATION_GATE_CONFIRMED: "true",
+          BACKUP_RETENTION_DAYS: "",
+          BACKUP_MAX_PLAINTEXT_BYTES: String(64 * 1024 * 1024),
         },
         encoding: "utf8",
         stdio: "pipe",
       },
     );
     assert.match(backupCli, /DB\+파일 백업 검증 완료/);
+    const newest = (await target.list()).find(
+      (r) => r.name !== result.name,
+    ).name;
+    const { captureRecoveryLedger } = await tsImport(
+      "../../server/operations/recovery.ts",
+      import.meta.url,
+    );
+    const v3Signing = "independent-stream-signing".repeat(3),
+      v3Ledger = join(root, "v3-current-ledger");
+    await writeFile(
+      v3Ledger,
+      await captureRecoveryLedger(pool, key, v3Signing),
+      { mode: 0o600 },
+    );
+    const v3Restore = execFileSync(
+      process.execPath,
+      ["scripts/k8s/verify-restore.mjs", target.name(newest)],
+      {
+        env: {
+          ...process.env,
+          DATABASE_URL: process.env.TEST_DATABASE_URL,
+          RECOVERY_LEDGER_FILE: v3Ledger,
+          AUDIT_EXPORT_KEY: key,
+          AUDIT_SIGNING_KEY: v3Signing,
+          BACKUP_KEYS_JSON: JSON.stringify({ "cli-v1": key }),
+          BACKUP_MAX_PLAINTEXT_BYTES: String(64 * 1024 * 1024),
+        },
+        encoding: "utf8",
+        stdio: "pipe",
+      },
+    );
+    assert.match(v3Restore, /삭제\/권한 제한 재적용 검증/);
+    await assert.rejects(
+      withBackupRetentionPolicy(pool, 30, async () => null),
+      /POLICY_CONFLICT/,
+    );
+    await pool.query("UPDATE operations_policy SET backup_days=30");
+    await pool.query(
+      "INSERT INTO operations_legal_holds(workspace_id,id,resource_kind,resource_id,placed_by) VALUES($1,'retention-hold','workspace',$1,'fixture-operator')",
+      [ws],
+    );
+    await assert.rejects(
+      withBackupRetentionPolicy(pool, 30, async () => null),
+      /LEGAL_HOLD/,
+    );
+    await pool.query(
+      "UPDATE operations_legal_holds SET active=false WHERE workspace_id=$1 AND id='retention-hold'",
+      [ws],
+    );
+    const { utimes } = await import("node:fs/promises");
+    const expired = new Date(Date.now() - 31 * 86400000);
+    await utimes(target.name(result.name), expired, expired);
+    assert.deepEqual(
+      await withBackupRetentionPolicy(pool, 30, (days) =>
+        retainBackups(target, days),
+      ),
+      [result.name],
+    );
+    await assert.rejects(readFile(target.name(result.name)));
+    assert.ok((await target.list()).length >= 1);
     await assert.rejects(
       coordinatedBackup({
         pool,

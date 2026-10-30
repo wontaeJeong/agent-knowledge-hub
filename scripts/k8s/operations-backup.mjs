@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { resolve, join, sep } from "node:path";
 import { sealBackup, openBackup } from "./backup-format.mjs";
+import { backupReferenceRows } from "./operations-storage-graph.mjs";
 export const MUTATION_GATE = 822025;
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 const validHash = (h) => typeof h === "string" && /^[a-f0-9]{64}$/.test(h);
@@ -240,6 +241,7 @@ export async function coordinatedBackup({
   key,
   keyId,
   gateConfirmed = false,
+  dumpTimeoutMs = 300000,
 }) {
   if (!gateConfirmed) throw Error("MUTATION_GATE_NOT_CONFIRMED");
   const db = await pool.connect(),
@@ -253,19 +255,47 @@ export async function coordinatedBackup({
       "INSERT INTO operations_backups(id,target,key_id,status) VALUES($1,$2,$3,'running')",
       [id, target.root ?? "configured-adapter", keyId],
     );
-    const refs = (
-      await db.query(
-        "SELECT DISTINCT b.sha256,b.size FROM storage_blobs b WHERE NOT EXISTS(SELECT 1 FROM operations_tombstones t WHERE t.workspace_id=b.workspace_id AND t.resource_kind=b.parent_kind AND t.resource_id=b.parent_id AND t.delete_content AND t.blob_hashes ? b.sha256) ORDER BY b.sha256",
-      )
-    ).rows;
-    const dump = await dumpDatabase();
+    const refs = await backupReferenceRows(db);
+    if (
+      !Number.isInteger(dumpTimeoutMs) ||
+      dumpTimeoutMs < 1 ||
+      dumpTimeoutMs > 3600000
+    )
+      throw Error("INVALID_DUMP_TIMEOUT");
+    const abort = new AbortController();
+    let timer;
+    let dump;
+    try {
+      dump = await Promise.race([
+        dumpDatabase(abort.signal),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            abort.abort();
+            reject(Error("DUMP_TIMEOUT"));
+          }, dumpTimeoutMs);
+          timer.unref();
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
     const encrypted = await createBundle({
       dump,
       contentDirectory,
       refs,
       key,
       keyId,
-      metadata: { backupId: id, coordination: "global-advisory-gate" },
+      metadata: {
+        backupId: id,
+        coordination: "global-advisory-gate",
+        database: (await db.query("SELECT current_database() AS name")).rows[0]
+          .name,
+        systemIdentifier: (
+          await db.query(
+            "SELECT system_identifier::text AS id FROM pg_control_system()",
+          )
+        ).rows[0].id,
+      },
     });
     const name = `knowledge-${id}.akh-backup`,
       result = await target.put(name, encrypted);

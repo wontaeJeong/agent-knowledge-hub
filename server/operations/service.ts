@@ -17,6 +17,7 @@ import type {
   WorkflowResource,
 } from "../workflows/service";
 import { membership, requireRead } from "../repository";
+import { hashHasLiveReference } from "../../scripts/k8s/operations-storage-graph.mjs";
 import { MUTATION_GATE } from "./gate";
 export { MUTATION_GATE } from "./gate";
 const resourceSchema = z
@@ -43,9 +44,12 @@ export interface AuditRow {
   previous_hash: string;
   hash: string;
 }
-export function verifyAudit(rows: AuditRow[]): boolean {
-  let previous = "0".repeat(64),
-    sequence = 0n;
+export function verifyAudit(
+  rows: AuditRow[],
+  checkpoint?: { sequence: string; hash: string },
+): boolean {
+  let previous = checkpoint?.hash ?? "0".repeat(64),
+    sequence = BigInt(checkpoint?.sequence ?? 0);
   for (const row of rows) {
     sequence++;
     if (
@@ -87,7 +91,7 @@ export async function appendOperationalAudit(
   ]);
   const last = (
       await db.query(
-        "SELECT sequence,hash FROM operations_audit_chain WHERE workspace_id=$1 ORDER BY sequence DESC LIMIT 1",
+        "SELECT sequence,hash FROM (SELECT sequence,hash FROM operations_audit_chain WHERE workspace_id=$1 UNION ALL SELECT last_sequence AS sequence,head_hash AS hash FROM operations_audit_archives WHERE workspace_id=$1) s ORDER BY sequence DESC LIMIT 1",
         [ctx.workspaceId],
       )
     ).rows[0],
@@ -241,6 +245,14 @@ export class OperationsService {
   ) {
     if (typeof authorize !== "function") throw Error("AUTHORIZER_REQUIRED");
   }
+  /** Trusted server orchestration only; no SQL/function/path input is exposed through HTTP. */
+  async withAdminTransaction<T>(
+    ctx: Context,
+    work: (db: PoolClient) => Promise<T>,
+    exclusive = false,
+  ) {
+    return this.run(ctx, "space.admin", undefined, work, exclusive);
+  }
   private async run<T>(
     ctx: Context,
     action: string,
@@ -290,6 +302,21 @@ export class OperationsService {
     }
     await ctx.authorization?.revalidate();
     return result;
+  }
+  async status(ctx: Context) {
+    return this.withAdminTransaction(ctx, async (db) => {
+      const row = (
+        await db.query(
+          "SELECT (SELECT max(completed_at) FROM operations_backups WHERE status='complete') AS last_backup,(SELECT count(*) FROM durable_jobs WHERE workspace_id=$1 AND status IN('queued','running','cancel_requested'))::text AS queue_depth,(SELECT sum(size) FROM storage_blobs WHERE workspace_id=$1) AS blob_bytes",
+          [ctx.workspaceId],
+        )
+      ).rows[0];
+      return {
+        lastBackup: row.last_backup,
+        queueDepth: Number(row.queue_depth),
+        blobBytes: row.blob_bytes === null ? null : Number(row.blob_bytes),
+      };
+    });
   }
   async policy(ctx: Context) {
     return this.run(
@@ -371,7 +398,13 @@ export class OperationsService {
       ).rows as AuditRow[];
       if (rows.length > 10000)
         throw Error("AUDIT_EXPORT_LIMIT_REQUIRES_ARCHIVE");
-      if (!verifyAudit(rows)) throw Error("AUDIT_TAMPER_DETECTED");
+      const checkpoint = (
+        await db.query(
+          "SELECT last_sequence AS sequence,head_hash AS hash FROM operations_audit_archives WHERE workspace_id=$1 ORDER BY last_sequence DESC LIMIT 1",
+          [ctx.workspaceId],
+        )
+      ).rows[0];
+      if (!verifyAudit(rows, checkpoint)) throw Error("AUDIT_TAMPER_DETECTED");
       for (const row of rows) {
         const r = (row.event as { resource?: WorkflowResource }).resource;
         if (r) await requireRead(db, ctx, r.kind, r.id);
@@ -391,6 +424,7 @@ export class OperationsService {
       .parse(input);
     if (d.deleteContent && d.confirm !== "DELETE_CONTENT_AND_QUARANTINE")
       throw Error("EXPLICIT_DELETE_CONFIRMATION_REQUIRED");
+    if (d.deleteContent) throw Error("ERASURE_PREVIEW_REQUIRED");
     return this.run(ctx, "policy.strengthen", d.resource, async (db) => {
       await this.authorize(db, ctx, "space.admin", d.resource);
       const hashes = (
@@ -443,8 +477,8 @@ export class OperationsService {
       async (db) =>
         (
           await db.query(
-            "SELECT * FROM operations_tombstones WHERE workspace_id=$1 ORDER BY created_at,id",
-            [ctx.workspaceId],
+            "SELECT * FROM operations_tombstones WHERE workspace_id=$1 AND approved_by=$2 ORDER BY created_at,id",
+            [ctx.workspaceId, ctx.principalId],
           )
         ).rows as Tombstone[],
     );
@@ -464,17 +498,13 @@ export class OperationsService {
         await this.authorize(db, ctx, "policy.strengthen");
         const candidates = (
           await db.query(
-            "SELECT DISTINCT b.sha256 FROM storage_blobs b JOIN operations_tombstones t ON t.workspace_id=b.workspace_id AND t.resource_kind=b.parent_kind AND t.resource_id=b.parent_id AND t.delete_content WHERE t.workspace_id=$1 AND t.approved_by=$2 AND t.blob_hashes ? b.sha256",
+            "SELECT DISTINCT value AS sha256 FROM operations_tombstones t CROSS JOIN LATERAL jsonb_array_elements_text(t.blob_hashes) WHERE t.workspace_id=$1 AND t.approved_by=$2 AND t.delete_content UNION SELECT DISTINCT value AS sha256 FROM operations_erased_artifacts a CROSS JOIN LATERAL jsonb_array_elements_text(a.hashes) WHERE a.workspace_id=$1 AND a.approved_by=$2",
             [ctx.workspaceId, ctx.principalId],
           )
         ).rows;
         let removed = 0;
         for (const { sha256 } of candidates) {
-          const live = await db.query(
-            "SELECT 1 FROM storage_blobs b WHERE b.sha256=$1 AND NOT EXISTS(SELECT 1 FROM operations_tombstones t WHERE t.workspace_id=b.workspace_id AND t.resource_kind=b.parent_kind AND t.resource_id=b.parent_id AND t.delete_content AND t.blob_hashes ? b.sha256) LIMIT 1",
-            [sha256],
-          );
-          if (live.rowCount) continue;
+          if (await hashHasLiveReference(db, sha256)) continue;
           // Exclusive global gate also prevents a new deduplicated reference racing physical removal.
           await remove(sha256); // irreversible ONLY after a committed, explicit tombstone approval.
           // Keep immutable metadata/FK history as the deletion receipt; content is inaccessible.

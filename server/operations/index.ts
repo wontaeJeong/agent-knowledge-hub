@@ -5,3 +5,7 @@ export * from "./recovery";
 export * from "./filesystem";
 export * from "./observability";
 export * from "./gate";
+export * from "./archive";
+export * from "./erasure";
+export * from "./current-policy";
+export * from "./authorization";
