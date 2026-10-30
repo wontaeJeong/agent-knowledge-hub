@@ -395,7 +395,7 @@ await fs.writeFile(
 
 워드마크는 DejaVu Sans의 필요한 글자 윤곽만 사용해 폰트 설치나 CDN이 필요 없다. 출처·라이선스는 third-party-licenses/dejavu-font-license.txt에 보존한다. 보조 문구는 SVG text이며 PNG 사본을 제공한다. webmanifest는 메타데이터이며 오프라인 PWA나 서비스워커를 구현한 것은 아니다.
 
-웹 앱의 로고는 같은 두 path를 `src/ui/brand-mark.json`에서 읽는 `BrandMark` 컴포넌트로 표시한다. 색은 `--brand-mark-primary`/`--brand-mark-secondary`가 활성 CSS `--color-accent`/`--color-accent-strong`을 따라가므로 테마 또는 팔레트 변경 시 PNG/SVG를 다시 만들 필요가 없다. 브라우저 favicon은 활성 CSS 토큰으로 갱신되며, 이 폴더의 SVG/PNG/ICO는 배포·인쇄·소셜 공유를 위한 고정 Plum 원본이다. 정적 에셋의 색상까지 바꿀 경우에만 생성기를 실행한다.
+웹 앱의 로고는 같은 두 path를 \`src/ui/brand-mark.json\`에서 읽는 \`BrandMark\` 컴포넌트로 표시한다. 색은 \`--brand-mark-primary\`/\`--brand-mark-secondary\`가 활성 CSS \`--color-accent\`/\`--color-accent-strong\`을 따라가므로 테마 또는 팔레트 변경 시 PNG/SVG를 다시 만들 필요가 없다. 브라우저 favicon은 활성 CSS 토큰으로 갱신되며, 이 폴더의 SVG/PNG/ICO는 배포·인쇄·소셜 공유를 위한 고정 Plum 원본이다. 정적 에셋의 색상까지 바꿀 경우에만 생성기를 실행한다.
 
 프로젝트 루트에서 npm ci 후 npm run brand로 다시 생성한다. Node.js와 프로젝트의 sharp만 사용한다. 심볼·배치·색상은 scripts/generate-brand.mjs, 워드마크 윤곽은 scripts/brand-wordmark-glyphs.json, UI 아이콘은 src/ui/brand-icons.json을 편집한다. 외부 서비스·웹폰트는 호출하지 않는다.
 
