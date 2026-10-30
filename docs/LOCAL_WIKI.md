@@ -95,6 +95,8 @@ Windows JSON 경로에서는 역슬래시를 이스케이프해야 한다. 위 �
 
 ## 동기화·충돌·공유
 
+**후속 권한 설계:** [권한 모델](ACCESS_CONTROL.md)과 [ADR 005](adr/005-github-style-access-control.md)는 로컬을 저장 위치로, 개인/팀을 소유권으로 구분한다. 공간별 5역할과 자료 반출 정책을 공통 서버에서 판단하고 개인→팀은 고정 revision의 명시적 제안으로 연결하는 **미구현 계약**이다. 아래 합성 `personal`/`team-demo`·reviewer 토큰이 그 역할/소유권을 구현한 것은 아니다. 연결 중 동기화 수명주기와 보호 조회 전 현재 권한 확인은 유지한다.
+
 도구: `wiki_status`, `wiki_search`, `wiki_read`, `wiki_write`, `wiki_sync`, `wiki_conflicts`, `wiki_prepare_merge`, `wiki_propose_change`.
 
 `wiki_write` 입력은 `{page: {id,title,content,spaceId,version,localCopyAllowed:true,links:[],sourceRefs:[]}}`다. 기존 공유본은 `wiki_read` 결과의 메타데이터·출처를 유지한 채 수정한다. 개인본은 `spaceId: personal`, 같은 ID로 저장된다. `wiki_read`의 기본은 개인본 우선이며 공유본은 `spaceId`를 명시한다. 검색은 두 종류를 별도 결과로 반환한다. 개인본 버전과 공유본 버전을 혼동하지 않는다.

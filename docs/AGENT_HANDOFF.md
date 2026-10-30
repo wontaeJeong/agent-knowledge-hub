@@ -1,5 +1,17 @@
 # 에이전트 인계
 
+## 2026-10-30 로컬·개인·팀 GitHub식 권한 설계 (문서만)
+
+- 사용자 요청: 기존 로컬/개인/팀(공유) 컨셉에 GitHub식 권한을 설계하고 PR로 제출한다. 이 작업은 설계 제안이며 런타임 권한 구현·운영 인수·자동 머지 요청이 아니다.
+- 기준: `main@ec148ef9`의 실제 OIDC·DB 세션, 3역할·자료 allowlist·전체 모델 입력 계보·승인 ACL 검사를 확인했다. 합성 로컬 커넥터와 운영 서비스 통합은 아직 미완료다. 과거의 서버 미구현 설명으로 최신 코드를 판단하지 않는다.
+- 새 문서: [ACCESS_CONTROL.md](ACCESS_CONTROL.md)와 [ADR 005](adr/005-github-style-access-control.md). 로컬 위치/개인·팀 소유권/Private·Team·Company/공간별 Read·Triage·Write·Maintain·Admin을 분리한다. 팀 Owner/Member·접근 그룹·기본 none·자료 제한·정제본 공개·수신자 한정 공유·개인 revision 제안·독립 사람 검토·토큰 상한·철회/소유권 이전·사용량/관리 UX를 정의한다. ADR 005는 **Proposed**이며 ADR 004의 상태나 North Star 의미를 변경하지 않는다.
+- 이관: 현행 `workspaces` 공간 ID와 원본/본문 allowlist를 보존한다. reviewer를 Admin/팀 Owner로 자동 승격하지 않으며 구승인/구세션·토큰의 재검토/재인증, OIDC 재로그인의 grant 복원 방지, 소유권 불명 자료 격리·쓰기 차단·호환성/복구 검증을 요구한다.
+- 연결 파일: README·AGENTS·ARCHITECTURE·SECURITY·LOCAL_WIKI·KNOWLEDGE_INTEGRATION·AGENT_INTERFACE·API_CONTRACT·ROADMAP과 이 인계 문서. 제안 API 경계와 구현 순서를 추가했다. 앱/서버/마이그레이션/패키지/워크플로·런타임 `wiki/SCHEMA.md`는 변경하지 않았다.
+- 관련 기준: GOV-003/004/005/009, ACL-001~014, SHR-001~012, REV-002~006/009, VER-005/009, INT-001/002/006, LIF-008/010, SEC-009/010/011, OPS-004, CORE-002~006/009. 기존 251개 요구사항·35개 인수 시나리오의 내용/수/미검증 상태와 운영 작업표는 그대로다. AC-01~24는 기존 기준을 구체화하는 **미실행 설계 사례**이며 제품 요구사항/통과 결과 수에 합산하지 않는다.
+- North Star 판단: Ingest→Query→Lint·질문 재편입·개인 파생본이 같은 원본/현재 권한으로 기존 지식을 갱신하도록 경계를 정의한다. 독립 검토·근거 교집합·응답/발행 직전 재검사를 유지한다. 문서/동기화 수와 지식/에이전트 성능 개선을 혼동하지 않는다. 의미 품질/후속 업무 효과는 EVALUATION의 대조 실험 대상이다.
+- 실제 로컬 검증: Node 24.22.1/npm 11.9.0에서 `npm ci`와 `npm run check` 통과. 클라이언트 40개+Node 48개, 251개 요구사항 연결, 서버 타입 검사·빌드·정적 HTTP smoke 통과. 문서 상대 링크·Markdown 표 구조·24개 AC ID 연속성·참조 요구사항 ID·`git diff --check`를 확인했다. 새 문구를 검사하는 영구 테스트는 추가하지 않았다.
+- 제한: 새 5역할·팀/그룹/수신자 grant·독립 검토·Bearer/서비스 주체·개인 커넥터 공통 서버 연결·관리 UI·새 API는 이 PR에서 구현/실행하지 않았다. DB 서버 회귀·실제 IdP/Windows/호스트·K8s/운영/반출·AC-01~24·지식 품질 시험을 새로 수행한 결과로 표시하지 않는다. GitHub CI 결과는 해당 PR의 실제 상태를 기준으로 한다.
+
 ## 2026-10-29 운영형 서버·OIDC·kind 수직 연결
 
 **전체 251개 구현 완료나 사내 운영 인수 완료가 아니다.** 다음은 구현한 수직 경로와 실제 실행 근거이며, 남은 소프트웨어·환경 조건은 아래에 따로 남긴다.
