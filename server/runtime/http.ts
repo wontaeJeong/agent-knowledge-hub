@@ -21,6 +21,7 @@ import { assertSchemaCurrent } from "../database";
 import { handleImportRequest } from "../imports/http";
 import { AccessService } from "../access";
 import { handleAccessRequest } from "../access-http";
+import { handleBoardRequest } from "../boards";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
@@ -157,6 +158,10 @@ export function createRuntimeHandler(options: {
         );
         if (result) return send(result.status, result.body);
       }
+      if (path.startsWith("/api/v1/board/")) {
+        const result = await handleBoardRequest(options.pool, ctx, req.method || "GET", path, body, url.searchParams);
+        if (result) return send(result.status, result.body);
+      }
       if (path.startsWith("/api/v1/import")) {
         const result = await handleImportRequest(
           service.imports,
@@ -188,7 +193,7 @@ export function createRuntimeHandler(options: {
         if (path === "/api/v1/model") return send(200, modelConfig());
         if (path === "/api/v1/usage") {
           const days = url.searchParams.get("days") || "7";
-          if (!["7", "30"].includes(days)) throw Error("VALIDATION_FAILED");
+          if (!["7", "14", "30", "90"].includes(days)) throw Error("VALIDATION_FAILED");
           return send(200, await usageSummary(options.pool, ctx, Number(days)));
         }
         if (path === "/api/v1/members")

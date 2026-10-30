@@ -9,7 +9,7 @@ export async function usageSummary(
   ctx: Context,
   days: number,
 ): Promise<UsageSummary> {
-  if (![7, 30].includes(days)) throw Error("VALIDATION_FAILED");
+  if (![7, 14, 30, 90].includes(days)) throw Error("VALIDATION_FAILED");
   return transaction(pool, ctx.workspaceId, async (db) => {
     const role = await membership(db, ctx);
     const now = new Date(

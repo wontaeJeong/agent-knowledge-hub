@@ -33,7 +33,7 @@ export function createUsageHandler(options: {
       }
       const period = url.searchParams.get("days") ?? "7";
       if (
-        !["7", "30"].includes(period) ||
+        !["7", "14", "30", "90"].includes(period) ||
         url.searchParams.getAll("days").length > 1
       )
         return send(400, { code: "VALIDATION_FAILED", requestId });
