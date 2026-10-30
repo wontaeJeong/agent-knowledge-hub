@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
  */
 const topKeys = new Set([
   "environment", "appHost", "ingressClass", "tlsSecretName",
-  "oidcIssuer", "oidcClientId", "appImage", "postgresImage",
-  "ingressController", "oidcEgressCidrs", "modelEgressCidrs",
+  "oidcIssuer", "oidcClientId", "oidcGroupRoles", "appImage", "postgresImage",
+  "ingressController", "oidcEgressCidrs", "modelEgress",
   "quota", "dbStorageClass",
 ]);
 
@@ -75,13 +75,23 @@ export function validateSiteConfig(config) {
   requireField(typeof config.oidcClientId === "string" &&
     config.oidcClientId.length > 0 && config.oidcClientId.length <= 128 &&
     !/CHANGE-ME|local-test-only/.test(config.oidcClientId), "OIDC_CLIENT_ID_INVALID");
+  requireField(object(config.oidcGroupRoles) &&
+    Object.keys(config.oidcGroupRoles).length > 0 &&
+    Object.entries(config.oidcGroupRoles).every(([group, role]) =>
+      typeof group === "string" && group.length > 0 && group.length <= 128 &&
+      ["reader", "editor", "reviewer"].includes(role)),
+    "OIDC_GROUP_ROLES_INVALID");
   imageDigest(config.appImage);
   imageDigest(config.postgresImage);
   requireField(object(config.ingressController) &&
     name(config.ingressController.namespace) &&
     labels(config.ingressController.podLabels), "INGRESS_CONTROLLER_SELECTOR_REQUIRED");
   cidrs(config.oidcEgressCidrs, true);
-  cidrs(config.modelEgressCidrs ?? [], false);
+  requireField(Array.isArray(config.modelEgress ?? []) &&
+    (config.modelEgress ?? []).every((entry) => object(entry) &&
+      Object.keys(entry).sort().join(",") === "cidr,port" &&
+      cidr(entry.cidr) && Number.isInteger(entry.port) &&
+      entry.port >= 1 && entry.port <= 65535), "MODEL_EGRESS_INVALID");
   const quota = config.quota;
   requireField(object(quota) &&
     Object.keys(quota).sort().join(",") ===
@@ -130,6 +140,7 @@ export function siteFiles(input) {
     "      - " + JSON.stringify("APP_ORIGIN=https://" + config.appHost),
     "      - " + JSON.stringify("OIDC_ISSUER=" + config.oidcIssuer),
     "      - " + JSON.stringify("OIDC_CLIENT_ID=" + config.oidcClientId),
+    "      - " + JSON.stringify("OIDC_GROUP_ROLES=" + JSON.stringify(config.oidcGroupRoles)),
     "images:",
     "  - name: knowledge-hub",
     "    newName: " + JSON.stringify(appImage.name),
@@ -167,8 +178,10 @@ export function siteFiles(input) {
   const outbound = [
     ...config.oidcEgressCidrs.map((block) => ({ to: [{ ipBlock: { cidr: block } }],
       ports: [{ protocol: "TCP", port: 443 }] })),
-    ...(config.modelEgressCidrs ?? []).map((block) => ({ to: [{ ipBlock: { cidr: block } }],
-      ports: [{ protocol: "TCP", port: 443 }] })),
+    ...(config.modelEgress ?? []).map((endpoint) => ({
+      to: [{ ipBlock: { cidr: endpoint.cidr } }],
+      ports: [{ protocol: "TCP", port: endpoint.port }],
+    })),
   ];
   const egressPolicy = policy("reviewed-https-egress", namespace,
     "Egress", outbound);
