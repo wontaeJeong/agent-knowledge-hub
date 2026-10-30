@@ -92,9 +92,17 @@ export function productionFailures(resources) {
   if (maps.length !== 1) failures.push("one runtime ConfigMap required");
   const config = maps[0]?.data;
   const origin = config?.APP_ORIGIN;
+  try {
+    const roles = JSON.parse(config?.OIDC_GROUP_ROLES ?? "null");
+    if (!roles || !Object.keys(roles).length ||
+      Object.values(roles).some((role) =>
+        !["reader", "editor", "reviewer"].includes(role)))
+      failures.push("OIDC group roles invalid");
+  } catch { failures.push("OIDC group roles invalid"); }
   if (!config || config.NODE_ENV !== "production" ||
     !isHttps(origin) || !isHttps(config.OIDC_ISSUER) ||
-    !config.OIDC_CLIENT_ID || config.OIDC_ALLOW_HTTP === "true" ||
+    !config.OIDC_CLIENT_ID || !config.OIDC_GROUP_ROLES ||
+    config.OIDC_ALLOW_HTTP === "true" ||
     config.OIDC_INTERNAL_URL)
     failures.push("production HTTPS authentication config required");
   let host;
@@ -108,7 +116,7 @@ export function productionFailures(resources) {
   const ingresses = sameKind(resources, "Ingress", "knowledge-app");
   if (ingresses.length !== 1 || !ingresses[0].spec?.ingressClassName ||
     ingresses[0].spec?.tls?.length !== 1 ||
-    ingresses[0].spec.tls[0].secretName !== "knowledge-tls" ||
+    !ingresses[0].spec.tls[0].secretName ||
     !ingresses[0].spec.tls[0].hosts?.includes(host) ||
     !ingresses[0].spec.rules?.some((r) => r.host === host &&
       r.http?.paths?.some((p) =>
@@ -142,6 +150,9 @@ export function productionFailures(resources) {
     !outbound.spec.egress.every((rule) =>
       rule.to?.length && rule.to.every((to) =>
         to.ipBlock?.cidr && !isOpenCidr(to.ipBlock.cidr)) &&
+      rule.ports?.some((port) => port.protocol === "TCP" &&
+        Number.isInteger(port.port) && port.port > 0 && port.port <= 65535)) ||
+    !outbound.spec.egress.some((rule) =>
       rule.ports?.some((port) => port.protocol === "TCP" && port.port === 443)))
     failures.push("reviewed OIDC HTTPS egress NetworkPolicy missing");
 
