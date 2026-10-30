@@ -70,14 +70,13 @@ export function permittedAgentRoute(method:string,path:string,scope:AgentScope,b
   return ["/api/v1/me","/api/v1/pages","/api/v1/sources","/api/v1/jobs","/api/v1/model"].includes(path)
    || /^\/api\/v1\/pages\/[A-Za-z0-9_-]{1,100}(?:\/versions\/[0-9]+)?$/.test(path);
  }
- if(scope!=="write")return false;
- if(method==="POST"&&["/api/v1/query","/api/v1/ingest","/api/v1/lint"].includes(path))return true;
  if(method==="POST"&&path==="/mcp"){
   const data=body as {method?:unknown,params?:{name?:unknown}};
   if(data?.method==="tools/list"||data?.method==="initialize"||data?.method==="notifications/initialized"||data?.method==="ping")return true;
-  if(data?.method==="tools/call")return ["knowledge_search","knowledge_query","knowledge_ingest","knowledge_lint","knowledge_jobs"].includes(String(data.params?.name));
+  if(data?.method==="tools/call")return (scope==="read" ? ["knowledge_search","knowledge_jobs"] : ["knowledge_search","knowledge_query","knowledge_ingest","knowledge_lint","knowledge_jobs"]).includes(String(data.params?.name));
  }
- return false;
+ if(scope!=="write")return false;
+ return method==="POST" && ["/api/v1/query","/api/v1/ingest","/api/v1/lint"].includes(path);
 }
 export async function handleCredentialRequest(pool:Pool,ctx:Context,method:string,path:string,body:unknown,origin:string) {
  if(!credentialsEnabled())return ok(404,{code:"NOT_FOUND"});
