@@ -11,3 +11,6 @@ demo-dist/
 .superpowers/
 .playwright-mcp/
 /.local-wiki-demo/
+
+# Generated, site-specific Kubernetes overlays (may reveal internal network details)
+/deploy/sites/
