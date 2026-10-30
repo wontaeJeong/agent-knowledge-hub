@@ -1,6 +1,6 @@
 # Kubernetes 1차 릴리즈: 배포 구조와 운영 최소 기준
 
-> **상태: 배포 목표/실행 전 체크리스트.** 현재 저장소는 React/Vite 기반 로컬 데모(`localStorage`, 선택적 로컬 Node 모델 중계)다. K8s 매니페스트, 서버 DB, SSO, 서버 권한 검증, 지속 작업 시스템은 아직 구현·검증되지 않았다. 이 문서는 완료 보고서가 아니다.
+> **상태: 배포 목표/실행 전 체크리스트.** 현재는 로컬 정적 데모와 별개로 Node/PostgreSQL/OIDC 운영 서버·K8s base/overlays, 사이트 설정 생성기, 릴리즈 전 검증·마이그레이션 배포 도구가 구현되어 있다. 그러나 **실제 사내 클러스터/SSO/CNI/보안/복구/부하 인수는 미실행**이다. 이 문서는 완료 보고서가 아니다.
 >
 > 결정 근거: [ADR 003](adr/003-single-cluster-initial-release.md) · 장기 규모: [SCALING_PLAN.md](SCALING_PLAN.md) · 기존 요구사항: [ROADMAP.md](ROADMAP.md)
 
@@ -81,7 +81,11 @@ STG가 PROD 데이터베이스, 원본 저장소, Secret 또는 사용자 토큰
 
 실행 중 스케줄러를 웹 프로세스에만 묶거나 인메모리 큐에 작업을 보유하지 않는다. 첫 단계에서는 같은 앱 프로세스가 작업을 처리하더라도 **DB에 작업 수락·상태·임대·재시도 정보를 영속화하고** 이후 작업자를 분리할 수 있게 한다.
 
-## 6. 실행 계획(구현 작업으로 남은 항목)
+## 6. 현재 코드에 반영된 배포 구현 및 남은 작업
+
+실제 사이트별 비밀이 아닌 설정을 생성하고 production guard→Secret 사전 검사→DB 준비→migration→App rollout을 적용하는 경로는 [OPERATIONAL_SETUP.md](OPERATIONAL_SETUP.md#stgprod-운영-사이트-설정과-단계별-배포-도구-2026-10-30)를 따른다. `deploy/overlays/stg|prod`와 `scripts/k8s/prepare-site.mjs`, `deploy-site.mjs`가 있다. 템플릿에는 여전히 미설정 값을 유지하며, 사이트별 네트워크·인증·자격증명 및 실제 운영 인수는 별도 작업이다.
+
+## 7. 기존 실행 계획(현재 상태 기준으로 재평가)
 
 1. 실제 서버 API 및 PostgreSQL 스키마·SSO/권한·원본 저장소가 준비되면 컨테이너 구성을 확정한다.
 2. Kustomize overlays(`stg`, `prod`) 또는 팀 표준 Helm 방식 중 **하나**를 선택하여 동일 템플릿에서 두 환경을 선언적으로 생성한다. 현재 레포에는 배포 템플릿이 없다.
