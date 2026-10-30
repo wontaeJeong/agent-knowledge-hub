@@ -34,6 +34,117 @@ const input = () => {
   return c;
 };
 describe("durable refinement (actual PostgreSQL)", () => {
+  async function seedSignals(
+    f: Awaited<ReturnType<typeof setup>>,
+    prefix: string,
+    count: number,
+    hidden = false,
+  ) {
+    const data = {
+      used_versions: [{ page_id: "topic", version: 1 }],
+      result: "failure",
+      observations: "agent-observation fixture",
+      evidence: hidden
+        ? [{ id: "hidden-source", version: 1, location: "content" }]
+        : [],
+      idempotency_key: "fixture",
+      verified: false,
+      evidenceKind: "agent-observation",
+      independentExecution: false,
+    };
+    await f.pool.query(
+      "INSERT INTO agent_outcomes(workspace_id,id,principal_id,result,data) SELECT $1,$2||lpad(n::text,5,'0'),'editor','failure',$3::jsonb FROM generate_series(1,$4::integer) n",
+      [f.workspaceId, prefix, data, count],
+    );
+    await f.pool.query(
+      "INSERT INTO agent_review_signals(workspace_id,id,page_id,outcome_id) SELECT $1,'signal_'||id,'topic',id FROM agent_outcomes WHERE workspace_id=$1 AND id LIKE $2",
+      [f.workspaceId, prefix + "%"],
+    );
+  }
+  it("excludes more than 1000 already imported pending outcomes before applying the scan limit", async () => {
+    const f = await setup();
+    await seedSignals(f, "a_done_", 1001);
+    await seedSignals(f, "z_new_", 1);
+    await f.pool.query(
+      "INSERT INTO refinement_requests(workspace_id,id,data) SELECT workspace_id,'agent_'||id,jsonb_build_object('id','agent_'||id,'claimIds','[]'::jsonb) FROM agent_outcomes WHERE workspace_id=$1 AND id LIKE 'a_done_%'",
+      [f.workspaceId],
+    );
+    const r = await f.service.importAgentSignals(f.editor);
+    expect(r.imported).toEqual(["agent_z_new_00001"]);
+    expect(r.acknowledged).toEqual(r.imported);
+  });
+  it("targets the new outcome past unauthorized pages and acknowledges an existing request only after ACL revalidation", async () => {
+    const f = await setup();
+    await f.pool.query(
+      "INSERT INTO resources VALUES($1,'source','hidden-source')",
+      [f.workspaceId],
+    );
+    await f.pool.query(
+      "INSERT INTO sources(workspace_id,id,data) VALUES($1,'hidden-source',$2)",
+      [f.workspaceId, { ...source, id: "hidden-source" }],
+    );
+    await seedSignals(f, "a_hidden_", 1001, true);
+    await seedSignals(f, "z_allowed_", 1);
+    const r = await f.service.importAgentSignals(f.editor, {
+      outcomeId: "z_allowed_00001",
+    });
+    expect(r.imported).toEqual(["agent_z_allowed_00001"]);
+    expect(r.acknowledged).toEqual(r.imported);
+    expect(
+      await f.service.importAgentSignals(f.editor, {
+        outcomeId: "z_allowed_00001",
+      }),
+    ).toMatchObject({ imported: [], acknowledged: ["agent_z_allowed_00001"] });
+    await expect(
+      f.service.importAgentSignals(f.editor, {
+        outcomeId: "z_allowed_00001",
+        principalId: "reviewer",
+      }),
+    ).rejects.toThrow();
+    await f.pool.query(
+      "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id=$2 AND principal_id='editor'",
+      [f.workspaceId, source.id],
+    );
+    expect(
+      await f.service.importAgentSignals(f.editor, {
+        outcomeId: "z_allowed_00001",
+      }),
+    ).toMatchObject({ imported: [], acknowledged: [] });
+  });
+  it("returns an opaque bounded continuation past inaccessible outcomes, bound to the caller/workspace", async () => {
+    const f = await setup();
+    await f.pool.query(
+      "INSERT INTO resources VALUES($1,'source','hidden-source')",
+      [f.workspaceId],
+    );
+    await f.pool.query(
+      "INSERT INTO sources(workspace_id,id,data) VALUES($1,'hidden-source',$2)",
+      [f.workspaceId, { ...source, id: "hidden-source" }],
+    );
+    await seedSignals(f, "a_hidden_", 1, true);
+    await seedSignals(f, "z_allowed_", 1);
+    const first = await f.service.importAgentSignals(f.editor, { limit: 1 });
+    expect(first.imported).toEqual([]);
+    expect(first.nextCursor).toBeTruthy();
+    expect(first.nextCursor).not.toContain("a_hidden");
+    const next = await f.service.importAgentSignals(f.editor, {
+      limit: 1,
+      cursor: first.nextCursor!,
+    });
+    expect(next.imported).toEqual(["agent_z_allowed_00001"]);
+    expect(next.nextCursor).toBeNull();
+    await expect(
+      f.service.importAgentSignals(f.reader, {
+        limit: 1,
+        cursor: first.nextCursor!,
+      }),
+    ).rejects.toThrow("INVALID_CURSOR");
+    await expect(
+      f.service.importAgentSignals(f.editor, {
+        cursor: first.nextCursor + "corrupt",
+      }),
+    ).rejects.toThrow("INVALID_CURSOR");
+  });
   it("source snapshot for structured UI returns canonical digest only under current source ACL", async () => {
     const f = await setup();
     expect(

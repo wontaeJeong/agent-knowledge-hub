@@ -1,6 +1,43 @@
 import { it, expect } from "vitest";
 import { handleRefinementRoute } from "./http";
 import type { RefinementService } from "./service";
+it("forwards targeted import and opaque continuation under host ctx, never a body identity", async () => {
+  const calls: unknown[] = [];
+  const service = {
+    importAgentSignals: async (...args: unknown[]) => {
+      calls.push(args);
+      return { imported: [], acknowledged: [], nextCursor: null };
+    },
+  } as unknown as RefinementService;
+  const ctx = {
+    workspaceId: "selected-workspace",
+    principalId: "actual-caller",
+  };
+  await handleRefinementRoute(
+    {
+      method: "POST",
+      path: "/api/v1/refinement/import-agent-signals",
+      ctx,
+      body: { outcomeId: "new-outcome" },
+      send: () => {},
+    },
+    service,
+  );
+  await handleRefinementRoute(
+    {
+      method: "POST",
+      path: "/api/v1/refinement/import-agent-signals",
+      ctx,
+      body: { cursor: "opaque-continuation", limit: 25 },
+      send: () => {},
+    },
+    service,
+  );
+  expect(calls).toEqual([
+    [ctx, { outcomeId: "new-outcome" }],
+    [ctx, { cursor: "opaque-continuation", limit: 25 }],
+  ]);
+});
 it("pure refinement routes hand typed bodies to authorized service without opening server or implicit fallback", async () => {
   const calls: string[] = [];
   const responses: unknown[] = [];

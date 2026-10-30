@@ -39,6 +39,6 @@ export async function handleRefinementRoute(
   if (route === "semantic-lint")
     return reply(await service.semanticLint(ctx, body));
   if (route === "import-agent-signals")
-    return reply(await service.importAgentSignals(ctx), 202);
+    return reply(await service.importAgentSignals(ctx, body ?? {}), 202);
   return false;
 }

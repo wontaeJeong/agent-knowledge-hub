@@ -1,4 +1,9 @@
-import { randomUUID } from "node:crypto";
+import {
+  randomUUID,
+  randomBytes,
+  createCipheriv,
+  createDecipheriv,
+} from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import type { Context } from "../service";
@@ -88,6 +93,71 @@ const tables = {
   requests: "refinement_requests",
   reviews: "refinement_reviews",
 } as const;
+const signalCursorKey = randomBytes(32);
+const signalImportInput = z
+  .object({
+    outcomeId: id.optional(),
+    cursor: z
+      .string()
+      .min(40)
+      .max(4096)
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .optional(),
+    limit: z.number().int().min(1).max(1000).default(100),
+  })
+  .strict()
+  .refine(
+    (d) => !(d.outcomeId && d.cursor),
+    "targeted import cannot use a batch cursor",
+  );
+function signalCursor(ctx: Context, after: string): string {
+  const iv = randomBytes(12),
+    cipher = createCipheriv("aes-256-gcm", signalCursorKey, iv);
+  const encrypted = Buffer.concat([
+    cipher.update(
+      JSON.stringify({
+        workspaceId: ctx.workspaceId,
+        principalId: ctx.principalId,
+        credentialId: ctx.credentialId ?? null,
+        after,
+        expiresAt: Date.now() + 15 * 60 * 1000,
+      }),
+      "utf8",
+    ),
+    cipher.final(),
+  ]);
+  return Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString(
+    "base64url",
+  );
+}
+function readSignalCursor(ctx: Context, cursor: string): string {
+  try {
+    const packed = Buffer.from(cursor, "base64url"),
+      decipher = createDecipheriv(
+        "aes-256-gcm",
+        signalCursorKey,
+        packed.subarray(0, 12),
+      );
+    decipher.setAuthTag(packed.subarray(12, 28));
+    const d = JSON.parse(
+      Buffer.concat([
+        decipher.update(packed.subarray(28)),
+        decipher.final(),
+      ]).toString("utf8"),
+    );
+    if (
+      d.workspaceId !== ctx.workspaceId ||
+      d.principalId !== ctx.principalId ||
+      d.credentialId !== (ctx.credentialId ?? null) ||
+      !Number.isFinite(d.expiresAt) ||
+      d.expiresAt <= Date.now()
+    )
+      throw Error("invalid");
+    return id.parse(d.after);
+  } catch {
+    throw Error("INVALID_CURSOR");
+  }
+}
 type Table = keyof typeof tables;
 
 /** No live wiki mutation: every refinement is an immutable observation + durable review request. */
@@ -735,20 +805,37 @@ export class RefinementService {
     };
   }
   /** Task5 common outcome store -> durable, deduplicated, never auto-verified review proposals. */
-  async importAgentSignals(ctx: Context) {
+  async importAgentSignals(ctx: Context, input: unknown = {}) {
+    const options = signalImportInput.parse(input);
     return this.run(ctx, "changeset.propose", undefined, async (db) => {
-      const signals = await db.query(
-        "SELECT id,page_id,outcome_id FROM agent_review_signals WHERE workspace_id=$1 AND state='pending' ORDER BY outcome_id,id LIMIT 1000",
-        [ctx.workspaceId],
-      );
-      const imported: string[] = [];
-      for (const outcomeId of [
-        ...new Set<string>(signals.rows.map((r) => r.outcome_id)),
-      ])
+      const after = options.cursor
+        ? readSignalCursor(ctx, options.cursor)
+        : null;
+      const candidates = options.outcomeId
+        ? [options.outcomeId]
+        : (
+            await db.query(
+              `SELECT DISTINCT s.outcome_id FROM agent_review_signals s
+         WHERE s.workspace_id=$1 AND s.state='pending' AND ($2::text IS NULL OR s.outcome_id>$2)
+         AND NOT EXISTS (SELECT 1 FROM refinement_requests r WHERE r.workspace_id=s.workspace_id AND r.id='agent_'||s.outcome_id)
+         ORDER BY s.outcome_id LIMIT $3`,
+              [ctx.workspaceId, after, options.limit + 1],
+            )
+          ).rows.map((r) => r.outcome_id as string);
+      const selected = candidates.slice(0, options.limit);
+      const imported: string[] = [],
+        acknowledged: string[] = [];
+      for (const outcomeId of selected)
         try {
-          const d = await this.agentOutcome(db, ctx, outcomeId),
-            linked = signals.rows.filter((s) => s.outcome_id === outcomeId);
+          const d = await this.agentOutcome(db, ctx, outcomeId);
+          const linked = (
+            await db.query(
+              "SELECT id,page_id FROM agent_review_signals WHERE workspace_id=$1 AND outcome_id=$2 AND state='pending' ORDER BY id LIMIT 101",
+              [ctx.workspaceId, outcomeId],
+            )
+          ).rows;
           if (
+            linked.length > 100 ||
             linked.some(
               (s) => !d.used_versions.some((v) => v.page_id === s.page_id),
             )
@@ -756,10 +843,21 @@ export class RefinementService {
             throw Error("EVIDENCE_INVALID");
           const requestId = `agent_${outcomeId}`;
           const old = await db.query(
-            "SELECT id FROM refinement_requests WHERE workspace_id=$1 AND id=$2",
+            "SELECT data FROM refinement_requests WHERE workspace_id=$1 AND id=$2",
             [ctx.workspaceId, requestId],
           );
-          if (old.rowCount) continue;
+          if (old.rowCount) {
+            const prior = old.rows[0].data as Request;
+            for (const v of prior.usedVersions ?? [])
+              await this.page(db, ctx, v.page_id, v.version);
+            for (const root of prior.rootLineage ?? [])
+              await this.source(db, ctx, root.sourceId);
+            for (const cid of prior.claimIds ?? [])
+              await this.claim(db, ctx, cid);
+            acknowledged.push(requestId);
+            continue;
+          }
+          if (!linked.length) continue;
           const claims = (await this.all<Claim>(db, ctx, "claims")).filter(
             (c) =>
               d.used_versions.some(
@@ -792,10 +890,18 @@ export class RefinementService {
               "환경 및 유효/검증 시점 미등록; 보편 규칙으로 일반화하지 않음",
           });
           imported.push(requestId);
+          acknowledged.push(requestId);
         } catch (e) {
           if (!(e instanceof Error && e.message === "NOT_FOUND")) throw e;
         }
-      return { imported };
+      return {
+        imported,
+        acknowledged,
+        nextCursor:
+          !options.outcomeId && candidates.length > selected.length
+            ? signalCursor(ctx, selected.at(-1)!)
+            : null,
+      };
     });
   }
   async semanticLint(ctx: Context, input: unknown) {
