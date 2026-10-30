@@ -8,14 +8,14 @@ const OperationalApp = lazy(() => import("./operational/App"));
 const DemoApp = lazy(() => import("./App"));
 import "./ui/tokens.css";
 import "./styles.css";
-// Restore the selected theme for the operational view, which has no toggle yet.
+// Apply the saved preference before the console initializes its own theme state.
 try {
   const savedTheme = localStorage.getItem("agent-knowledge-hub.theme");
   if (savedTheme === "light" || savedTheme === "dark") {
     document.documentElement.dataset.theme = savedTheme;
   }
 } catch {
-  // Rendering must continue if browser storage is disabled.
+  // Storage can be unavailable; rendering remains possible.
 }
 
 function BrandFaviconSync() {
@@ -30,8 +30,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <Suspense fallback={<p role="status">지식 공간을 불러오는 중…</p>}>
       {mode === "demo" ? (
         <DemoApp />
-      ) : mode === "workspace" ? (
-        <OperationalApp />
+      ) : mode === "workspace" || mode === "preview" ? (
+        <OperationalApp preview={mode === "preview"} />
       ) : (
         <LandingPage />
       )}

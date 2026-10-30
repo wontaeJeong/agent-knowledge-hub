@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { marked } from "marked";
@@ -14,7 +15,11 @@ import type { UsageSummary } from "../domain/usage";
 import type { Source } from "../domain/types";
 import type { Answer, Draft, Issue } from "../domain/wiki";
 import { Button, Badge } from "../ui/primitives";
-import { BrandMark } from "../ui/BrandMark";
+import { ConsoleShell } from "./ConsoleShell";
+import { Overview } from "./Overview";
+import { consoleLabel, readConsoleTab, summarizeConsole } from "./console";
+import type { ConsoleTab } from "./console";
+import { PreviewApi } from "./preview";
 import "./styles.css";
 
 interface PublishedPage {
@@ -41,34 +46,19 @@ interface Job {
   error?: string;
   error_code?: string;
 }
-type Tab =
-  | "knowledge"
-  | "imports"
-  | "access"
-  | "sources"
-  | "review"
-  | "query"
-  | "lint"
-  | "jobs"
-  | "usage";
-const labels: Record<Tab, string> = {
-  knowledge: "발행 지식",
-  imports: "자료 넣기 · 자동 정리",
-  access: "공간 · 접근 멤버",
-  sources: "원본과 편입",
-  review: "변경 검토",
-  query: "질문과 재편입",
-  lint: "위키 점검",
-  jobs: "작업 상태",
-  usage: "사용량",
-};
 const UsageReport = lazy(() =>
   import("../features/UsageDashboard").then((m) => ({
     default: m.UsageReport,
   })),
 );
+const Management = lazy(() =>
+  import("./ManagementPreview").then((m) => ({ default: m.Management })),
+);
 const ImportWorkbench = lazy(() => import("./ImportWorkbench"));
 const AccessManager = lazy(() => import("./AccessManager"));
+const ImportPreview = lazy(() =>
+  import("./ImportPreview").then((m) => ({ default: m.ImportPreview })),
+);
 const safeMarkdown = (text: string) =>
   DOMPurify.sanitize(marked.parse(text, { async: false }));
 function ListPager({
@@ -111,14 +101,36 @@ const statusLabels: Record<string, string> = {
   cancelled: "취소됨",
 };
 
-export default function OperationalApp() {
-  const api = useMemo(() => new OperationalApi(), []);
+export default function OperationalApp({
+  preview = false,
+}: {
+  preview?: boolean;
+}) {
+  const api = useMemo(
+    () => (preview ? new PreviewApi() : new OperationalApi()),
+    [preview],
+  );
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<Tab>("knowledge");
+  const [tab, setTab] = useState<ConsoleTab>(() =>
+    readConsoleTab(typeof window === "undefined" ? "" : window.location.hash),
+  );
+  const navigate = useCallback((next: ConsoleTab) => {
+    setTab(next);
+    window.location.hash = next;
+    requestAnimationFrame(() => {
+      document.getElementById("op-main")?.focus();
+      window.scrollTo(0, 0);
+    });
+  }, []);
+  useEffect(() => {
+    const onHash = () => setTab(readConsoleTab(window.location.hash));
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [pages, setPages] = useState<PublishedPage[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<ChangeSet[]>([]);
@@ -138,7 +150,9 @@ export default function OperationalApp() {
     configured: boolean;
     model: string | null;
   }>({ configured: false, model: null });
-  const [mode, setMode] = useState<"model" | "offline">("model");
+  const [mode, setMode] = useState<"model" | "offline">(
+    preview ? "offline" : "model",
+  );
   const [search, setSearch] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -148,7 +162,13 @@ export default function OperationalApp() {
   const [jobPage, setJobPage] = useState(0);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [usageDays, setUsageDays] = useState<7 | 30>(7);
+  const [usageError, setUsageError] = useState("");
+  const [usageRetry, setUsageRetry] = useState(0);
+  const [dataReady, setDataReady] = useState(false);
+  const sessionEpoch = useRef(0);
   const clearProtected = useCallback(() => {
+    sessionEpoch.current += 1;
+    setDataReady(false);
     setIdentity(null);
     setPages([]);
     setSources([]);
@@ -159,6 +179,8 @@ export default function OperationalApp() {
     setSnapshot(null);
     setUsage(null);
     setIssues(null);
+    setModel({ configured: false, model: null });
+    setSearch("");
     setTitle("");
     setContent("");
     setQuestion("");
@@ -170,6 +192,8 @@ export default function OperationalApp() {
   }, []);
 
   const load = useCallback(async () => {
+    const epoch = sessionEpoch.current;
+    setDataReady(false);
     const [p, s, c, m, j, config] = await Promise.all([
       api.get<{ items: PublishedPage[] }>("/pages"),
       api.get<{ items: Source[] }>("/sources"),
@@ -178,12 +202,14 @@ export default function OperationalApp() {
       api.get<{ items: Job[] }>("/jobs"),
       api.get<{ configured: boolean; model: string | null }>("/model"),
     ]);
+    if (epoch !== sessionEpoch.current) return;
     setPages(p.items);
     setSources(s.items);
     setChanges(c.items);
     setMembers(m.items);
     setJobs(j.items);
     setModel(config);
+    setDataReady(true);
   }, [api]);
   useEffect(() => {
     let active = true;
@@ -229,11 +255,33 @@ export default function OperationalApp() {
       setBusy(false);
     }
   };
-  const refreshUsage = (days = usageDays) =>
-    perform(async () => {
-      setUsage(null);
-      setUsage(await api.get<UsageSummary>(`/usage?days=${days}`));
-    });
+  useEffect(() => {
+    if (!identity || !["overview", "usage"].includes(tab)) return;
+    let active = true;
+    setUsage(null);
+    const epoch = sessionEpoch.current;
+    setUsageError("");
+    api
+      .get<UsageSummary>(`/usage?days=${tab === "overview" ? 7 : usageDays}`)
+      .then((data) => {
+        if (active) setUsage(data);
+      })
+      .catch((e: unknown) => {
+        // An obsolete tab response must still revoke the session, not just its UI data.
+        if (
+          e instanceof ApiError &&
+          e.status === 401 &&
+          epoch === sessionEpoch.current
+        )
+          clearProtected();
+        if (!active) return;
+        setUsageError(e instanceof Error ? e.message : "집계 실패");
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, identity, tab, usageDays, usageRetry, clearProtected]);
+  const refreshUsage = () => setUsageRetry((n) => n + 1);
   const write = identity?.role !== "reader";
   const review = identity?.canReviewKnowledge ?? identity?.role === "reviewer";
   const [pageNumber, setPageNumber] = useState(0);
@@ -245,16 +293,12 @@ export default function OperationalApp() {
   const visible = filtered.slice(pageNumber * 25, (pageNumber + 1) * 25);
 
   return (
-    <div className="operational-app">
-      <a className="op-skip" href="#op-main">
-        본문으로 이동
-      </a>
-      <header className="op-header">
-        <a href="/" className="op-brand">
-          <BrandMark size={38} />
-          <span>agent-knowledge-hub</span>
-        </a>
-        {identity && (
+    <ConsoleShell
+      preview={preview}
+      tab={tab}
+      navigate={navigate}
+      account={
+        identity && !preview ? (
           <div className="op-account">
             <Badge tone="plum">
               {identity.spaceRole ??
@@ -277,13 +321,13 @@ export default function OperationalApp() {
               로그아웃
             </Button>
           </div>
-        )}
-      </header>
-      <main id="op-main" className="op-main">
-        <h1>검토한 지식이 다음 업무로 이어집니다</h1>
+        ) : null
+      }
+    >
+      <main id="op-main" className="op-main" tabIndex={-1}>
+        <h1>{consoleLabel(tab)}</h1>
         <p className="op-lead">
-          원본과 근거를 보존하고, 변경을 검토한 뒤 발행합니다. 승인과 모델의
-          추론은 독립적인 사실 검증을 대신하지 않습니다.
+          에이전트가 활용하고, 근거와 경험으로 다시 갱신하는 지식 환경입니다.
         </p>
         {error && (
           <div className="op-error" role="alert">
@@ -323,50 +367,78 @@ export default function OperationalApp() {
           </section>
         ) : (
           <>
-            <nav className="op-nav" aria-label="지식 업무">
-              {(Object.keys(labels) as Tab[]).map((key) => (
-                <button
-                  key={key}
-                  aria-current={tab === key ? "page" : undefined}
-                  onClick={() => {
-                    setTab(key);
-                    setError("");
-                    if (key === "usage") void refreshUsage();
-                  }}
-                >
-                  {labels[key]}
-                  {key === "review" && (
-                    <span>
-                      {" "}
-                      {changes.filter((c) => c.status === "pending").length}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </nav>
-            <div className="op-context">
-              <span>서버 정본 · {pages.length}개 접근 가능 발행본</span>
-              <span>모델: {model.configured ? model.model : "미연결"}</span>
-              <label>
-                실행 방식{" "}
-                <select
-                  value={mode}
-                  disabled={busy}
-                  onChange={(e) =>
-                    setMode(e.target.value as "model" | "offline")
-                  }
-                >
-                  <option value="model">실제 모델</option>
-                  <option value="offline">구조 검사·발췌 (모델 미사용)</option>
-                </select>
-              </label>
-            </div>
+            {![
+              "overview",
+              "usage",
+              "users",
+              "access",
+              "agents",
+              "integrations",
+              "policies",
+              "lifecycle",
+              "activity",
+              "evaluation",
+              "coverage",
+            ].includes(tab) && (
+              <div className="op-context">
+                <span>
+                  {preview ? "합성 예시" : "서버 정본"} · {pages.length}개 접근
+                  가능 발행본
+                </span>
+                <span>모델: {model.configured ? model.model : "미연결"}</span>
+                <label>
+                  실행 방식{" "}
+                  <select
+                    value={mode}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setMode(e.target.value as "model" | "offline")
+                    }
+                  >
+                    <option value="model">실제 모델</option>
+                    <option value="offline">
+                      구조 검사·발췌 (모델 미사용)
+                    </option>
+                  </select>
+                </label>
+              </div>
+            )}
             {busy && (
               <p role="status" className="op-progress">
                 서버에서 처리하고 있습니다. 창을 반복 제출하지 마세요.
               </p>
             )}
-            {tab === "imports" && (
+            {tab === "overview" && dataReady && (
+              <Overview
+                summary={summarizeConsole({
+                  pages,
+                  sources,
+                  changes,
+                  jobs,
+                  issues,
+                })}
+                usage={usage}
+                usageError={usageError}
+                model={model}
+                navigate={navigate}
+                retry={refreshUsage}
+                preview={preview}
+              />
+            )}
+            {tab === "overview" && !dataReady && (
+              <section className="op-panel" role="status">
+                <h2>운영 현황을 아직 집계할 수 없습니다</h2>
+                <p>
+                  접근 가능한 목록 조회가 완료되지 않았습니다. 미확인을 0건으로
+                  표시하지 않습니다. 연결 오류가 있으면 ‘다시 연결’로
+                  재시도하세요.
+                </p>
+              </section>
+            )}
+            <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
+              <Management section={tab} preview={preview} navigate={navigate} />
+            </Suspense>
+            {tab === "imports" && !preview && (
               <Suspense fallback={<p>자료 입력 화면을 불러오는 중…</p>}>
                 <ImportWorkbench
                   key={identity.principalId}
@@ -375,13 +447,41 @@ export default function OperationalApp() {
                   members={members}
                   onExpired={clearProtected}
                   onReview={() => {
-                    setTab("review");
+                    navigate("review");
                     void perform(load);
                   }}
                 />
               </Suspense>
             )}
-            {tab === "access" && (
+            {tab === "imports" && preview && (
+              <Suspense fallback={<p>입력 목업을 불러오는 중…</p>}>
+                <ImportPreview
+                  register={async (title, content) => {
+                    await api.post("/sources", {
+                      source: {
+                        id: `source-${crypto.randomUUID()}`,
+                        title,
+                        content,
+                        tool: "manual",
+                        project: "합성",
+                        scope: "team",
+                        verification: "미검증",
+                        createdAt: new Date().toISOString(),
+                        processed: false,
+                        targetPageId: "topic-main",
+                      },
+                      readers: [],
+                    });
+                    await load();
+                    navigate("sources");
+                    setNotice(
+                      "목업 원본을 등록했습니다. 구조 편입은 선택 원본에서 별도로 실행하세요.",
+                    );
+                  }}
+                />
+              </Suspense>
+            )}
+            {tab === "access" && !preview && (
               <Suspense fallback={<p>접근 설정을 불러오는 중…</p>}>
                 <AccessManager
                   key={identity.workspaceId}
@@ -613,7 +713,7 @@ export default function OperationalApp() {
                         setNotice(
                           "편입 요청을 수락했습니다. 변경 검토 또는 작업 상태에서 결과를 확인하세요.",
                         );
-                        setTab("review");
+                        navigate("review");
                       })
                     }
                   >
@@ -853,7 +953,7 @@ export default function OperationalApp() {
                           setNotice(
                             "답변을 검토 가능한 변경 제안으로 등록했습니다.",
                           );
-                          setTab("review");
+                          navigate("review");
                         })
                       }
                     >
@@ -927,12 +1027,15 @@ export default function OperationalApp() {
             {tab === "jobs" && (
               <section className="op-panel">
                 <div className="op-section-head">
-                  <h2>지속 작업 상태</h2>
+                  <h2>내 작업 시도 이력</h2>
                   <Button disabled={busy} onClick={() => perform(load)}>
                     새로고침
                   </Button>
                 </div>
-                <p>실패·취소·미실행은 성공으로 집계하지 않습니다.</p>
+                <p>
+                  본인 작업만 표시합니다. 영속 시도 기록이며 자동 재개 worker가
+                  아닙니다. 실패·취소·미실행은 성공으로 집계하지 않습니다.
+                </p>
                 {!jobs.length ? (
                   <p>등록된 작업이 없습니다.</p>
                 ) : (
@@ -973,6 +1076,9 @@ export default function OperationalApp() {
             {tab === "usage" && (
               <section className="op-panel">
                 <h2>서버 사용량</h2>
+                {preview && (
+                  <Badge tone="plum">합성 예시 집계 · 실측이 아닙니다</Badge>
+                )}
                 <label>
                   조회 기간
                   <select
@@ -981,7 +1087,6 @@ export default function OperationalApp() {
                     onChange={(e) => {
                       const days = Number(e.target.value) as 7 | 30;
                       setUsageDays(days);
-                      void refreshUsage(days);
                     }}
                   >
                     <option value={7}>최근 7일</option>
@@ -996,10 +1101,9 @@ export default function OperationalApp() {
                     <UsageReport data={usage} />
                   </Suspense>
                 ) : (
-                  <p role="status">
-                    {busy
-                      ? "서버 집계를 확인하고 있습니다…"
-                      : "서버에서 집계를 받지 못했습니다. 미연결을 0건으로 대체하지 않습니다."}
+                  <p role={usageError ? "alert" : "status"}>
+                    {usageError || "서버 집계를 확인하고 있습니다…"} 미연결을
+                    0건으로 대체하지 않습니다.
                   </p>
                 )}
               </section>
@@ -1007,12 +1111,14 @@ export default function OperationalApp() {
           </>
         )}
         <footer className="op-footer">
-          서버 저장 · 현재 권한 재검사 · 검토 후 발행
+          {preview
+            ? "목업 · 메모리 시연 · 실제 권한 변경 없음"
+            : "서버 저장 · 현재 권한 재검사 · 검토 후 발행"}
           <span>
             실제 모델 품질과 운영 인수 결과는 별도 검증 기록을 따릅니다.
           </span>
         </footer>
       </main>
-    </div>
+    </ConsoleShell>
   );
 }
