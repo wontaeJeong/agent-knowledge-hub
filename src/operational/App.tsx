@@ -14,6 +14,7 @@ import type { UsageSummary } from "../domain/usage";
 import type { Source } from "../domain/types";
 import type { Answer, Draft, Issue } from "../domain/wiki";
 import { Button, Badge } from "../ui/primitives";
+import { BrandMark } from "../ui/BrandMark";
 import "./styles.css";
 
 interface PublishedPage {
@@ -250,7 +251,7 @@ export default function OperationalApp() {
       </a>
       <header className="op-header">
         <a href="/" className="op-brand">
-          <img src="/brand/mark.svg" alt="" />
+          <BrandMark size={38} />
           <span>agent-knowledge-hub</span>
         </a>
         {identity && (

@@ -24,7 +24,7 @@
   text-decoration: none;
   overflow-wrap: anywhere;
 }
-.op-brand img {
+.op-brand svg {
   width: 38px;
   height: 38px;
 }
