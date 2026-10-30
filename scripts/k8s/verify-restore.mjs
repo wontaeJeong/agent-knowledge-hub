@@ -1,15 +1,29 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { randomBytes, createHash } from "node:crypto";
-import { openBackup } from "./backup-format.mjs";
-
+import { readFile, mkdtemp, realpath } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import pg from "pg";
+import { openBundle, restoreFiles } from "./operations-backup.mjs";
+import { tsImport } from "tsx/esm/api";
 const [file] = process.argv.slice(2);
-if (!file) {
+const env = process.env;
+if (
+  !file ||
+  !env.DATABASE_URL ||
+  !env.RECOVERY_LEDGER_FILE ||
+  !env.AUDIT_EXPORT_KEY ||
+  !env.AUDIT_SIGNING_KEY
+) {
   console.error(
-    "Usage: AGENT_KNOWLEDGE_HUB_BACKUP_KEY=... node scripts/k8s/verify-restore.mjs FILE.akh-backup",
+    "Usage: DATABASE_URL=local-forward RECOVERY_LEDGER_FILE=... AUDIT_EXPORT_KEY=... AUDIT_SIGNING_KEY=... BACKUP_KEYS_JSON=... node scripts/k8s/verify-restore.mjs FILE",
   );
   process.exit(1);
 }
+// Verification is deliberately restricted to the disposable local kind database.
+const url = new URL(env.DATABASE_URL);
+if (url.hostname !== "127.0.0.1" || url.port !== "55459")
+  throw Error("LOCAL_RESTORE_FORWARD_REQUIRED");
 const base = [
   "--context",
   "kind-knowledge-hub-dev",
@@ -23,18 +37,26 @@ const base = [
 const run = (args, input) =>
   execFileSync("kubectl", [...base, ...args], {
     input,
-    encoding: "utf8",
     maxBuffer: 512 * 1024 * 1024,
   });
-const database = `restore_verify_${randomBytes(8).toString("hex")}`;
-let created = false;
+const database = "akh_ops_restore_" + randomUUID().replaceAll("-", "");
+let created = false,
+  pool;
 try {
-  const envelope = readFileSync(file, "utf8"),
-    manifest = JSON.parse(readFileSync(`${file}.json`, "utf8"));
-  if (createHash("sha256").update(envelope).digest("hex") !== manifest.sha256)
-    throw Error("BACKUP_CHECKSUM_MISMATCH");
-  const dump = openBackup(envelope, process.env.AGENT_KNOWLEDGE_HUB_BACKUP_KEY);
-  const started = Date.now();
+  const { readRecoveryLedger, secureRestoredDatabase } = await tsImport(
+    "../../server/operations/recovery.ts",
+    import.meta.url,
+  );
+  const ledger = readRecoveryLedger(
+    await readFile(env.RECOVERY_LEDGER_FILE, "utf8"),
+    env.AUDIT_EXPORT_KEY,
+    env.AUDIT_SIGNING_KEY,
+  );
+  const keys = env.BACKUP_KEYS_JSON
+    ? JSON.parse(env.BACKUP_KEYS_JSON)
+    : { current: env.AGENT_KNOWLEDGE_HUB_BACKUP_KEY };
+  const bundle = openBundle(await readFile(file, "utf8"), keys),
+    started = Date.now();
   run(["createdb", "-U", "knowledge", database]);
   created = true;
   run(
@@ -47,34 +69,41 @@ try {
       "-d",
       database,
     ],
-    dump,
+    bundle.dump,
   );
-  const counts = run([
-    "psql",
-    "-U",
-    "knowledge",
-    "-d",
-    database,
-    "-At",
-    "-c",
-    "SELECT 'pages='||count(*) FROM pages UNION ALL SELECT 'versions='||count(*) FROM versions UNION ALL SELECT 'sources='||count(*) FROM sources",
-  ]);
-  console.log(
-    `폐기용 로컬 DB 복원 성공 (${Date.now() - started} ms)\n${counts.trim()}`,
+  url.pathname = "/" + database;
+  pool = new pg.Pool({
+    connectionString: url.href,
+    connectionTimeoutMillis: 5000,
+  });
+  const security = await secureRestoredDatabase(pool, ledger);
+  const destination = await mkdtemp(
+    join(await realpath(tmpdir()), "akh-verified-restore-"),
   );
+  await restoreFiles(bundle, destination, security.deletedHashes);
+  const refs = (
+    await pool.query("SELECT DISTINCT sha256,size FROM storage_blobs")
+  ).rows;
+  const available = new Map(bundle.files.map((f) => [f.sha256, f.size]));
+  for (const ref of refs)
+    if (
+      !security.deletedHashes.includes(ref.sha256) &&
+      available.get(ref.sha256) !== ref.size
+    )
+      throw Error("RESTORED_BLOB_MISSING");
   console.log(
-    "사내 PVC/외부 blob/삭제 tombstone 재적용·운영 RTO 검증은 별도입니다.",
+    `격리 DB+파일 복원 및 삭제/권한 제한 재적용 검증: ${Date.now() - started} ms, ${refs.length} blob 참조. 현재 소유권·세션·정책 재편입 전 서비스 재개 금지. 폐기용 파일: ${destination}`,
   );
 } catch {
   console.error("복원 검증 실패. 기존 운영 DB는 수정하지 않았습니다.");
   process.exitCode = 1;
 } finally {
-  if (created) {
+  await pool?.end();
+  if (created)
     try {
       run(["dropdb", "-U", "knowledge", database]);
     } catch {
       console.error(`직접 생성한 임시 DB 정리 실패: ${database}`);
       process.exitCode = 1;
     }
-  }
 }
