@@ -15,7 +15,7 @@ import {
 } from "./schema";
 import { modelConfig } from "./model";
 import { assessPage, systemOneConfig } from "./systemone";
-import { usageSummary, exportUsageCsv } from "../usage";
+import { usageSummary, exportUsageCsv, exportModelUsageCsv } from "../usage";
 import { handleMcp } from "./mcp";
 import { readJsonBody } from "./body";
 import { assertSchemaCurrent } from "../database";
@@ -166,6 +166,16 @@ export function createRuntimeHandler(options: {
       if (path==="/api/v1/device/decision" && req.method==="POST") {
         const result=await decideDevice(options.pool,ctx,body);
         return send(result.status,result.body);
+      }
+      if (path === "/api/v1/usage/model-export" && req.method === "GET") {
+        const days = Number(url.searchParams.get("days") || "30");
+        const output = await exportModelUsageCsv(options.pool,ctx,days);
+        res.writeHead(200,{
+          "Content-Type":"text/csv; charset=utf-8",
+          "Content-Disposition":'attachment; filename="agent-knowledge-hub-model-usage.csv"',
+          "X-Request-Id":requestId,
+        });
+        return res.end(output);
       }
       if (path === "/api/v1/usage/export" && req.method === "GET") {
         const days = Number(url.searchParams.get("days") || "30");

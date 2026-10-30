@@ -41,9 +41,9 @@ export function validateUsage(value: unknown): UsageSummary {
         r.averageDurationMs >= 0,
     ) ||
     !d.model ||
-    d.model.inputTokens !== null ||
-    d.model.outputTokens !== null ||
-    d.model.cost !== null
+    ![d.model.inputTokens,d.model.outputTokens,d.model.cost,d.model.cacheReadTokens,d.model.cacheWriteTokens].every(v=>v===undefined||v===null||(typeof v==="number"&&Number.isFinite(v)&&v>=0)) ||
+    ![d.model.calls,d.model.failed,d.model.measuredCalls,d.model.outputMeasuredCalls,d.model.pricedCalls].every(v=>v===undefined||count(v)) ||
+    (d.model.byProvider!==undefined&&(!Array.isArray(d.model.byProvider)||!d.model.byProvider.every(g=>g&&typeof g.model==="string"&&typeof g.provider==="string"&&typeof g.backend==="string"&&count(g.calls)&&count(g.failed)&&count(g.measuredCalls)&&count(g.pricedCalls)&&[g.inputTokens,g.outputTokens,g.cacheReadTokens,g.cacheWriteTokens,g.cost].every(n=>n===null||(typeof n==="number"&&Number.isFinite(n)&&n>=0)))) )
   )
     return bad();
   return d;
