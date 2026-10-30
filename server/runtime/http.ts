@@ -14,6 +14,7 @@ import {
   id,
 } from "./schema";
 import { modelConfig } from "./model";
+import { assessPage, systemOneConfig } from "./systemone";
 import { usageSummary, exportUsageCsv } from "../usage";
 import { handleMcp } from "./mcp";
 import { readJsonBody } from "./body";
@@ -227,7 +228,7 @@ export function createRuntimeHandler(options: {
           return send(200, { items: await service.changesets(ctx) });
         if (path === "/api/v1/jobs")
           return send(200, { items: await service.jobs(ctx) });
-        if (path === "/api/v1/model") return send(200, modelConfig());
+        if (path === "/api/v1/model") return send(200, {...modelConfig(),systemone:systemOneConfig()});
         if (path === "/api/v1/usage") {
           const days = url.searchParams.get("days") || "7";
           if (!["7", "14", "30", "90"].includes(days)) throw Error("VALIDATION_FAILED");
@@ -257,6 +258,12 @@ export function createRuntimeHandler(options: {
         }
       }
       if (req.method === "POST") {
+        if(path==="/api/v1/evaluations/systemone") {
+          if(!session || session.role!=="reviewer" || session.canReviewKnowledge===false)
+            return send(403,{code:"FORBIDDEN",requestId});
+          const b=z.object({pageId:id}).strict().parse(body);
+          return send(200,await assessPage(options.pool,service,ctx,b.pageId));
+        }
         if (path === "/api/v1/sources") {
           const wrapped = z
             .object({
@@ -370,6 +377,7 @@ export function createRuntimeHandler(options: {
         MODEL_FAILED: 502,
         MODEL_OUTPUT_LIMIT: 502,
         MODEL_CONFIGURATION: 503,
+        MODEL_INVALID: 502,
         MODEL_CONTEXT_LIMIT: 413,
         JOB_CAPACITY: 429,
         INPUT_CHANGED: 409,
