@@ -23,7 +23,7 @@
   font-weight: 750;
   letter-spacing: -0.025em;
 }
-.console-brand img {
+.console-brand > svg {
   width: 32px;
   height: 36px;
 }
@@ -817,7 +817,7 @@
   .console-brand {
     font-size: 15px;
   }
-  .console-brand img {
+  .console-brand > svg {
     width: 29px;
     height: 30px;
   }

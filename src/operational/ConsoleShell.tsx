@@ -27,6 +27,7 @@ import {
 import { consoleGroups, consoleLabel } from "./console";
 import type { ConsoleTab } from "./console";
 import { Button } from "../ui/primitives";
+import { BrandMark } from "../ui/BrandMark";
 import "./console.css";
 
 const icons = {
@@ -85,7 +86,7 @@ export function ConsoleShell({
       </a>
       <aside className="console-sidebar">
         <a className="console-brand" href="/">
-          <img src="/brand/mark.svg" alt="" />
+          <BrandMark size={36} />
           <span>
             agent-knowledge-hub<small>Agent-native knowledge platform</small>
           </span>

@@ -111,7 +111,7 @@ i {
   font-weight: 740;
   letter-spacing: -0.4px;
 }
-.brand img {
+.brand > svg {
   width: 36px;
   height: 36px;
 }
