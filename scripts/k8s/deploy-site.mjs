@@ -22,6 +22,18 @@ export function liveSecretFailures(secrets, expectedTLS) {
   const app = secrets?.app;
   const db = secrets?.db;
   const tls = secrets?.tls;
+  // envFrom loads ConfigMap first and Secret second. Restrict keys so a Secret
+  // cannot override NODE_ENV, APP_ORIGIN, issuer or OIDC role security policy.
+  const allowedAppKeys = new Set([
+    "DATABASE_URL", "OIDC_CLIENT_SECRET", "NODE_EXTRA_CA_CERTS",
+    "AGENT_KNOWLEDGE_HUB_LLM_BASE_URL",
+    "AGENT_KNOWLEDGE_HUB_LLM_MODEL",
+    "AGENT_KNOWLEDGE_HUB_LLM_API_KEY",
+    "AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION",
+    "AGENT_KNOWLEDGE_HUB_LLM_THINKING",
+  ]);
+  if (Object.keys(app?.data ?? {}).some((key) => !allowedAppKeys.has(key)))
+    errors.push("unapproved app Secret environment override");
   const dbPassword = decode(db, "password");
   if (!dbPassword || dbPassword.length < 16)
     errors.push("database password Secret is missing or too short");
