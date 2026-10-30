@@ -21,6 +21,7 @@ import { KnowledgeService, type Context } from "../service";
 import { digest, propose } from "../publication";
 import { answerOutput, drafts } from "./schema";
 import { callModel, type ModelCall } from "./model";
+import { ImportService } from "../imports/service";
 import {
   captureEnvelope,
   assertEnvelope,
@@ -30,11 +31,13 @@ import {
 
 export class RuntimeService {
   readonly core: KnowledgeService;
+  readonly imports: ImportService;
   constructor(
     readonly pool: Pool,
     readonly model: ModelCall = callModel,
   ) {
     this.core = new KnowledgeService(pool);
+    this.imports = new ImportService(pool, this);
   }
   async view(db: PoolClient, ctx: Context) {
     await membership(db, ctx);

@@ -18,6 +18,9 @@ import { usageSummary } from "../usage";
 import { handleMcp } from "./mcp";
 import { readJsonBody } from "./body";
 import { assertSchemaCurrent } from "../database";
+import { handleImportRequest } from "../imports/http";
+import { AccessService } from "../access";
+import { handleAccessRequest } from "../access-http";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
@@ -27,6 +30,18 @@ export function createRuntimeHandler(options: {
   auth?: OidcAuth;
   dist?: string;
 }) {
+  const access = new AccessService(options.pool);
+  if (options.auth)
+    options.service.imports.authorizer = (row) =>
+      options.auth!.backgroundContext(
+        row as {
+          workspace_id: string;
+          principal_id: string;
+          session_id: string | null;
+          grant_role: string;
+          grant_expires_at: Date | string;
+        },
+      );
   return async (req: IncomingMessage, res: ServerResponse) => {
     const requestId = randomUUID();
     res.setHeader("Cache-Control", "private, no-store");
@@ -93,7 +108,15 @@ export function createRuntimeHandler(options: {
       const session = await (options.auth?.authenticate(req) ??
         Promise.resolve(null));
       if (!session) return send(401, { code: "UNAUTHENTICATED", requestId });
-      if (session.workspaceId !== options.workspaceId)
+      if (
+        session.workspaceId !== options.workspaceId &&
+        !(
+          await options.pool.query(
+            "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
+            [session.workspaceId],
+          )
+        ).rowCount
+      )
         return send(403, { code: "FORBIDDEN" });
       const ctx = {
         workspaceId: session.workspaceId,
@@ -116,6 +139,36 @@ export function createRuntimeHandler(options: {
         body = await readJsonBody(req, 512000);
       }
       const service = options.service;
+      if (path === "/api/v1/access/switch" && req.method === "POST") {
+        const b = z.object({ spaceId: id }).strict().parse(body);
+        return send(
+          200,
+          await options.auth!.switchSpace(req, session, b.spaceId),
+        );
+      }
+      if (path.startsWith("/api/v1/access")) {
+        const result = await handleAccessRequest(
+          access,
+          ctx,
+          req.method || "GET",
+          path,
+          body,
+          url.searchParams,
+        );
+        if (result) return send(result.status, result.body);
+      }
+      if (path.startsWith("/api/v1/import")) {
+        const result = await handleImportRequest(
+          service.imports,
+          ctx,
+          req.method || "GET",
+          path,
+          body,
+          req.headers,
+          url.searchParams,
+        );
+        if (result) return send(result.status, result.body);
+      }
       if (path === "/mcp" && req.method === "POST")
         return await handleMcp(req, res, body, service, ctx);
       if (path === "/auth/logout" && req.method === "POST") {
@@ -142,7 +195,7 @@ export function createRuntimeHandler(options: {
           return send(200, {
             items: (
               await options.pool.query(
-                'SELECT principal_id AS "principalId",role FROM memberships WHERE workspace_id=$1 ORDER BY principal_id',
+                'SELECT principal_id AS "principalId",effective_membership(workspace_id,principal_id) AS role FROM memberships WHERE workspace_id=$1 AND effective_membership(workspace_id,principal_id) IS NOT NULL ORDER BY principal_id',
                 [ctx.workspaceId],
               )
             ).rows,
@@ -255,6 +308,31 @@ export function createRuntimeHandler(options: {
         MODEL_CONFIGURATION: 503,
         MODEL_CONTEXT_LIMIT: 413,
         JOB_CAPACITY: 429,
+        INPUT_CHANGED: 409,
+        INPUT_FROZEN: 409,
+        IMPORT_BUSY: 409,
+        UPLOAD_INCOMPLETE: 409,
+        CHECKSUM_MISMATCH: 400,
+        INVALID_UPLOAD: 400,
+        PREFLIGHT_REQUIRED: 409,
+        WARNINGS_REQUIRE_ACKNOWLEDGEMENT: 409,
+        AUTHORIZATION_REQUIRED: 401,
+        IMPORT_QUOTA: 429,
+        RETRY_LIMIT: 409,
+        BUDGET_EXCEEDED: 413,
+        ALREADY_PROPOSED: 409,
+        UNSUPPORTED_FORMAT: 415,
+        INVALID_ARCHIVE: 400,
+        UNSAFE_ARCHIVE: 400,
+        ARCHIVE_LIMIT: 413,
+        ENCODING_REQUIRED: 400,
+        INVALID_JSON: 400,
+        INVALID_CSV: 400,
+        CSV_MAPPING_REQUIRED: 400,
+        NO_RECORDS: 400,
+        RECORD_LIMIT: 413,
+        INVALID_MODEL_EVIDENCE: 502,
+        CONTEXT_INCOMPLETE: 409,
       };
       const safe = Object.hasOwn(statuses, code)
         ? code

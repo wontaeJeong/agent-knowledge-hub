@@ -39,9 +39,19 @@ interface Job {
   error_code?: string;
 }
 type Tab =
-  "knowledge" | "sources" | "review" | "query" | "lint" | "jobs" | "usage";
+  | "knowledge"
+  | "imports"
+  | "access"
+  | "sources"
+  | "review"
+  | "query"
+  | "lint"
+  | "jobs"
+  | "usage";
 const labels: Record<Tab, string> = {
   knowledge: "발행 지식",
+  imports: "자료 넣기 · 자동 정리",
+  access: "공간 · 접근 멤버",
   sources: "원본과 편입",
   review: "변경 검토",
   query: "질문과 재편입",
@@ -54,6 +64,8 @@ const UsageReport = lazy(() =>
     default: m.UsageReport,
   })),
 );
+const ImportWorkbench = lazy(() => import("./ImportWorkbench"));
+const AccessManager = lazy(() => import("./AccessManager"));
 const safeMarkdown = (text: string) =>
   DOMPurify.sanitize(marked.parse(text, { async: false }));
 function ListPager({
@@ -242,11 +254,12 @@ export default function OperationalApp() {
         {identity && (
           <div className="op-account">
             <Badge tone="plum">
-              {identity.role === "reviewer"
-                ? "검토자"
-                : identity.role === "editor"
-                  ? "작성자"
-                  : "독자"}
+              {identity.spaceRole ??
+                (identity.role === "reviewer"
+                  ? "검토자"
+                  : identity.role === "editor"
+                    ? "작성자"
+                    : "독자")}
             </Badge>
             <span title={identity.principalId}>{identity.workspaceId}</span>
             <Button
@@ -349,6 +362,35 @@ export default function OperationalApp() {
               <p role="status" className="op-progress">
                 서버에서 처리하고 있습니다. 창을 반복 제출하지 마세요.
               </p>
+            )}
+            {tab === "imports" && (
+              <Suspense fallback={<p>자료 입력 화면을 불러오는 중…</p>}>
+                <ImportWorkbench
+                  key={identity.principalId}
+                  api={api}
+                  identity={identity}
+                  members={members}
+                  onExpired={clearProtected}
+                  onReview={() => {
+                    setTab("review");
+                    void perform(load);
+                  }}
+                />
+              </Suspense>
+            )}
+            {tab === "access" && (
+              <Suspense fallback={<p>접근 설정을 불러오는 중…</p>}>
+                <AccessManager
+                  key={identity.workspaceId}
+                  api={api}
+                  identity={identity}
+                  onExpired={clearProtected}
+                  onChanged={async () => {
+                    setIdentity(await api.me());
+                    await load();
+                  }}
+                />
+              </Suspense>
             )}
             {tab === "knowledge" && (
               <section className="op-panel">

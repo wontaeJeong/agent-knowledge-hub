@@ -17,6 +17,7 @@ export interface Context {
   principalId: string;
   /** Server-created request capability; never accepted from a client DTO. */
   authorization?: {
+    sessionId?: string;
     revalidate: () => Promise<void>;
     assertSession: (db: PoolClient) => Promise<void>;
   };
@@ -43,7 +44,7 @@ export class KnowledgeService {
       async (db) => {
         if ((await membership(db, ctx)) === "reader") throw Error("FORBIDDEN");
         const members = await db.query(
-          "SELECT principal_id FROM memberships WHERE workspace_id=$1 FOR SHARE",
+          "SELECT principal_id FROM memberships WHERE workspace_id=$1 AND effective_membership(workspace_id,principal_id) IS NOT NULL FOR SHARE",
           [ctx.workspaceId],
         );
         const allowed = new Set(members.rows.map((m) => m.principal_id));

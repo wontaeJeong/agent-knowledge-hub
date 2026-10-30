@@ -10,6 +10,7 @@
   },
   "scripts": {
     "start:server": "tsx server/runtime/main.ts",
+    "start:import-worker": "tsx server/imports/worker.ts",
     "migrate:server": "tsx server/runtime/main.ts --migrate",
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
@@ -18,7 +19,8 @@
     "test:watch": "vitest src",
     "typecheck": "tsc -b --pretty",
     "doctor": "node scripts/doctor.mjs",
-    "check": "npm run doctor && npm test && npm run check:requirements && npm run check:server && npm run build && npm run test:smoke",
+    "check": "npm run doctor && npm test && npm run test:imports && npm run check:requirements && npm run check:server && npm run build && npm run test:smoke",
+    "test:imports": "vitest run server/imports/parser.test.ts server/imports/organizer.test.ts",
     "test:smoke": "node scripts/smoke.mjs",
     "test:server": "vitest run server --maxWorkers=1",
     "check:server": "tsc -p tsconfig.server.json",
@@ -32,6 +34,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
+    "csv-parse": "7.0.3",
     "dompurify": "3.4.17",
     "lucide-react": "1.61.0",
     "marked": "18.1.2",
@@ -41,6 +44,7 @@
     "react-dom": "19.3.1",
     "tsx": "4.20.6",
     "yaml": "2.9.1",
+    "yauzl": "3.4.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
@@ -48,6 +52,7 @@
     "@types/pg": "8.23.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "@types/yauzl": "3.4.0",
     "@vitejs/plugin-react": "6.1.2",
     "prettier": "3.9.10",
     "sharp": "0.35.5",
