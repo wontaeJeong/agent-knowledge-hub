@@ -13,8 +13,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <Suspense fallback={<p role="status">지식 공간을 불러오는 중…</p>}>
       {mode === "demo" ? (
         <DemoApp />
-      ) : mode === "workspace" ? (
-        <OperationalApp />
+      ) : mode === "workspace" || mode === "preview" ? (
+        <OperationalApp preview={mode === "preview"} />
       ) : (
         <LandingPage />
       )}
