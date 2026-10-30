@@ -178,6 +178,7 @@ test("real discovery/JWKS signature code flow, nonce/state and replay rejection;
     headers: { Cookie: loginCookie },
   });
   expect(result.status).toBe(302);
+  expect(result.headers.get("location")).toBe("/?app=1");
   expect(tokenCodeCalls).toBe(1);
   const sessionCookie = result.headers.get("set-cookie")!.split(";")[0];
   expect(result.headers.get("set-cookie")).toContain("HttpOnly");
