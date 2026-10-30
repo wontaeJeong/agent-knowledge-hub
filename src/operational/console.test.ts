@@ -11,6 +11,7 @@ test("preview is explicit and cannot silently replace a workspace or demo", () =
 test("console deep links normalize unknown and malformed routes", () => {
   expect(readConsoleTab("#users")).toBe("users");
   expect(readConsoleTab("#query")).toBe("query");
+  expect(readConsoleTab("#boards")).toBe("boards");
   expect(readConsoleTab("#%ZZ")).toBe("overview");
   expect(readConsoleTab("")).toBe("overview");
 });
