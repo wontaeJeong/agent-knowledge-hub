@@ -56,6 +56,7 @@ const Management = lazy(() =>
 );
 const ImportWorkbench = lazy(() => import("./ImportWorkbench"));
 const BoardsWorkbench = lazy(() => import("./BoardsWorkbench"));
+const AgentCredentials = lazy(() => import("./AgentCredentials"));
 const AccessManager = lazy(() => import("./AccessManager"));
 const ImportPreview = lazy(() =>
   import("./ImportPreview").then((m) => ({ default: m.ImportPreview })),
@@ -437,8 +438,13 @@ export default function OperationalApp({
               </section>
             )}
             <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
-              <Management section={tab} preview={preview} navigate={navigate} />
+              {(!["agents","integrations"].includes(tab) || preview) && <Management section={tab} preview={preview} navigate={navigate} />}
             </Suspense>
+            {(tab === "agents" || tab === "integrations") && !preview && (
+              <Suspense fallback={<p role="status">에이전트 인증을 불러오는 중…</p>}>
+                <AgentCredentials key={identity.workspaceId+tab} api={api} identity={identity} onExpired={clearProtected} section={tab} />
+              </Suspense>
+            )}
             {tab === "boards" && !preview && (
               <Suspense fallback={<p role="status">공지·VOC를 불러오는 중…</p>}>
                 <BoardsWorkbench key={identity.workspaceId} api={api} identity={identity} onExpired={clearProtected} />
