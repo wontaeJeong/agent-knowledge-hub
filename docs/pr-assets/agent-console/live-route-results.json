@@ -1,0 +1,73 @@
+{
+  "checks": {
+    "realAccessManagerRendered": true,
+    "noMockBoundary": true,
+    "realImportWorkbenchRendered": true,
+    "realZeroIsNotMissing": true,
+    "noInventedPercent": true,
+    "serverContractsRequested": true,
+    "noWrites": true
+  },
+  "calls": [
+    {
+      "path": "/api/v1/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/pages",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/sources",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/changesets",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/members",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/jobs",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/model",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/access",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/access/spaces",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/access/invitations",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/access/organizations",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/imports",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/imports/config",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/import-disclosures",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/usage",
+      "method": "GET"
+    }
+  ]
+}

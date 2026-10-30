@@ -1,0 +1,6 @@
+{
+  "environment": "Chromium153, production dist, synthetic HTTP contract fixture",
+  "redBeforeFix": {"late401ClearsProtected": false, "failedCollectionsDoNotRenderZero": false, "failedCollectionsOfferRetry": true},
+  "greenAfterFix": {"late401ClearsProtected": true, "failedCollectionsDoNotRenderZero": true, "failedCollectionsOfferRetry": true},
+  "limitations": "Not a real IdP/session/database acceptance test. See verify-auth.js for exact reproduction."
+}

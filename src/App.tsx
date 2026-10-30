@@ -43,6 +43,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { Badge, Button, Empty, Modal } from "./ui/primitives";
 import { BrandIcon } from "./ui/BrandIcon";
+import { BrandMark } from "./ui/BrandMark";
 import { demoRepository, readStoredValue } from "./adapters/repository";
 import {
   canReview,
@@ -443,10 +444,7 @@ export default function App() {
     <div className="app-shell">
       <aside className={`sidebar ${mobile ? "open" : ""}`}>
         <a href="#/" className="brand" aria-label="agent-knowledge-hub 홈">
-          <img
-            src={theme === "dark" ? "/brand/mark-dark.svg" : "/brand/mark.svg"}
-            alt=""
-          />
+          <BrandMark size={36} />
           <span className="brand-name">
             <span className="brand-prefix">
               agent-<i>DEMO</i>
