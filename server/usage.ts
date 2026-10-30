@@ -18,7 +18,14 @@ export async function usageSummary(
     const from = new Date(now);
     from.setUTCHours(0, 0, 0, 0);
     from.setUTCDate(from.getUTCDate() - days + 1);
-    const principal = role === "reviewer" ? null : ctx.principalId;
+    const access = await db.query(
+      "SELECT access_role(workspace_id,$2) AS role FROM access_spaces WHERE workspace_id=$1",
+      [ctx.workspaceId, ctx.principalId],
+    );
+    const aggregate = access.rowCount
+      ? access.rows[0].role === "Admin"
+      : role === "reviewer";
+    const principal = aggregate ? null : ctx.principalId;
     const args = [
       ctx.workspaceId,
       principal,
@@ -60,7 +67,7 @@ export async function usageSummary(
       args,
     );
     return {
-      scope: role === "reviewer" ? "workspace" : "self",
+      scope: aggregate ? "workspace" : "self",
       from: from.toISOString(),
       to: now.toISOString(),
       timezone: "UTC",

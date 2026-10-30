@@ -36,7 +36,12 @@ if (process.argv.includes("--migrate")) {
   server.requestTimeout = 75000;
   server.headersTimeout = 10000;
   server.listen(Number(process.env.PORT || 8080), "0.0.0.0");
+  const stopImports =
+    process.env.IMPORT_WORKER_ENABLED === "false"
+      ? () => {}
+      : service.imports.startWorker();
   const stop = () => {
+    stopImports();
     server.close(async () => {
       await pool.end();
       process.exit(0);

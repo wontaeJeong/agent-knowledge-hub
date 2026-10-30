@@ -29,6 +29,8 @@ interface ChangeSet {
   hash: string;
   status: string;
   updates: Draft[];
+  triage?: string;
+  proposedBy?: string;
 }
 interface Job {
   id: string;
@@ -39,9 +41,19 @@ interface Job {
   error_code?: string;
 }
 type Tab =
-  "knowledge" | "sources" | "review" | "query" | "lint" | "jobs" | "usage";
+  | "knowledge"
+  | "imports"
+  | "access"
+  | "sources"
+  | "review"
+  | "query"
+  | "lint"
+  | "jobs"
+  | "usage";
 const labels: Record<Tab, string> = {
   knowledge: "발행 지식",
+  imports: "자료 넣기 · 자동 정리",
+  access: "공간 · 접근 멤버",
   sources: "원본과 편입",
   review: "변경 검토",
   query: "질문과 재편입",
@@ -54,6 +66,8 @@ const UsageReport = lazy(() =>
     default: m.UsageReport,
   })),
 );
+const ImportWorkbench = lazy(() => import("./ImportWorkbench"));
+const AccessManager = lazy(() => import("./AccessManager"));
 const safeMarkdown = (text: string) =>
   DOMPurify.sanitize(marked.parse(text, { async: false }));
 function ListPager({
@@ -220,7 +234,7 @@ export default function OperationalApp() {
       setUsage(await api.get<UsageSummary>(`/usage?days=${days}`));
     });
   const write = identity?.role !== "reader";
-  const review = identity?.role === "reviewer";
+  const review = identity?.canReviewKnowledge ?? identity?.role === "reviewer";
   const [pageNumber, setPageNumber] = useState(0);
   const filtered = pages.filter((p) =>
     `${p.title} ${p.summary} ${p.content}`
@@ -242,11 +256,12 @@ export default function OperationalApp() {
         {identity && (
           <div className="op-account">
             <Badge tone="plum">
-              {identity.role === "reviewer"
-                ? "검토자"
-                : identity.role === "editor"
-                  ? "작성자"
-                  : "독자"}
+              {identity.spaceRole ??
+                (identity.role === "reviewer"
+                  ? "검토자"
+                  : identity.role === "editor"
+                    ? "작성자"
+                    : "독자")}
             </Badge>
             <span title={identity.principalId}>{identity.workspaceId}</span>
             <Button
@@ -349,6 +364,35 @@ export default function OperationalApp() {
               <p role="status" className="op-progress">
                 서버에서 처리하고 있습니다. 창을 반복 제출하지 마세요.
               </p>
+            )}
+            {tab === "imports" && (
+              <Suspense fallback={<p>자료 입력 화면을 불러오는 중…</p>}>
+                <ImportWorkbench
+                  key={identity.principalId}
+                  api={api}
+                  identity={identity}
+                  members={members}
+                  onExpired={clearProtected}
+                  onReview={() => {
+                    setTab("review");
+                    void perform(load);
+                  }}
+                />
+              </Suspense>
+            )}
+            {tab === "access" && (
+              <Suspense fallback={<p>접근 설정을 불러오는 중…</p>}>
+                <AccessManager
+                  key={identity.workspaceId}
+                  api={api}
+                  identity={identity}
+                  onExpired={clearProtected}
+                  onChanged={async () => {
+                    setIdentity(await api.me());
+                    await load();
+                  }}
+                />
+              </Suspense>
             )}
             {tab === "knowledge" && (
               <section className="op-panel">
@@ -601,6 +645,28 @@ export default function OperationalApp() {
                     <small className="op-id">
                       {c.id} · 내용 해시 {c.hash}
                     </small>
+                    {identity.spaceRole && identity.spaceRole !== "Read" && (
+                      <label>
+                        검토 큐 분류
+                        <select
+                          aria-label={"검토 큐 분류 " + c.id}
+                          disabled={busy}
+                          value={c.triage ?? "untriaged"}
+                          onChange={(e) =>
+                            void perform(async () => {
+                              await api.post(`/changesets/${c.id}/triage`, {
+                                label: e.target.value,
+                              });
+                            })
+                          }
+                        >
+                          <option value="untriaged">미분류</option>
+                          <option value="needs-review">검토 요청</option>
+                          <option value="duplicate">중복 후보</option>
+                          <option value="blocked">확인 필요</option>
+                        </select>
+                      </label>
+                    )}
                     {c.updates.map((d) => (
                       <details key={d.id}>
                         <summary>
@@ -623,59 +689,63 @@ export default function OperationalApp() {
                         <p>근거: {d.sourceIds.join(", ")}</p>
                       </details>
                     ))}
-                    {review && (
-                      <div className="op-actions">
-                        <Button
-                          disabled={busy || c.status !== "pending"}
-                          onClick={() =>
-                            perform(async () => {
-                              await api.post(
-                                `/changesets/${encodeURIComponent(c.id)}/approve`,
-                                { hash: c.hash },
-                              );
-                              setNotice(
-                                "해당 내용과 기준을 고정해 승인했습니다. 발행은 별도 작업입니다.",
-                              );
-                            })
-                          }
-                        >
-                          승인
-                        </Button>
-                        <Button
-                          variant="primary"
-                          disabled={busy || c.status !== "approved"}
-                          onClick={() =>
-                            perform(async () => {
-                              await api.post(
-                                `/changesets/${encodeURIComponent(c.id)}/publish`,
-                                { hash: c.hash },
-                                crypto.randomUUID(),
-                              );
-                              setNotice("변경 집합 전체를 발행했습니다.");
-                            })
-                          }
-                        >
-                          승인 집합 발행
-                        </Button>
-                        <Button
-                          variant="danger"
-                          disabled={
-                            busy || !["pending", "approved"].includes(c.status)
-                          }
-                          onClick={() =>
-                            perform(async () => {
-                              await api.post(
-                                `/changesets/${encodeURIComponent(c.id)}/reject`,
-                                { hash: c.hash },
-                              );
-                              setNotice("변경 집합을 반려했습니다.");
-                            })
-                          }
-                        >
-                          반려
-                        </Button>
-                      </div>
-                    )}
+                    {review &&
+                      (identity.personalSpace ||
+                        !identity.spaceRole ||
+                        c.proposedBy !== identity.principalId) && (
+                        <div className="op-actions">
+                          <Button
+                            disabled={busy || c.status !== "pending"}
+                            onClick={() =>
+                              perform(async () => {
+                                await api.post(
+                                  `/changesets/${encodeURIComponent(c.id)}/approve`,
+                                  { hash: c.hash },
+                                );
+                                setNotice(
+                                  "해당 내용과 기준을 고정해 승인했습니다. 발행은 별도 작업입니다.",
+                                );
+                              })
+                            }
+                          >
+                            승인
+                          </Button>
+                          <Button
+                            variant="primary"
+                            disabled={busy || c.status !== "approved"}
+                            onClick={() =>
+                              perform(async () => {
+                                await api.post(
+                                  `/changesets/${encodeURIComponent(c.id)}/publish`,
+                                  { hash: c.hash },
+                                  crypto.randomUUID(),
+                                );
+                                setNotice("변경 집합 전체를 발행했습니다.");
+                              })
+                            }
+                          >
+                            승인 집합 발행
+                          </Button>
+                          <Button
+                            variant="danger"
+                            disabled={
+                              busy ||
+                              !["pending", "approved"].includes(c.status)
+                            }
+                            onClick={() =>
+                              perform(async () => {
+                                await api.post(
+                                  `/changesets/${encodeURIComponent(c.id)}/reject`,
+                                  { hash: c.hash },
+                                );
+                                setNotice("변경 집합을 반려했습니다.");
+                              })
+                            }
+                          >
+                            반려
+                          </Button>
+                        </div>
+                      )}
                   </article>
                 ))}
                 <ListPager

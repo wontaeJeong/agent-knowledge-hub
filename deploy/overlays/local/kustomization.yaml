@@ -15,6 +15,10 @@ configMapGenerator:
       - OIDC_INTERNAL_URL=http://knowledge-keycloak:8080
       - OIDC_CLIENT_ID=knowledge-hub
       - WORKSPACE_ID=default
+      - IMPORT_WORKER_ENABLED=true
+      - IMPORT_DISCLOSURE_REVIEWERS=
+      - ACCESS_BOOTSTRAP_OWNERS=
+      - ACCESS_ALLOW_ORG_CREATE=false
       - OIDC_GROUP_ROLES={"reviewers":"reviewer","writers":"editor","readers":"reader"}
   - name: keycloak-realm
     files:

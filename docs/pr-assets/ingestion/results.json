@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "source": "synthetic chat, loopback OIDC UserInfo, deterministic model contract fixture; not live semantic quality or corporate acceptance",
+  "desktop": {
+    "width": 1440,
+    "scrollWidth": 1440,
+    "height": 4464
+  },
+  "mobile": {
+    "width": 390,
+    "scrollWidth": 390,
+    "height": 6285
+  },
+  "errors": [],
+  "steps": [
+    "authenticated-web-paste",
+    "server-preflight",
+    "private-model-proposal",
+    "separate-source-disclosure-review",
+    "independent-knowledge-approval",
+    "atomic-publication",
+    "reader-access",
+    "explicit-owner-adoption",
+    "team-membership-and-space-role"
+  ]
+}

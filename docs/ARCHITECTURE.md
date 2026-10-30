@@ -8,7 +8,7 @@
 
 ## 소유권·공간 역할 확장 제안 (2026-10-30)
 
-[권한 모델](ACCESS_CONTROL.md)과 [ADR 005](adr/005-github-style-access-control.md)는 로컬 저장 위치와 개인/팀 소유권, Private/Team/Company 공개 범위, 공간별 Read/Triage/Write/Maintain/Admin을 분리하는 **미구현 제안**이다. 현행 `workspaces`를 지식 공간으로 유지하고 namespace·팀/그룹·grant·자료 제한을 추가하는 이관 경계를 정의한다. 서버의 현재 3역할·OIDC·전체 입력 계보 검사는 실제 구현이며, 새 역할·토큰·개인 커넥터 통합이 완료된 것으로 해석하지 않는다. 과거 데모 설명보다 최신 실행 범위는 위 후속 서버 경로를 우선한다.
+[권한 모델](ACCESS_CONTROL.md)과 [ADR 005](adr/005-github-style-access-control.md)는 로컬 저장 위치와 개인/팀 소유권, Private/Team/Company 공개 범위, 공간별 Read/Triage/Write/Maintain/Admin을 분리한다. 핵심 Organization/Team/공간 역할·Owner·초대·명시적 이관은 migration 007과 공통 서버 정책에 구현했다. 현행 `workspaces`를 지식 공간으로 유지하고 namespace·팀/그룹·grant·자료 제한을 추가하는 이관 경계를 정의한다. 미이관 공간은 기존 3역할을 유지하며 이관한 공간은 서버의 5역할/원본 상한을 적용한다. 범위 토큰·개인 커넥터 통합은 후속이다. 과거 데모 설명보다 최신 실행 범위는 위 후속 서버 경로를 우선한다.
 
 ## 기존 로컬 데모 구현
 
@@ -59,3 +59,8 @@ src/domain/wiki.ts는 기존 도메인과 분리된 편입·질문·점검 상�
 서버 전환의 첫 단위로 `server/`에 PostgreSQL 정본/승인·원자 발행·감사·사용 이벤트 서비스와 인증 콜백 주입형 사용량 GET 핸들러를 추가했다. 기본 UI 업무는 계속 localStorage이며 사용량 화면만 같은 origin의 서버 집계를 요청한다. 정적 데모는 사용량 미연결을 표시한다. 실제 SSO/업무 API·MCP·지속 작업·전체 UI 서버 전환은 아직 없다. [서버 기반 구현 경계와 실제 검증](SERVER_FOUNDATION.md)을 따른다.
 
 동일 클러스터 내 `agent-knowledge-hub-stg` 및 `agent-knowledge-hub-prod` 네임스페이스마다 앱 1개와 PostgreSQL 인스턴스 1개를 독립 운영한다. 단일 replica와 DB는 초기 운영 복잡도를 줄이는 선택이지 가용성·3만 사용자 처리량의 검증이 아니다. 실사용 전 서버 저장소·권한·백업·복원·관측 등 최소 게이트를 충족해야 한다. 배포 계약은 [K8S_RELEASE.md](K8S_RELEASE.md), 확장 조건은 [SCALING_PLAN.md](SCALING_PLAN.md), 결정 기록은 [ADR 003](adr/003-single-cluster-initial-release.md)을 참조한다.
+
+
+## 웹 편입 · 조직 접근 관리 구현 (2026-10-30)
+
+[실제 실행 계약·설정·검증과 남은 범위](IMPLEMENTATION_GUIDE.md), [웹 자료 편입 설계](DATA_INGESTION.md), [대화 기록](CONVERSATION_IMPORT.md)를 참조한다. 웹/REST/MCP의 개인 원본 접수·서버 영속 정리·선택 원본 공개 승인·독립 지식 검토/발행을 연결했다. Organization/Team/공간별 역할·초대·Owner·현재 권한 철회를 구현하며 기존 공간은 명시적 이관 전까지 기존 OIDC 역할을 유지한다. 원본 제한은 관리자에게도 적용한다. 새 기능의 구현은 전체 251개 요구사항이나 실제 LLM 의미 품질/운영 인수 통과를 뜻하지 않는다.

@@ -13,6 +13,9 @@ Direct package metadata at the packaged lockfile versions. Preserve original not
 | openid-client | 6.8.4 | MIT |
 | tsx | 4.20.6 | MIT |
 | yaml | 2.9.1 | ISC |
+| yauzl | 3.4.0 | MIT |
+| csv-parse | 7.0.3 | MIT |
+| @types/yauzl | 3.4.0 | MIT |
 | @types/pg | 8.23.1 | MIT |
 | @types/node | 26.6.6 | MIT |
 | react | 19.3.1 | MIT |

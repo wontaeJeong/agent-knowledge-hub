@@ -227,6 +227,13 @@ test("MCP uses same authenticated filtered views and never exposes approval tool
   expect(res.status).toBe(200);
   const rpc = await res.json();
   expect(rpc.result.tools.map((t: { name: string }) => t.name)).toEqual([
+    "knowledge_import_selection",
+    "knowledge_import_text",
+    "knowledge_import_preview",
+    "knowledge_import_start",
+    "knowledge_import_status",
+    "knowledge_import_cancel",
+    "knowledge_import_resume",
     "knowledge_search",
     "knowledge_query",
     "knowledge_ingest",
