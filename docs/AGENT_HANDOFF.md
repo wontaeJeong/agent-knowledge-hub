@@ -1,11 +1,11 @@
+# 에이전트 인계
+
 ## 2026-10-30: 1차 K8s 운영 사이트 생성/검증/순차 배포 도구 (PR 작업)
 
 - 기준: 최신 main `31b7d9a`의 서버/OIDC/DB/Kustomize 구조 유지. OPS-001~014, NFR-001~010, SEC-007~013, JOB-007 등 운영/영속성 계약에 대한 기능 보강이며 기존 인수 상태는 변경하지 않는다.
 - 구현: `scripts/k8s/prepare-site.mjs`로 STG/PROD 비밀 없는 오버레이·Ingress controller ingress·OIDC/model 제한 egress·Quota·digest 생성, `deploy-site.mjs`로 정적 리소스/실제 Secret/동일 이미지 승격 점검과 DB→migration→App 순서 보장. `release.mjs`의 네임스페이스/DB/Ingress/NetPol 미비 거부. 예제·CI synthetic fixture 및 테스트 추가.
 - 보안/격리: Secret 값을 git/파일 출력하지 않으며 앱 DB URL과 DB password 일치 검사, PROD 명시적 승인 필요. 실사용 DNS/인증서, 실제 네트워크 집행, 백업 복원, 서버 측 인수·부하는 추가 검증 필요.
 - 검증: CI에 K8s unit + Kustomize 렌더링/production guard 테스트 추가(실행 결과는 GitHub Actions에서 확인). 로컬 도구 환경의 kubectl/사내 클러스터·실제 운영 배포 시험을 수행했다고 주장하지 않는다.
-
-# 에이전트 인계
 
 ## 2026-10-30 PR #12와 공개 랜딩 PR #13 통합
 
