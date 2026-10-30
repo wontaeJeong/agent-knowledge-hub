@@ -330,7 +330,7 @@ export class RuntimeService {
               version: current(p).number,
               content: current(p).content,
             })),
-          }), {pool:this.pool,workspaceId:ctx.workspaceId,principalId:ctx.principalId}),
+          }, {pool:this.pool,workspaceId:ctx.workspaceId,principalId:ctx.principalId}),
         );
         answer = {
           ...data,
