@@ -256,7 +256,8 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 검증: 문서 링크와 `git diff --check`를 확인한다. 저장소 규칙의 실제 준수와 향후 실수 감소 효과는 운영 중 별도로 확인해야 한다.
 # Private question thread HTTP 경계 (2026-10-31)
 
-- 재검토 후: 일부 턴이 숨겨지면 revision뿐 아니라 모든 표시 턴의 `ordinal`도 null이다. 표시 순서를 저장 ordinal 또는 재개 입력으로 해석하지 않는다. 목록은 한 트랜잭션에서 스레드와 턴을 일괄 조회하고 현재 뷰를 필요할 때 한 번만 구성하며, 같은 계보 검사를 해당 트랜잭션 안에서만 공유한다. 삭제 UI는 `questionDataUnsupported`가 true이거나 미확인이면 차단한다. 성능 시험은 합성 자료와 해당 환경의 회귀 증거이며 운영 부하 보장은 아니다.
+- 재검토 round 2: 목록은 최대 100개 ID만 읽으며 모든 revision을 `null`(확인 불가, 재개용 값 아님)로 반환하고 질문/답변 본문과 이력 존재 여부를 조회하지 않는다. 상세·제목은 DB 사전 검사에서 최대 20턴, 단일 턴+답변 64KiB, 합계 256KiB, 검증 입력 root 64개로 제한한다. 현재 ACL 뷰 구성 전 공간 페이지·버전·원본·배치 각각 128개, 행당 256KiB·총 2MiB 이하만 허용하고 초과 시 `QUESTION_HISTORY_LIMIT`으로 전체 차단한다. 현재 세션/공간 권한은 유지한다. 상세 이력 pagination, 큰 공간의 범위 지정 ACL 뷰와 운영 부하 검증은 미구현이며 제한 초과는 삭제·정상 완료가 아니다. 구현 파일: `server/questions/service.ts`, `server/runtime/errors.ts`; 회귀: `server/questions/service.test.ts`, `server/questions/runtime-http.test.ts`. QNA005/QNA008 및 CORE-005 전체 수용 완료 아님.
+- 재검토 후: 일부 턴이 숨겨지면 상세의 revision과 모든 표시 턴의 `ordinal`이 null이다. 표시 순서를 저장 ordinal 또는 재개 입력으로 해석하지 않는다. 이전의 목록 내 턴 일괄 조회·뷰 공유는 위 round 2의 ID 전용 조회로 대체됐다. 삭제 UI는 `questionDataUnsupported`가 true이거나 미확인이면 차단한다. 성능 시험은 합성 자료와 해당 환경의 회귀 증거이며 운영 부하 보장은 아니다.
 - 리뷰 후 안전 조치: 질문 테이블의 계보 삭제·복원이 아직 구현되지 않아 해당 공간의 resource/workspace 삭제와 복원 재생을 명시 차단한다. preview는 `questionDataUnsupported`를 표시한다. 기존 mutation gate와 삭제 tombstone/workspace receipt를 이용해 이후 질문 쓰기도 차단한다. 다른 공간에는 적용하지 않는다. 실제 질문 사본 삭제·복원 안전성은 미지원이며 차단을 해제할 조건은 별도 계보 구현과 검증이다.
 - 권한 철회로 일부 턴을 볼 수 없으면 스레드 내용·제목뿐 아니라 목록/상세 revision도 `null`로 숨긴다. 이는 미연결 UI와 후속 턴 재개 계약에서 처리해야 한다. 영향 파일: `server/operations/erasure.ts`, `server/operations/erasure-db.test.ts`, `server/questions/{erasure-fence,service,feedback,runtime-http.test}.ts`, `server/runtime/errors.ts`.
 - 관련 요구사항: QNA005/QNA008 및 CORE-005 관련 일부 경계만; 전체 수용 완료 아님.

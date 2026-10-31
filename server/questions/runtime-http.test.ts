@@ -294,6 +294,29 @@ test("unintegrated turn submission and bearer credentials fail closed", async ()
     else process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED = old;
   }
 });
+test("large private history returns a generic bounded error for detail and title", async () => {
+  const path = "/api/v1/questions/threads";
+  const created = await fetch(base + path, {
+    method: "POST",
+    headers: headers("editor"),
+    body: "{}",
+  });
+  const thread = (await created.json()) as { id: string };
+  await f.pool.query(
+    "INSERT INTO question_turns(workspace_id,thread_id,id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed) SELECT $1,$2,'large-'||n,'editor',n,'nonce-'||n,'hash','sensitive content','offline','pending','{}' FROM generate_series(1,21) n",
+    [f.workspaceId, thread.id],
+  );
+  for (const suffix of ["", "/title"]) {
+    const response = await fetch(base + path + "/" + thread.id + suffix, {
+      headers: headers("editor"),
+    });
+    expect(response.status).toBe(409);
+    const text = await response.text();
+    expect(JSON.parse(text)).toMatchObject({ code: "QUESTION_HISTORY_LIMIT" });
+    expect(text).not.toMatch(/sensitive|SELECT|ordinal/i);
+    expect(Object.keys(JSON.parse(text)).sort()).toEqual(["code", "requestId"]);
+  }
+});
 test("post-erasure question writes expose a safe explicit error", async () => {
   await f.pool.query(
     "INSERT INTO operations_tombstones(workspace_id,id,resource_kind,resource_id,blob_hashes,allowed_readers,delete_content,approved_by) VALUES($1,'http-fence','source','source-a','[]','[]',true,'editor')",
