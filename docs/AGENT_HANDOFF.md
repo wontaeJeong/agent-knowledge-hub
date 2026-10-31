@@ -1,5 +1,15 @@
 # 에이전트 인계
 
+## 자격증명 삭제 선행 실험 — 테스트 전용, 운영 미연결
+
+- 관련 기준: LIF-008/010, IAM-009, SEC-009/010/011, OPS-004, CORE-002/005. 원본·파생 지식의 권한과 법적 삭제 불변식을 지키기 위한 DB 안전성 실험이며 기존 지식·요구사항 수용 상태는 바꾸지 않는다.
+- `server/operations/credential-erasure.test-support.ts`와 `credential-erasure-db.test.ts`는 테스트 전용 precursor다. 전용 트랜잭션이 exclusive mutation gate를 workspace 행보다 먼저 얻고 기존 workspace receipt fence를 확인해 공간 내 키·장치·미완료 grant 상태를 바꾸는 실험이다. 교차 공간/소유자 불일치는 fail-closed다. 운영 서버·HTTP·실제 삭제/복원에는 연결하지 않았다.
+- `blocked` receipt는 실패나 법적 보류로도 생기므로 승인 증거가 아니다. 별도 운영용 단독 함수가 이를 승인으로 취급하면 권한 없이 취소할 수 있다. 정당한 명시 승인과 receipt 생성, 원자적 취소·최종 삭제, signed recovery ledger 전달을 결합하는 별도 내부 계약이 필요하다. 기존 실행/복원 차단과 write fence는 유지한다.
+- 토큰/해시 비식별화, 사용량 보존·귀속, 복원 재적용 및 실제 erasure gate 연결은 미완료다. 이 실험이나 receipt를 삭제 완료로 해석하지 않는다. 지식 품질·에이전트 성능 효과는 측정하지 않았다.
+- 검증: Node 24.22.2 `npm ci`와 `npm run check` 통과. 격리된 신규 PostgreSQL DB에서 precursor 5건 및 기존 삭제 회귀를 포함해 19건 통과했다. 실제 운영 승인·복원 경합·독립 리뷰·최종 CI는 별도다.
+- PR #25 리뷰 후: 테스트 전용 경합에서 두 backend의 동일 gate 보유·실제 대기·차단 관계를 관찰하고, rollback 실패 주입은 고유 trigger와 단일 grant로 제한했다. 교차 공간 grant/audit도 양방향 차단을 검증했다. gate 양쪽을 각각 제거한 변이에서 해당 assertion이 실패한 뒤 원복했고, 신규 DB 2회 각 21건과 Node 24 `npm run check`가 통과했다. 실제 운영 경로 보장이나 독립 재검토 완료를 뜻하지 않는다.
+- PR #24 반영: `origin/main@db9ac2b`를 실제 merge하고 두 작업의 인계·실수 기록을 모두 보존했다. 통합 트리에서 Node 24.22.2 `npm run check`와 전용 신규 PostgreSQL DB의 삭제·수집기 회귀 7파일 35건이 통과했다. 최종 CI·독립 리뷰는 별도다.
+
 ## 2026-10-31 수집기 세션 결합 안전 차단
 
 - COL-002/012, ACL-005/007, SEC-002/004 관련: `server/storage/collectors.ts`는 신뢰 가능한 artifact-세션 결합과 서버 제외 정책이 없는 OpenCode 2.2.2 assistant 및 synthetic 자동 수집을 `ARTIFACT_SESSION_UNVERIFIED`로 차단한다. 기존 성공 테스트를 차단 테스트로 교체한 것은 의도적인 기능 축소이며 요구사항 완료가 아니다. 수동 HTTP 요청은 `tool:"manual"`만 허용하고 다른 도구명이나 collection/external 필드는 거부한다. 이는 자료 내용의 출처가 사실임을 보장하거나 직접 내부 서비스 호출을 제한하는 검증은 아니다.
