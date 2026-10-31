@@ -58,6 +58,8 @@ import { AccessService as LegacyAccessService } from "../access";
 import { handleAccessRequest } from "../access-http";
 import { handleBoardRequest } from "../boards";
 import { authenticateAgentKey, recordAgentRequest, permittedAgentRoute, handleCredentialRequest, startDevice, pollDevice, verifyDevice, decideDevice } from "../agent-credentials";
+import { QuestionsService } from "../questions/service";
+import { handleQuestionRoute } from "../questions/http";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
@@ -80,6 +82,11 @@ export function createRuntimeHandler(options: {
     ? storageRoutes(options.storage, options.collector)
     : undefined;
   const legacyAccess = new LegacyAccessService(options.pool);
+  const questions = new QuestionsService(options.pool, {
+    runtime: options.service,
+    authorize: authorizeInTransaction,
+    runQuery: async () => { throw Error("QUESTION_QUEUE_NOT_CONFIGURED"); },
+  });
   const retention = {
     recovery: new DraftRecoveryService(options.pool),
     retention: new ContentRetentionService(options.pool, authorizeInTransaction),
@@ -310,6 +317,22 @@ export function createRuntimeHandler(options: {
         return res.end(output);
       }
       const service = options.service;
+      if (path.startsWith("/api/v1/questions/")) {
+        // Neither credential type has a verified ceiling for private threads yet.
+        if (credential || agent) throw Error("FORBIDDEN");
+        if (req.method === "GET" && path.startsWith("/api/v1/questions/threads/")) {
+          await ctx.authorization!.revalidate();
+          return send(503, { code: "QUESTION_HISTORY_NOT_CONFIGURED" });
+        }
+        const threadRoute = path === "/api/v1/questions/threads";
+        if (!threadRoute) {
+          if (req.method === "POST" && /^\/api\/v1\/questions\/threads\/[a-zA-Z0-9_-]{1,100}\/turns(?:\/[a-zA-Z0-9_-]{1,100}\/resume)?$/.test(path))
+            return send(503, { code: "QUESTION_QUEUE_NOT_CONFIGURED", requestId });
+          return send(404, { code: "NOT_FOUND", requestId });
+        }
+        if (await handleQuestionRoute({ method: req.method ?? "GET", path: path + url.search, body, ctx, send }, questions)) return;
+        return send(404, { code: "NOT_FOUND", requestId });
+      }
       if (await handleRetentionRoute({ method: req.method ?? "GET", path, body, ctx, send }, retention)) return;
       if(await handleGovernanceRoute({method:req.method??'GET',path,body,ctx,send},new GovernanceService(options.pool,authorizeInTransaction)))return;
       const submitInteractive=async(actor:Context,kind:'query'|'ingest'|'lint',payload:unknown,key:string)=>{

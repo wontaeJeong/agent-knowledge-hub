@@ -11,6 +11,7 @@ import type { RuntimeService } from "../runtime/knowledge";
 import { authorizeActionDb } from "../access/index";
 import { audit } from "../repository";
 import type { QuestionAuthorizer } from "./service";
+import { assertQuestionWritesNotErased } from "./erasure-fence";
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const reportInput = z
   .object({
@@ -117,6 +118,7 @@ export class QuestionFeedback {
   async report(ctx: Context, raw: unknown) {
     const input = reportInput.parse(raw);
     return this.run(ctx, async (db) => {
+      await assertQuestionWritesNotErased(db, ctx.workspaceId);
       const state = (await this.options.runtime.view(db, ctx)).state;
       const answer = await this.answer(db, ctx, input.answerId, state);
       const requestHash = fingerprint(input);

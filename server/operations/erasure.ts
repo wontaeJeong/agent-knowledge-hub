@@ -360,6 +360,18 @@ async function agentDataBoundary(db: PoolClient, workspaceId: string) {
 async function assertNoAgentData(db: PoolClient, workspaceId: string) {
   if (await hasAgentData(db, workspaceId)) throw Error("ERASURE_AGENT_DATA_UNSUPPORTED");
 }
+async function hasQuestionData(db: PoolClient, workspaceId: string) {
+  const result = await db.query(`SELECT EXISTS (
+    SELECT 1 FROM question_threads WHERE workspace_id=$1
+    UNION ALL SELECT 1 FROM question_turns WHERE workspace_id=$1
+    UNION ALL SELECT 1 FROM question_feedback WHERE workspace_id=$1
+    UNION ALL SELECT 1 FROM question_feedback_work WHERE workspace_id=$1
+  ) AS present`, [workspaceId]);
+  return result.rows[0].present as boolean;
+}
+async function assertNoQuestionData(db: PoolClient, workspaceId: string) {
+  if (await hasQuestionData(db, workspaceId)) throw Error("ERASURE_QUESTION_DATA_UNSUPPORTED");
+}
 async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
   const metadata = (
       await db.query(
@@ -408,6 +420,7 @@ export async function replayProductErasure(
   if (!resources.length && !entireWorkspace) return;
   await db.query("SELECT pg_advisory_xact_lock($1)", [MUTATION_GATE]);
   await assertNoAgentData(db, workspaceId);
+  await assertNoQuestionData(db, workspaceId);
   const ctx = { workspaceId, principalId: "signed-recovery-ledger" },
     all = await inventory(db, ctx),
     selected = selectErasureRows(
@@ -598,6 +611,7 @@ export async function previewErasure(
       legalHold: p.blocked,
       unresolvedUnlineagedRows: p.opaque,
       agentDataUnsupported: await hasAgentData(db, ctx.workspaceId),
+      questionDataUnsupported: await hasQuestionData(db, ctx.workspaceId),
       agentDataBoundary: boundary,
       allCopiesErased: false,
     };
@@ -647,6 +661,10 @@ export async function executeErasure(
           throw Error("LEGAL_HOLD");
         }
         await assertNoAgentData(db, ctx.workspaceId);
+        if (await hasQuestionData(db, ctx.workspaceId)) {
+          status = "blocked";
+          throw Error("ERASURE_QUESTION_DATA_UNSUPPORTED");
+        }
         const resources: Resource[] =
           d.scope === "workspace"
             ? (

@@ -18,6 +18,7 @@ import { sourcePolicyHash } from "../policy/model";
 import { assertFeature } from "../policy/features";
 import { ScopedSearch, type MetadataReader } from "./search";
 import { QuestionFeedback } from "./feedback";
+import { assertQuestionWritesNotErased } from "./erasure-fence";
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const turnInput = z
@@ -219,6 +220,7 @@ export class QuestionsService {
   }
   async createThread(ctx: Context) {
     return this.run(ctx, async (db) => {
+      await assertQuestionWritesNotErased(db, ctx.workspaceId);
       const threadId = randomUUID();
       await db.query(
         "INSERT INTO question_threads(workspace_id,id,principal_id) VALUES($1,$2,$3)",
@@ -236,77 +238,164 @@ export class QuestionsService {
       .strict()
       .parse(raw);
     return this.run(ctx, async (db) => {
-      const rows = (
-        await db.query(
-          "SELECT id,revision FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 AND ($3::text IS NULL OR id>$3) ORDER BY id LIMIT $4",
-          [
-            ctx.workspaceId,
-            ctx.principalId,
-            page.cursor ?? null,
-            page.limit + 1,
-          ],
-        )
-      ).rows;
+      const rows = page.cursor
+        ? (
+            await db.query(
+              "SELECT id FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 AND (created_at,id) > ((SELECT created_at FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 AND id=$3),$3) ORDER BY created_at,id LIMIT $4",
+              [ctx.workspaceId, ctx.principalId, page.cursor, page.limit + 1],
+            )
+          ).rows
+        : (
+            await db.query(
+              "SELECT id FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 ORDER BY created_at,id LIMIT $3",
+              [ctx.workspaceId, ctx.principalId, page.limit + 1],
+            )
+          ).rows;
       return {
-        items: rows.slice(0, page.limit),
+        // Never inspect histories for listing; null is not an optimistic-lock revision.
+        items: rows
+          .slice(0, page.limit)
+          .map((row) => ({ id: row.id, revision: null })),
         nextCursor: rows.length > page.limit ? rows[page.limit - 1].id : null,
       };
     });
   }
   async readThread(ctx: Context, threadId: string) {
-    return this.run(ctx, async (db) => {
-      const thread = await this.thread(db, ctx, threadId);
-      const state = (await this.options.runtime.view(db, ctx)).state;
-      const rows = (
+    return this.run(ctx, (db) =>
+      this.readThreadInTransaction(db, ctx, threadId),
+    );
+  }
+  private async readThreadInTransaction(
+    db: PoolClient,
+    ctx: Context,
+    threadId: string,
+  ) {
+    const thread = await this.thread(db, ctx, threadId);
+    // Check at most 21 rows and their uncompressed JSON size in PostgreSQL before
+    // materializing protected history or answers in the application process.
+    const sizes = (
+      await db.query(
+        `SELECT octet_length(q.question) + octet_length(q.sealed::text) + COALESCE(octet_length(a.data::text), 0) AS bytes
+       FROM (SELECT question,sealed,answer_id FROM question_turns
+             WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 ORDER BY ordinal LIMIT 21) q
+       LEFT JOIN runtime_answers a ON a.workspace_id=$1 AND a.principal_id=$3 AND a.id=q.answer_id`,
+        [ctx.workspaceId, threadId, ctx.principalId],
+      )
+    ).rows as { bytes: number }[];
+    if (
+      sizes.length > 20 ||
+      sizes.some((row) => row.bytes > 65536) ||
+      sizes.reduce((total, row) => total + row.bytes, 0) > 262144
+    )
+      throw Error("QUESTION_HISTORY_LIMIT");
+    if (sizes.length) {
+      // RuntimeService.view loads the complete workspace. Bound that input too,
+      // before requesting its rows or reconstructing their ACL graph.
+      const workspaceSizes = (
         await db.query(
-          "SELECT * FROM question_turns WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 ORDER BY ordinal",
-          [ctx.workspaceId, threadId, ctx.principalId],
+          `
+        SELECT 'page' AS kind, octet_length(data::text) AS bytes FROM (SELECT data FROM pages WHERE workspace_id=$1 LIMIT 129) p
+        UNION ALL SELECT 'version', octet_length(data::text) FROM (SELECT data FROM versions WHERE workspace_id=$1 LIMIT 129) v
+        UNION ALL SELECT 'source', octet_length(data::text) FROM (SELECT data FROM sources WHERE workspace_id=$1 LIMIT 129) s
+        UNION ALL SELECT 'batch', octet_length(data::text) FROM (SELECT data FROM batches WHERE workspace_id=$1 LIMIT 129) b`,
+          [ctx.workspaceId],
         )
-      ).rows as Turn[];
-      const turns = [];
-      let contextOmitted = false;
-      for (const turn of rows) {
-        try {
-          await this.valid(db, ctx, state, turn);
-          const answer = turn.answer_id
-            ? await this.answer(db, ctx, turn.answer_id)
-            : null;
-          if (answer)
-            await assertEnvelope(db, ctx, state, answer.inputEnvelope);
-          turns.push({
-            id: turn.id,
-            ordinal: turn.ordinal,
-            question: turn.question,
-            mode: turn.mode,
-            status: turn.status,
-            jobId: turn.job_id,
-            answer: answer
-              ? {
-                  id: answer.id,
-                  version: 1,
-                  content: answer.content,
-                  citations: answer.citations,
-                  insufficient: answer.insufficient,
-                }
-              : null,
-          });
-        } catch (e) {
-          denied(e);
-          contextOmitted = true;
-        }
+      ).rows as { kind: string; bytes: number }[];
+      const counts = new Map<string, number>();
+      let bytes = 0;
+      for (const row of workspaceSizes) {
+        counts.set(row.kind, (counts.get(row.kind) ?? 0) + 1);
+        bytes += row.bytes;
       }
-      return {
-        id: thread.id,
-        revision: thread.revision,
-        title: turns[0]?.question.slice(0, 80) ?? "접근 가능한 대화 없음",
-        turns,
-        contextOmitted,
-      };
-    });
+      if (
+        [...counts.values()].some((count) => count > 128) ||
+        workspaceSizes.some((row) => row.bytes > 262144) ||
+        bytes > 2097152
+      )
+        throw Error("QUESTION_HISTORY_LIMIT");
+    }
+    const rows = (
+      await db.query(
+        "SELECT id,thread_id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed,answer_id,job_id FROM question_turns WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 ORDER BY ordinal LIMIT 20",
+        [ctx.workspaceId, threadId, ctx.principalId],
+      )
+    ).rows as Turn[];
+    return this.renderThread(
+      db,
+      ctx,
+      thread,
+      rows,
+      async () => (await this.options.runtime.view(db, ctx)).state,
+    );
+  }
+  private async renderThread(
+    db: PoolClient,
+    ctx: Context,
+    thread: { id: string; revision: number },
+    rows: Turn[],
+    loadState: () => Promise<State>,
+  ) {
+    const turns = [];
+    let contextOmitted = false;
+    let roots = 0;
+    const consume = (envelope: InputEnvelope) => {
+      if (
+        !envelope ||
+        !Array.isArray(envelope.pageIds) ||
+        !Array.isArray(envelope.sourceIds)
+      )
+        throw Error("QUESTION_HISTORY_LIMIT");
+      roots += envelope.pageIds.length + envelope.sourceIds.length;
+      if (roots > 64) throw Error("QUESTION_HISTORY_LIMIT");
+    };
+    const state = rows.length ? await loadState() : undefined;
+    for (const turn of rows) {
+      try {
+        consume(turn.sealed.envelope);
+        await this.valid(db, ctx, state!, turn);
+        const answer = turn.answer_id
+          ? await this.answer(db, ctx, turn.answer_id)
+          : null;
+        if (answer) {
+          consume(answer.inputEnvelope);
+          await assertEnvelope(db, ctx, state!, answer.inputEnvelope);
+        }
+        turns.push({
+          id: turn.id,
+          ordinal: turn.ordinal,
+          question: turn.question,
+          mode: turn.mode,
+          status: turn.status,
+          jobId: turn.job_id,
+          answer: answer
+            ? {
+                id: answer.id,
+                version: 1,
+                content: answer.content,
+                citations: answer.citations,
+                insufficient: answer.insufficient,
+              }
+            : null,
+        });
+      } catch (e) {
+        denied(e);
+        contextOmitted = true;
+      }
+    }
+    return {
+      id: thread.id,
+      revision: contextOmitted ? null : thread.revision,
+      title: turns[0]?.question.slice(0, 80) ?? "접근 가능한 대화 없음",
+      turns: contextOmitted
+        ? turns.map((turn) => ({ ...turn, ordinal: null }))
+        : turns,
+      contextOmitted,
+    };
   }
   async acceptTurn(ctx: Context, threadId: string, raw: unknown) {
     const input = turnInput.parse(raw);
     return this.run(ctx, async (db) => {
+      await assertQuestionWritesNotErased(db, ctx.workspaceId);
       const thread = await this.thread(db, ctx, threadId);
       const requestHash = fingerprint(input);
       const previous = (
@@ -431,6 +520,7 @@ export class QuestionsService {
   async resumeTurn(ctx: Context, threadId: string, turnId: string) {
     if (!this.submit) throw Error("QUESTION_QUEUE_NOT_CONFIGURED");
     await this.run(ctx, async (db) => {
+      await assertQuestionWritesNotErased(db, ctx.workspaceId);
       const turn = await this.turn(db, ctx, threadId, turnId);
       if (turn.status !== "pending" && !turn.job_id)
         throw Error("STALE_VERSION");
@@ -447,6 +537,7 @@ export class QuestionsService {
       `question:${turnId}`,
     );
     await this.run(ctx, async (db) => {
+      await assertQuestionWritesNotErased(db, ctx.workspaceId);
       const turn = await this.turn(db, ctx, threadId, turnId);
       if (turn.job_id && turn.job_id !== receipt.id)
         throw Error("IDEMPOTENCY_CONFLICT");
@@ -518,6 +609,7 @@ export class QuestionsService {
           },
           onCreated: async (db, answer) => {
             await this.guard(db, ctx);
+            await assertQuestionWritesNotErased(db, ctx.workspaceId);
             const fresh = await this.turn(
               db,
               ctx,

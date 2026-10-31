@@ -1,10 +1,10 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { fixture, adoptFixture } from "../test-support";
 import { authorizeActionDb } from "../access/index";
 import { RuntimeService } from "../runtime/knowledge";
 import { QuestionsService } from "./service";
 import { transaction } from "../database";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import type { RuntimeExecution } from "../runtime/knowledge";
 import { capturePublishedVersionMetadata } from "../workflows/versions/metadata";
 const pools: Pool[] = [];
@@ -37,6 +37,333 @@ async function setup() {
     runtime,
   };
 }
+test("thread listing uses the owner ordering index and stable tied-time cursors", async () => {
+  const f = await setup();
+  await f.pool.query(
+    "INSERT INTO question_threads(workspace_id,id,principal_id,created_at) SELECT $1,'a-'||lpad(n::text,6,'0'),'editor','2026-01-01T00:00:00Z' FROM generate_series(1,10000) n",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO question_threads(workspace_id,id,principal_id,created_at) SELECT $1,'z-'||lpad(n::text,6,'0'),'reader','2026-01-01T00:00:00Z' FROM generate_series(1,200) n",
+    [f.workspaceId],
+  );
+  await f.pool.query("ANALYZE question_threads");
+  const plan = await f.pool.query(
+    "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT id FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 ORDER BY created_at,id LIMIT $3",
+    [f.workspaceId, "reader", 26],
+  );
+  const actual = JSON.stringify(plan.rows[0]["QUERY PLAN"]);
+  expect(actual).toContain("question_threads_owner");
+  expect(actual).not.toContain('"Node Type":"Sort"');
+  const continuation = await f.pool.query(
+    "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT id FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 AND (created_at,id) > ((SELECT created_at FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 AND id=$3),$3) ORDER BY created_at,id LIMIT $4",
+    [f.workspaceId, "reader", "z-000025", 26],
+  );
+  const continuationPlan = JSON.stringify(continuation.rows[0]["QUERY PLAN"]);
+  expect(continuationPlan).toContain("question_threads_owner");
+  expect(continuationPlan).not.toContain('"Node Type":"Sort"');
+  const spies = new Map<PoolClient, ReturnType<typeof vi.spyOn>>();
+  const acquire = (c: PoolClient) => {
+    if (!spies.has(c)) spies.set(c, vi.spyOn(c, "query"));
+  };
+  f.pool.on("acquire", acquire);
+  const first = await f.service.listThreads(f.reader, { limit: 25 });
+  const next = await f.service.listThreads(f.reader, {
+    limit: 25,
+    cursor: first.nextCursor,
+  });
+  expect(first.items.map((item) => item.id)).toEqual(
+    Array.from({ length: 25 }, (_, n) => `z-${String(n + 1).padStart(6, "0")}`),
+  );
+  expect(next.items[0].id).toBe("z-000026");
+  expect(
+    new Set([...first.items, ...next.items].map((item) => item.id)).size,
+  ).toBe(50);
+  const sql = [...spies.values()]
+    .flatMap((spy) => spy.mock.calls)
+    .map((call) => String(call[0]))
+    .find((value) => /SELECT id FROM question_threads/.test(value));
+  expect(sql).toMatch(/ORDER BY created_at\s*,\s*id/);
+  f.pool.off("acquire", acquire);
+  for (const spy of spies.values()) spy.mockRestore();
+});
+test("large completed histories are bounded before content or answer retrieval", async () => {
+  const f = await setup();
+  const seed = await f.service.createThread(f.reader);
+  const turn = await f.service.acceptTurn(f.reader, seed.id, {
+    expectedRevision: 0,
+    nonce: "seed",
+    question: "private seed",
+    mode: "offline",
+  });
+  const answer = await f.runtime.query(f.reader, "기존", "offline");
+  await f.pool.query(
+    "INSERT INTO question_threads(workspace_id,id,principal_id,revision) SELECT $1,'large-'||lpad(n::text,3,'0'),'reader',21 FROM generate_series(1,100) n",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO runtime_answers(workspace_id,id,principal_id,data) SELECT $1,'a-'||n||'-'||k,'reader',jsonb_set(data,'{id}',to_jsonb('a-'||n||'-'||k)) FROM runtime_answers CROSS JOIN generate_series(1,100) n CROSS JOIN generate_series(1,21) k WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, answer.id],
+  );
+  await f.pool.query(
+    "INSERT INTO question_turns(workspace_id,thread_id,id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed,answer_id,answer_version) SELECT $1,'large-'||lpad(n::text,3,'0'),'t-'||n||'-'||k,'reader',k,'n-'||k,'hash',repeat('sensitive ',100),'offline','completed',jsonb_set(q.sealed,'{policyHash}',to_jsonb(n::text||'-'||k)),'a-'||n||'-'||k,1 FROM question_turns q CROSS JOIN generate_series(1,100) n CROSS JOIN generate_series(1,21) k WHERE q.workspace_id=$1 AND q.id=$2",
+    [f.workspaceId, turn.turnId],
+  );
+  const view = vi.spyOn(f.runtime, "view");
+  const spyMap = new Map<PoolClient, ReturnType<typeof vi.spyOn>>();
+  const acquire = (client: PoolClient) => {
+    if (!spyMap.has(client)) {
+      const original = client.query.bind(client);
+      const spy = vi.spyOn(client, "query");
+      spy.mockImplementation(((...args: unknown[]) => {
+        if (
+          typeof args[0] === "string" &&
+          /SELECT \* FROM question_turns/i.test(args[0])
+        )
+          throw Error("UNBOUNDED_HISTORY_SQL");
+        return (original as (...args: unknown[]) => unknown)(...args);
+      }) as typeof client.query);
+      spyMap.set(client, spy);
+    }
+  };
+  f.pool.on("acquire", acquire);
+  const start = performance.now();
+  const [list] = await Promise.all([
+    f.service.listThreads(f.reader, { limit: 100 }),
+    f.service.createThread(f.reader),
+  ]);
+  const elapsed = performance.now() - start;
+  expect(list.items).toHaveLength(100);
+  expect(list.items.every((item) => item.revision === null)).toBe(true);
+  expect(Buffer.byteLength(JSON.stringify(list))).toBeLessThan(10000);
+  expect(JSON.stringify(list)).not.toMatch(/sensitive|private seed|ordinal/);
+  expect(view).toHaveBeenCalledTimes(0);
+  const queries = [...spyMap.values()]
+    .flatMap((spy) => spy.mock.calls)
+    .map((call) => String(call[0]));
+  expect(
+    queries.some((sql) =>
+      /FROM question_turns|FROM runtime_answers/i.test(sql),
+    ),
+  ).toBe(false);
+  expect(queries.length).toBeLessThan(150);
+  expect(elapsed).toBeLessThan(10000);
+  console.info(
+    `large-history list: 100 rows, response ${Buffer.byteLength(JSON.stringify(list))} bytes, ${queries.length} queries including concurrent write, ${Math.round(elapsed)}ms`,
+  );
+  await expect(f.service.readThread(f.reader, "large-001")).rejects.toThrow(
+    "QUESTION_HISTORY_LIMIT",
+  );
+  const afterDetail = [...spyMap.values()]
+    .flatMap((spy) => spy.mock.calls)
+    .map((call) => String(call[0]));
+  expect(
+    afterDetail.some((sql) =>
+      /SELECT id,thread_id,principal_id,ordinal/i.test(sql),
+    ),
+  ).toBe(false);
+  expect(view).not.toHaveBeenCalled();
+  expect((await f.service.listThreads(f.ctx, { limit: 100 })).items).toEqual(
+    [],
+  );
+  f.pool.off("acquire", acquire);
+  for (const spy of spyMap.values()) spy.mockRestore();
+}, 30000);
+test("oversized individual question seals and answer bodies fail closed", async () => {
+  const f = await setup(),
+    thread = await f.service.createThread(f.reader);
+  const turn = await f.service.acceptTurn(f.reader, thread.id, {
+    expectedRevision: 0,
+    nonce: "one",
+    question: "small",
+    mode: "offline",
+  });
+  await f.pool.query(
+    "UPDATE question_turns SET sealed=jsonb_set(sealed,'{padding}',to_jsonb(repeat('x',100000))) WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, turn.turnId],
+  );
+  await expect(f.service.readThread(f.reader, thread.id)).rejects.toThrow(
+    "QUESTION_HISTORY_LIMIT",
+  );
+  await f.pool.query(
+    "UPDATE question_turns SET sealed=sealed-'padding' WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, turn.turnId],
+  );
+  await f.pool.query(
+    "UPDATE question_turns SET question=repeat('x',100000) WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, turn.turnId],
+  );
+  await expect(f.service.readThread(f.reader, thread.id)).rejects.toThrow(
+    "QUESTION_HISTORY_LIMIT",
+  );
+  await f.pool.query(
+    "UPDATE question_turns SET question='small' WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, turn.turnId],
+  );
+  const answer = await f.runtime.query(f.reader, "기존", "offline");
+  await f.pool.query(
+    "UPDATE runtime_answers SET data=jsonb_set(data,'{content}',to_jsonb(repeat('x',100000))) WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, answer.id],
+  );
+  await f.pool.query(
+    "UPDATE question_turns SET status='completed',answer_id=$3,answer_version=1 WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, turn.turnId, answer.id],
+  );
+  await expect(f.service.readThread(f.reader, thread.id)).rejects.toThrow(
+    "QUESTION_HISTORY_LIMIT",
+  );
+});
+test("history authorization work exceeding the input root budget is denied", async () => {
+  const f = await setup(),
+    thread = await f.service.createThread(f.reader);
+  const turn = await f.service.acceptTurn(f.reader, thread.id, {
+    expectedRevision: 0,
+    nonce: "roots",
+    question: "small",
+    mode: "offline",
+  });
+  await f.pool.query(
+    "UPDATE question_turns SET sealed=jsonb_set(sealed,'{envelope,sourceIds}',(SELECT jsonb_agg('source-'||n) FROM generate_series(1,65) n)) WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, turn.turnId],
+  );
+  await expect(f.service.readThread(f.reader, thread.id)).rejects.toThrow(
+    "QUESTION_HISTORY_LIMIT",
+  );
+});
+test("combined history byte budget blocks multiple individually bounded turns", async () => {
+  const f = await setup(),
+    thread = await f.service.createThread(f.reader);
+  const turn = await f.service.acceptTurn(f.reader, thread.id, {
+    expectedRevision: 0,
+    nonce: "first",
+    question: "small",
+    mode: "offline",
+  });
+  await f.pool.query(
+    "UPDATE question_turns SET question=repeat('x',60000) WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, turn.turnId],
+  );
+  await f.pool.query(
+    "INSERT INTO question_turns(workspace_id,thread_id,id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed) SELECT workspace_id,thread_id,'copy-'||n,principal_id,n,'copy-'||n,request_hash,question,mode,status,sealed FROM question_turns CROSS JOIN generate_series(2,5) n WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, turn.turnId],
+  );
+  await expect(f.service.readThread(f.reader, thread.id)).rejects.toThrow(
+    "QUESTION_HISTORY_LIMIT",
+  );
+});
+test("detail rejects an oversized workspace view before reconstructing it", async () => {
+  const f = await setup(),
+    thread = await f.service.createThread(f.reader);
+  await f.service.acceptTurn(f.reader, thread.id, {
+    expectedRevision: 0,
+    nonce: "state",
+    question: "small",
+    mode: "offline",
+  });
+  await f.pool.query(
+    "INSERT INTO batches(workspace_id,id,data,hash) SELECT $1,'batch-'||n,'{}','hash' FROM generate_series(1,129) n",
+    [f.workspaceId],
+  );
+  const view = vi.spyOn(f.runtime, "view");
+  await expect(f.service.readThread(f.reader, thread.id)).rejects.toThrow(
+    "QUESTION_HISTORY_LIMIT",
+  );
+  expect(view).not.toHaveBeenCalled();
+});
+test("partially revoked completed history hides every stored ordinal", async () => {
+  const f = await setup(),
+    thread = await f.service.createThread(f.reader);
+  const one = await f.service.acceptTurn(f.reader, thread.id, {
+    expectedRevision: 0,
+    nonce: "one",
+    question: "hidden",
+    mode: "offline",
+  });
+  const answer1 = await f.runtime.query(f.reader, "기존", "offline");
+  await f.pool.query(
+    "UPDATE question_turns SET status='completed',answer_id=$3,answer_version=1 WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, one.turnId, answer1.id],
+  );
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reader'",
+    [f.workspaceId],
+  );
+  const two = await f.service.acceptTurn(f.reader, thread.id, {
+    expectedRevision: 1,
+    nonce: "two",
+    question: "visible",
+    mode: "offline",
+  });
+  const answer2 = await f.runtime.query(f.reader, "unrelated", "offline");
+  await f.pool.query(
+    "UPDATE question_turns SET status='completed',answer_id=$3,answer_version=1 WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, two.turnId, answer2.id],
+  );
+  const result = await f.service.readThread(f.reader, thread.id);
+  expect(result).toMatchObject({
+    revision: null,
+    contextOmitted: true,
+    turns: [{ question: "visible", ordinal: null, answer: { id: answer2.id } }],
+  });
+  expect((await f.service.listThreads(f.reader)).items).toContainEqual({
+    id: thread.id,
+    revision: null,
+  });
+  expect(JSON.stringify(result)).not.toContain("hidden");
+});
+test("listing 100 threads shares one current view and does not load it for empty threads", async () => {
+  const f = await setup();
+  await f.pool.query(
+    "INSERT INTO question_threads(workspace_id,id,principal_id) SELECT $1,'thread-'||lpad(n::text,3,'0'),'reader' FROM generate_series(1,100) n",
+    [f.workspaceId],
+  );
+  const view = vi.spyOn(f.runtime, "view");
+  const spies = new Map<PoolClient, ReturnType<typeof vi.spyOn>>();
+  const onAcquire = (client: PoolClient) => {
+    if (!spies.has(client)) spies.set(client, vi.spyOn(client, "query"));
+  };
+  f.pool.on("acquire", onAcquire);
+  expect(
+    (await f.service.listThreads(f.reader, { limit: 100 })).items,
+  ).toHaveLength(100);
+  expect(view).toHaveBeenCalledTimes(0);
+  const count = () =>
+    [...spies.values()].reduce((sum, spy) => sum + spy.mock.calls.length, 0);
+  const emptyQueries = count();
+  expect(emptyQueries).toBeLessThan(75);
+  const accepted = await f.service.acceptTurn(f.reader, "thread-001", {
+    expectedRevision: 0,
+    nonce: "one",
+    question: "test",
+    mode: "offline",
+  });
+  expect(accepted.turnId).toBeTruthy();
+  await f.pool.query(
+    "INSERT INTO question_turns(workspace_id,thread_id,id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed) SELECT t.workspace_id,t.id,'turn-'||t.id,'reader',1,'one',q.request_hash,q.question,q.mode,q.status,q.sealed FROM question_threads t JOIN question_turns q ON q.workspace_id=t.workspace_id AND q.id=$2 WHERE t.workspace_id=$1 AND t.id<>'thread-001'",
+    [f.workspaceId, accepted.turnId],
+  );
+  await f.pool.query(
+    "UPDATE question_threads SET revision=1 WHERE workspace_id=$1",
+    [f.workspaceId],
+  );
+  view.mockClear();
+  const before = count(),
+    start = performance.now();
+  const listing = f.service.listThreads(f.reader, { limit: 100 });
+  const concurrent = f.service.createThread(f.reader);
+  const [page] = await Promise.all([listing, concurrent]);
+  const elapsed = performance.now() - start,
+    populatedQueries = count() - before;
+  expect(page.items).toHaveLength(100);
+  expect(view).toHaveBeenCalledTimes(0);
+  expect(populatedQueries).toBeLessThan(3500);
+  expect(elapsed).toBeLessThan(10000);
+  console.info(
+    `thread-list empty=${emptyQueries} queries; populated+concurrent=${populatedQueries} queries; elapsed=${Math.round(elapsed)}ms`,
+  );
+  f.pool.off("acquire", onAcquire);
+  for (const spy of spies.values()) spy.mockRestore();
+}, 20000);
 
 test("private durable thread admission CAS, nonce replay and orphan enqueue retry", async () => {
   const f = await setup();
