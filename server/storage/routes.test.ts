@@ -104,12 +104,16 @@ it("rejects oversized raw HTTP body without broken attachment metadata", async (
     ).rows,
   ).toEqual(before.rows);
 });
-it("registers a selected actual tool artifact through HTTP without granting execution verification", async () => {
+it("rejects an unbound assistant artifact over HTTP without creating a source", async () => {
   const artifact = JSON.parse(
     await readFile(
       new URL("./fixtures/opencode-2.2.2-assistant.json", import.meta.url),
       "utf8",
     ),
+  );
+  const before = await f.pool.query(
+    "SELECT count(*) AS n FROM sources WHERE workspace_id=$1",
+    [f.workspaceId],
   );
   const response = await fetch(base + "/api/v1/storage/collect-artifact", {
     method: "POST",
@@ -119,31 +123,159 @@ it("registers a selected actual tool artifact through HTTP without granting exec
       tool: "opencode",
       version: "2.2.2",
       format: "api.assistant-message",
-      sessionId: "ses_redactedFixture",
+      sessionId: "ses_other",
       selectedIds: [artifact.data.id],
       selectedToolIds: ["call_redacted1"],
-      excludedSessionIds: [],
+      excludedSessionIds: ["ses_redactedFixture"],
       title: "실제 형식 시험",
       project: "fixture",
     }),
   });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({
+    code: "ARTIFACT_SESSION_UNVERIFIED",
+  });
+  expect(
+    (
+      await f.pool.query(
+        "SELECT count(*) AS n FROM sources WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows,
+  ).toEqual(before.rows);
+});
+it("rejects repackaged assistant output with forged synthetic session and omitted exclusion without writing raw bytes", async () => {
+  const assistant = JSON.parse(
+    await readFile(
+      new URL("./fixtures/opencode-2.2.2-assistant.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const artifact = JSON.parse(
+    await readFile(
+      new URL("./fixtures/opencode-2.2.2-synthetic.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const output = assistant.data.content.find(
+    (part: { type: string }) => part.type === "tool",
+  ).state.content[0].text;
+  artifact.data.sessionID = "ses_forged";
+  artifact.data.payload.text = output;
+  const before = (
+    await f.pool.query(
+      "SELECT (SELECT count(*) FROM sources WHERE workspace_id=$1) AS sources, (SELECT count(*) FROM storage_blobs WHERE workspace_id=$1) AS blobs, (SELECT coalesce(sum(size),0) FROM storage_blobs WHERE workspace_id=$1) AS bytes",
+      [f.workspaceId],
+    )
+  ).rows;
+  const response = await fetch(base + "/api/v1/storage/collect-artifact", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      artifact,
+      tool: "opencode",
+      version: "2.2.2",
+      format: "api.synthetic-message",
+      selectedIds: [artifact.data.id],
+      excludedSessionIds: [],
+      title: "fixture",
+      project: "fixture",
+    }),
+  });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({
+    code: "ARTIFACT_SESSION_UNVERIFIED",
+  });
+  expect(
+    (
+      await f.pool.query(
+        "SELECT (SELECT count(*) FROM sources WHERE workspace_id=$1) AS sources, (SELECT count(*) FROM storage_blobs WHERE workspace_id=$1) AS blobs, (SELECT coalesce(sum(size),0) FROM storage_blobs WHERE workspace_id=$1) AS bytes",
+        [f.workspaceId],
+      )
+    ).rows,
+  ).toEqual(before);
+});
+it("rejects a spoofed manual tool without saving and stores an explicitly manual source", async () => {
+  const post = (body: unknown) =>
+    fetch(base + "/api/v1/storage/sources", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  const body = {
+    title: "수동 입력",
+    project: "fixture",
+    tool: "manual",
+    content: "수동으로 제출한 내용",
+  };
+  const count = async () =>
+    (
+      await f.pool.query(
+        "SELECT count(*) AS n FROM sources WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows;
+  const before = await count();
+  const spoofed = await post({ ...body, tool: "opencode@2.2.2" });
+  expect(spoofed.status).toBe(400);
+  expect(await count()).toEqual(before);
+  const response = await post(body);
   expect(response.status).toBe(201);
-  const registered = (await response.json()) as { id: string; blobId: string };
+  const result = await response.json();
   const row = (
     await f.pool.query(
       "SELECT data FROM sources WHERE workspace_id=$1 AND id=$2",
-      [f.workspaceId, registered.id],
+      [f.workspaceId, result.id],
     )
   ).rows[0].data;
-  expect(row.collection.kind).toBe("tool-output");
-  expect(row.collection.omitted.reasoning).toBe(1);
-  expect(row.collection.omitted.unselectedToolOutputs).toBe(3);
-  expect(row.verification).toBe("미검증");
-  expect(row.projectVerified).toBe(false);
-  expect(row.content).not.toContain("redacted reasoning");
-  expect(
-    (await fetch(base + "/api/v1/storage/blobs/" + registered.blobId)).status,
-  ).toBe(200);
+  expect(row).toMatchObject({
+    tool: "manual",
+    scope: "private",
+    verification: "미검증",
+    projectVerified: false,
+    collection: null,
+    external: null,
+  });
+});
+it("allows manual private unverified input but rejects forged collector metadata", async () => {
+  const body = {
+    title: "수동 입력",
+    project: "fixture",
+    tool: "manual",
+    content: "수동으로 제출한 내용",
+  };
+  const post = (value: unknown) =>
+    fetch(base + "/api/v1/storage/sources", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(value),
+    });
+  const forged = await post({
+    ...body,
+    collection: {
+      format: "api.synthetic-message",
+      kind: "tool-output",
+      omitted: {},
+    },
+    external: { id: "msg_fake", sessionId: "ses_fake", version: 1 },
+  });
+  expect(forged.status).toBe(400);
+  const response = await post(body);
+  expect(response.status).toBe(201);
+  const result = await response.json();
+  const row = (
+    await f.pool.query(
+      "SELECT data FROM sources WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, result.id],
+    )
+  ).rows[0].data;
+  expect(row).toMatchObject({
+    scope: "private",
+    verification: "미검증",
+    projectVerified: false,
+    collection: null,
+    external: null,
+  });
 });
 it("consumes an archived import through HTTP into an actual non-published core changeset", async () => {
   const json = (path: string, body: unknown) =>
