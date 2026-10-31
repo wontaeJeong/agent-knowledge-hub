@@ -2,6 +2,13 @@
 
 사람이나 에이전트를 탓하기 위한 문서가 아니다. 확인된 사실과 가설·검증 여부를 구분하고, 각 항목을 해결 후에도 지우지 않고 갱신한다. 기록 규칙과 민감 정보 제외 기준은 [PR 운영과 실수 기록](PR_WORKFLOW.md)을 따른다.
 
+### 2026-10-31 — 삭제 precursor 경합·rollback 시험의 잘못된 격리
+- 맥락: PR #25 독립 리뷰에서 발견한 테스트 결함이다. 테스트 모형은 운영 보장이 아니다.
+- 사실과 영향: 기존 경합 시험은 발급 promise를 시작한 뒤 실제 shared gate 대기를 확인하기 전에 잠금을 풀어 false green이 가능했다. rollback 시험의 고정 이름 trigger는 같은 DB의 다른 grant 갱신에도 오류를 유발할 수 있었다. 운영 경로 변경이나 실제 제품 데이터 영향은 확인되지 않았다.
+- 원인: 요청 시작과 DB 잠금 대기를 혼동했고, 테스트 실패 주입의 식별자 및 영향 범위를 격리하지 않았다.
+- 조치 및 재발 방지: 전용 연결의 서로 다른 backend PID, 동일 DB/gate의 exclusive 보유와 shared 미획득 및 차단 관계를 확인한 뒤에만 잠금을 푼다. 고유 trigger/function은 테스트 grant에만 적용하고 finally에서 정리하며 다른 공간 grant 갱신도 검증한다.
+- 검증/상태: exclusive gate와 shared gate를 각각 임시 제거했을 때 대응 관측 assertion이 실패했고 즉시 원복했다. 복원 후 신규·기존 PostgreSQL 삭제 회귀 21건을 신규 DB에서 두 번 통과했고 Node 24 `npm run check`가 통과했다. 독립 재검토와 최종 CI는 별도다.
+
 ### 2026-10-31 — advisory 잠금 수명 구분에 대한 성급한 제안
 - 맥락: 자격증명 삭제 후속 작업에서 coordinator가 `pg_locks`만으로 세션 및 트랜잭션 advisory 잠금을 구분할 수 있다고 제안했다가 정정했다.
 - 사실과 영향: 실제 PostgreSQL의 같은 backend에서 두 종류의 exclusive 잠금은 키를 제외한 조회 필드가 같았다. 기존 구현이나 삭제 게이트는 이 가정에 따라 바꾸지 않았다. 해당 실험은 모든 PostgreSQL 버전과 다른 관측 방법을 검증한 것은 아니다.
