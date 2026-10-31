@@ -249,9 +249,23 @@ export class QuestionsService {
           ],
         )
       ).rows;
+      const selected = rows.slice(0, page.limit);
+      const turns = selected.length ? (await db.query(
+        "SELECT * FROM question_turns WHERE workspace_id=$1 AND principal_id=$2 AND thread_id=ANY($3::text[]) ORDER BY thread_id,ordinal",
+        [ctx.workspaceId, ctx.principalId, selected.map((row) => row.id)],
+      )).rows as Turn[] : [];
+      const grouped = new Map<string, Turn[]>();
+      for (const turn of turns) {
+        const group = grouped.get(turn.thread_id) ?? [];
+        group.push(turn);
+        grouped.set(turn.thread_id, group);
+      }
+      let cachedState: Promise<State> | undefined;
+      const state = () => cachedState ??= this.options.runtime.view(db, ctx).then(view => view.state);
+      const validations = new Map<string, Promise<void>>();
       const items = [];
-      for (const row of rows.slice(0, page.limit)) {
-        const detail = await this.readThreadInTransaction(db, ctx, row.id);
+      for (const row of selected) {
+        const detail = await this.renderThread(db, ctx, row, grouped.get(row.id) ?? [], state, validations);
         items.push({ id: row.id, revision: detail.revision });
       }
       return {
@@ -271,22 +285,34 @@ export class QuestionsService {
     threadId: string,
   ) {
     const thread = await this.thread(db, ctx, threadId);
-    const state = (await this.options.runtime.view(db, ctx)).state;
     const rows = (
       await db.query(
         "SELECT * FROM question_turns WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 ORDER BY ordinal",
         [ctx.workspaceId, threadId, ctx.principalId],
       )
     ).rows as Turn[];
+    return this.renderThread(db, ctx, thread, rows, async () => (await this.options.runtime.view(db, ctx)).state);
+  }
+  private async renderThread(
+    db: PoolClient, ctx: Context, thread: {id:string;revision:number}, rows: Turn[], loadState: () => Promise<State>,
+    validations?: Map<string, Promise<void>>,
+  ) {
     const turns = [];
     let contextOmitted = false;
+    const state = rows.length ? await loadState() : undefined;
     for (const turn of rows) {
       try {
-        await this.valid(db, ctx, state, turn);
+        const key = fingerprint({envelope:turn.sealed.envelope, policyHash:turn.sealed.policyHash});
+        let check = validations?.get(key);
+        if (!check) {
+          check = this.valid(db, ctx, state!, turn);
+          validations?.set(key, check);
+        }
+        await check;
         const answer = turn.answer_id
           ? await this.answer(db, ctx, turn.answer_id)
           : null;
-        if (answer) await assertEnvelope(db, ctx, state, answer.inputEnvelope);
+        if (answer) await assertEnvelope(db, ctx, state!, answer.inputEnvelope);
         turns.push({
           id: turn.id,
           ordinal: turn.ordinal,
@@ -313,7 +339,7 @@ export class QuestionsService {
       id: thread.id,
       revision: contextOmitted ? null : thread.revision,
       title: turns[0]?.question.slice(0, 80) ?? "접근 가능한 대화 없음",
-      turns,
+      turns: contextOmitted ? turns.map((turn) => ({...turn, ordinal: null})) : turns,
       contextOmitted,
     };
   }

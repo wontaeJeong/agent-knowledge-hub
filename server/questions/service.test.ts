@@ -1,10 +1,10 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { fixture, adoptFixture } from "../test-support";
 import { authorizeActionDb } from "../access/index";
 import { RuntimeService } from "../runtime/knowledge";
 import { QuestionsService } from "./service";
 import { transaction } from "../database";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import type { RuntimeExecution } from "../runtime/knowledge";
 import { capturePublishedVersionMetadata } from "../workflows/versions/metadata";
 const pools: Pool[] = [];
@@ -37,6 +37,49 @@ async function setup() {
     runtime,
   };
 }
+test("partially revoked completed history hides every stored ordinal", async () => {
+  const f=await setup(), thread=await f.service.createThread(f.reader);
+  const one=await f.service.acceptTurn(f.reader,thread.id,{expectedRevision:0,nonce:'one',question:'hidden',mode:'offline'});
+  const answer1=await f.runtime.query(f.reader,'기존','offline');
+  await f.pool.query("UPDATE question_turns SET status='completed',answer_id=$3,answer_version=1 WHERE workspace_id=$1 AND id=$2",[f.workspaceId,one.turnId,answer1.id]);
+  await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reader'",[f.workspaceId]);
+  const two=await f.service.acceptTurn(f.reader,thread.id,{expectedRevision:1,nonce:'two',question:'visible',mode:'offline'});
+  const answer2=await f.runtime.query(f.reader,'unrelated','offline');
+  await f.pool.query("UPDATE question_turns SET status='completed',answer_id=$3,answer_version=1 WHERE workspace_id=$1 AND id=$2",[f.workspaceId,two.turnId,answer2.id]);
+  const result=await f.service.readThread(f.reader,thread.id);
+  expect(result).toMatchObject({revision:null,contextOmitted:true,turns:[{question:'visible',ordinal:null,answer:{id:answer2.id}}]});
+  expect(JSON.stringify(result)).not.toContain('hidden');
+});
+test("listing 100 threads shares one current view and does not load it for empty threads", async () => {
+  const f=await setup();
+  await f.pool.query("INSERT INTO question_threads(workspace_id,id,principal_id) SELECT $1,'thread-'||lpad(n::text,3,'0'),'reader' FROM generate_series(1,100) n",[f.workspaceId]);
+  const view=vi.spyOn(f.runtime,'view');
+  const spies = new Map<PoolClient, ReturnType<typeof vi.spyOn>>();
+  const onAcquire = (client: PoolClient) => { if (!spies.has(client)) spies.set(client,vi.spyOn(client,'query')); };
+  f.pool.on('acquire',onAcquire);
+  expect((await f.service.listThreads(f.reader,{limit:100})).items).toHaveLength(100);
+  expect(view).toHaveBeenCalledTimes(0);
+  const count = () => [...spies.values()].reduce((sum,spy)=>sum+spy.mock.calls.length,0);
+  const emptyQueries=count();
+  expect(emptyQueries).toBeLessThan(75);
+  const accepted=await f.service.acceptTurn(f.reader,'thread-001',{expectedRevision:0,nonce:'one',question:'test',mode:'offline'});
+  expect(accepted.turnId).toBeTruthy();
+  await f.pool.query("INSERT INTO question_turns(workspace_id,thread_id,id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed) SELECT t.workspace_id,t.id,'turn-'||t.id,'reader',1,'one',q.request_hash,q.question,q.mode,q.status,q.sealed FROM question_threads t JOIN question_turns q ON q.workspace_id=t.workspace_id AND q.id=$2 WHERE t.workspace_id=$1 AND t.id<>'thread-001'",[f.workspaceId,accepted.turnId]);
+  await f.pool.query("UPDATE question_threads SET revision=1 WHERE workspace_id=$1",[f.workspaceId]);
+  view.mockClear();
+  const before=count(), start=performance.now();
+  const listing=f.service.listThreads(f.reader,{limit:100});
+  const concurrent=f.service.createThread(f.reader);
+  const [page]=await Promise.all([listing,concurrent]);
+  const elapsed=performance.now()-start, populatedQueries=count()-before;
+  expect(page.items).toHaveLength(100);
+  expect(view).toHaveBeenCalledTimes(1);
+  expect(populatedQueries).toBeLessThan(3500);
+  expect(elapsed).toBeLessThan(5000);
+  console.info(`thread-list empty=${emptyQueries} queries; populated+concurrent=${populatedQueries} queries; elapsed=${Math.round(elapsed)}ms`);
+  f.pool.off('acquire',onAcquire);
+  for (const spy of spies.values()) spy.mockRestore();
+});
 
 test("private durable thread admission CAS, nonce replay and orphan enqueue retry", async () => {
   const f = await setup();
