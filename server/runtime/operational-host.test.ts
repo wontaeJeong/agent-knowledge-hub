@@ -1,6 +1,7 @@
 import {test,expect} from 'vitest';
 import {mkdtemp,mkdir,rm,realpath,readFile,chmod,stat} from 'node:fs/promises';
 import {join} from 'node:path';
+import {tmpdir} from 'node:os';
 import {randomBytes} from 'node:crypto';
 import {fixture,adoptFixture} from '../test-support';
 import {authorizeInTransaction} from '../access/index';
@@ -9,7 +10,7 @@ import {transaction} from '../database';
 import {createOperationalHost} from './operational-host';
 test('production operational bootstrap supplies actual independent audit and physical-deletion adapters',async()=>{
   const f=await fixture();await adoptFixture(f.pool,f.workspaceId);
-  const root=await realpath(await mkdtemp('/private/var/folders/s0/kkh09qs52bv52h5n4nf4d2fw0000gq/T/opencode/ops-host-'));
+  const root=await realpath(await mkdtemp(join(tmpdir(),'ops-host-')));
   const contentRoot=join(root,'content'),auditRoot=join(root,'audit');await mkdir(contentRoot);await mkdir(auditRoot);
   const env={AKH_AUDIT_ROOT:auditRoot,AUDIT_EXPORT_KEY:randomBytes(32).toString('hex'),AUDIT_SIGNING_KEY:randomBytes(32).toString('hex'),AKH_ADMIN_AUDIT_METADATA_EXPORT_ENABLED:'true'};
   try{
@@ -27,7 +28,7 @@ test('production operational bootstrap supplies actual independent audit and phy
   }finally{await f.pool.end();await rm(root,{recursive:true,force:true});}
 });
 test('fsGroup-style writable PVC root is rejected, while its app-owned private child starts safely',async()=>{
-  const f=await fixture(),root=await realpath(await mkdtemp('/private/var/folders/s0/kkh09qs52bv52h5n4nf4d2fw0000gq/T/opencode/ops-pvc-'));
+  const f=await fixture(),root=await realpath(await mkdtemp(join(tmpdir(),'ops-pvc-')));
   const contentRoot=join(root,'content'),mount=join(root,'audit');await mkdir(contentRoot);await mkdir(mount);await chmod(mount,0o2770);
   const env={AKH_AUDIT_ROOT:mount,AUDIT_EXPORT_KEY:randomBytes(32).toString('hex'),AUDIT_SIGNING_KEY:randomBytes(32).toString('hex')};
   try{
