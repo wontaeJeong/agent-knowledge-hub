@@ -373,7 +373,7 @@ async function assertNoQuestionData(db: PoolClient, workspaceId: string) {
   if (await hasQuestionData(db, workspaceId)) throw Error("ERASURE_QUESTION_DATA_UNSUPPORTED");
 }
 /** These append-only workflow records are not yet covered by erasure or recovery replay. */
-async function hasVersionWorkflowData(db: PoolClient, workspaceId: string) {
+export async function hasVersionWorkflowData(db: PoolClient, workspaceId: string) {
   const result = await db.query(`SELECT
     EXISTS(SELECT 1 FROM version_metadata WHERE workspace_id=$1) OR
     EXISTS(SELECT 1 FROM version_metadata_events WHERE workspace_id=$1) OR
@@ -682,7 +682,8 @@ export async function executeErasure(
           throw Error("ERASURE_QUESTION_DATA_UNSUPPORTED");
         }
         if (await hasVersionWorkflowData(db, ctx.workspaceId)) {
-          status = "blocked";
+          // Preflight occurs before tombstones or redaction. A failed receipt is
+          // audit evidence, not a partially executed deletion or write fence.
           throw Error("ERASURE_VERSION_METADATA_UNSUPPORTED");
         }
         const resources: Resource[] =

@@ -2,6 +2,8 @@
 
 ## 버전 워크플로 법정 삭제 차단 — 부분 안전 경계
 
+- PR #26 리뷰 후: 버전 기록 미지원 사전검사 실패는 redaction/tombstone 전 트랜잭션을 롤백하고 `failed` 영수증 및 운영 감사만 남긴다. 이는 승인도 삭제도 아니며 기존 질문·에이전트의 다른 `blocked`/`completed` receipt 및 tombstone fence를 변경하지 않는다. 이미 존재하는 `blocked` receipt도 소급 면제하지 않는다. 실제 인증 HTTP는 해당 오류를 409로 반환한다. 여섯 EXISTS를 나머지 다섯을 제거한 실제 PostgreSQL 쿼리로 각각 확인했으며 복원 적용 행은 부모 계획이 필요한 제약도 고려했다.
+- 검증: Node 24.22.2 `npm run check` 통과. 전용 PostgreSQL에서 기존·신규 삭제, 질문, 인증 HTTP 5파일 43건 통과. 실패 후 질문·발급·사용량 기록, 기존 blocked fence, signed recovery 범위 제외와 gate 대기 중 추가된 이벤트 재검사를 확인했다. 직접 SQL/비공개 helper의 gate 우회 한계는 여전히 존재한다.
 - LIF-008/010, SEC-009/010/011, OPS-004 및 CORE-002/005 관련. `server/operations/erasure.ts`는 현재 공간의 버전 메타데이터·이벤트·부분 결정·복원 미리보기/계획/적용 기록 여섯 테이블에 행이 있으면 삭제 실행과 signed recovery replay를 차단하고 미리보기에 존재 여부만 표시한다. `src/operational/operations.tsx`는 미지원 또는 미확인 시 실행 버튼을 차단한다. 법적 보류와 기존 질문·에이전트 차단은 유지한다. 요구사항 전체 수용이나 실제 삭제·복구 구현이 아니다.
 - 제한: 버전 workflow HTTP는 현재 런타임에 마운트되지 않는다. 임의 DB client를 받는 trusted helper 및 직접 SQL 삽입은 이 gate를 강제하지 않으므로 삭제 검사와 경합할 수 있다. 이를 공개하거나 발행에 연결하기 전에 공통 gate→공간 잠금→삭제 fence 및 원자적 발행 계약을 구현·검증해야 한다. 단독 wrapper를 발행과 원자적이라고 가정하지 않는다. 이 차단은 미승인 blocked receipt를 승인으로 취급하지 않는다.
 - 검증: Node 24.22.2 `npm run check` 통과. 격리 PostgreSQL에서 삭제 및 인증 runtime HTTP 2파일 26건 통과. UI 화면은 실제 서버가 아닌 합성 응답 fixture이며 실제 운영 삭제 검증이 아니다. 메타데이터 실제 삭제, 안전한 복원 및 독립 리뷰는 미완료다. 지식 품질 효과는 측정하지 않았다.
