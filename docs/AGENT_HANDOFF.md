@@ -1,5 +1,12 @@
 # 에이전트 인계
 
+## 2026-10-31 수집기 세션 결합 안전 차단
+
+- COL-002/012, ACL-005/007, SEC-002/004 관련: `server/storage/collectors.ts`는 신뢰 가능한 artifact-세션 결합이 없는 OpenCode 2.2.2 assistant 수집을 `ARTIFACT_SESSION_UNVERIFIED`로 차단한다. 기존 성공 테스트를 차단 테스트로 교체한 것은 의도적인 기능 축소이며 요구사항 완료가 아니다. synthetic 수집은 유지한다.
+- `server/storage/collector-isolation.test.ts`는 실제 익명화 fixture에서 위조 요청이 수정 전 성공하는 RED와 수정 후 차단을 검증한다. 저장 호출 이전 실패이므로 해당 route에서 저장·후속 전송이 시작되지 않는다. `collectors.test.ts`, `routes.test.ts`, storage/fixtures 설명도 갱신했다. 기존 지식의 내용이나 발행 상태를 바꾸지 않는다.
+- 검증: Node 24.22.2에서 집중 회귀 4건 및 `npm run check` 통과. 별도 임시 PostgreSQL 17 컨테이너에서 실제 HTTP `routes.test.ts` 5건 통과(차단 전후 source 개수 동일). 첫 전체 검사의 테스트 타입 오류는 수정 후 재실행해 통과했다. 최종 CI는 별도 확인한다.
+- 한계: trusted authority, 실제 호스트/원격 세션 결합, 현재 권한 및 원본 범위의 완전 검증은 구현하지 않았다. 재활성화에는 정확한 artifact와 세션의 검증된 결합 및 위조·제외·교체·권한 회귀와 실제 호스트 검증이 필요하다. 품질·운영 인수 효과는 미평가다.
+
 ## 운영 기능 체크포인트 — 부분 구현
 
 - 후속 통합: PR #18의 배포된 migration 009를 보존하고 기존 브랜치의 접근 이관 migration을 010–015로 순서대로 조정한다. API 키와 기존 서비스 자격증명의 범위·현재 권한을 각각 검사하며, 원본 반출 승인과 모델 사용량 계측을 함께 유지한다. 이 통합의 최종 테스트·CI 결과는 PR을 기준으로 확인한다.

@@ -24,6 +24,7 @@ export const collectorSupport = [
     tool: "opencode",
     version: "2.2.2",
     format: "api.synthetic-message",
+    available: true,
     fixture: "opencode-2.2.2-synthetic.json",
     installationApproved: false,
     coverage:
@@ -33,10 +34,10 @@ export const collectorSupport = [
     tool: "opencode",
     version: "2.2.2",
     format: "api.assistant-message",
+    available: false,
     fixture: "opencode-2.2.2-assistant.json",
     installationApproved: false,
-    coverage:
-      "completed selected assistant text and explicitly selected completed tool text outputs; reasoning, native provider data, tool inputs, snapshots, and unselected outputs excluded",
+    coverage: "disabled: no trusted artifact-to-session binding is available",
   },
 ] as const;
 const timestamp = z.number().int().positive().max(8640000000000000);
@@ -137,6 +138,11 @@ export function collectArtifact(
     throw Error("UNSUPPORTED_COLLECTOR_VERSION");
   if (Buffer.byteLength(JSON.stringify(input)) > MAX_BYTES)
     throw Error("PAYLOAD_TOO_LARGE");
+  // The assistant response contains no session ID. Caller-provided sessionId is
+  // not evidence of its origin, so even an apparently unexcluded selection is
+  // unsafe until a trusted authority binds the artifact to its actual session.
+  if (options.format === "api.assistant-message")
+    throw Error("ARTIFACT_SESSION_UNVERIFIED");
   if (options.format === "api.assistant-message") {
     const { data: d } = assistantEvent.parse(input);
     const sessionId = z

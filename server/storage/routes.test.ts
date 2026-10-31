@@ -104,12 +104,16 @@ it("rejects oversized raw HTTP body without broken attachment metadata", async (
     ).rows,
   ).toEqual(before.rows);
 });
-it("registers a selected actual tool artifact through HTTP without granting execution verification", async () => {
+it("rejects an unbound assistant artifact over HTTP without creating a source", async () => {
   const artifact = JSON.parse(
     await readFile(
       new URL("./fixtures/opencode-2.2.2-assistant.json", import.meta.url),
       "utf8",
     ),
+  );
+  const before = await f.pool.query(
+    "SELECT count(*) AS n FROM sources WHERE workspace_id=$1",
+    [f.workspaceId],
   );
   const response = await fetch(base + "/api/v1/storage/collect-artifact", {
     method: "POST",
@@ -119,31 +123,24 @@ it("registers a selected actual tool artifact through HTTP without granting exec
       tool: "opencode",
       version: "2.2.2",
       format: "api.assistant-message",
-      sessionId: "ses_redactedFixture",
+      sessionId: "ses_other",
       selectedIds: [artifact.data.id],
       selectedToolIds: ["call_redacted1"],
-      excludedSessionIds: [],
+      excludedSessionIds: ["ses_redactedFixture"],
       title: "실제 형식 시험",
       project: "fixture",
     }),
   });
-  expect(response.status).toBe(201);
-  const registered = (await response.json()) as { id: string; blobId: string };
-  const row = (
-    await f.pool.query(
-      "SELECT data FROM sources WHERE workspace_id=$1 AND id=$2",
-      [f.workspaceId, registered.id],
-    )
-  ).rows[0].data;
-  expect(row.collection.kind).toBe("tool-output");
-  expect(row.collection.omitted.reasoning).toBe(1);
-  expect(row.collection.omitted.unselectedToolOutputs).toBe(3);
-  expect(row.verification).toBe("미검증");
-  expect(row.projectVerified).toBe(false);
-  expect(row.content).not.toContain("redacted reasoning");
+  expect(response.status).toBe(400);
+  expect(await response.text()).toBe("ARTIFACT_SESSION_UNVERIFIED");
   expect(
-    (await fetch(base + "/api/v1/storage/blobs/" + registered.blobId)).status,
-  ).toBe(200);
+    (
+      await f.pool.query(
+        "SELECT count(*) AS n FROM sources WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows,
+  ).toEqual(before.rows);
 });
 it("consumes an archived import through HTTP into an actual non-published core changeset", async () => {
   const json = (path: string, body: unknown) =>
