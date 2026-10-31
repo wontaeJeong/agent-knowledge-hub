@@ -807,7 +807,7 @@ export class ImportService {
         result = await organizeRecords(
           parsed.records,
           contextPages,
-          this.runtime.model,
+          (operation,modelContext) => this.runtime.model(operation,modelContext,{pool:this.pool,workspaceId:ctx.workspaceId,principalId:ctx.principalId}),
           row!.mode,
           async () => {
             await this.guard(row!, token);

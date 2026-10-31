@@ -14,7 +14,8 @@ import {
   id,
 } from "./schema";
 import { modelConfig } from "./model";
-import { usageSummary, exportUsageCsv } from "../usage";
+import { assessPage, systemOneConfig } from "./systemone";
+import { usageSummary, exportUsageCsv, exportModelUsageCsv } from "../usage";
 import { handleMcp } from "./mcp";
 import { readJsonBody } from "./body";
 import { assertSchemaCurrent } from "../database";
@@ -22,6 +23,7 @@ import { handleImportRequest } from "../imports/http";
 import { AccessService } from "../access";
 import { handleAccessRequest } from "../access-http";
 import { handleBoardRequest } from "../boards";
+import { authenticateAgentKey, recordAgentRequest, permittedAgentRoute, handleCredentialRequest, startDevice, pollDevice, verifyDevice, decideDevice } from "../agent-credentials";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
@@ -106,24 +108,31 @@ export function createRuntimeHandler(options: {
       )
         return send(404, { code: "NOT_FOUND" });
       await assertSchemaCurrent(options.pool);
-      const session = await (options.auth?.authenticate(req) ??
-        Promise.resolve(null));
-      if (!session) return send(401, { code: "UNAUTHENTICATED", requestId });
-      if (
-        session.workspaceId !== options.workspaceId &&
-        !(
-          await options.pool.query(
-            "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
-            [session.workspaceId],
-          )
-        ).rowCount
-      )
-        return send(403, { code: "FORBIDDEN" });
-      const ctx = {
-        workspaceId: session.workspaceId,
-        principalId: session.principalId,
-        authorization: options.auth!.requestGuard(req, session),
+      if ((path === "/api/v1/device/authorize" || path === "/api/v1/device/token") && req.method === "POST") {
+        if (!req.headers["content-type"]?.startsWith("application/json"))
+          return send(415, { code: "JSON_REQUIRED" });
+        const payload = await readJsonBody(req, 8192);
+        const result = path.endsWith("authorize")
+          ? await startDevice(options.pool, payload, options.origin)
+          : await pollDevice(options.pool, payload);
+        return send(result.status, result.body);
+      }
+      const authHeader = req.headers.authorization;
+      if (authHeader && !/^Bearer akh_sk_[A-Za-z0-9_-]{43}$/.test(authHeader))
+        return send(401, {code:"UNAUTHENTICATED", requestId});
+      const agent = authHeader
+        ? await authenticateAgentKey(options.pool,authHeader.slice(7))
+        : null;
+      const session = authHeader ? null : await (options.auth?.authenticate(req) ?? Promise.resolve(null));
+      if (!session && !agent) return send(401, { code: "UNAUTHENTICATED", requestId });
+      const ctx = agent ?? {
+        workspaceId: session!.workspaceId,
+        principalId: session!.principalId,
+        authorization: options.auth!.requestGuard(req, session!),
       };
+      if (ctx.workspaceId !== options.workspaceId &&
+        !(await options.pool.query("SELECT 1 FROM access_spaces WHERE workspace_id=$1",[ctx.workspaceId])).rowCount)
+        return send(403, {code:"FORBIDDEN",requestId});
       let body: unknown;
       if (
         req.method === "POST" ||
@@ -131,13 +140,42 @@ export function createRuntimeHandler(options: {
         req.method === "DELETE"
       ) {
         if (
-          req.headers.origin !== options.origin ||
-          req.headers["x-csrf-token"] !== session.csrfToken
+          !agent && (req.headers.origin !== options.origin ||
+          req.headers["x-csrf-token"] !== session!.csrfToken)
         )
           return send(403, { code: "CSRF_FAILED" });
         if (!req.headers["content-type"]?.startsWith("application/json"))
           return send(415, { code: "JSON_REQUIRED" });
         body = await readJsonBody(req, 512000);
+      }
+      if (agent) {
+        if (!permittedAgentRoute(req.method || "GET",path,agent.agent.scope,body))
+          return send(403,{code:"FORBIDDEN",requestId});
+        await recordAgentRequest(options.pool,agent,path);
+      }
+      if (path.startsWith("/api/v1/credentials")) {
+        if (agent) return send(403,{code:"FORBIDDEN",requestId});
+        const result=await handleCredentialRequest(options.pool,ctx,req.method || "GET",path,body,options.origin);
+        if(result) return send(result.status,result.body);
+      }
+      if (path.startsWith("/api/v1/device/verify/") && req.method==="GET") {
+        const code=path.slice("/api/v1/device/verify/".length);
+        const result=await verifyDevice(options.pool,ctx,code);
+        return send(result.status,result.body);
+      }
+      if (path==="/api/v1/device/decision" && req.method==="POST") {
+        const result=await decideDevice(options.pool,ctx,body);
+        return send(result.status,result.body);
+      }
+      if (path === "/api/v1/usage/model-export" && req.method === "GET") {
+        const days = Number(url.searchParams.get("days") || "30");
+        const output = await exportModelUsageCsv(options.pool,ctx,days);
+        res.writeHead(200,{
+          "Content-Type":"text/csv; charset=utf-8",
+          "Content-Disposition":'attachment; filename="agent-knowledge-hub-model-usage.csv"',
+          "X-Request-Id":requestId,
+        });
+        return res.end(output);
       }
       if (path === "/api/v1/usage/export" && req.method === "GET") {
         const days = Number(url.searchParams.get("days") || "30");
@@ -154,7 +192,7 @@ export function createRuntimeHandler(options: {
         const b = z.object({ spaceId: id }).strict().parse(body);
         return send(
           200,
-          await options.auth!.switchSpace(req, session, b.spaceId),
+          await options.auth!.switchSpace(req, session!, b.spaceId),
         );
       }
       if (path.startsWith("/api/v1/access")) {
@@ -191,7 +229,7 @@ export function createRuntimeHandler(options: {
         return send(200, { ok: true });
       }
       if (req.method === "GET") {
-        if (path === "/api/v1/me") return send(200, session);
+        if (path === "/api/v1/me") return send(200, session ?? {principalId:ctx.principalId,workspaceId:ctx.workspaceId,role:agent?.agent.scope==="read"?"reader":"editor",agent:true});
         if (path === "/api/v1/pages")
           return send(200, { items: await service.pages(ctx) });
         if (path === "/api/v1/sources")
@@ -200,7 +238,7 @@ export function createRuntimeHandler(options: {
           return send(200, { items: await service.changesets(ctx) });
         if (path === "/api/v1/jobs")
           return send(200, { items: await service.jobs(ctx) });
-        if (path === "/api/v1/model") return send(200, modelConfig());
+        if (path === "/api/v1/model") return send(200, {...modelConfig(),systemone:systemOneConfig()});
         if (path === "/api/v1/usage") {
           const days = url.searchParams.get("days") || "7";
           if (!["7", "14", "30", "90"].includes(days)) throw Error("VALIDATION_FAILED");
@@ -230,6 +268,12 @@ export function createRuntimeHandler(options: {
         }
       }
       if (req.method === "POST") {
+        if(path==="/api/v1/evaluations/systemone") {
+          if(!session || session.role!=="reviewer" || session.canReviewKnowledge===false)
+            return send(403,{code:"FORBIDDEN",requestId});
+          const b=z.object({pageId:id}).strict().parse(body);
+          return send(200,await assessPage(options.pool,service,ctx,b.pageId));
+        }
         if (path === "/api/v1/sources") {
           const wrapped = z
             .object({
@@ -326,6 +370,13 @@ export function createRuntimeHandler(options: {
         UNAUTHENTICATED: 401,
         VALIDATION_FAILED: 400,
         EXPORT_TOO_LARGE: 413,
+        INVALID_CLIENT: 400,
+        INVALID_GRANT: 400,
+        EXPIRED_GRANT: 400,
+        ACCESS_DENIED: 403,
+        SLOW_DOWN: 429,
+        RATE_LIMITED: 429,
+        CLIENT_LIMIT: 429,
         INPUT_TOO_LARGE: 413,
         ALREADY_EXISTS: 409,
         STALE_VERSION: 409,
@@ -336,6 +387,7 @@ export function createRuntimeHandler(options: {
         MODEL_FAILED: 502,
         MODEL_OUTPUT_LIMIT: 502,
         MODEL_CONFIGURATION: 503,
+        MODEL_INVALID: 502,
         MODEL_CONTEXT_LIMIT: 413,
         JOB_CAPACITY: 429,
         INPUT_CHANGED: 409,

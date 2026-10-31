@@ -15,5 +15,14 @@ export interface UsageSummary {
     failed: number;
     averageDurationMs: number;
   }[];
-  model: { inputTokens: null; outputTokens: null; cost: null };
+  model: {
+    inputTokens:number|null;outputTokens:number|null;cost:number|null;
+    calls?:number;failed?:number;measuredCalls?:number;outputMeasuredCalls?:number;pricedCalls?:number;
+    cacheReadTokens?:number|null;cacheWriteTokens?:number|null;
+    byProvider?:{
+      provider:string;backend:string;model:string;calls:number;failed:number;
+      measuredCalls:number;pricedCalls:number;inputTokens:number|null;outputTokens:number|null;
+      cacheReadTokens:number|null;cacheWriteTokens:number|null;cost:number|null;averageDurationMs:number;
+    }[];
+  };
 }

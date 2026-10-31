@@ -117,15 +117,20 @@ export async function handleMcp(
       additionalProperties: false,
     },
   } as const;
+  const agentTools = ctx.agent
+    ? new Set(ctx.agent.scope==="read"
+      ? ["knowledge_search","knowledge_jobs"]
+      : ["knowledge_search","knowledge_jobs","knowledge_query","knowledge_ingest","knowledge_lint"])
+    : null;
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: Object.entries(schemas).map(([name, inputSchema]) => ({
-      name,
-      inputSchema,
-    })),
+    tools: Object.entries(schemas)
+      .filter(([name])=> !agentTools || agentTools.has(name))
+      .map(([name,inputSchema])=>({name,inputSchema})),
   }));
   server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
     let result: unknown;
     const input = params.arguments || {};
+    if (agentTools && !agentTools.has(params.name)) throw Error("FORBIDDEN");
     switch (params.name) {
       case "knowledge_import_selection": {
         const b = z
