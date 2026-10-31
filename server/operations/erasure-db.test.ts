@@ -8,6 +8,8 @@ import { previewErasure, executeErasure, replayProductErasure } from "./erasure"
 import { operationsAuthorizer } from "./authorization";
 import { recordModelUsage } from "../model-usage";
 import { handleCredentialRequest, pollDevice, startDevice } from "../agent-credentials";
+import { QuestionsService } from "../questions/service";
+import { RuntimeService } from "../runtime/knowledge";
 const pools: Pool[] = [];
 test("administrative audit metadata export is explicit opt-in, never reader escalation or raw-source export fallback", async () => {
   const f = await setup();
@@ -46,6 +48,61 @@ async function setup() {
     s: new OperationsService(f.pool, authorizeInTransaction),
   };
 }
+test("question copies block resource and workspace erasure and recovery without affecting other workspaces", async () => {
+  const a = await setup(), b = await setup();
+  await a.pool.query("INSERT INTO question_threads(workspace_id,id,principal_id,revision) VALUES($1,'thread','editor',1)", [a.workspaceId]);
+  await a.pool.query("INSERT INTO question_turns(workspace_id,thread_id,id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed) VALUES($1,'thread','turn','editor',1,'nonce','hash','private copied text','offline','pending',$2)", [a.workspaceId, {sourceIds:['source-a'], history:'private history'}]);
+  await a.pool.query("INSERT INTO question_feedback(workspace_id,id,principal_id,nonce,request_hash,answer_id,answer_version,category,reason,evidence,input_envelope) VALUES($1,'feedback','editor','nonce','hash','answer',1,'incorrect','private reason',$2,$3)", [a.workspaceId, {text:'private evidence'}, {sourceIds:['source-a']}]);
+  await a.pool.query("INSERT INTO question_feedback_work(workspace_id,feedback_id,page_id,page_version,recipient_ids,status,evidence_keys) VALUES($1,'feedback','topic',1,ARRAY[]::text[],'pending-unassigned',$2)", [a.workspaceId, {quote:'private work'}]);
+  const resource = {scope:'resource' as const,resource:{kind:'source' as const,id:'source-a'}};
+  for (const input of [resource, {scope:'workspace' as const}]) {
+    const preview = await previewErasure(a.s,a.ctx,input);
+    expect(preview.questionDataUnsupported).toBe(true);
+    await expect(executeErasure(a.s,a.ctx,{...input,previewHash:preview.previewHash,confirm:input.scope==='workspace'?'ERASE_ENTIRE_WORKSPACE':'ERASE_PREVIEWED_RESOURCE_LINEAGE'})).rejects.toThrow('ERASURE_QUESTION_DATA_UNSUPPORTED');
+    const db = await a.pool.connect();
+    try { await db.query('BEGIN'); await expect(replayProductErasure(db,a.workspaceId,input.scope==='resource'?[input.resource]:[],input.scope==='workspace')).rejects.toThrow('ERASURE_QUESTION_DATA_UNSUPPORTED'); }
+    finally { await db.query('ROLLBACK'); db.release(); }
+  }
+  expect((await a.pool.query("SELECT status,error_code FROM operations_erasure_receipts WHERE workspace_id=$1",[a.workspaceId])).rows).toEqual(expect.arrayContaining([expect.objectContaining({status:'blocked',error_code:'ERASURE_QUESTION_DATA_UNSUPPORTED'})]));
+  expect((await a.pool.query("SELECT question FROM question_turns WHERE workspace_id=$1",[a.workspaceId])).rows[0].question).toBe('private copied text');
+  expect((await a.pool.query("SELECT data->>'content' AS content FROM sources WHERE workspace_id=$1 AND id='source-a'",[a.workspaceId])).rows[0].content).toContain('재시도');
+  const other = await previewErasure(b.s,b.ctx,resource);
+  expect((await executeErasure(b.s,b.ctx,{...resource,previewHash:other.previewHash,confirm:'ERASE_PREVIEWED_RESOURCE_LINEAGE'})).status).toBe('completed');
+});
+test("question writes wait for erasure and fail closed after its tombstone", async () => {
+  const f=await setup(), db=await f.pool.connect();
+  const service = new QuestionsService(f.pool,{runtime:new RuntimeService(f.pool),authorize:authorizeInTransaction,runQuery:async()=>{throw Error('NOT_CONFIGURED');}});
+  const ctx={...f.editor,authorization:{revalidate:async()=>{},assertSession:async()=>{}}};
+  try {
+    await db.query('BEGIN');
+    await db.query('SELECT pg_advisory_xact_lock(822025)');
+    await db.query("INSERT INTO operations_tombstones(workspace_id,id,resource_kind,resource_id,blob_hashes,allowed_readers,delete_content,approved_by) VALUES($1,$2,'source','source-a','[]','[]',true,'fixture-owner')",[f.workspaceId,randomUUID()]);
+    const pending=service.createThread(ctx);
+    const assertion=expect(pending).rejects.toThrow('ERASURE_QUESTION_WRITES_FENCED');
+    let waiting=0;
+    for(let i=0;i<1000 && !waiting;i++) waiting=(await db.query("SELECT count(*)::int AS n FROM pg_locks WHERE locktype='advisory' AND objid=822025 AND mode='ShareLock' AND NOT granted AND database=(SELECT oid FROM pg_database WHERE datname=current_database())")).rows[0].n;
+    expect(waiting).toBeGreaterThan(0);
+    await db.query('COMMIT');
+    await assertion;
+    expect((await f.pool.query('SELECT 1 FROM question_threads WHERE workspace_id=$1',[f.workspaceId])).rowCount).toBe(0);
+  } finally { await db.query('ROLLBACK'); db.release(); }
+});
+test("restored question turns and feedback cannot be written after workspace erasure", async () => {
+  const f = await setup();
+  const ctx = {...f.editor,authorization:{revalidate:async()=>{},assertSession:async()=>{}}};
+  const service = new QuestionsService(f.pool,{runtime:new RuntimeService(f.pool),authorize:authorizeInTransaction,runQuery:async()=>{throw Error('NOT_CONFIGURED');}});
+  const thread=await service.createThread(ctx);
+  const turn=await service.acceptTurn(ctx,thread.id,{expectedRevision:0,nonce:'old',question:'old',mode:'offline'});
+  let submitted=false;
+  service.setSubmit(async()=>{submitted=true;return {id:'job',status:'queued'};});
+  await f.pool.query("INSERT INTO operations_erasure_receipts(workspace_id,id,preview_hash,scope,approved_by,status,counts) VALUES($1,$2,$3,'workspace','fixture-owner','completed','{}')",[f.workspaceId,randomUUID(),'a'.repeat(64)]);
+  await expect(service.acceptTurn(ctx,thread.id,{expectedRevision:1,nonce:'new',question:'new',mode:'offline'})).rejects.toThrow('ERASURE_QUESTION_WRITES_FENCED');
+  await expect(service.resumeTurn(ctx,thread.id,turn.turnId)).rejects.toThrow('ERASURE_QUESTION_WRITES_FENCED');
+  await expect(service.reportFeedback(ctx,{answerId:'answer',version:1,nonce:'feedback',category:'incorrect',reason:'text'})).rejects.toThrow('ERASURE_QUESTION_WRITES_FENCED');
+  expect(submitted).toBe(false);
+  expect((await f.pool.query('SELECT count(*)::int AS n FROM question_turns WHERE workspace_id=$1',[f.workspaceId])).rows[0].n).toBe(1);
+  expect((await f.pool.query('SELECT 1 FROM question_feedback WHERE workspace_id=$1',[f.workspaceId])).rowCount).toBe(0);
+});
 test("credential request inventory follows its key workspace without mixing another workspace", async () => {
   const a = await setup(), b = await setup();
   for (const f of [a, b]) {

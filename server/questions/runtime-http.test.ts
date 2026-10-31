@@ -100,21 +100,42 @@ test("authenticated thread endpoints isolate principal and hide revoked source-b
   });
   expect(created.status).toBe(201);
   const thread = (await created.json()) as { id: string };
-  await questions.acceptTurn(
-    {
-      ...f.reader,
-      authorization: {
-        revalidate: async () => {},
-        assertSession: async () => {},
-      },
+  const reader = {
+    ...f.reader,
+    authorization: {
+      revalidate: async () => {},
+      assertSession: async () => {},
     },
-    thread.id,
-    {
-      expectedRevision: 0,
-      nonce: "one",
-      question: "private prompt",
-      mode: "offline",
-    },
+  };
+  const first = await questions.acceptTurn(reader, thread.id, {
+    expectedRevision: 0,
+    nonce: "one",
+    question: "private prompt",
+    mode: "offline",
+  });
+  const answer1 = await questions.options.runtime.query(
+    reader,
+    "기존",
+    "offline",
+  );
+  await f.pool.query(
+    "UPDATE question_turns SET status='completed',answer_id=$3,answer_version=1 WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, first.turnId, answer1.id],
+  );
+  const second = await questions.acceptTurn(reader, thread.id, {
+    expectedRevision: 1,
+    nonce: "two",
+    question: "second private prompt",
+    mode: "offline",
+  });
+  const answer2 = await questions.options.runtime.query(
+    reader,
+    "기존",
+    "offline",
+  );
+  await f.pool.query(
+    "UPDATE question_turns SET status='completed',answer_id=$3,answer_version=1 WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, second.turnId, answer2.id],
   );
   expect(
     (await fetch(base + path + "/" + thread.id, { headers: headers("editor") }))
@@ -150,6 +171,14 @@ test("authenticated thread endpoints isolate principal and hide revoked source-b
       await fetch(base + path + "/" + thread.id, { headers: headers("reader") })
     ).text(),
   ).toContain("private prompt");
+  const visible = (await (
+    await fetch(base + path + "/" + thread.id, { headers: headers("reader") })
+  ).json()) as { turns: { answer: { id: string } }[]; revision: number };
+  expect(visible.revision).toBe(2);
+  expect(visible.turns.map((t) => t.answer.id)).toEqual([
+    answer1.id,
+    answer2.id,
+  ]);
   await f.pool.query(
     "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reader'",
     [f.workspaceId],
@@ -157,7 +186,11 @@ test("authenticated thread endpoints isolate principal and hide revoked source-b
   const revoked = await (
     await fetch(base + path + "/" + thread.id, { headers: headers("reader") })
   ).json();
-  expect(revoked).toMatchObject({ turns: [], contextOmitted: true });
+  expect(revoked).toMatchObject({
+    turns: [],
+    contextOmitted: true,
+    revision: null,
+  });
   expect(JSON.stringify(revoked)).not.toContain("private prompt");
   expect(
     await (
@@ -166,6 +199,12 @@ test("authenticated thread endpoints isolate principal and hide revoked source-b
       })
     ).text(),
   ).not.toContain("private prompt");
+  const listing = (await (
+    await fetch(base + path, { headers: headers("reader") })
+  ).json()) as { items: { id: string; revision: number | null }[] };
+  expect(
+    listing.items.find((item) => item.id === thread.id)?.revision,
+  ).toBeNull();
   await f.pool.query(
     "UPDATE access_grants SET revoked=true WHERE workspace_id=$1 AND principal_id='reader'",
     [f.workspaceId],
@@ -254,4 +293,19 @@ test("unintegrated turn submission and bearer credentials fail closed", async ()
       delete process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED;
     else process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED = old;
   }
+});
+test("post-erasure question writes expose a safe explicit error", async () => {
+  await f.pool.query(
+    "INSERT INTO operations_tombstones(workspace_id,id,resource_kind,resource_id,blob_hashes,allowed_readers,delete_content,approved_by) VALUES($1,'http-fence','source','source-a','[]','[]',true,'editor')",
+    [f.workspaceId],
+  );
+  const response = await fetch(base + "/api/v1/questions/threads", {
+    method: "POST",
+    headers: headers("editor"),
+    body: "{}",
+  });
+  expect(response.status).toBe(409);
+  const payload = await response.json();
+  expect(payload).toMatchObject({ code: "ERASURE_QUESTION_WRITES_FENCED" });
+  expect(JSON.stringify(payload)).not.toMatch(/SELECT|INSERT|workspace_id/i);
 });

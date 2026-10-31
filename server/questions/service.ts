@@ -18,6 +18,7 @@ import { sourcePolicyHash } from "../policy/model";
 import { assertFeature } from "../policy/features";
 import { ScopedSearch, type MetadataReader } from "./search";
 import { QuestionFeedback } from "./feedback";
+import { assertQuestionWritesNotErased } from "./erasure-fence";
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const turnInput = z
@@ -219,6 +220,7 @@ export class QuestionsService {
   }
   async createThread(ctx: Context) {
     return this.run(ctx, async (db) => {
+      await assertQuestionWritesNotErased(db, ctx.workspaceId);
       const threadId = randomUUID();
       await db.query(
         "INSERT INTO question_threads(workspace_id,id,principal_id) VALUES($1,$2,$3)",
@@ -247,66 +249,78 @@ export class QuestionsService {
           ],
         )
       ).rows;
+      const items = [];
+      for (const row of rows.slice(0, page.limit)) {
+        const detail = await this.readThreadInTransaction(db, ctx, row.id);
+        items.push({ id: row.id, revision: detail.revision });
+      }
       return {
-        items: rows.slice(0, page.limit),
+        items,
         nextCursor: rows.length > page.limit ? rows[page.limit - 1].id : null,
       };
     });
   }
   async readThread(ctx: Context, threadId: string) {
-    return this.run(ctx, async (db) => {
-      const thread = await this.thread(db, ctx, threadId);
-      const state = (await this.options.runtime.view(db, ctx)).state;
-      const rows = (
-        await db.query(
-          "SELECT * FROM question_turns WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 ORDER BY ordinal",
-          [ctx.workspaceId, threadId, ctx.principalId],
-        )
-      ).rows as Turn[];
-      const turns = [];
-      let contextOmitted = false;
-      for (const turn of rows) {
-        try {
-          await this.valid(db, ctx, state, turn);
-          const answer = turn.answer_id
-            ? await this.answer(db, ctx, turn.answer_id)
-            : null;
-          if (answer)
-            await assertEnvelope(db, ctx, state, answer.inputEnvelope);
-          turns.push({
-            id: turn.id,
-            ordinal: turn.ordinal,
-            question: turn.question,
-            mode: turn.mode,
-            status: turn.status,
-            jobId: turn.job_id,
-            answer: answer
-              ? {
-                  id: answer.id,
-                  version: 1,
-                  content: answer.content,
-                  citations: answer.citations,
-                  insufficient: answer.insufficient,
-                }
-              : null,
-          });
-        } catch (e) {
-          denied(e);
-          contextOmitted = true;
-        }
+    return this.run(ctx, (db) =>
+      this.readThreadInTransaction(db, ctx, threadId),
+    );
+  }
+  private async readThreadInTransaction(
+    db: PoolClient,
+    ctx: Context,
+    threadId: string,
+  ) {
+    const thread = await this.thread(db, ctx, threadId);
+    const state = (await this.options.runtime.view(db, ctx)).state;
+    const rows = (
+      await db.query(
+        "SELECT * FROM question_turns WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 ORDER BY ordinal",
+        [ctx.workspaceId, threadId, ctx.principalId],
+      )
+    ).rows as Turn[];
+    const turns = [];
+    let contextOmitted = false;
+    for (const turn of rows) {
+      try {
+        await this.valid(db, ctx, state, turn);
+        const answer = turn.answer_id
+          ? await this.answer(db, ctx, turn.answer_id)
+          : null;
+        if (answer) await assertEnvelope(db, ctx, state, answer.inputEnvelope);
+        turns.push({
+          id: turn.id,
+          ordinal: turn.ordinal,
+          question: turn.question,
+          mode: turn.mode,
+          status: turn.status,
+          jobId: turn.job_id,
+          answer: answer
+            ? {
+                id: answer.id,
+                version: 1,
+                content: answer.content,
+                citations: answer.citations,
+                insufficient: answer.insufficient,
+              }
+            : null,
+        });
+      } catch (e) {
+        denied(e);
+        contextOmitted = true;
       }
-      return {
-        id: thread.id,
-        revision: thread.revision,
-        title: turns[0]?.question.slice(0, 80) ?? "접근 가능한 대화 없음",
-        turns,
-        contextOmitted,
-      };
-    });
+    }
+    return {
+      id: thread.id,
+      revision: contextOmitted ? null : thread.revision,
+      title: turns[0]?.question.slice(0, 80) ?? "접근 가능한 대화 없음",
+      turns,
+      contextOmitted,
+    };
   }
   async acceptTurn(ctx: Context, threadId: string, raw: unknown) {
     const input = turnInput.parse(raw);
     return this.run(ctx, async (db) => {
+      await assertQuestionWritesNotErased(db, ctx.workspaceId);
       const thread = await this.thread(db, ctx, threadId);
       const requestHash = fingerprint(input);
       const previous = (
@@ -431,6 +445,7 @@ export class QuestionsService {
   async resumeTurn(ctx: Context, threadId: string, turnId: string) {
     if (!this.submit) throw Error("QUESTION_QUEUE_NOT_CONFIGURED");
     await this.run(ctx, async (db) => {
+      await assertQuestionWritesNotErased(db, ctx.workspaceId);
       const turn = await this.turn(db, ctx, threadId, turnId);
       if (turn.status !== "pending" && !turn.job_id)
         throw Error("STALE_VERSION");
@@ -447,6 +462,7 @@ export class QuestionsService {
       `question:${turnId}`,
     );
     await this.run(ctx, async (db) => {
+      await assertQuestionWritesNotErased(db, ctx.workspaceId);
       const turn = await this.turn(db, ctx, threadId, turnId);
       if (turn.job_id && turn.job_id !== receipt.id)
         throw Error("IDEMPOTENCY_CONFLICT");
@@ -518,6 +534,7 @@ export class QuestionsService {
           },
           onCreated: async (db, answer) => {
             await this.guard(db, ctx);
+            await assertQuestionWritesNotErased(db, ctx.workspaceId);
             const fresh = await this.turn(
               db,
               ctx,
