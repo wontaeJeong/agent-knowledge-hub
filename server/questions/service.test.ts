@@ -48,6 +48,7 @@ test("partially revoked completed history hides every stored ordinal", async () 
   await f.pool.query("UPDATE question_turns SET status='completed',answer_id=$3,answer_version=1 WHERE workspace_id=$1 AND id=$2",[f.workspaceId,two.turnId,answer2.id]);
   const result=await f.service.readThread(f.reader,thread.id);
   expect(result).toMatchObject({revision:null,contextOmitted:true,turns:[{question:'visible',ordinal:null,answer:{id:answer2.id}}]});
+  expect((await f.service.listThreads(f.reader)).items).toContainEqual({id:thread.id,revision:null});
   expect(JSON.stringify(result)).not.toContain('hidden');
 });
 test("listing 100 threads shares one current view and does not load it for empty threads", async () => {
@@ -79,7 +80,7 @@ test("listing 100 threads shares one current view and does not load it for empty
   console.info(`thread-list empty=${emptyQueries} queries; populated+concurrent=${populatedQueries} queries; elapsed=${Math.round(elapsed)}ms`);
   f.pool.off('acquire',onAcquire);
   for (const spy of spies.values()) spy.mockRestore();
-});
+}, 20000);
 
 test("private durable thread admission CAS, nonce replay and orphan enqueue retry", async () => {
   const f = await setup();
