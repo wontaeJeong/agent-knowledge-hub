@@ -58,6 +58,8 @@ docker compose down
 
 ## PR CI와 CD의 경계
 
+작은 기능 단위 PR, 머지 조건, 발견한 실수의 기록과 후속 조치는 [PR 운영과 실수 기록](PR_WORKFLOW.md)을 따른다. 작업 중에도 독립적으로 검토 가능한 단위가 준비되면 PR을 올린다.
+
 `.github/workflows/ci.yml`은 PR, main push, merge queue, 수동 실행에서 다음을 수행한다.
 
 1. Ubuntu Node 22/24, macOS Node 24, Windows Node 24에서 `npm ci`와 `npm run check`.
