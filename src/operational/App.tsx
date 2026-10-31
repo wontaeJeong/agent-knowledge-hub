@@ -46,6 +46,11 @@ interface PublishedPage {
   version: number;
   content: string;
   scope?: string;
+  currentRecommendation?: boolean | null;
+  reviewOverdue?: boolean | null;
+  lifecycle?: string | null;
+  effectiveFrom?: string | null;
+  replacementId?: string | null;
 }
 interface ChangeSet {
   reviewWarnings?:{pageId:string;key:string;code:'PROPERTY_REQUIRED';mode:'warn'|'block'}[];
@@ -178,6 +183,7 @@ function OperationalWorkspace({
   );
   const policyApi=useCallback(<T,>(path:string,options?:{method:string;body:unknown})=>api.request<T>(path.replace(/^\/api\/v1(?=\/|$)/,''),options?.method??'GET',options?.body),[api]);
   const requestEpoch = useRef(0),
+    loadSequence = useRef(0),
     currentScope = useRef("");
   const waitAbort = useMemo(() => new AbortController(), [api]);
   useEffect(() => () => waitAbort.abort(), [waitAbort]);
@@ -239,6 +245,9 @@ function OperationalWorkspace({
     preview ? "offline" : "model",
   );
   const [search, setSearch] = useState("");
+  const [recommendationFilter, setRecommendationFilter] = useState<
+    "all" | "current" | "not-current" | "unknown"
+  >("all");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [question, setQuestion] = useState("");
@@ -255,6 +264,7 @@ function OperationalWorkspace({
       reason = "세션이 만료되어 보호된 화면과 작성 중인 입력을 비웠습니다. 다시 로그인하세요.",
     ) => {
       requestEpoch.current++;
+      loadSequence.current++;
       setDataReady(false);
       currentScope.current = "";
       setIdentity(null);
@@ -286,116 +296,135 @@ function OperationalWorkspace({
     api.onExpired(clearProtected);
     return () => {
       requestEpoch.current++;
+      loadSequence.current++;
       api.onExpired(undefined);
     };
   }, [api, clearProtected]);
 
   const load = useCallback(async () => {
     let epoch = requestEpoch.current;
+    let sequence = ++loadSequence.current;
+    const isCurrent = () => epoch === requestEpoch.current && sequence === loadSequence.current;
     setDataReady(false);
-    const current = await api.me();
-    if (epoch !== requestEpoch.current) return;
-    const nextScope = current.principalId + "\0" + current.workspaceId;
-    if (currentScope.current && currentScope.current !== nextScope) {
-      clearProtected("사용자 또는 공간이 바뀌어 이전 보호 내용을 비웠습니다.");
-      epoch = requestEpoch.current;
-    }
-    const capabilities = current.capabilities ?? [];
-    if (
-      !preview &&
-      current.capabilities &&
-      !capabilities.includes("knowledge.read")
-    ) {
-      clearProtected(
-        "현재 공간의 내용 열람 권한이 없어 보호 내용과 입력을 비웠습니다.",
-      );
-      epoch = requestEpoch.current;
-      const available = await api.get<{
-        items: {
-          id: string;
-          namespaceSlug: string;
-          slug: string;
-          role: string;
-        }[];
-      }>("/spaces");
-      if (epoch !== requestEpoch.current) return;
-      setIdentity(current);
-      currentScope.current = nextScope;
-      setSpaces(available.items);
-      setTab("access");
-      return;
-    }
-    const [p, s, c, m, j, config, availableSpaces, executors] =
-      await Promise.all([
-        api.get<{ items: PublishedPage[] }>("/pages"),
-        (preview || !current.capabilities || capabilities.includes("changeset.propose"))
-          ? api.get<{ items: Source[] }>("/sources")
-          : Promise.resolve({ items: [] }),
-        (preview || !current.capabilities || capabilities.includes("queue.triage"))
-          ? api.get<{ items: ChangeSet[] }>("/changesets")
-          : Promise.resolve({ items: [] }),
-        (preview || !current.capabilities || capabilities.includes("space.admin"))
-          ? api.get<{ items: { principalId: string; role: string }[] }>(
-              "/members",
-            )
-          : Promise.resolve({
-              items: [{ principalId: current.principalId, role: current.role }],
-            }),
-        api.get<{ items: Job[] }>(
-          capabilities.includes("jobs.read") ? "/jobs-v2" : "/jobs",
-        ),
-        api.get<{ configured: boolean; model: string | null }>("/model"),
-        preview || !current.capabilities ? Promise.resolve({ items: [] }) : api.get<{
+    setPages([]);
+    setSources([]);
+    setChanges([]);
+    setIssues(null);
+    setSelectedSources([]);
+    setSnapshot(null);
+    try {
+      const current = await api.me();
+      if (!isCurrent()) return;
+      const nextScope = current.principalId + "\0" + current.workspaceId;
+      if (currentScope.current && currentScope.current !== nextScope) {
+        clearProtected("사용자 또는 공간이 바뀌어 이전 보호 내용을 비웠습니다.");
+        epoch = requestEpoch.current;
+        sequence = loadSequence.current;
+      }
+      const capabilities = current.capabilities ?? [];
+      if (
+        !preview &&
+        current.capabilities &&
+        !capabilities.includes("knowledge.read")
+      ) {
+        clearProtected(
+          "현재 공간의 내용 열람 권한이 없어 보호 내용과 입력을 비웠습니다.",
+        );
+        epoch = requestEpoch.current;
+        sequence = loadSequence.current;
+        const available = await api.get<{
           items: {
             id: string;
             namespaceSlug: string;
             slug: string;
             role: string;
           }[];
-        }>("/spaces"),
-        capabilities.includes("jobs.manage")
-          ? api.get<{
-              items: {
-                workspaceId: string;
-                principalId: string;
-                credentialId: string;
-              }[];
-              directoryConfigured: boolean;
-            }>("/execution-identities")
-          : Promise.resolve({ items: [], directoryConfigured: false }),
-      ]);
-    if (epoch !== requestEpoch.current) return;
-    const savedAnswer = answerRef.current;
-    if (savedAnswer && !preview) {
-      try {
-        const fresh = await api.get<Answer>(
-          `/answers/${encodeURIComponent(savedAnswer.id)}`,
-        );
-        if (epoch === requestEpoch.current) setAnswer(fresh);
-      } catch (e) {
-        if (epoch !== requestEpoch.current) return;
-        if (e instanceof ApiError && [403, 404, 409].includes(e.status)) {
-          setAnswer(null);
-          setSnapshot(null);
-          setNotice(
-            "근거·버전·접근 범위가 바뀌어 이전 답변을 가렸습니다. 다시 질문하세요.",
+        }>("/spaces");
+        if (!isCurrent()) return;
+        setIdentity(current);
+        currentScope.current = nextScope;
+        setSpaces(available.items);
+        setTab("access");
+        return;
+      }
+      const [p, s, c, m, j, config, availableSpaces, executors] =
+        await Promise.all([
+          api.get<{ items: PublishedPage[] }>("/pages"),
+          (preview || !current.capabilities || capabilities.includes("changeset.propose"))
+            ? api.get<{ items: Source[] }>("/sources")
+            : Promise.resolve({ items: [] }),
+          (preview || !current.capabilities || capabilities.includes("queue.triage"))
+            ? api.get<{ items: ChangeSet[] }>("/changesets")
+            : Promise.resolve({ items: [] }),
+          (preview || !current.capabilities || capabilities.includes("space.admin"))
+            ? api.get<{ items: { principalId: string; role: string }[] }>(
+                "/members",
+              )
+            : Promise.resolve({
+                items: [{ principalId: current.principalId, role: current.role }],
+              }),
+          api.get<{ items: Job[] }>(
+            capabilities.includes("jobs.read") ? "/jobs-v2" : "/jobs",
+          ),
+          api.get<{ configured: boolean; model: string | null }>("/model"),
+          preview || !current.capabilities ? Promise.resolve({ items: [] }) : api.get<{
+            items: {
+              id: string;
+              namespaceSlug: string;
+              slug: string;
+              role: string;
+            }[];
+          }>("/spaces"),
+          capabilities.includes("jobs.manage")
+            ? api.get<{
+                items: {
+                  workspaceId: string;
+                  principalId: string;
+                  credentialId: string;
+                }[];
+                directoryConfigured: boolean;
+              }>("/execution-identities")
+            : Promise.resolve({ items: [], directoryConfigured: false }),
+        ]);
+      if (!isCurrent()) return;
+      const savedAnswer = answerRef.current;
+      if (savedAnswer && !preview) {
+        try {
+          const fresh = await api.get<Answer>(
+            `/answers/${encodeURIComponent(savedAnswer.id)}`,
           );
-        } else throw e;
+          if (isCurrent()) setAnswer(fresh);
+        } catch (e) {
+          if (!isCurrent()) return;
+          if (e instanceof ApiError && [403, 404, 409].includes(e.status)) {
+            setAnswer(null);
+            setSnapshot(null);
+            setNotice(
+              "근거·버전·접근 범위가 바뀌어 이전 답변을 가렸습니다. 다시 질문하세요.",
+            );
+          } else throw e;
+        }
+      }
+      if (!isCurrent()) return;
+      setIdentity(current);
+      currentScope.current = nextScope;
+      setPages(p.items);
+      setPageNumber(0);
+      setSources(s.items);
+      setChanges(c.items);
+      setMembers(m.items);
+      setJobs(j.items);
+      setExecutionIdentities(executors.items);
+      setDirectoryConfigured(executors.directoryConfigured);
+      setModel(config);
+      setSpaces(availableSpaces.items);
+      setDataReady(true);
+    } catch (e) {
+      if (isCurrent()) {
+        setAnswer(null);
+        throw e;
       }
     }
-    if (epoch !== requestEpoch.current) return;
-    setIdentity(current);
-    currentScope.current = nextScope;
-    setPages(p.items);
-    setSources(s.items);
-    setChanges(c.items);
-    setMembers(m.items);
-    setJobs(j.items);
-    setExecutionIdentities(executors.items);
-    setDirectoryConfigured(executors.directoryConfigured);
-    setModel(config);
-    setSpaces(availableSpaces.items);
-    setDataReady(true);
   }, [api, preview, clearProtected, setAnswer]);
   useEffect(() => {
     let active = true;
@@ -431,7 +460,7 @@ function OperationalWorkspace({
     setNotice("");
     try {
       await action();
-      await load();
+      if (action !== load) await load();
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         clearProtected();
@@ -535,11 +564,15 @@ function OperationalWorkspace({
     ? identity.capabilities.includes("changeset.approve")
     : (identity?.canReviewKnowledge ?? identity?.role === "reviewer");
   const [pageNumber, setPageNumber] = useState(0);
-  const filtered = pages.filter((p) =>
-    `${p.title} ${p.summary} ${p.content}`
-      .toLocaleLowerCase()
-      .includes(search.toLocaleLowerCase()),
-  );
+  const filtered = pages.filter((p) => {
+    const state = p.currentRecommendation === true
+      ? "current"
+      : p.currentRecommendation === false ? "not-current" : "unknown";
+    return (recommendationFilter === "all" || recommendationFilter === state) &&
+      `${p.title} ${p.summary} ${p.content}`
+        .toLocaleLowerCase()
+        .includes(search.toLocaleLowerCase());
+  });
   const visible = filtered.slice(pageNumber * 25, (pageNumber + 1) * 25);
 
   return (
@@ -678,8 +711,9 @@ function OperationalWorkspace({
             ].includes(tab) && (
               <div className="op-context">
                 <span>
-                  {preview ? "합성 예시" : "서버 정본"} · {pages.length}개 접근
-                  가능 발행본
+                  {preview ? "합성 예시" : "서버 정본"} · {dataReady
+                    ? `${pages.length}개 접근 가능 발행본`
+                    : "발행본 확인 중 또는 조회 실패"}
                 </span>
                 <span>모델: {model.configured ? model.model : "미연결"}</span>
                 <label>
@@ -703,6 +737,9 @@ function OperationalWorkspace({
               <p role="status" className="op-progress">
                 서버에서 처리하고 있습니다. 창을 반복 제출하지 마세요.
               </p>
+            )}
+            {!dataReady && tab !== "overview" && tab !== "knowledge" && tab !== "access" && (
+              <p role="status">서버 지식을 확인 중이거나 불러오지 못했습니다.</p>
             )}
             {tab === "overview" && dataReady && (
               <Overview
@@ -739,7 +776,7 @@ function OperationalWorkspace({
                 <AgentCredentials key={identity.workspaceId+tab} api={api} identity={identity} onExpired={clearProtected} section={tab} />
               </Suspense>
             )}
-            {tab === "evaluation" && !preview && (
+            {tab === "evaluation" && !preview && dataReady && (
               <Suspense fallback={<p role="status">평가 도구를 불러오는 중…</p>}>
                 <ModelAssessment api={api} identity={identity} pages={pages} onExpired={clearProtected} />
               </Suspense>
@@ -806,7 +843,8 @@ function OperationalWorkspace({
                 />
               </Suspense>
             )}
-            {tab === "knowledge" && (
+            {tab === "knowledge" && !dataReady && <p role="status">발행 지식을 확인 중이거나 불러오지 못했습니다.</p>}
+            {tab === "knowledge" && dataReady && (
               <section className="op-panel">
                 <div className="op-section-head">
                   <h2>발행 지식</h2>
@@ -826,10 +864,30 @@ function OperationalWorkspace({
                     placeholder="업무에 필요한 지식 찾기"
                   />
                 </label>
+                <label>
+                  권고 상태
+                  <select
+                    aria-label="권고 상태 필터"
+                    value={recommendationFilter}
+                    onChange={(e) => {
+                      setRecommendationFilter(e.target.value as typeof recommendationFilter);
+                      setPageNumber(0);
+                    }}
+                  >
+                    <option value="all">모두 표시</option>
+                    <option value="current">현재 권고 대상</option>
+                    <option value="not-current">현재 권고 비대상</option>
+                    <option value="unknown">상태 미확인</option>
+                  </select>
+                </label>
+                <p>검토 기한 경과는 내용이 틀렸거나 자동 폐기되었다는 뜻이 아닙니다.</p>
+                <p>현재 권고 대상은 서버의 검색 자격이며 독립 검증이나 공식성을 뜻하지 않습니다.</p>
+                <p role="status">검색 결과 {filtered.length}건</p>
                 {!filtered.length && (
                   <p>
-                    현재 접근 가능한 발행 지식이 없습니다. 원본을 편입하고
-                    검토·발행하면 여기에 표시됩니다.
+                    {pages.length
+                      ? "선택한 조건에 맞는 발행 지식이 없습니다."
+                      : "현재 접근 가능한 발행 지식이 없습니다. 원본을 편입하고 검토·발행하면 여기에 표시됩니다."}
                   </p>
                 )}
                 <div className="op-page-list">
@@ -839,6 +897,21 @@ function OperationalWorkspace({
                         <summary>
                           <strong>{page.title}</strong>
                           <Badge>v{page.version}</Badge>
+                          <Badge>
+                            {page.currentRecommendation === true
+                              ? "현재 권고 대상"
+                              : page.currentRecommendation === false
+                                ? "현재 권고 비대상"
+                                : "상태 미확인"}
+                          </Badge>
+                          {page.reviewOverdue === true && <Badge>검토 기한 경과</Badge>}
+                          {page.currentRecommendation === false && <span>
+                            {[
+                              typeof page.lifecycle === "string" && page.lifecycle && page.lifecycle !== "active" && `생애주기: ${page.lifecycle}`,
+                              typeof page.effectiveFrom === "string" && page.effectiveFrom && `시행일: ${page.effectiveFrom}`,
+                              typeof page.replacementId === "string" && page.replacementId && "대체 문서 지정됨",
+                            ].filter(Boolean).join(" · ") || "비대상 사유 미확인"}
+                          </span>}
                           <span>{page.summary}</span>
                         </summary>
                         <div
@@ -884,7 +957,7 @@ function OperationalWorkspace({
                 <p>이 화면은 실제 서버와 현재 권한이 필요합니다. 목업에서는 서버를 호출하지 않습니다.</p>
               </section>
             )}
-            {tab === "workflows" && !preview && (
+            {tab === "workflows" && !preview && dataReady && (
               <WorkflowPanel
                 principalId={identity.principalId}
                 spaceId={identity.workspaceId}
@@ -909,10 +982,10 @@ function OperationalWorkspace({
                 onSelect={onSpace}
               />
             )}
-            {tab==='policies'&&!preview&&<PolicyManager api={policyApi} capabilities={identity.capabilities??[]} sourceOptions={sources.map(s=>({id:s.id,title:s.title}))} onChanged={load} onExpired={clearProtected}/>}
+            {tab==='policies'&&!preview&&dataReady&&<PolicyManager api={policyApi} capabilities={identity.capabilities??[]} sourceOptions={sources.map(s=>({id:s.id,title:s.title}))} onChanged={load} onExpired={clearProtected}/>}
             {tab==='activity'&&!preview&&<><TracePanel api={api}/><OperationsPanel api={api} canAdmin={!!identity.capabilities?.includes('space.admin')} canOwner={identity.space?.owner??false}/></>}
             {tab==='lifecycle'&&!preview&&<GovernanceWorkbench api={policyApi} capabilities={identity.capabilities??[]} onChanged={load} onExpired={clearProtected}/>}
-            {tab === "refinement" && !preview && (
+            {tab === "refinement" && !preview && dataReady && (
               <RefinementPanel
                 api={api}
                 pages={pages}
@@ -921,7 +994,7 @@ function OperationalWorkspace({
                 onChanged={load}
               />
             )}
-            {tab === "sources" && (
+            {tab === "sources" && dataReady && (
               <>
                 {write && (
                   <section className="op-panel">
@@ -1112,7 +1185,7 @@ function OperationalWorkspace({
                 </section>
               </>
             )}
-            {tab === "review" && (
+            {tab === "review" && dataReady && (
               <section className="op-panel">
                 <h2>변경 집합 검토</h2>
                 <p>
@@ -1247,7 +1320,7 @@ function OperationalWorkspace({
                 />
               </section>
             )}
-            {tab === "query" && (
+            {tab === "query" && dataReady && (
               <section className="op-panel">
                 <h2>근거 기반 질문</h2>
                 <form
@@ -1376,7 +1449,7 @@ function OperationalWorkspace({
                 )}
               </section>
             )}
-            {tab === "lint" && (
+            {tab === "lint" && dataReady && (
               <section className="op-panel">
                 <h2>지식 건강 점검</h2>
                 <p>

@@ -11,6 +11,39 @@ import {
 } from "./api";
 
 describe("operational client boundary", () => {
+  it("a late identity response cannot overwrite the newer session CSRF token", async () => {
+    let resolveFirst!: (res: import("node:http").ServerResponse) => void;
+    const first = new Promise<import("node:http").ServerResponse>((resolve) => {
+      resolveFirst = resolve;
+    });
+    let reads = 0;
+    let sentToken = "";
+    const server = createServer((req, res) => {
+      res.setHeader("Content-Type", "application/json");
+      if (req.url?.endsWith("/me")) {
+        if (++reads === 1) resolveFirst(res);
+        else res.end(JSON.stringify({ csrfToken: "new" }));
+        return;
+      }
+      sentToken = String(req.headers["x-csrf-token"]);
+      res.end("{}");
+    }).listen(0, "127.0.0.1");
+    await once(server, "listening");
+    try {
+      const api = new OperationalApi(
+        `http://127.0.0.1:${(server.address() as { port: number }).port}`,
+      );
+      const old = api.me();
+      const oldResponse = await first;
+      await api.me();
+      oldResponse.end(JSON.stringify({ csrfToken: "old" }));
+      await old;
+      await api.post("/sources", {});
+      expect(sentToken).toBe("new");
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
   it("bounded GET retries absorb transient login fan-out backpressure but never repeat writes", async () => {
     let reads = 0,
       writes = 0;
