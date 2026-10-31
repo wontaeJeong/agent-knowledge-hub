@@ -37,6 +37,56 @@ async function setup() {
     runtime,
   };
 }
+test("thread listing uses the owner ordering index and stable tied-time cursors", async () => {
+  const f = await setup();
+  await f.pool.query(
+    "INSERT INTO question_threads(workspace_id,id,principal_id,created_at) SELECT $1,'a-'||lpad(n::text,6,'0'),'editor','2026-01-01T00:00:00Z' FROM generate_series(1,10000) n",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO question_threads(workspace_id,id,principal_id,created_at) SELECT $1,'z-'||lpad(n::text,6,'0'),'reader','2026-01-01T00:00:00Z' FROM generate_series(1,200) n",
+    [f.workspaceId],
+  );
+  await f.pool.query("ANALYZE question_threads");
+  const plan = await f.pool.query(
+    "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT id FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 ORDER BY created_at,id LIMIT $3",
+    [f.workspaceId, "reader", 26],
+  );
+  const actual = JSON.stringify(plan.rows[0]["QUERY PLAN"]);
+  expect(actual).toContain("question_threads_owner");
+  expect(actual).not.toContain('"Node Type":"Sort"');
+  const continuation = await f.pool.query(
+    "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT id FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 AND (created_at,id) > ((SELECT created_at FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 AND id=$3),$3) ORDER BY created_at,id LIMIT $4",
+    [f.workspaceId, "reader", "z-000025", 26],
+  );
+  const continuationPlan = JSON.stringify(continuation.rows[0]["QUERY PLAN"]);
+  expect(continuationPlan).toContain("question_threads_owner");
+  expect(continuationPlan).not.toContain('"Node Type":"Sort"');
+  const spies = new Map<PoolClient, ReturnType<typeof vi.spyOn>>();
+  const acquire = (c: PoolClient) => {
+    if (!spies.has(c)) spies.set(c, vi.spyOn(c, "query"));
+  };
+  f.pool.on("acquire", acquire);
+  const first = await f.service.listThreads(f.reader, { limit: 25 });
+  const next = await f.service.listThreads(f.reader, {
+    limit: 25,
+    cursor: first.nextCursor,
+  });
+  expect(first.items.map((item) => item.id)).toEqual(
+    Array.from({ length: 25 }, (_, n) => `z-${String(n + 1).padStart(6, "0")}`),
+  );
+  expect(next.items[0].id).toBe("z-000026");
+  expect(
+    new Set([...first.items, ...next.items].map((item) => item.id)).size,
+  ).toBe(50);
+  const sql = [...spies.values()]
+    .flatMap((spy) => spy.mock.calls)
+    .map((call) => String(call[0]))
+    .find((value) => /SELECT id FROM question_threads/.test(value));
+  expect(sql).toMatch(/ORDER BY created_at\s*,\s*id/);
+  f.pool.off("acquire", acquire);
+  for (const spy of spies.values()) spy.mockRestore();
+});
 test("large completed histories are bounded before content or answer retrieval", async () => {
   const f = await setup();
   const seed = await f.service.createThread(f.reader);

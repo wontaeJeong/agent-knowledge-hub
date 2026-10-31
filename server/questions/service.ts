@@ -238,17 +238,19 @@ export class QuestionsService {
       .strict()
       .parse(raw);
     return this.run(ctx, async (db) => {
-      const rows = (
-        await db.query(
-          "SELECT id FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 AND ($3::text IS NULL OR id>$3) ORDER BY id LIMIT $4",
-          [
-            ctx.workspaceId,
-            ctx.principalId,
-            page.cursor ?? null,
-            page.limit + 1,
-          ],
-        )
-      ).rows;
+      const rows = page.cursor
+        ? (
+            await db.query(
+              "SELECT id FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 AND (created_at,id) > ((SELECT created_at FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 AND id=$3),$3) ORDER BY created_at,id LIMIT $4",
+              [ctx.workspaceId, ctx.principalId, page.cursor, page.limit + 1],
+            )
+          ).rows
+        : (
+            await db.query(
+              "SELECT id FROM question_threads WHERE workspace_id=$1 AND principal_id=$2 ORDER BY created_at,id LIMIT $3",
+              [ctx.workspaceId, ctx.principalId, page.limit + 1],
+            )
+          ).rows;
       return {
         // Never inspect histories for listing; null is not an optimistic-lock revision.
         items: rows

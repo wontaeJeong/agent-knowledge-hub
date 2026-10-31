@@ -320,7 +320,11 @@ export function createRuntimeHandler(options: {
       if (path.startsWith("/api/v1/questions/")) {
         // Neither credential type has a verified ceiling for private threads yet.
         if (credential || agent) throw Error("FORBIDDEN");
-        const threadRoute = /^\/api\/v1\/questions\/threads(?:\/[a-zA-Z0-9_-]{1,100}(?:\/title)?)?$/.test(path);
+        if (req.method === "GET" && path.startsWith("/api/v1/questions/threads/")) {
+          await ctx.authorization!.revalidate();
+          return send(503, { code: "QUESTION_HISTORY_NOT_CONFIGURED" });
+        }
+        const threadRoute = path === "/api/v1/questions/threads";
         if (!threadRoute) {
           if (req.method === "POST" && /^\/api\/v1\/questions\/threads\/[a-zA-Z0-9_-]{1,100}\/turns(?:\/[a-zA-Z0-9_-]{1,100}\/resume)?$/.test(path))
             return send(503, { code: "QUESTION_QUEUE_NOT_CONFIGURED", requestId });
