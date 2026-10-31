@@ -37,6 +37,12 @@ afterAll(async()=>{
  else process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED=old;
 });
 const sessionHeaders={"Cookie":"akh_session=fixture","Origin":"http://localhost","X-CSRF-Token":"csrf","Content-Type":"application/json"};
+test("version workflow routes remain unavailable through the authenticated runtime",async()=>{
+ for(const path of ["/api/v1/versions/decisions", "/api/v1/versions/decisions/preview", "/api/v1/versions/restore/preview", "/api/v1/versions/restore/propose"]){
+  const response=await fetch(base+path,{method:"POST",headers:sessionHeaders,body:"{}"});
+  expect(response.status, path).toBe(404);
+ }
+});
 test("browser issues a 90-day key, bearer reads with current ACL but cannot access interactive approvals",async()=>{
  const issue=await fetch(base+"/api/v1/credentials/keys",{method:"POST",headers:sessionHeaders,body:JSON.stringify({name:"agent",scope:"read",days:90})});
  expect(issue.status).toBe(201);

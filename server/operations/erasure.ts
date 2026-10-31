@@ -372,6 +372,20 @@ async function hasQuestionData(db: PoolClient, workspaceId: string) {
 async function assertNoQuestionData(db: PoolClient, workspaceId: string) {
   if (await hasQuestionData(db, workspaceId)) throw Error("ERASURE_QUESTION_DATA_UNSUPPORTED");
 }
+/** These append-only workflow records are not yet covered by erasure or recovery replay. */
+async function hasVersionWorkflowData(db: PoolClient, workspaceId: string) {
+  const result = await db.query(`SELECT
+    EXISTS(SELECT 1 FROM version_metadata WHERE workspace_id=$1) OR
+    EXISTS(SELECT 1 FROM version_metadata_events WHERE workspace_id=$1) OR
+    EXISTS(SELECT 1 FROM versions_decisions WHERE workspace_id=$1) OR
+    EXISTS(SELECT 1 FROM version_restore_previews WHERE workspace_id=$1) OR
+    EXISTS(SELECT 1 FROM version_restore_plans WHERE workspace_id=$1) OR
+    EXISTS(SELECT 1 FROM version_restore_applications WHERE workspace_id=$1) AS present`, [workspaceId]);
+  return result.rows[0].present as boolean;
+}
+async function assertNoVersionWorkflowData(db: PoolClient, workspaceId: string) {
+  if (await hasVersionWorkflowData(db, workspaceId)) throw Error("ERASURE_VERSION_METADATA_UNSUPPORTED");
+}
 async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
   const metadata = (
       await db.query(
@@ -421,6 +435,7 @@ export async function replayProductErasure(
   await db.query("SELECT pg_advisory_xact_lock($1)", [MUTATION_GATE]);
   await assertNoAgentData(db, workspaceId);
   await assertNoQuestionData(db, workspaceId);
+  await assertNoVersionWorkflowData(db, workspaceId);
   const ctx = { workspaceId, principalId: "signed-recovery-ledger" },
     all = await inventory(db, ctx),
     selected = selectErasureRows(
@@ -612,6 +627,7 @@ export async function previewErasure(
       unresolvedUnlineagedRows: p.opaque,
       agentDataUnsupported: await hasAgentData(db, ctx.workspaceId),
       questionDataUnsupported: await hasQuestionData(db, ctx.workspaceId),
+      versionWorkflowDataUnsupported: await hasVersionWorkflowData(db, ctx.workspaceId),
       agentDataBoundary: boundary,
       allCopiesErased: false,
     };
@@ -664,6 +680,10 @@ export async function executeErasure(
         if (await hasQuestionData(db, ctx.workspaceId)) {
           status = "blocked";
           throw Error("ERASURE_QUESTION_DATA_UNSUPPORTED");
+        }
+        if (await hasVersionWorkflowData(db, ctx.workspaceId)) {
+          status = "blocked";
+          throw Error("ERASURE_VERSION_METADATA_UNSUPPORTED");
         }
         const resources: Resource[] =
           d.scope === "workspace"
