@@ -166,11 +166,19 @@ export function UsageReport({ data }: { data: UsageSummary }) {
         </>
       )}
       <section className="usage-panel">
-        <h2>모델 사용량 · 미수집</h2>
-        <p>
-          입력·출력 토큰과 비용은 아직 계측하지 않습니다. 미수집 값을 0이나
-          무료로 표시하지 않습니다.
-        </p>
+        <h2>모델 호출 · 공급자별 토큰 사용량</h2>
+        <p className="muted">측정된 모델 호출 {data.model.calls??0}건 · 실패 {data.model.failed??0}건. 미보고 토큰·비용은 0이나 무료가 아닌 ‘미수집’으로 표시합니다. 캐시 토큰은 입력 토큰에 포함될 수 있어 중복 합산하지 않습니다.</p>
+        {!data.model.calls?<p>이 기간에 기록된 모델 호출이 없습니다.</p>:<div className="usage-cards">
+          {[
+            ["입력 토큰",data.model.inputTokens,data.model.measuredCalls],
+            ["출력 토큰",data.model.outputTokens,data.model.outputMeasuredCalls],
+            ["캐시 읽기",data.model.cacheReadTokens,undefined],
+            ["캐시 쓰기",data.model.cacheWriteTokens,undefined],
+            ["보고 비용 · USD",data.model.cost,data.model.pricedCalls],
+          ].map(([title,value,measured])=><div className="usage-card" key={String(title)}><h3>{title}</h3><strong>{value===null||value===undefined?"미수집":Number(value).toLocaleString("ko-KR",{maximumFractionDigits:8})}</strong>{measured!==undefined&&<p className="muted">{Number(measured)}건 보고</p>}</div>)}
+        </div>}
+        {(data.model.byProvider?.length??0)>0&&<div className="usage-table-scroll" tabIndex={0} role="region" aria-label="공급자별 모델 사용량 표"><table><caption>모델별 호출·토큰·비용 집계</caption><thead><tr><th>프록시 / 백엔드</th><th>모델</th><th>호출 / 실패</th><th>입력 / 출력 토큰</th><th>비용(USD)</th></tr></thead><tbody>{data.model.byProvider?.map((m,i)=><tr key={m.provider+m.backend+m.model+i}><th scope="row">{m.provider} / {m.backend}</th><td>{m.model}</td><td>{m.calls} / {m.failed}</td><td>{m.inputTokens??"미수집"} / {m.outputTokens??"미수집"}</td><td>{m.cost??"미수집"}</td></tr>)}</tbody></table></div>}
+        {data.model.byProvider?.some(m=>m.backend==="unknown")&&<p className="muted">LiteLLM 라우터 별칭으로 실제 모델 공급자를 추정하지 않습니다. 확인되지 않은 백엔드는 unknown입니다.</p>}
       </section>
     </div>
   );

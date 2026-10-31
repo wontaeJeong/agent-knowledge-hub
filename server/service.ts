@@ -20,6 +20,8 @@ export interface Context {
   requestId?:string;
   /** Server-resolved hashed credential, never parsed from a caller context. */
   credentialId?: string;
+  /** Scoped machine credential; never accepted from a client-supplied DTO. */
+  agent?: {keyId:string;scope:"read"|"write"};
   /** Server-created request capability; never accepted from a client DTO. */
   authorization?: {
     sessionId?: string;

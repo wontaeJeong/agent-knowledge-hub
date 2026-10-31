@@ -74,6 +74,8 @@ const Management = lazy(() =>
 );
 const ImportWorkbench = lazy(() => import("./ImportWorkbench"));
 const BoardsWorkbench = lazy(() => import("./BoardsWorkbench"));
+const AgentCredentials = lazy(() => import("./AgentCredentials"));
+const ModelAssessment = lazy(() => import("./ModelAssessment"));
 const AccessManager = lazy(() => import("./AccessManager"));
 const ImportPreview = lazy(() =>
   import("./ImportPreview").then((m) => ({ default: m.ImportPreview })),
@@ -730,8 +732,18 @@ function OperationalWorkspace({
               </section>
             )}
             <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
-              {(preview||!['policies','activity','lifecycle'].includes(tab))&&<Management section={tab} preview={preview} navigate={navigate} />}
+              {(preview || !['policies','activity','lifecycle','agents','integrations','evaluation'].includes(tab)) && <Management section={tab} preview={preview} navigate={navigate} />}
             </Suspense>
+            {(tab === "agents" || tab === "integrations") && !preview && (
+              <Suspense fallback={<p role="status">에이전트 인증을 불러오는 중…</p>}>
+                <AgentCredentials key={identity.workspaceId+tab} api={api} identity={identity} onExpired={clearProtected} section={tab} />
+              </Suspense>
+            )}
+            {tab === "evaluation" && !preview && (
+              <Suspense fallback={<p role="status">평가 도구를 불러오는 중…</p>}>
+                <ModelAssessment api={api} identity={identity} pages={pages} onExpired={clearProtected} />
+              </Suspense>
+            )}
             {tab === "boards" && !preview && (
               <Suspense fallback={<p role="status">공지·VOC를 불러오는 중…</p>}>
                 <BoardsWorkbench key={identity.workspaceId} api={api} identity={identity} onExpired={clearProtected} />
@@ -1499,7 +1511,10 @@ function OperationalWorkspace({
                   집계 새로고침
                 </Button>
                 {!preview && usage && (
-                  <a className="button secondary" href={`/api/v1/usage/export?days=${usageDays}`} download="agent-knowledge-hub-usage.csv">CSV 내보내기</a>
+                  <>
+                  <a className="button secondary" href={`/api/v1/usage/export?days=${usageDays}`} download="agent-knowledge-hub-usage.csv">호출 CSV</a>
+                  <a className="button secondary" href={"/api/v1/usage/model-export?days="+usageDays} download="agent-knowledge-hub-model-usage.csv">모델 사용량 CSV</a>
+                  </>
                 )}
                 {usage ? (
                   <Suspense fallback={<p role="status">집계를 불러오는 중…</p>}>

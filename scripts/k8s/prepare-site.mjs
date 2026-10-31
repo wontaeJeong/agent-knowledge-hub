@@ -104,7 +104,7 @@ export function validateSiteConfig(config) {
     /^[a-zA-Z0-9_-]{1,100}$/.test(value) &&
     !Object.hasOwn(Object.prototype, value) && value !== "prototype";
   const purposes = ["query", "ingest", "organize", "semantic-lint", "embedding",
-    "conversion", "execution-verification"];
+    "conversion", "execution-verification", "assessment"];
   const entries = config.modelTransmissionDestinations ?? [];
   requireField(Array.isArray(entries) && entries.length <= 1000 && entries.every((entry) => {
     if (!object(entry) || Object.keys(entry).sort().join(",") !==

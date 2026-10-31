@@ -9,6 +9,8 @@ import { transaction } from "../database";
 import { registerTrustedDestinations, setSourcePolicy } from "../policy/model";
 import { setPrivateImportPolicy } from "../policy/imports";
 import { hash } from "./parser";
+// Real HTTP extraction and PostgreSQL policy/accounting can exceed the default 5s on shared runners.
+vi.setConfig({ testTimeout: 30000 });
 const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
   while (cleanup.length) await cleanup.pop()!();

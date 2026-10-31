@@ -14,6 +14,7 @@ export const purposes = [
   "ingest",
   "organize",
   "semantic-lint",
+  "assessment",
   "embedding",
   "conversion",
   "execution-verification",
@@ -298,7 +299,7 @@ export async function assertModelTransmission(
         ? "ingest"
         : input.purpose === "organize" || input.purpose === "conversion"
           ? "imports"
-          : input.purpose === "semantic-lint"
+          : input.purpose === "semantic-lint" || input.purpose === "assessment"
             ? "lint"
             : "models";
   await assertFeature(db, ctx, feature);

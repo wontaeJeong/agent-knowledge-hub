@@ -22,8 +22,8 @@ export async function bindModelTransmission(
   envelope: InputEnvelope,
   options: ModelOptions = {},
   endpoint = configuredModelEndpoint(),
+  destinationId = process.env.AGENT_KNOWLEDGE_HUB_LLM_DESTINATION_ID,
 ) {
-  const destinationId = process.env.AGENT_KNOWLEDGE_HUB_LLM_DESTINATION_ID;
   if (!destinationId) throw Error("MODEL_TRANSMISSION_DENIED");
   const input = {
     destinationId,

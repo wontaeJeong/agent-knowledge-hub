@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { normalizeProviderUsage, recordModelUsage, type Attribution, type Backend } from "../model-usage";
 export const MODEL_CONTRACT_VERSION = "2026-10-30-private-zero-change-v1";
 export interface ModelUsage {
   provider: string;
@@ -8,7 +9,7 @@ export interface ModelUsage {
   costMicros: number | null;
   error: string | null;
 }
-export interface ModelOptions {
+export interface ModelOptions extends Partial<Attribution> {
   signal?: AbortSignal;
   maxContextBytes?: number;
   maxResponseBytes?: number;
@@ -28,6 +29,8 @@ export type ModelCall = (
   options?: ModelOptions,
 ) => Promise<unknown>;
 export const modelConfig = () => ({
+  provider: process.env.AGENT_KNOWLEDGE_HUB_LLM_PROVIDER || "openai",
+  backend: process.env.AGENT_KNOWLEDGE_HUB_LLM_BACKEND || "unknown",
   configured: Boolean(
     process.env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL &&
     process.env.AGENT_KNOWLEDGE_HUB_LLM_MODEL &&
@@ -119,6 +122,10 @@ export const callModel: ModelCall = async (
   options.signal?.throwIfAborted();
   await options.beforeCall?.(provider, requestedModel);
   await options.beforeTransmission?.(endpoint.href);
+  const started = performance.now();
+  let succeeded = false;
+  let measured = normalizeProviderUsage("openai", {});
+  let deployedModel = requestedModel;
   try {
     const res = await fetch(endpoint, {
       method: "POST",
@@ -174,6 +181,10 @@ export const callModel: ModelCall = async (
               : "MODEL_INVALID",
       );
     const data = JSON.parse(raw);
+    if (provider === "openai" || provider === "litellm")
+      measured = normalizeProviderUsage(provider, data, res.headers);
+    if (typeof data.model === "string" && data.model.length > 0 && data.model.length <= 200)
+      deployedModel = data.model;
     const count = (n: unknown) =>
       typeof n === "number" && Number.isSafeInteger(n) && n >= 0 ? n : null;
     const cost = data.usage?.cost;
@@ -209,6 +220,7 @@ export const callModel: ModelCall = async (
         .replace(/^\s*```(?:json)?\s*/, "")
         .replace(/\s*```\s*$/, ""),
     );
+    succeeded = true;
     return result;
   } catch (error) {
     const code = options.signal?.aborted
@@ -231,5 +243,16 @@ export const callModel: ModelCall = async (
     throw Error(code);
   } finally {
     await options.onUsage?.(usage);
+    if (options.pool && options.workspaceId && options.principalId && (provider === "openai" || provider === "litellm")) {
+      const backend = modelConfig().backend;
+      if (!["unknown", "onprem", "bedrock", "external"].includes(backend)) throw Error("MODEL_CONFIGURATION");
+      await recordModelUsage({ pool: options.pool, workspaceId: options.workspaceId, principalId: options.principalId }, {
+        operation, provider, backend: backend as Backend, model: deployedModel,
+        deploymentId: measured.deploymentId, succeeded, latencyMs: performance.now() - started,
+        inputTokens: measured.inputTokens, outputTokens: measured.outputTokens,
+        cacheReadTokens: measured.cacheReadTokens, cacheWriteTokens: measured.cacheWriteTokens,
+        costUsd: measured.costUsd, errorCode: usage.error,
+      });
+    }
   }
 };

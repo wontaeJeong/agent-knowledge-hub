@@ -425,6 +425,9 @@ export class RuntimeService {
           };
           const modelOptions = {
             ...execution?.modelOptions,
+            pool: this.pool,
+            workspaceId: ctx.workspaceId,
+            principalId: ctx.principalId,
             privatePersonalSpace:
               Boolean(
                 (state as State & { serverPersonalSpace?: boolean })
@@ -696,6 +699,9 @@ export class RuntimeService {
           };
           const options: ModelOptions = {
             ...execution?.modelOptions,
+            pool: this.pool,
+            workspaceId: ctx.workspaceId,
+            principalId: ctx.principalId,
             ...(queryContext
               ? {
                   beforeTransmission: async (endpoint: string) => {

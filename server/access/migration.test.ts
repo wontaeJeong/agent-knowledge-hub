@@ -6,7 +6,7 @@ import { migrate, assertSchemaCurrent } from "../database";
 import { authorizeAction, syncIdentity } from "./index";
 import { LegacyAccessService, registerPrincipal } from "./legacy-adapter";
 
-test("released001..007 data adopts through009..014 preserving IDs, raw ACLs, disabled identities and independent authors without unowned-role fallback", async () => {
+test("released001..009 data adopts through010..015 preserving IDs, raw ACLs, disabled identities and independent authors without unowned-role fallback", async () => {
   if (!process.env.TEST_DATABASE_URL) throw Error("TEST_DATABASE_URL_REQUIRED");
   const root = new Pool({ connectionString: process.env.TEST_DATABASE_URL }),
     schema = "access_upgrade_" + randomUUID().replaceAll("-", "");
@@ -32,9 +32,9 @@ test("released001..007 data adopts through009..014 preserving IDs, raw ACLs, dis
     );
     const directory = new URL("../migrations/", import.meta.url),
       files = (await readdir(directory))
-        .filter((n) => /^00[1-7]-.*\.sql$/.test(n))
+        .filter((n) => /^00[1-9]-.*\.sql$/.test(n))
         .sort();
-    expect(files).toHaveLength(7);
+    expect(files).toHaveLength(9);
     for (const name of files) {
       const sql = await readFile(new URL(name, directory), "utf8");
       await pool.query(sql);
