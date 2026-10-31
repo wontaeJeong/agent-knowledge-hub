@@ -97,6 +97,55 @@ async function connection(
     },
   };
 }
+
+test("pages HTTP exposes recommendation separately from overdue and enforces current source access", async () => {
+  const f = await fixture();
+  const client = await connection(new RuntimeService(f.pool), f.workspaceId);
+  const read = async () => {
+    const response = await fetch(client.base + "/api/v1/pages", {
+      headers: client.headers,
+    });
+    expect(response.status).toBe(200);
+    return (await response.json()).items;
+  };
+  try {
+    expect(await read()).toMatchObject([
+      {
+        id: "topic",
+        lifecycle: "active",
+        reviewOverdue: false,
+        currentRecommendation: true,
+      },
+    ]);
+    await f.pool.query(
+      "INSERT INTO workflow_document_state(workspace_id,page_id,state,data) VALUES($1,'topic','active',$2)",
+      [f.workspaceId, { reviewDue: "2020-01-01T00:00:00Z" }],
+    );
+    expect(await read()).toMatchObject([
+      { reviewOverdue: true, currentRecommendation: true },
+    ]);
+    await f.pool.query(
+      "UPDATE workflow_document_state SET data=$2 WHERE workspace_id=$1 AND page_id='topic'",
+      [f.workspaceId, { effectiveFrom: "2099-01-01T00:00:00Z" }],
+    );
+    expect(await read()).toMatchObject([
+      { reviewOverdue: false, currentRecommendation: false },
+    ]);
+    await f.pool.query(
+      "UPDATE workflow_document_state SET data=$2 WHERE workspace_id=$1 AND page_id='topic'",
+      [f.workspaceId, { replacementId: "replacement" }],
+    );
+    expect(await read()).toMatchObject([{ currentRecommendation: false }]);
+    await f.pool.query(
+      "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id='source-a' AND principal_id='editor'",
+      [f.workspaceId],
+    );
+    expect(await read()).toEqual([]);
+  } finally {
+    await client.close();
+    await f.pool.end();
+  }
+});
 test("image schema gate rejects004 and wrong checksums, then005 enables protected access with recovered provenance", async () => {
   const root = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
   const schema = "gate_" + randomUUID().replaceAll("-", "");

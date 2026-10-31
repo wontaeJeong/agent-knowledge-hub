@@ -46,6 +46,8 @@ interface PublishedPage {
   version: number;
   content: string;
   scope?: string;
+  currentRecommendation?: boolean | null;
+  reviewOverdue?: boolean | null;
 }
 interface ChangeSet {
   reviewWarnings?:{pageId:string;key:string;code:'PROPERTY_REQUIRED';mode:'warn'|'block'}[];
@@ -239,6 +241,9 @@ function OperationalWorkspace({
     preview ? "offline" : "model",
   );
   const [search, setSearch] = useState("");
+  const [recommendationFilter, setRecommendationFilter] = useState<
+    "all" | "current" | "not-current" | "unknown"
+  >("all");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [question, setQuestion] = useState("");
@@ -387,6 +392,7 @@ function OperationalWorkspace({
     setIdentity(current);
     currentScope.current = nextScope;
     setPages(p.items);
+    setPageNumber(0);
     setSources(s.items);
     setChanges(c.items);
     setMembers(m.items);
@@ -535,11 +541,15 @@ function OperationalWorkspace({
     ? identity.capabilities.includes("changeset.approve")
     : (identity?.canReviewKnowledge ?? identity?.role === "reviewer");
   const [pageNumber, setPageNumber] = useState(0);
-  const filtered = pages.filter((p) =>
-    `${p.title} ${p.summary} ${p.content}`
-      .toLocaleLowerCase()
-      .includes(search.toLocaleLowerCase()),
-  );
+  const filtered = pages.filter((p) => {
+    const state = p.currentRecommendation === true
+      ? "current"
+      : p.currentRecommendation === false ? "not-current" : "unknown";
+    return (recommendationFilter === "all" || recommendationFilter === state) &&
+      `${p.title} ${p.summary} ${p.content}`
+        .toLocaleLowerCase()
+        .includes(search.toLocaleLowerCase());
+  });
   const visible = filtered.slice(pageNumber * 25, (pageNumber + 1) * 25);
 
   return (
@@ -806,7 +816,8 @@ function OperationalWorkspace({
                 />
               </Suspense>
             )}
-            {tab === "knowledge" && (
+            {tab === "knowledge" && !dataReady && <p role="status">발행 지식을 확인 중이거나 불러오지 못했습니다.</p>}
+            {tab === "knowledge" && dataReady && (
               <section className="op-panel">
                 <div className="op-section-head">
                   <h2>발행 지식</h2>
@@ -826,10 +837,29 @@ function OperationalWorkspace({
                     placeholder="업무에 필요한 지식 찾기"
                   />
                 </label>
+                <label>
+                  권고 상태
+                  <select
+                    aria-label="권고 상태 필터"
+                    value={recommendationFilter}
+                    onChange={(e) => {
+                      setRecommendationFilter(e.target.value as typeof recommendationFilter);
+                      setPageNumber(0);
+                    }}
+                  >
+                    <option value="all">모두 표시</option>
+                    <option value="current">현재 권고</option>
+                    <option value="not-current">비권고</option>
+                    <option value="unknown">상태 미확인</option>
+                  </select>
+                </label>
+                <p>검토 기한 경과는 내용이 틀렸거나 자동 폐기되었다는 뜻이 아닙니다.</p>
+                <p role="status">검색 결과 {filtered.length}건</p>
                 {!filtered.length && (
                   <p>
-                    현재 접근 가능한 발행 지식이 없습니다. 원본을 편입하고
-                    검토·발행하면 여기에 표시됩니다.
+                    {pages.length
+                      ? "선택한 조건에 맞는 발행 지식이 없습니다."
+                      : "현재 접근 가능한 발행 지식이 없습니다. 원본을 편입하고 검토·발행하면 여기에 표시됩니다."}
                   </p>
                 )}
                 <div className="op-page-list">
@@ -839,6 +869,14 @@ function OperationalWorkspace({
                         <summary>
                           <strong>{page.title}</strong>
                           <Badge>v{page.version}</Badge>
+                          <Badge>
+                            {page.currentRecommendation === true
+                              ? "현재 권고"
+                              : page.currentRecommendation === false
+                                ? "비권고"
+                                : "상태 미확인"}
+                          </Badge>
+                          {page.reviewOverdue === true && <Badge>검토 기한 경과</Badge>}
                           <span>{page.summary}</span>
                         </summary>
                         <div
