@@ -5,6 +5,13 @@ import { RuntimeService } from "../../runtime/knowledge";
 const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
 const bridge = createRuntimeJobs(pool, new RuntimeService(pool), {
   workerCount: 1,
+  directoryProviderId: "explicit-test-roster",
+  directoryStatus: async (subject) => ({
+    ...subject,
+    active: true,
+    verifiedAt: new Date().toISOString(),
+    validUntil: new Date(Date.now() + 10000).toISOString(),
+  }),
   queue: { leaseMs: 1000, clock: () => new Date(process.env.JOB_TEST_CLOCK!) },
 });
 if (process.env.JOB_CRASH_STAGE === "model") {

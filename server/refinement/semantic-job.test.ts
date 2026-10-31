@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { fixture, adoptFixture, source, page } from "../test-support";
 import { transaction } from "../database";
-import { authorizeInTransaction } from "../access";
+import { authorizeInTransaction } from "../access/index";
 import { JobService } from "../jobs/service";
 import type { Lease, JobHooks } from "../jobs/types";
 import type { RuntimeExecution } from "../runtime/knowledge";
@@ -14,9 +14,11 @@ import { createSemanticProvider } from "./semantic";
 import { claim } from "./fixtures";
 import { createRuntimeJobs } from "../jobs/runtime";
 import { RuntimeService } from "../runtime/knowledge";
-import { AccessService } from "../access";
+import { AccessService } from "../access/index";
 import type { RuntimeIdentityOptions } from "../jobs/identity";
 import { trustedFixtureVerifier } from "./execution-fixture";
+import { approveLocalTransmissionFixture } from "../policy/test-fixture";
+import { setSourcePolicy } from "../policy/model";
 
 const pools: Pool[] = [],
   servers: Server[] = [];
@@ -115,6 +117,17 @@ async function setup(reply?: Reply, configured = true) {
         allowTransmission: true,
       })
     : undefined;
+  vi.stubEnv(
+    "AGENT_KNOWLEDGE_HUB_LLM_DESTINATION_ID",
+    "semantic-local-fixture",
+  );
+  const policyAuthorization = await approveLocalTransmissionFixture(
+    f.pool,
+    f.workspaceId,
+    `http://127.0.0.1:${addr.port}/v1/chat/completions`,
+    ["semantic-lint"],
+    "semantic-local-fixture",
+  );
   const refinement = new RefinementService(
     f.pool,
     authorizeInTransaction,
@@ -134,7 +147,21 @@ async function setup(reply?: Reply, configured = true) {
   await refinement.addEvidence(f.editor, evidence);
   const { recordedAt: _, recordedBy: __, ...input } = claim;
   await refinement.addClaim(f.editor, input);
-  const adapter = refinement.semanticJobAdapter();
+  const rawAdapter = refinement.semanticJobAdapter();
+  // Explicit synthetic fixture request capability; production adapter has no fallback.
+  const adapter = {
+    ...rawAdapter,
+    execute: (
+      ctx: import("../service").Context,
+      payload: Record<string, unknown>,
+      execution: RuntimeExecution,
+    ) =>
+      rawAdapter.execute(
+        { ...ctx, authorization: ctx.authorization ?? policyAuthorization },
+        payload,
+        execution,
+      ),
+  };
   let now = Date.now();
   const hooks: JobHooks = {
     inputsAreReadOnly: true,
@@ -357,6 +384,43 @@ it("prepare is DB-only under the admission workspace lock and seals fixed claims
   );
   expect(raw.payload.claimIds).toEqual(["c1"]);
 });
+it("actual queued semantic producer receives zero requests after source transmission approval is revoked", async () => {
+  const f = await setup();
+  const { prepared, lease } = await f.enqueue();
+  await f.pool.query(
+    "INSERT INTO resource_readers VALUES($1,'source',$2,'fixture-owner') ON CONFLICT DO NOTHING",
+    [f.workspaceId, source.id],
+  );
+  await transaction(f.pool, f.workspaceId, (db) =>
+    setSourcePolicy(
+      db,
+      {
+        workspaceId: f.workspaceId,
+        principalId: "fixture-owner",
+        authorization: {
+          revalidate: async () => {},
+          assertSession: async () => {},
+        },
+      },
+      {
+        sourceId: source.id,
+        expectedRevision: 1,
+        classification: "synthetic",
+        grants: [],
+        impactAcknowledged: true,
+      },
+    ),
+  );
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id=$2 AND principal_id='fixture-owner'",
+    [f.workspaceId, source.id],
+  );
+  await expect(
+    f.adapter.execute(f.editor, prepared.payload, f.execution(lease)),
+  ).rejects.toThrow("MODEL_TRANSMISSION_DENIED");
+  expect(f.calls()).toBe(0);
+  expect(await f.count()).toBe(0);
+});
 it("admission checks existing execution attestations locally and never recontacts the proof gateway or stores signed envelopes as sources", async () => {
   const f = await setup();
   let gatewayCalls = 0;
@@ -498,6 +562,14 @@ it("a finding inherits ALL model-context source restrictions, not just the sourc
     evidenceIds: ["private-review-evidence"],
     reason: "비공개 원본을 함께 검토",
   });
+  await approveLocalTransmissionFixture(
+    f.pool,
+    f.workspaceId,
+    f.baseUrl + "/chat/completions",
+    ["semantic-lint"],
+    "semantic-local-fixture",
+    [source.id, sourceB.id],
+  );
   const { prepared, lease } = await f.enqueue();
   expect(prepared.sourceIds).toContain(sourceB.id);
   await f.adapter.execute(f.editor, prepared.payload, f.execution(lease));

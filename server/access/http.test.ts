@@ -114,7 +114,7 @@ test("HTTP selected personal spaces, authoritative capabilities, no reviewer adm
   ).toBe(401);
   const version = (
     await (
-      await fetch(base + "/api/v1/access", {
+      await fetch(base + `/api/v1/spaces/${f.workspaceId}/access`, {
         headers: headers("fixture-owner"),
       })
     ).json()

@@ -4,8 +4,8 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useState,
   useRef,
+  useState,
 } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -22,9 +22,18 @@ import type { UsageSummary } from "../domain/usage";
 import type { Source } from "../domain/types";
 import type { Answer, Draft, Issue } from "../domain/wiki";
 import { Button, Badge } from "../ui/primitives";
+import { ConsoleShell } from "./ConsoleShell";
+import { Overview } from "./Overview";
+import { consoleLabel, readConsoleTab, summarizeConsole } from "./console";
+import type { ConsoleTab } from "./console";
+import { PreviewApi } from "./preview";
 import "./styles.css";
 import { WorkflowPanel, SourceLifecycle } from "./workflows";
 import { AccessPanel } from "./access";
+import {PolicyManager} from './policy';
+import {OperationsPanel} from './operations';
+import {TracePanel} from './traces';
+import {GovernanceWorkbench} from './governance';
 import { StoragePanel } from "./storage";
 import { RefinementPanel } from "./refinement";
 import { JobsPanel } from "./jobs";
@@ -39,10 +48,13 @@ interface PublishedPage {
   scope?: string;
 }
 interface ChangeSet {
+  reviewWarnings?:{pageId:string;key:string;code:'PROPERTY_REQUIRED';mode:'warn'|'block'}[];
   id: string;
   hash: string;
   status: string;
   updates: Draft[];
+  triage?: string;
+  proposedBy?: string;
 }
 interface Job {
   id: string;
@@ -52,33 +64,18 @@ interface Job {
   error?: string;
   error_code?: string;
 }
-type Tab =
-  | "knowledge"
-  | "sources"
-  | "review"
-  | "query"
-  | "lint"
-  | "jobs"
-  | "usage"
-  | "workflows"
-  | "access"
-  | "refinement";
-const labels: Record<Tab, string> = {
-  knowledge: "발행 지식",
-  sources: "원본과 편입",
-  review: "변경 검토",
-  query: "질문과 재편입",
-  lint: "위키 점검",
-  jobs: "작업 상태",
-  usage: "사용량",
-  workflows: "편집과 협업",
-  access: "공간과 권한",
-  refinement: "정련과 경험",
-};
 const UsageReport = lazy(() =>
   import("../features/UsageDashboard").then((m) => ({
     default: m.UsageReport,
   })),
+);
+const Management = lazy(() =>
+  import("./ManagementPreview").then((m) => ({ default: m.Management })),
+);
+const ImportWorkbench = lazy(() => import("./ImportWorkbench"));
+const AccessManager = lazy(() => import("./AccessManager"));
+const ImportPreview = lazy(() =>
+  import("./ImportPreview").then((m) => ({ default: m.ImportPreview })),
 );
 const safeMarkdown = (text: string) =>
   DOMPurify.sanitize(marked.parse(text, { async: false }));
@@ -122,11 +119,15 @@ const statusLabels: Record<string, string> = {
   cancelled: "취소됨",
 };
 
-export default function OperationalApp() {
+export default function OperationalApp({
+  preview = false,
+}: {
+  preview?: boolean;
+}) {
   const [spaceId, setSpaceId] = useState(() => {
     try {
-      const remembered = sessionStorage.getItem("akh-login-return");
-      sessionStorage.removeItem("akh-login-return");
+      const remembered = preview ? null : sessionStorage.getItem("akh-login-return");
+      if (!preview) sessionStorage.removeItem("akh-login-return");
       const params = new URLSearchParams(window.location.search);
       if (
         remembered &&
@@ -146,20 +147,33 @@ export default function OperationalApp() {
   });
   return (
     <OperationalWorkspace
-      key={spaceId}
+      key={`${preview}:${spaceId}`}
+      preview={preview}
       spaceId={spaceId}
-      onSpace={setSpaceId}
+      onSpace={(id) => {
+        const url = new URL(window.location.href);
+        url.searchParams.set("space", id);
+        url.searchParams.delete("document");
+        window.history.replaceState(null, "", url);
+        setSpaceId(id);
+      }}
     />
   );
 }
 function OperationalWorkspace({
+  preview,
   spaceId,
   onSpace,
 }: {
+  preview: boolean;
   spaceId: string;
   onSpace: (id: string) => void;
 }) {
-  const api = useMemo(() => new OperationalApi("", spaceId), [spaceId]);
+  const api = useMemo<OperationalApi>(
+    () => (preview ? new PreviewApi() : new OperationalApi("", spaceId)),
+    [preview, spaceId],
+  );
+  const policyApi=useCallback(<T,>(path:string,options?:{method:string;body:unknown})=>api.request<T>(path.replace(/^\/api\/v1(?=\/|$)/,''),options?.method??'GET',options?.body),[api]);
   const requestEpoch = useRef(0),
     currentScope = useRef("");
   const waitAbort = useMemo(() => new AbortController(), [api]);
@@ -172,11 +186,24 @@ function OperationalWorkspace({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<Tab>(() =>
-    new URLSearchParams(window.location.search).has("document")
+  const [tab, setTab] = useState<ConsoleTab>(() =>
+    !preview && new URLSearchParams(window.location.search).has("document")
       ? "workflows"
-      : "knowledge",
+      : readConsoleTab(typeof window === "undefined" ? "" : window.location.hash),
   );
+  const navigate = useCallback((next: ConsoleTab) => {
+    setTab(next);
+    window.location.hash = next;
+    requestAnimationFrame(() => {
+      document.getElementById("op-main")?.focus();
+      window.scrollTo(0, 0);
+    });
+  }, []);
+  useEffect(() => {
+    const onHash = () => setTab(readConsoleTab(window.location.hash));
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [pages, setPages] = useState<PublishedPage[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<ChangeSet[]>([]);
@@ -205,7 +232,9 @@ function OperationalWorkspace({
     configured: boolean;
     model: string | null;
   }>({ configured: false, model: null });
-  const [mode, setMode] = useState<"model" | "offline">("model");
+  const [mode, setMode] = useState<"model" | "offline">(
+    preview ? "offline" : "model",
+  );
   const [search, setSearch] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -215,11 +244,15 @@ function OperationalWorkspace({
   const [jobPage, setJobPage] = useState(0);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [usageDays, setUsageDays] = useState<7 | 30>(7);
+  const [usageError, setUsageError] = useState("");
+  const [usageRetry, setUsageRetry] = useState(0);
+  const [dataReady, setDataReady] = useState(false);
   const clearProtected = useCallback(
     (
       reason = "세션이 만료되어 보호된 화면과 작성 중인 입력을 비웠습니다. 다시 로그인하세요.",
     ) => {
       requestEpoch.current++;
+      setDataReady(false);
       currentScope.current = "";
       setIdentity(null);
       setPages([]);
@@ -239,6 +272,8 @@ function OperationalWorkspace({
       setSelectedReaders([]);
       setSelectedSources([]);
       setSpaces([]);
+      setModel({ configured: false, model: null });
+      setSearch("");
       setNotice(reason);
     },
     [],
@@ -246,11 +281,15 @@ function OperationalWorkspace({
 
   useEffect(() => {
     api.onExpired(clearProtected);
-    return () => api.onExpired(undefined);
+    return () => {
+      requestEpoch.current++;
+      api.onExpired(undefined);
+    };
   }, [api, clearProtected]);
 
   const load = useCallback(async () => {
     let epoch = requestEpoch.current;
+    setDataReady(false);
     const current = await api.me();
     if (epoch !== requestEpoch.current) return;
     const nextScope = current.principalId + "\0" + current.workspaceId;
@@ -259,7 +298,11 @@ function OperationalWorkspace({
       epoch = requestEpoch.current;
     }
     const capabilities = current.capabilities ?? [];
-    if (!capabilities.includes("knowledge.read")) {
+    if (
+      !preview &&
+      current.capabilities &&
+      !capabilities.includes("knowledge.read")
+    ) {
       clearProtected(
         "현재 공간의 내용 열람 권한이 없어 보호 내용과 입력을 비웠습니다.",
       );
@@ -282,13 +325,13 @@ function OperationalWorkspace({
     const [p, s, c, m, j, config, availableSpaces, executors] =
       await Promise.all([
         api.get<{ items: PublishedPage[] }>("/pages"),
-        capabilities.includes("changeset.propose")
+        (preview || !current.capabilities || capabilities.includes("changeset.propose"))
           ? api.get<{ items: Source[] }>("/sources")
           : Promise.resolve({ items: [] }),
-        capabilities.includes("queue.triage")
+        (preview || !current.capabilities || capabilities.includes("queue.triage"))
           ? api.get<{ items: ChangeSet[] }>("/changesets")
           : Promise.resolve({ items: [] }),
-        capabilities.includes("space.admin")
+        (preview || !current.capabilities || capabilities.includes("space.admin"))
           ? api.get<{ items: { principalId: string; role: string }[] }>(
               "/members",
             )
@@ -299,7 +342,7 @@ function OperationalWorkspace({
           capabilities.includes("jobs.read") ? "/jobs-v2" : "/jobs",
         ),
         api.get<{ configured: boolean; model: string | null }>("/model"),
-        api.get<{
+        preview || !current.capabilities ? Promise.resolve({ items: [] }) : api.get<{
           items: {
             id: string;
             namespaceSlug: string;
@@ -320,13 +363,14 @@ function OperationalWorkspace({
       ]);
     if (epoch !== requestEpoch.current) return;
     const savedAnswer = answerRef.current;
-    if (savedAnswer) {
+    if (savedAnswer && !preview) {
       try {
         const fresh = await api.get<Answer>(
           `/answers/${encodeURIComponent(savedAnswer.id)}`,
         );
         if (epoch === requestEpoch.current) setAnswer(fresh);
       } catch (e) {
+        if (epoch !== requestEpoch.current) return;
         if (e instanceof ApiError && [403, 404, 409].includes(e.status)) {
           setAnswer(null);
           setSnapshot(null);
@@ -348,7 +392,8 @@ function OperationalWorkspace({
     setDirectoryConfigured(executors.directoryConfigured);
     setModel(config);
     setSpaces(availableSpaces.items);
-  }, [api, clearProtected, setAnswer]);
+    setDataReady(true);
+  }, [api, preview, clearProtected, setAnswer]);
   useEffect(() => {
     let active = true;
     let authenticated = false;
@@ -393,11 +438,6 @@ function OperationalWorkspace({
       setBusy(false);
     }
   };
-  const refreshUsage = (days = usageDays) =>
-    perform(async () => {
-      setUsage(null);
-      setUsage(await api.get<UsageSummary>(`/usage?days=${days}`));
-    });
   const completedJob = async <T,>(value: unknown): Promise<T> => {
     const epoch = requestEpoch.current;
     const result = await resolveJob<T>(api, value, {
@@ -419,13 +459,14 @@ function OperationalWorkspace({
     return result;
   };
   useEffect(() => {
-    if (!identity) return;
+    if (!identity || preview) return;
     let active = true;
     const openShare = () => {
       const share = window.location.hash.match(
         /^#share-([a-zA-Z0-9_-]{1,100})$/,
       );
       if (!share) return;
+      const epoch = requestEpoch.current;
       setSnapshot(null);
       setError("");
       void api
@@ -433,14 +474,14 @@ function OperationalWorkspace({
           `/shares/${share[1]}`,
         )
         .then((s) => {
-          if (active)
+          if (active && epoch === requestEpoch.current)
             setSnapshot({
               title: s.id,
               version: { number: s.version, content: s.content },
             });
         })
         .catch((e) => {
-          if (!active) return;
+          if (!active || epoch !== requestEpoch.current) return;
           if (e instanceof ApiError && e.status === 401) clearProtected();
           setError(e instanceof Error ? e.message : "공유를 열 수 없습니다.");
         });
@@ -451,9 +492,45 @@ function OperationalWorkspace({
       active = false;
       window.removeEventListener("hashchange", openShare);
     };
-  }, [api, identity?.principalId, clearProtected]);
-  const write = identity?.capabilities?.includes("changeset.propose") ?? false;
-  const review = identity?.capabilities?.includes("changeset.approve") ?? false;
+  }, [api, preview, identity?.principalId, clearProtected]);
+  useEffect(() => {
+    if (
+      !identity ||
+      !["overview", "usage"].includes(tab) ||
+      (!preview && identity.capabilities &&
+        !identity.capabilities.includes("usage.read_aggregate"))
+    ) return;
+    let active = true;
+    setUsage(null);
+    const epoch = requestEpoch.current;
+    setUsageError("");
+    api
+      .get<UsageSummary>(`/usage?days=${tab === "overview" ? 7 : usageDays}`)
+      .then((data) => {
+        if (active && epoch === requestEpoch.current) setUsage(data);
+      })
+      .catch((e: unknown) => {
+        // An obsolete tab response must still revoke the session, not just its UI data.
+        if (
+          e instanceof ApiError &&
+          e.status === 401 &&
+          epoch === requestEpoch.current
+        )
+          clearProtected();
+        if (!active) return;
+        setUsageError(e instanceof Error ? e.message : "집계 실패");
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, identity, tab, usageDays, usageRetry, clearProtected]);
+  const refreshUsage = () => setUsageRetry((n) => n + 1);
+  const write = identity?.capabilities
+    ? identity.capabilities.includes("changeset.propose")
+    : identity?.role !== "reader";
+  const review = identity?.capabilities
+    ? identity.capabilities.includes("changeset.approve")
+    : (identity?.canReviewKnowledge ?? identity?.role === "reviewer");
   const [pageNumber, setPageNumber] = useState(0);
   const filtered = pages.filter((p) =>
     `${p.title} ${p.summary} ${p.content}`
@@ -463,16 +540,12 @@ function OperationalWorkspace({
   const visible = filtered.slice(pageNumber * 25, (pageNumber + 1) * 25);
 
   return (
-    <div className="operational-app">
-      <a className="op-skip" href="#op-main">
-        본문으로 이동
-      </a>
-      <header className="op-header">
-        <a href="/" className="op-brand">
-          <img src="/brand/mark.svg" alt="" />
-          <span>agent-knowledge-hub</span>
-        </a>
-        {identity && (
+    <ConsoleShell
+      preview={preview}
+      tab={tab}
+      navigate={navigate}
+      account={
+        identity && !preview ? (
           <div className="op-account">
             <Badge tone="plum">
               {identity.effectiveRole
@@ -502,13 +575,13 @@ function OperationalWorkspace({
               로그아웃
             </Button>
           </div>
-        )}
-      </header>
-      <main id="op-main" className="op-main">
-        <h1>검토한 지식이 다음 업무로 이어집니다</h1>
+        ) : null
+      }
+    >
+      <main id="op-main" className="op-main" tabIndex={-1}>
+        <h1>{consoleLabel(tab)}</h1>
         <p className="op-lead">
-          원본과 근거를 보존하고, 변경을 검토한 뒤 발행합니다. 승인과 모델의
-          추론은 독립적인 사실 검증을 대신하지 않습니다.
+          에이전트가 활용하고, 근거와 경험으로 다시 갱신하는 지식 환경입니다.
         </p>
         {error && (
           <div className="op-error" role="alert">
@@ -564,46 +637,7 @@ function OperationalWorkspace({
           </section>
         ) : (
           <>
-            <nav className="op-nav" aria-label="지식 업무">
-              {(Object.keys(labels) as Tab[])
-                .filter((key) => {
-                  const required: Partial<Record<Tab, string>> = {
-                    knowledge: "knowledge.read",
-                    sources: "changeset.propose",
-                    review: "queue.triage",
-                    query: "knowledge.read",
-                    lint: "lint.run",
-                    jobs: "knowledge.read",
-                    usage: "usage.read_aggregate",
-                    workflows: "knowledge.read",
-                    refinement: "knowledge.read",
-                  };
-                  return (
-                    !required[key] ||
-                    identity.capabilities?.includes(required[key]!)
-                  );
-                })
-                .map((key) => (
-                  <button
-                    key={key}
-                    aria-current={tab === key ? "page" : undefined}
-                    onClick={() => {
-                      setTab(key);
-                      setError("");
-                      if (key === "usage") void refreshUsage();
-                    }}
-                  >
-                    {labels[key]}
-                    {key === "review" && (
-                      <span>
-                        {" "}
-                        {changes.filter((c) => c.status === "pending").length}
-                      </span>
-                    )}
-                  </button>
-                ))}
-            </nav>
-            <div className="op-context">
+            {!preview && spaces.length > 0 && <div className="op-context">
               <label>
                 지식 공간
                 <select
@@ -625,26 +659,131 @@ function OperationalWorkspace({
                   ))}
                 </select>
               </label>
-              <span>서버 정본 · {pages.length}개 접근 가능 발행본</span>
-              <span>모델: {model.configured ? model.model : "미연결"}</span>
-              <label>
-                실행 방식{" "}
-                <select
-                  value={mode}
-                  disabled={busy}
-                  onChange={(e) =>
-                    setMode(e.target.value as "model" | "offline")
-                  }
-                >
-                  <option value="model">실제 모델</option>
-                  <option value="offline">구조 검사·발췌 (모델 미사용)</option>
-                </select>
-              </label>
-            </div>
+            </div>}
+            {![
+              "overview",
+              "usage",
+              "users",
+              "access",
+              "agents",
+              "integrations",
+              "policies",
+              "lifecycle",
+              "activity",
+              "evaluation",
+              "coverage",
+            ].includes(tab) && (
+              <div className="op-context">
+                <span>
+                  {preview ? "합성 예시" : "서버 정본"} · {pages.length}개 접근
+                  가능 발행본
+                </span>
+                <span>모델: {model.configured ? model.model : "미연결"}</span>
+                <label>
+                  실행 방식{" "}
+                  <select
+                    value={mode}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setMode(e.target.value as "model" | "offline")
+                    }
+                  >
+                    <option value="model">실제 모델</option>
+                    <option value="offline">
+                      구조 검사·발췌 (모델 미사용)
+                    </option>
+                  </select>
+                </label>
+              </div>
+            )}
             {busy && (
               <p role="status" className="op-progress">
                 서버에서 처리하고 있습니다. 창을 반복 제출하지 마세요.
               </p>
+            )}
+            {tab === "overview" && dataReady && (
+              <Overview
+                summary={summarizeConsole({
+                  pages,
+                  sources,
+                  changes,
+                  jobs,
+                  issues,
+                })}
+                usage={usage}
+                usageError={usageError}
+                model={model}
+                navigate={navigate}
+                retry={refreshUsage}
+                preview={preview}
+              />
+            )}
+            {tab === "overview" && !dataReady && (
+              <section className="op-panel" role="status">
+                <h2>운영 현황을 아직 집계할 수 없습니다</h2>
+                <p>
+                  접근 가능한 목록 조회가 완료되지 않았습니다. 미확인을 0건으로
+                  표시하지 않습니다. 연결 오류가 있으면 ‘다시 연결’로
+                  재시도하세요.
+                </p>
+              </section>
+            )}
+            <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
+              {(preview||!['policies','activity','lifecycle'].includes(tab))&&<Management section={tab} preview={preview} navigate={navigate} />}
+            </Suspense>
+            {tab === "imports" && !preview && (
+              <Suspense fallback={<p>자료 입력 화면을 불러오는 중…</p>}>
+                <ImportWorkbench
+                  key={identity.principalId}
+                  api={api}
+                  identity={identity}
+                  members={members}
+                  onExpired={clearProtected}
+                  onReview={() => {
+                    navigate("review");
+                    void perform(load);
+                  }}
+                />
+              </Suspense>
+            )}
+            {tab === "imports" && preview && (
+              <Suspense fallback={<p>입력 목업을 불러오는 중…</p>}>
+                <ImportPreview
+                  register={async (title, content) => {
+                    await api.post("/sources", {
+                      source: {
+                        id: `source-${crypto.randomUUID()}`,
+                        title,
+                        content,
+                        tool: "manual",
+                        project: "합성",
+                        scope: "team",
+                        verification: "미검증",
+                        createdAt: new Date().toISOString(),
+                        processed: false,
+                        targetPageId: "topic-main",
+                      },
+                      readers: [],
+                    });
+                    await load();
+                    navigate("sources");
+                    setNotice(
+                      "목업 원본을 등록했습니다. 구조 편입은 선택 원본에서 별도로 실행하세요.",
+                    );
+                  }}
+                />
+              </Suspense>
+            )}
+            {tab === "access" && !preview && (
+              <Suspense fallback={<p>접근 설정을 불러오는 중…</p>}>
+                <AccessManager
+                  key={identity.workspaceId}
+                  api={api}
+                  identity={identity}
+                  onExpired={clearProtected}
+                  onChanged={load}
+                />
+              </Suspense>
             )}
             {tab === "knowledge" && (
               <section className="op-panel">
@@ -718,7 +857,13 @@ function OperationalWorkspace({
                 )}
               </section>
             )}
-            {tab === "workflows" && (
+            {preview && ["workflows", "refinement"].includes(tab) && (
+              <section className="op-panel">
+                <h2>{consoleLabel(tab)} · 미리보기 미지원</h2>
+                <p>이 화면은 실제 서버와 현재 권한이 필요합니다. 목업에서는 서버를 호출하지 않습니다.</p>
+              </section>
+            )}
+            {tab === "workflows" && !preview && (
               <WorkflowPanel
                 principalId={identity.principalId}
                 spaceId={identity.workspaceId}
@@ -734,7 +879,7 @@ function OperationalWorkspace({
                 onExpired={clearProtected}
               />
             )}
-            {tab === "access" && (
+            {tab === "access" && !preview && identity.capabilities && (
               <AccessPanel
                 api={api}
                 capabilities={identity.capabilities ?? []}
@@ -743,7 +888,10 @@ function OperationalWorkspace({
                 onSelect={onSpace}
               />
             )}
-            {tab === "refinement" && (
+            {tab==='policies'&&!preview&&<PolicyManager api={policyApi} capabilities={identity.capabilities??[]} sourceOptions={sources.map(s=>({id:s.id,title:s.title}))} onChanged={load} onExpired={clearProtected}/>}
+            {tab==='activity'&&!preview&&<><TracePanel api={api}/><OperationsPanel api={api} canAdmin={!!identity.capabilities?.includes('space.admin')} canOwner={identity.space?.owner??false}/></>}
+            {tab==='lifecycle'&&!preview&&<GovernanceWorkbench api={policyApi} capabilities={identity.capabilities??[]} onChanged={load} onExpired={clearProtected}/>}
+            {tab === "refinement" && !preview && (
               <RefinementPanel
                 api={api}
                 pages={pages}
@@ -876,7 +1024,7 @@ function OperationalWorkspace({
                       <small>
                         {s.id} · {s.verification}
                       </small>
-                      <SourceLifecycle
+                      {!preview && <SourceLifecycle
                         api={api}
                         sourceId={s.id}
                         canCorrect={
@@ -889,8 +1037,8 @@ function OperationalWorkspace({
                           !!identity.capabilities?.includes("space.admin")
                         }
                         perform={perform}
-                      />
-                      <StoragePanel
+                      />}
+                      {!preview && <StoragePanel
                         key={`${identity.workspaceId}:${s.id}`}
                         api={api}
                         parent={{ kind: "source", id: s.id }}
@@ -908,7 +1056,7 @@ function OperationalWorkspace({
                           !!identity.capabilities?.includes("data.export")
                         }
                         onChanged={load}
-                      />
+                      />}
                     </details>
                   ))}
                   <ListPager
@@ -934,7 +1082,7 @@ function OperationalWorkspace({
                         setNotice(
                           "편입 요청을 수락했습니다. 변경 검토 또는 작업 상태에서 결과를 확인하세요.",
                         );
-                        setTab(isJobReceipt(accepted) ? "jobs" : "review");
+                        navigate(isJobReceipt(accepted) ? "jobs" : "review");
                       })
                     }
                   >
@@ -963,10 +1111,33 @@ function OperationalWorkspace({
                       >
                         {statusLabels[c.status] || c.status}
                       </Badge>
+                      {!!c.reviewWarnings?.length&&<aside role="status"><h3>발행 전 필수 속성 확인</h3><ul>{c.reviewWarnings.map(warning=><li key={`${warning.pageId}:${warning.key}`}>{warning.pageId} · {warning.key} 누락 · {warning.mode==='block'?'반영 차단':'검토 경고'}</li>)}</ul></aside>}
                     </div>
                     <small className="op-id">
                       {c.id} · 내용 해시 {c.hash}
                     </small>
+                    {identity.spaceRole && identity.spaceRole !== "Read" && (
+                      <label>
+                        검토 큐 분류
+                        <select
+                          aria-label={"검토 큐 분류 " + c.id}
+                          disabled={busy}
+                          value={c.triage ?? "untriaged"}
+                          onChange={(e) =>
+                            void perform(async () => {
+                              await api.post(`/changesets/${c.id}/triage`, {
+                                label: e.target.value,
+                              });
+                            })
+                          }
+                        >
+                          <option value="untriaged">미분류</option>
+                          <option value="needs-review">검토 요청</option>
+                          <option value="duplicate">중복 후보</option>
+                          <option value="blocked">확인 필요</option>
+                        </select>
+                      </label>
+                    )}
                     {c.updates.map((d) => (
                       <details key={d.id}>
                         <summary>
@@ -989,59 +1160,63 @@ function OperationalWorkspace({
                         <p>근거: {d.sourceIds.join(", ")}</p>
                       </details>
                     ))}
-                    {review && (
-                      <div className="op-actions">
-                        <Button
-                          disabled={busy || c.status !== "pending"}
-                          onClick={() =>
-                            perform(async () => {
-                              await api.post(
-                                `/changesets/${encodeURIComponent(c.id)}/approve`,
-                                { hash: c.hash },
-                              );
-                              setNotice(
-                                "해당 내용과 기준을 고정해 승인했습니다. 발행은 별도 작업입니다.",
-                              );
-                            })
-                          }
-                        >
-                          승인
-                        </Button>
-                        <Button
-                          variant="primary"
-                          disabled={busy || c.status !== "approved"}
-                          onClick={() =>
-                            perform(async () => {
-                              await api.post(
-                                `/changesets/${encodeURIComponent(c.id)}/publish`,
-                                { hash: c.hash },
-                                crypto.randomUUID(),
-                              );
-                              setNotice("변경 집합 전체를 발행했습니다.");
-                            })
-                          }
-                        >
-                          승인 집합 발행
-                        </Button>
-                        <Button
-                          variant="danger"
-                          disabled={
-                            busy || !["pending", "approved"].includes(c.status)
-                          }
-                          onClick={() =>
-                            perform(async () => {
-                              await api.post(
-                                `/changesets/${encodeURIComponent(c.id)}/reject`,
-                                { hash: c.hash },
-                              );
-                              setNotice("변경 집합을 반려했습니다.");
-                            })
-                          }
-                        >
-                          반려
-                        </Button>
-                      </div>
-                    )}
+                    {review &&
+                      (identity.personalSpace ||
+                        !identity.spaceRole ||
+                        c.proposedBy !== identity.principalId) && (
+                        <div className="op-actions">
+                          <Button
+                            disabled={busy || c.status !== "pending"}
+                            onClick={() =>
+                              perform(async () => {
+                                await api.post(
+                                  `/changesets/${encodeURIComponent(c.id)}/approve`,
+                                  { hash: c.hash },
+                                );
+                                setNotice(
+                                  "해당 내용과 기준을 고정해 승인했습니다. 발행은 별도 작업입니다.",
+                                );
+                              })
+                            }
+                          >
+                            승인
+                          </Button>
+                          <Button
+                            variant="primary"
+                            disabled={busy || c.status !== "approved"}
+                            onClick={() =>
+                              perform(async () => {
+                                await api.post(
+                                  `/changesets/${encodeURIComponent(c.id)}/publish`,
+                                  { hash: c.hash },
+                                  crypto.randomUUID(),
+                                );
+                                setNotice("변경 집합 전체를 발행했습니다.");
+                              })
+                            }
+                          >
+                            승인 집합 발행
+                          </Button>
+                          <Button
+                            variant="danger"
+                            disabled={
+                              busy ||
+                              !["pending", "approved"].includes(c.status)
+                            }
+                            onClick={() =>
+                              perform(async () => {
+                                await api.post(
+                                  `/changesets/${encodeURIComponent(c.id)}/reject`,
+                                  { hash: c.hash },
+                                );
+                                setNotice("변경 집합을 반려했습니다.");
+                              })
+                            }
+                          >
+                            반려
+                          </Button>
+                        </div>
+                      )}
                   </article>
                 ))}
                 <ListPager
@@ -1148,7 +1323,7 @@ function OperationalWorkspace({
                           setNotice(
                             "답변을 검토 가능한 변경 제안으로 등록했습니다.",
                           );
-                          setTab("review");
+                          navigate("review");
                         })
                       }
                     >
@@ -1219,7 +1394,7 @@ function OperationalWorkspace({
                 )}
               </section>
             )}
-            {tab === "jobs" && identity.capabilities?.includes("jobs.read") && (
+            {tab === "jobs" && !preview && identity.capabilities?.includes("jobs.read") && (
               <>
                 <p>
                   서버 접수 작업은 이 창을 닫아도 유지됩니다. 개인 요청은 원래
@@ -1246,7 +1421,7 @@ function OperationalWorkspace({
               !identity.capabilities?.includes("jobs.read") && (
                 <section className="op-panel">
                   <div className="op-section-head">
-                    <h2>지속 작업 상태</h2>
+                    <h2>내 작업 시도 이력</h2>
                     <Button disabled={busy} onClick={() => perform(load)}>
                       새로고침
                     </Button>
@@ -1292,6 +1467,9 @@ function OperationalWorkspace({
             {tab === "usage" && (
               <section className="op-panel">
                 <h2>서버 사용량</h2>
+                {preview && (
+                  <Badge tone="plum">합성 예시 집계 · 실측이 아닙니다</Badge>
+                )}
                 <label>
                   조회 기간
                   <select
@@ -1300,7 +1478,6 @@ function OperationalWorkspace({
                     onChange={(e) => {
                       const days = Number(e.target.value) as 7 | 30;
                       setUsageDays(days);
-                      void refreshUsage(days);
                     }}
                   >
                     <option value={7}>최근 7일</option>
@@ -1315,10 +1492,9 @@ function OperationalWorkspace({
                     <UsageReport data={usage} />
                   </Suspense>
                 ) : (
-                  <p role="status">
-                    {busy
-                      ? "서버 집계를 확인하고 있습니다…"
-                      : "서버에서 집계를 받지 못했습니다. 미연결을 0건으로 대체하지 않습니다."}
+                  <p role={usageError ? "alert" : "status"}>
+                    {usageError || "서버 집계를 확인하고 있습니다…"} 미연결을
+                    0건으로 대체하지 않습니다.
                   </p>
                 )}
               </section>
@@ -1326,12 +1502,14 @@ function OperationalWorkspace({
           </>
         )}
         <footer className="op-footer">
-          서버 저장 · 현재 권한 재검사 · 검토 후 발행
+          {preview
+            ? "목업 · 메모리 시연 · 실제 권한 변경 없음"
+            : "서버 저장 · 현재 권한 재검사 · 검토 후 발행"}
           <span>
             실제 모델 품질과 운영 인수 결과는 별도 검증 기록을 따릅니다.
           </span>
         </footer>
       </main>
-    </div>
+    </ConsoleShell>
   );
 }

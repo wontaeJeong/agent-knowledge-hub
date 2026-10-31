@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { localOperationalSecrets } from "./local-secrets.mjs";
+import { localOperationalSecrets,localModelPolicyRegistry } from "./local-secrets.mjs";
+test('local registry approves only a configured destination and synthetic classification, never individual raw sources',()=>{
+  assert.deepEqual(localModelPolicyRegistry({}),{AKH_MODEL_DESTINATIONS_JSON:'[]'});
+  const env=localModelPolicyRegistry({AGENT_KNOWLEDGE_HUB_LLM_BASE_URL:'https://model.example.invalid/v1',AGENT_KNOWLEDGE_HUB_LLM_MODEL:'example',AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION:'true'});
+  assert.equal(env.AGENT_KNOWLEDGE_HUB_LLM_DESTINATION_ID,'local-model');
+  assert.deepEqual(JSON.parse(env.AKH_MODEL_DESTINATIONS_JSON),[{id:'local-model',url:'https://model.example.invalid/v1/chat/completions',purposes:['query','ingest','organize','semantic-lint'],classifications:['synthetic'],active:true}]);
+  assert.throws(()=>localModelPolicyRegistry({AGENT_KNOWLEDGE_HUB_LLM_BASE_URL:'https://user:password@model.example.invalid',AGENT_KNOWLEDGE_HUB_LLM_MODEL:'example',AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION:'true'}),/POLICY_CONFIGURATION/);
+});
 const encode = (value) => Buffer.from(value).toString("base64");
 test("local redeploy preserves independent operational keys and never reads unknown secret material", () => {
   const old = {

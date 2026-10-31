@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { fixture, adoptFixture, source, page } from "../test-support";
-import { authorizeInTransaction } from "../access";
+import { authorizeInTransaction } from "../access/index";
 import {
   OperationsService,
   openExport,

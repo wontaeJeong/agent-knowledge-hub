@@ -5,7 +5,7 @@ import { parseEnv } from "node:util";
 import { fileURLToPath } from "node:url";
 import { parseAllDocuments } from "yaml";
 import { splitRelease, migrationJob } from "./release.mjs";
-import { localOperationalSecrets } from "./local-secrets.mjs";
+import { localOperationalSecrets,localModelPolicyRegistry } from "./local-secrets.mjs";
 
 process.chdir(fileURLToPath(new URL("../../", import.meta.url)));
 const cluster = "knowledge-hub-dev";
@@ -123,6 +123,7 @@ try {
         throw Error("MODEL_THINKING_INVALID");
       env.AGENT_KNOWLEDGE_HUB_LLM_THINKING = thinking;
     }
+    Object.assign(env,localModelPolicyRegistry(env));
     apply({
       apiVersion: "v1",
       kind: "Secret",

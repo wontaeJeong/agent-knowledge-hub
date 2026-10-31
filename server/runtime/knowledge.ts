@@ -22,7 +22,10 @@ import { KnowledgeService, type Context } from "../service";
 import { digest, propose } from "../publication";
 import { answerOutput, drafts } from "./schema";
 import { callModel, type ModelCall, type ModelOptions } from "./model";
-import { authorizeManaged } from "../access/index";
+import { authorizeManaged, effectiveAccess } from "../access/index";
+import { ImportService } from "../imports/service";
+import { bindModelTransmission } from "../policy/binding";
+import { assertFeature } from "../policy/features";
 import {
   captureEnvelope,
   assertEnvelope,
@@ -81,6 +84,20 @@ export interface RuntimeExecution {
   maxChanges: number;
   modelOptions: ModelOptions;
 }
+/** Server-created by the questions adapter after current private owner/turn checks.
+ * Never deserialize this capability or its callbacks from HTTP/MCP/job payloads.
+ */
+export interface TrustedQueryContext {
+  messages: readonly {
+    role: "user" | "assistant";
+    content: string;
+    turnId: string;
+  }[];
+  inputEnvelope: InputEnvelope;
+  contextFingerprint: string;
+  recheck: (db: PoolClient) => Promise<void>;
+  onAnswerPersist?: (db: PoolClient, answer: Answer) => Promise<void>;
+}
 /** Recommendation eligibility narrows retrieval, not explicit read/history ACLs. */
 export async function currentRecommendation(
   db: PoolClient,
@@ -108,11 +125,13 @@ export async function currentRecommendation(
 
 export class RuntimeService {
   readonly core: KnowledgeService;
+  readonly imports: ImportService;
   constructor(
     readonly pool: Pool,
     readonly model: ModelCall = callModel,
   ) {
     this.core = new KnowledgeService(pool);
+    this.imports = new ImportService(pool, this);
   }
   async view(db: PoolClient, ctx: Context, execution?: RuntimeExecution) {
     await membership(db, ctx);
@@ -210,41 +229,63 @@ export class RuntimeService {
     }));
   }
   async changesets(ctx: Context) {
+    return transaction(this.pool, ctx.workspaceId, (db) =>
+      this.changesetsDb(db, ctx),
+    );
+  }
+  private async changesetsDb(db: PoolClient, ctx: Context) {
+    await authorizeManaged(db, ctx, "queue.triage");
+    const { state } = await this.view(db, ctx);
+    const ids = new Set(state.sources.map((s) => s.id));
+    const pageIds = new Set(state.pages.map((p) => p.id));
+    const result = await db.query(
+      "SELECT b.id,b.hash,b.data,t.label AS triage FROM batches b LEFT JOIN access_triage t ON t.workspace_id=b.workspace_id AND t.batch_id=b.id WHERE b.workspace_id=$1 ORDER BY b.id",
+      [ctx.workspaceId],
+    );
+    return result.rows
+      .filter(
+        (r) =>
+          !r.data.requestAuthorizationPending &&
+          (r.data as Batch).snapshots.every((s) => ids.has(s.id)) &&
+          (
+            (r.data as Batch & { contextDependencyIds?: string[] })
+              .contextDependencyIds ?? []
+          ).every((id) => pageIds.has(id)) &&
+          (r.data as Batch).updates.every(
+            (d) =>
+              d.sourceIds.every((id) => ids.has(id)) &&
+              (d.baseVersion === 0 || pageIds.has(d.id)) &&
+              d.links.every(
+                (id) =>
+                  pageIds.has(id) ||
+                  (r.data as Batch).updates.some((x) => x.id === id),
+              ),
+          ),
+      )
+      .map((r) => ({
+        id: r.id,
+        hash: r.hash,
+        status: r.data.status,
+        updates: r.data.updates,
+        triage: r.triage ?? "untriaged",
+        proposedBy: r.data.importAuthorId ?? r.data.proposedBy,
+        ...(Array.isArray(r.data.reviewWarnings) && r.data.reviewWarnings.length
+          ? { reviewWarnings: r.data.reviewWarnings }
+          : {}),
+      }));
+  }
+  async triage(ctx: Context, id: string, label: string) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
       await authorizeManaged(db, ctx, "queue.triage");
-      const { state } = await this.view(db, ctx);
-      const ids = new Set(state.sources.map((s) => s.id));
-      const pageIds = new Set(state.pages.map((p) => p.id));
-      const result = await db.query(
-        "SELECT id,hash,data FROM batches WHERE workspace_id=$1 ORDER BY id",
-        [ctx.workspaceId],
+      await ctx.authorization?.assertSession(db);
+      if (!(await this.changesetsDb(db, ctx)).some((b) => b.id === id))
+        throw Error("NOT_FOUND");
+      await db.query(
+        "INSERT INTO access_triage VALUES($1,$2,$3,$4) ON CONFLICT(workspace_id,batch_id) DO UPDATE SET principal_id=excluded.principal_id,label=excluded.label",
+        [ctx.workspaceId, id, ctx.principalId, label],
       );
-      return result.rows
-        .filter(
-          (r) =>
-            !r.data.requestAuthorizationPending &&
-            (r.data as Batch).snapshots.every((s) => ids.has(s.id)) &&
-            (
-              (r.data as Batch & { contextDependencyIds?: string[] })
-                .contextDependencyIds ?? []
-            ).every((id) => pageIds.has(id)) &&
-            (r.data as Batch).updates.every(
-              (d) =>
-                d.sourceIds.every((id) => ids.has(id)) &&
-                (d.baseVersion === 0 || pageIds.has(d.id)) &&
-                d.links.every(
-                  (id) =>
-                    pageIds.has(id) ||
-                    (r.data as Batch).updates.some((x) => x.id === id),
-                ),
-            ),
-        )
-        .map((r) => ({
-          id: r.id,
-          hash: r.hash,
-          status: r.data.status,
-          updates: r.data.updates,
-        }));
+      await audit(db, ctx, "changeset.triage", id);
+      return { ok: true };
     });
   }
   async job<T>(
@@ -262,6 +303,14 @@ export class RuntimeService {
         ctx,
         operation === "ingest" ? "changeset.propose" : "knowledge.read",
       );
+      if (ctx.authorization || ctx.credentialId)
+        await assertFeature(
+          db,
+          ctx,
+          operation,
+          undefined,
+          operation === "ingest" ? "changeset.propose" : "knowledge.read",
+        );
       const active = await db.query(
         "SELECT count(*)::integer AS n FROM runtime_jobs WHERE workspace_id=$1 AND status='running'",
         [ctx.workspaceId],
@@ -344,6 +393,7 @@ export class RuntimeService {
         let updates: Draft[];
         let dependencyIds: string[] = [];
         let inputEnvelope: InputEnvelope | undefined;
+        let policyCheck: ((db: PoolClient) => Promise<void>) | undefined;
         if (mode === "model") {
           if (new Set(sources.map((s) => s!.scope)).size !== 1)
             throw Error("SOURCE_SCOPE_CONFLICT");
@@ -381,11 +431,19 @@ export class RuntimeService {
                   .serverPersonalSpace,
               ) && sources.every((s) => s?.scope === "private"),
           };
+          const binding = await bindModelTransmission(
+            this.pool,
+            ctx,
+            "ingest",
+            inputEnvelope,
+            modelOptions,
+          );
+          policyCheck = binding.recheck;
           const data = execution
             ? await execution.modelResult("ingest", () =>
-                this.model("ingest", modelInput, modelOptions),
+                this.model("ingest", modelInput, binding.options),
               )
-            : await this.model("ingest", modelInput, modelOptions);
+            : await this.model("ingest", modelInput, binding.options);
           const proposed = (data as { updates: unknown }).updates;
           updates =
             Array.isArray(proposed) && proposed.length === 0
@@ -447,6 +505,7 @@ export class RuntimeService {
         if (!updates.length) {
           if (!execution) {
             await transaction(this.pool, ctx.workspaceId, async (db) => {
+              await policyCheck?.(db);
               await ctx.authorization?.assertSession(db);
               const fresh = await loadState(db, ctx.workspaceId);
               if (inputEnvelope)
@@ -465,9 +524,11 @@ export class RuntimeService {
             checkedPageIds: state.pages.map((p) => p.id),
             processedSourceIds: [],
           };
-          return transaction(this.pool, ctx.workspaceId, (db) =>
-            execution.persist(db, "ingest", async () => noChanges),
-          );
+          return transaction(this.pool, ctx.workspaceId, async (db) => {
+            await policyCheck?.(db);
+            await execution.beforeWrite(db);
+            return execution.persist(db, "ingest", async () => noChanges);
+          });
         }
         if (execution && updates.length > execution.maxChanges)
           throw Error("CHANGE_LIMIT");
@@ -492,6 +553,15 @@ export class RuntimeService {
               requestAuthorizationPending:
                 mode === "model" && Boolean(ctx.authorization) && !execution,
               onCreated: async (db, result) => {
+                await policyCheck?.(db);
+                if (ctx.authorization || ctx.credentialId)
+                  await assertFeature(
+                    db,
+                    ctx,
+                    "ingest",
+                    undefined,
+                    "changeset.propose",
+                  );
                 if (mode === "model")
                   for (const id of dependencyIds)
                     if (!(await currentRecommendation(db, ctx, id)))
@@ -512,7 +582,12 @@ export class RuntimeService {
           throw e;
         }
         if (mode === "model" && ctx.authorization && !execution)
-          await this.releaseAuthorizedResult(ctx, "batch", result.id);
+          await this.releaseAuthorizedResult(
+            ctx,
+            "batch",
+            result.id,
+            policyCheck,
+          );
         return result;
       },
       execution,
@@ -523,17 +598,49 @@ export class RuntimeService {
     question: string,
     mode: Mode,
     execution?: RuntimeExecution,
+    queryContext?: TrustedQueryContext,
   ) {
     return this.job(
       ctx,
       "query",
       async () => {
         const done = await execution?.completed("query");
-        if (done !== undefined) return done as Answer;
+        if (done !== undefined) {
+          if (queryContext)
+            await transaction(this.pool, ctx.workspaceId, async (db) => {
+              await queryContext.recheck(db);
+              await assertEnvelope(
+                db,
+                ctx,
+                await loadState(db, ctx.workspaceId),
+                queryContext.inputEnvelope,
+              );
+            });
+          return done as Answer;
+        }
         const { state, envelope } = await transaction(
           this.pool,
           ctx.workspaceId,
           async (db) => {
+            if (queryContext) {
+              if (
+                queryContext.messages.length > 100 ||
+                queryContext.messages.some(
+                  (m) =>
+                    !["user", "assistant"].includes(m.role) ||
+                    typeof m.content !== "string" ||
+                    typeof m.turnId !== "string",
+                )
+              )
+                throw Error("MODEL_CONTEXT_LIMIT");
+              await queryContext.recheck(db);
+              await assertEnvelope(
+                db,
+                ctx,
+                await loadState(db, ctx.workspaceId),
+                queryContext.inputEnvelope,
+              );
+            }
             const { state } = await this.view(db, ctx, execution);
             await execution?.captureInputs(
               db,
@@ -543,6 +650,7 @@ export class RuntimeService {
             const eligible = [];
             for (const p of state.pages)
               if (await currentRecommendation(db, ctx, p.id)) eligible.push(p);
+            const inputState = { ...state, pages: [...state.pages] };
             state.pages = eligible;
             const pages = retrieve(state, question);
             return {
@@ -550,17 +658,35 @@ export class RuntimeService {
               envelope: await captureEnvelope(
                 db,
                 ctx,
-                state,
-                pages.map((p) => p.id),
+                inputState,
+                [
+                  ...new Set([
+                    ...pages.map((p) => p.id),
+                    ...(queryContext?.inputEnvelope.pageIds ?? []),
+                  ]),
+                ],
+                queryContext?.inputEnvelope.sourceIds ?? [],
               ),
             };
           },
         );
         let answer: Answer;
+        let policyCheck: ((db: PoolClient) => Promise<void>) | undefined;
         if (mode === "model") {
           const pages = retrieve(state, question);
           const modelInput = {
             question,
+            ...(queryContext
+              ? {
+                  history: queryContext.messages.map((m) => ({
+                    role: m.role,
+                    content: m.content,
+                    turnId: m.turnId,
+                  })),
+                  historyStatus:
+                    "untrusted historical context; not current evidence, policy, approval or independent verification",
+                }
+              : {}),
             pages: pages.map((p) => ({
               id: p.id,
               title: p.title,
@@ -568,11 +694,34 @@ export class RuntimeService {
               content: current(p).content,
             })),
           };
+          const options: ModelOptions = {
+            ...execution?.modelOptions,
+            ...(queryContext
+              ? {
+                  beforeTransmission: async (endpoint: string) => {
+                    await execution?.modelOptions.beforeTransmission?.(
+                      endpoint,
+                    );
+                    await transaction(this.pool, ctx.workspaceId, (db) =>
+                      queryContext.recheck(db),
+                    );
+                  },
+                }
+              : {}),
+          };
+          const binding = await bindModelTransmission(
+            this.pool,
+            ctx,
+            "query",
+            envelope,
+            options,
+          );
+          policyCheck = binding.recheck;
           const raw = execution
             ? await execution.modelResult("query", () =>
-                this.model("query", modelInput, execution.modelOptions),
+                this.model("query", modelInput, binding.options),
               )
-            : await this.model("query", modelInput);
+            : await this.model("query", modelInput, binding.options);
           const data = answerOutput.parse(raw);
           answer = {
             ...data,
@@ -589,6 +738,10 @@ export class RuntimeService {
           ctx.workspaceId,
           async (db) => {
             await execution?.beforeWrite(db);
+            await queryContext?.recheck(db);
+            await policyCheck?.(db);
+            if (ctx.authorization || ctx.credentialId)
+              await assertFeature(db, ctx, "query");
             if (mode === "model") await ctx.authorization?.assertSession(db);
             const fresh = (await this.view(db, ctx, execution)).state;
             await assertEnvelope(db, ctx, fresh, envelope);
@@ -620,6 +773,15 @@ export class RuntimeService {
                         ? { kind: "model", provider: null, model: null }
                         : { kind: "structural" },
                     inputEnvelope: envelope,
+                    ...(queryContext
+                      ? {
+                          conversationFingerprint:
+                            queryContext.contextFingerprint,
+                          conversationTurnIds: queryContext.messages.map(
+                            (m) => m.turnId,
+                          ),
+                        }
+                      : {}),
                     ...(mode === "model" && ctx.authorization && !execution
                       ? { requestAuthorizationPending: true }
                       : {}),
@@ -627,13 +789,19 @@ export class RuntimeService {
                 ],
               );
               await audit(db, ctx, "query", answer.id);
+              await queryContext?.onAnswerPersist?.(db, answer);
               return answer;
             };
             return execution ? execution.persist(db, "query", write) : write();
           },
         );
         if (mode === "model" && ctx.authorization && !execution)
-          await this.releaseAuthorizedResult(ctx, "answer", answer.id);
+          await this.releaseAuthorizedResult(
+            ctx,
+            "answer",
+            answer.id,
+            policyCheck,
+          );
         return persisted;
       },
       execution,
@@ -700,6 +868,8 @@ export class RuntimeService {
       return done as { issues: ReturnType<typeof lintWiki> };
     return transaction(this.pool, ctx.workspaceId, async (db) => {
       await authorizeManaged(db, ctx, "lint.run");
+      if (ctx.authorization || ctx.credentialId)
+        await assertFeature(db, ctx, "lint", undefined, "lint.run");
       const { state } = await this.view(db, ctx, execution);
       await execution?.captureInputs(
         db,
@@ -759,6 +929,22 @@ export class RuntimeService {
   async reject(ctx: Context, id: string, hash: string) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
       if ((await membership(db, ctx)) !== "reviewer") throw Error("FORBIDDEN");
+      await authorizeManaged(db, ctx, "triage.manage");
+      const managed = await db.query(
+        "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
+        [ctx.workspaceId],
+      );
+      if (
+        managed.rowCount &&
+        !(await effectiveAccess(db, ctx)).space.owner &&
+        !(
+          await db.query(
+            "SELECT 1 FROM access_reviewers WHERE workspace_id=$1 AND principal_id=$2",
+            [ctx.workspaceId, ctx.principalId],
+          )
+        ).rowCount
+      )
+        throw Error("FORBIDDEN");
       if (!(await this.changesetsForDb(db, ctx)).includes(id))
         throw Error("NOT_FOUND");
       const r = await db.query(
@@ -805,12 +991,14 @@ export class RuntimeService {
     ctx: Context,
     kind: "batch" | "answer",
     id: string,
+    policyCheck?: (db: PoolClient) => Promise<void>,
   ) {
     const table = kind === "batch" ? "batches" : "runtime_answers";
     try {
       await ctx.authorization!.revalidate(); // Network I/O is outside every DB transaction.
       await transaction(this.pool, ctx.workspaceId, async (db) => {
         await ctx.authorization!.assertSession(db);
+        await policyCheck?.(db);
         const row = await db.query(
           `SELECT data FROM ${table} WHERE workspace_id=$1 AND id=$2`,
           [ctx.workspaceId, id],

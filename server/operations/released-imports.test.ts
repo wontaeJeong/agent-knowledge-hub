@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { fixture, adoptFixture } from "../test-support";
-import { authorizeInTransaction } from "../access";
+import { authorizeInTransaction } from "../access/index";
 import { OperationsService } from "./service";
 import { previewErasure, executeErasure } from "./erasure";
 import { assertReleasedImportUsable } from "./released-imports";
@@ -329,6 +329,20 @@ test("ordinary preserved import.remove is replayed for private chunks without bl
         stdio: "pipe",
         maxBuffer: 128 * 1024 * 1024,
       });
+  const batchId = randomUUID();
+  await f.pool.query(
+    "INSERT INTO batches(workspace_id,id,data,hash) VALUES($1,$2,$3,$4)",
+    [
+      f.workspaceId,
+      batchId,
+      { snapshots: [{ id: "source-a", content: secret }] },
+      sha,
+    ],
+  );
+  await f.pool.query(
+    "INSERT INTO approvals(workspace_id,batch_id,principal_id,hash) VALUES($1,$2,$3,$4)",
+    [f.workspaceId, batchId, "reviewer", sha],
+  );
   const wikiBefore = (
       await f.pool.query(
         "SELECT data->>'content' AS content FROM versions WHERE workspace_id=$1 AND page_id='topic'",
@@ -402,6 +416,24 @@ test("ordinary preserved import.remove is replayed for private chunks without bl
         )
       ).rows[0].content,
     ).toBe(wikiBefore);
+    expect(
+      JSON.stringify(
+        (
+          await restored.query(
+            "SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",
+            [f.workspaceId, batchId],
+          )
+        ).rows,
+      ),
+    ).not.toContain(secret);
+    expect(
+      (
+        await restored.query(
+          "SELECT 1 FROM approvals WHERE workspace_id=$1 AND batch_id=$2",
+          [f.workspaceId, batchId],
+        )
+      ).rowCount,
+    ).toBe(0);
   } finally {
     await restored?.end();
     if (created) run(["dropdb", "-U", "knowledge", database]);

@@ -1,4 +1,6 @@
-import { afterAll, beforeAll, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import { approveLocalTransmissionFixture } from "../policy/test-fixture";
+import { registerTrustedDestinations } from "../policy/model";
 import { createServer, request } from "node:https";
 import { execFileSync } from "node:child_process";
 import { Readable } from "node:stream";
@@ -12,7 +14,7 @@ import {
 import { source, fixture, adoptFixture } from "../test-support";
 import { digest } from "../publication";
 import { RefinementService } from "./service";
-import { authorizeInTransaction } from "../access";
+import { authorizeInTransaction } from "../access/index";
 import { claim } from "./fixtures";
 import { fixtureSigningKey, signedFixtureReceipt } from "./execution-fixture";
 
@@ -308,24 +310,41 @@ it("actual PostgreSQL + authenticated HTTPS receipt + distinct human reviewer co
     await adoptFixture(f.pool, f.workspaceId);
     allowedWorkspace = f.workspaceId;
     behavior = "valid";
+    vi.stubEnv(
+      "AGENT_KNOWLEDGE_HUB_EXECUTION_VERIFIER_DESTINATION_ID",
+      "explicit-local-fixture",
+    );
+    const authorization = await approveLocalTransmissionFixture(
+      f.pool,
+      f.workspaceId,
+      origin + "/v1/executions/verify",
+      ["execution-verification"],
+    );
     const service = new RefinementService(
       f.pool,
       authorizeInTransaction,
       undefined,
       { executionVerifier: verifier(5000) },
     );
-    const e = await service.addEvidence(f.editor, {
-      id: "https-evidence",
-      kind: "independent-execution",
-      executionId: "run-1",
-      sourceId: source.id,
-      sourceVersion: digest(source),
-      location: { start: 0, end: source.content.length, quote: source.content },
-      parentIds: [],
-      assertedAt: new Date().toISOString(),
-      verifiedAt: null,
-      conditions: { os: "linux" },
-    });
+    const e = await service.addEvidence(
+      { ...f.editor, authorization },
+      {
+        id: "https-evidence",
+        kind: "independent-execution",
+        executionId: "run-1",
+        sourceId: source.id,
+        sourceVersion: digest(source),
+        location: {
+          start: 0,
+          end: source.content.length,
+          quote: source.content,
+        },
+        parentIds: [],
+        assertedAt: new Date().toISOString(),
+        verifiedAt: null,
+        conditions: { os: "linux" },
+      },
+    );
     expect(e.verifiedAt).toBeNull();
     expect(e.executionVerification?.status).toBe("attested");
     const { recordedAt: _, recordedBy: __, ...candidate } = claim;
@@ -347,6 +366,64 @@ it("actual PostgreSQL + authenticated HTTPS receipt + distinct human reviewer co
     ).toBe("trusted-fixture-runner");
   } finally {
     allowedWorkspace = "fixture";
+    vi.unstubAllEnvs();
+    await f.pool.end();
+  }
+});
+it("actual HTTPS execution verifier receives zero protected requests without per-source transmission approval", async () => {
+  const f = await fixture();
+  const before = calls;
+  try {
+    await adoptFixture(f.pool, f.workspaceId);
+    await registerTrustedDestinations(f.pool, [
+      {
+        id: "denied-execution-fixture",
+        url: origin + "/v1/executions/verify",
+        purposes: ["execution-verification"],
+        classifications: ["synthetic"],
+        active: true,
+      },
+    ]);
+    vi.stubEnv(
+      "AGENT_KNOWLEDGE_HUB_EXECUTION_VERIFIER_DESTINATION_ID",
+      "denied-execution-fixture",
+    );
+    const service = new RefinementService(
+      f.pool,
+      authorizeInTransaction,
+      undefined,
+      { executionVerifier: verifier(5000) },
+    );
+    await expect(
+      service.addEvidence(
+        {
+          ...f.editor,
+          authorization: {
+            revalidate: async () => {},
+            assertSession: async () => {},
+          },
+        },
+        {
+          id: "denied-execution",
+          kind: "independent-execution",
+          executionId: "run-1",
+          sourceId: source.id,
+          sourceVersion: digest(source),
+          location: {
+            start: 0,
+            end: source.content.length,
+            quote: source.content,
+          },
+          parentIds: [],
+          assertedAt: new Date().toISOString(),
+          verifiedAt: null,
+          conditions: {},
+        },
+      ),
+    ).rejects.toThrow("MODEL_TRANSMISSION_DENIED");
+    expect(calls).toBe(before);
+  } finally {
+    vi.unstubAllEnvs();
     await f.pool.end();
   }
 });
@@ -356,6 +433,16 @@ it("actual HTTPS in-flight ACL revocation acquires the workspace lock and preven
     await adoptFixture(f.pool, f.workspaceId);
     allowedWorkspace = f.workspaceId;
     behavior = "valid";
+    vi.stubEnv(
+      "AGENT_KNOWLEDGE_HUB_EXECUTION_VERIFIER_DESTINATION_ID",
+      "explicit-local-fixture",
+    );
+    const authorization = await approveLocalTransmissionFixture(
+      f.pool,
+      f.workspaceId,
+      origin + "/v1/executions/verify",
+      ["execution-verification"],
+    );
     receiptHookError = undefined;
     beforeReceipt = async () => {
       const db = await f.pool.connect();
@@ -395,9 +482,9 @@ it("actual HTTPS in-flight ACL revocation acquires the workspace lock and preven
       verifiedAt: null,
       conditions: {},
     };
-    await expect(service.addEvidence(f.editor, input)).rejects.toThrow(
-      "NOT_FOUND",
-    );
+    await expect(
+      service.addEvidence({ ...f.editor, authorization }, input),
+    ).rejects.toThrow("NOT_FOUND");
     expect(receiptHookError).toBeUndefined();
     expect(
       (
@@ -414,6 +501,7 @@ it("actual HTTPS in-flight ACL revocation acquires the workspace lock and preven
     expect(calls).toBe(before);
   } finally {
     beforeReceipt = undefined;
+    vi.unstubAllEnvs();
     allowedWorkspace = "fixture";
     await f.pool.end();
   }

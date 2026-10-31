@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import { Lexer, walkTokens } from "marked";
-import { AccessService, effectiveAccess } from "../access";
+import { AccessService, effectiveAccess } from "../access/index";
 import { transaction } from "../database";
 import { membership, requireRead, audit } from "../repository";
 import type { Context } from "../service";

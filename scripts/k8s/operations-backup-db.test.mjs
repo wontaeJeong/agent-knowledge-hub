@@ -17,6 +17,7 @@ import {
 } from "./operations-backup.mjs";
 import { releaseGate } from "./operations-release.mjs";
 import { withBackupRetentionPolicy } from "./operations-retention-policy.mjs";
+import {operationalSiteFixture} from './operations-site-fixture.mjs';
 const base = [
   "--context",
   "kind-knowledge-hub-dev",
@@ -110,31 +111,7 @@ test("actual PostgreSQL dump + filesystem, quiescence blocks concurrent mutation
         verifiedAt: new Date().toISOString(),
         checksum: result.checksum,
       },
-      resources: [
-        {
-          kind: "Deployment",
-          metadata: { name: "knowledge-app" },
-          spec: {
-            template: { spec: { containers: [{ name: "app", image }] } },
-          },
-        },
-        {
-          kind: "Ingress",
-          spec: {
-            tls: [{ secretName: "tls", hosts: ["knowledge.example.com"] }],
-          },
-        },
-        { kind: "NetworkPolicy", metadata: { name: "default-deny" } },
-        {
-          kind: "ConfigMap",
-          metadata: { name: "knowledge-config" },
-          data: {
-            NODE_ENV: "production",
-            APP_ORIGIN: "https://knowledge.example.com",
-            OIDC_ISSUER: "https://idp.example.com",
-          },
-        },
-      ],
+      resources: await operationalSiteFixture(image),
     };
     assert.equal((await releaseGate(release)).allowed, true);
     const expected = (
@@ -205,8 +182,7 @@ test("actual PostgreSQL dump + filesystem, quiescence blocks concurrent mutation
       );
       const signing = "independent-signing".repeat(4),
         ledger = {
-          version: 1,
-          at: new Date().toISOString(),
+          ...openExport(await captureRecoveryLedger(pool,key,signing),key,signing),
           readers: [],
           tombstones: [
             {
@@ -357,6 +333,9 @@ test("actual PostgreSQL dump + filesystem, quiescence blocks concurrent mutation
       readFile(join(restoredContent, "database.dump")),
       "verified content root must not retain the original plaintext database dump",
     );
+    // Explicitly create distinct policies; do not depend on prior suites' persistent workspaces.
+    await pool.query('INSERT INTO workspaces VALUES($1)',[randomUUID()]);
+    await pool.query('INSERT INTO operations_policy(workspace_id,backup_days) VALUES($1,60)',[ws]);
     await assert.rejects(
       withBackupRetentionPolicy(pool, 30, async () => null),
       /POLICY_CONFLICT/,

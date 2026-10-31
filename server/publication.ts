@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { Context } from "./service";
+import type { Source } from "../src/domain/types";
 import type { Batch, Draft } from "../src/domain/wiki";
 import {
   createBatch,
@@ -10,7 +11,12 @@ import {
   current,
 } from "../src/domain/wiki";
 import { transaction } from "./database";
-import { authorizeActionDb, effectiveAccess } from "./access";
+import { authorizeActionDb, effectiveAccess } from "./access/index";
+import { assertReleasedImportContext } from "./operations/released-imports";
+import {
+  publicationRequirements,
+  type PropertyWarning,
+} from "./workflows/governance/requirements";
 import {
   addResource,
   audit,
@@ -45,11 +51,18 @@ const batchHash = ({
   status: _s,
   approvedFingerprint: _f,
   requestAuthorizationPending: _pending,
+  reviewWarnings: _warnings,
   ...content
-}: Batch & { requestAuthorizationPending?: boolean }) => digest(content);
+}: Batch & {
+  requestAuthorizationPending?: boolean;
+  reviewWarnings?: PropertyWarning[];
+}) => digest(content);
 type RuntimeBatch = Batch & {
   producer?: NonNullable<import("../src/domain/types").Version["producer"]>;
   responsibleUserId?: string;
+  proposedBy?: string;
+  importRunId?: string;
+  importAuthorId?: string;
   contextDependencyIds?: string[];
   inputEnvelope?: InputEnvelope;
 };
@@ -60,8 +73,11 @@ async function permissions(
   updates: Draft[],
   sourceIds: string[],
   dependencyIds: string[] = [],
+  enforceRequirements = false,
 ) {
   const acl: Record<string, unknown> = {};
+  const requirements = await publicationRequirements(db, ctx, updates);
+  acl.requiredProperties = requirements.policy;
   const policy = await db.query(
     "SELECT policy_version FROM access_spaces WHERE workspace_id=$1",
     [ctx.workspaceId],
@@ -206,7 +222,9 @@ async function permissions(
       if (audience.some((p) => !effective.includes(p)))
         throw Error("SOURCE_SCOPE_CONFLICT");
   }
-  return { audiences, hash: digest(acl) };
+  if (enforceRequirements && requirements.blockers.length)
+    throw Error("PROPERTY_REQUIRED");
+  return { audiences, hash: digest(acl), warnings: requirements.warnings };
 }
 
 export async function propose(
@@ -222,11 +240,18 @@ export async function propose(
     inputEnvelope?: InputEnvelope;
     requestAuthorizationPending?: boolean;
     producer?: NonNullable<import("../src/domain/types").Version["producer"]>;
+    /** Trusted server-only DB hook for pending-record preparation. No DTO/context override/network.
+     * Runs only for a new proposal, after session admission and before permission/envelope/state capture.
+     * Any later failure rolls this preparation back with the canonical proposal transaction.
+     */
+    onBeforeCreate?: (db: PoolClient) => Promise<void>;
     /** Trusted integration hook; never accepted in request DTOs. Runs before the same transaction commits. */
     onCreated?: (
       db: PoolClient,
       result: { id: string; hash: string },
     ) => Promise<void>;
+    importRunId?: string;
+    importAuthorId?: string;
   },
 ) {
   return transaction(
@@ -241,7 +266,41 @@ export async function propose(
       if (accessSpace.rowCount)
         await authorizeActionDb(db, ctx, "changeset.propose");
       await ctx.authorization?.assertSession(db);
-      await permissions(db, ctx, updates, sourceIds, options?.dependencyIds);
+      if (options?.importRunId) {
+        const run = await db.query(
+          "SELECT import_id FROM import_runs WHERE workspace_id=$1 AND id=$2",
+          [ctx.workspaceId, options.importRunId],
+        );
+        if (!run.rowCount) throw Error("NOT_FOUND");
+        await assertReleasedImportContext(db, ctx, run.rows[0].import_id);
+        const previous = await db.query(
+          "SELECT id,hash,data FROM batches WHERE workspace_id=$1 AND data->>'importRunId'=$2",
+          [ctx.workspaceId, options.importRunId],
+        );
+        if (previous.rowCount) {
+          const old = previous.rows[0];
+          const replayPermissions = await permissions(
+            db,
+            ctx,
+            old.data.updates,
+            old.data.snapshots.map((s: Source) => s.id),
+            old.data.contextDependencyIds,
+          );
+          return {
+            id: old.id,
+            hash: old.hash,
+            ...(replayPermissions.warnings.length ? { warnings: replayPermissions.warnings } : {}),
+          };
+        }
+      }
+      await options?.onBeforeCreate?.(db);
+      const initialPermissions = await permissions(
+        db,
+        ctx,
+        updates,
+        sourceIds,
+        options?.dependencyIds,
+      );
       if (options?.inputEnvelope)
         await assertEnvelope(
           db,
@@ -263,6 +322,9 @@ export async function propose(
           sourceIds,
           options?.mode ?? "offline",
         );
+        (batch as RuntimeBatch).proposedBy = ctx.principalId;
+        if (initialPermissions.warnings.length)
+          Object.assign(batch, { reviewWarnings: initialPermissions.warnings });
         for (const id of options?.dependencyIds ?? []) {
           const p = state.pages.find((p) => p.id === id);
           if (!p) throw Error("NOT_FOUND");
@@ -289,7 +351,12 @@ export async function propose(
               "SELECT sponsor_id FROM access_service_accounts WHERE principal_id=$1",
               [ctx.principalId],
             )
-          ).rows[0]?.sponsor_id ?? ctx.principalId;
+          ).rows[0]?.sponsor_id ?? options?.importAuthorId ?? ctx.principalId;
+        if (options?.importRunId)
+          Object.assign(batch, {
+            importRunId: options.importRunId,
+            importAuthorId: options.importAuthorId,
+          });
         if (options?.dependencyIds)
           (batch as RuntimeBatch).contextDependencyIds = options.dependencyIds;
         if (options?.inputEnvelope)
@@ -311,11 +378,11 @@ export async function propose(
         await db.query("INSERT INTO access_batch_authors VALUES($1,$2,$3)", [
           ctx.workspaceId,
           batch.id,
-          ctx.principalId,
+          options?.importAuthorId ?? ctx.principalId,
         ]);
       await audit(db, ctx, "batch.propose", batch.id);
       await options?.onCreated?.(db, { id: batch.id, hash });
-      return { id: batch.id, hash };
+      return { id: batch.id, hash, ...(initialPermissions.warnings.length ? { warnings: initialPermissions.warnings } : {}) };
     },
     { principalId: ctx.principalId, operation: "batch.propose" },
   );
@@ -334,6 +401,98 @@ async function checkedBatch(
   );
   if (!r.rowCount) throw Error("NOT_FOUND");
   const batch = r.rows[0].data as Batch;
+  const managed = await db.query(
+    "SELECT n.kind,n.owner_id FROM access_spaces s JOIN access_namespaces n ON n.id=s.namespace_id WHERE s.workspace_id=$1",
+    [ctx.workspaceId],
+  );
+  const personal = managed.rows[0]?.kind === "personal" &&
+    managed.rows[0]?.owner_id === ctx.principalId;
+  if (managed.rowCount && !personal) {
+    if (
+      !(
+        await db.query(
+          "SELECT 1 FROM access_reviewers WHERE workspace_id=$1 AND principal_id=$2",
+          [ctx.workspaceId, ctx.principalId],
+        )
+      ).rowCount
+    )
+      throw Error("FORBIDDEN");
+    const authorId =
+      (batch as RuntimeBatch).importAuthorId ??
+      (batch as RuntimeBatch).proposedBy ??
+      (await db.query(
+        "SELECT principal_id FROM access_batch_authors WHERE workspace_id=$1 AND batch_id=$2",
+        [ctx.workspaceId, id],
+      )).rows[0]?.principal_id;
+    if (!authorId || authorId === ctx.principalId) throw Error("FORBIDDEN");
+    if (
+      (await membership(db, {
+        workspaceId: ctx.workspaceId,
+        principalId: authorId,
+      })) === "reader"
+    )
+      throw Error("FORBIDDEN");
+    await authorizeActionDb(db,
+      { workspaceId: ctx.workspaceId, principalId: authorId },
+      "changeset.propose",
+    );
+  }
+  if (
+    (batch as RuntimeBatch).importRunId &&
+    batch.status !== "published" &&
+    !personal
+  ) {
+    const disclosure = await db.query(
+      "SELECT d.status,d.reviewer_id,effective_membership(m.workspace_id,m.principal_id) AS role FROM import_disclosures d JOIN memberships m ON m.workspace_id=d.workspace_id AND m.principal_id=d.reviewer_id WHERE d.workspace_id=$1 AND d.run_id=$2",
+      [ctx.workspaceId, (batch as RuntimeBatch).importRunId],
+    );
+    const allowed = new Set(
+      (process.env.IMPORT_DISCLOSURE_REVIEWERS || "")
+        .split(",")
+        .map((s) => s.trim()),
+    );
+    if (
+      !disclosure.rowCount ||
+      disclosure.rows[0].status !== "approved" ||
+      disclosure.rows[0].role !== "reviewer" ||
+      !allowed.has(disclosure.rows[0].reviewer_id)
+    )
+      throw Error("APPROVAL_STALE");
+    const reviewer = disclosure.rows[0].reviewer_id;
+    await authorizeActionDb(db,
+      { workspaceId: ctx.workspaceId, principalId: reviewer },
+      "changeset.approve",
+    );
+    if (!(await db.query(
+      "SELECT 1 FROM access_principals WHERE id=$1 AND active AND kind='human'",
+      [reviewer],
+    )).rowCount) throw Error("APPROVAL_STALE");
+  }
+  if ((batch as RuntimeBatch).importAuthorId === ctx.principalId && !personal)
+    throw Error("FORBIDDEN");
+  if ((batch as RuntimeBatch).importAuthorId) {
+    const author = {
+      workspaceId: ctx.workspaceId,
+      principalId: (batch as RuntimeBatch).importAuthorId!,
+    };
+    if ((await membership(db, author)) === "reader") throw Error("FORBIDDEN");
+    if (managed.rowCount) await authorizeActionDb(db, author, "changeset.propose");
+    await permissions(
+      db,
+      author,
+      batch.updates,
+      batch.snapshots.map((s) => s.id),
+      (batch as RuntimeBatch).contextDependencyIds,
+    );
+  }
+  if ((batch as RuntimeBatch).importRunId && batch.status !== "published") {
+    const run = await db.query(
+      "SELECT import_id FROM import_runs WHERE workspace_id=$1 AND id=$2",
+      [ctx.workspaceId, (batch as RuntimeBatch).importRunId],
+    );
+    if (!run.rowCount) throw Error("APPROVAL_STALE");
+    await assertReleasedImportContext(db, ctx, run.rows[0].import_id);
+  }
   if (
     (batch as Batch & { requestAuthorizationPending?: boolean })
       .requestAuthorizationPending
@@ -352,6 +511,7 @@ async function checkedBatch(
     batch.updates,
     batch.snapshots.map((s) => s.id),
     (batch as RuntimeBatch).contextDependencyIds,
+    true,
   );
   if (hash !== r.rows[0].hash || hash !== batchHash(batch))
     throw Error("APPROVAL_STALE");
@@ -461,6 +621,7 @@ export async function approve(
         batch.snapshots.map((s) => s.id),
         (batch as RuntimeBatch).contextDependencyIds,
       );
+      Object.assign(batch, { reviewWarnings: permissionSnapshot.warnings });
       await db.query(
         "UPDATE batches SET data=$3 WHERE workspace_id=$1 AND id=$2",
         [ctx.workspaceId, id, batch],
@@ -482,6 +643,7 @@ export async function approve(
         qualification?.personal ? "personal.save.review-free" : "batch.approve",
         id,
       );
+      if (permissionSnapshot.warnings.length) return { warnings: permissionSnapshot.warnings };
     },
     { principalId: ctx.principalId, operation: "batch.approve" },
   );
@@ -493,7 +655,11 @@ export async function publish(
   id: string,
   hash: string,
   key: string,
-): Promise<{ batchId: string; versions: Record<string, number> }> {
+): Promise<{
+  batchId: string;
+  versions: Record<string, number>;
+  warnings?: PropertyWarning[];
+}> {
   return transaction(
     pool,
     ctx.workspaceId,
@@ -515,7 +681,11 @@ export async function publish(
         "SELECT result FROM publications WHERE workspace_id=$1 AND batch_id=$2",
         [ctx.workspaceId, id],
       );
-      let result: { batchId: string; versions: Record<string, number> };
+      let result: {
+        batchId: string;
+        versions: Record<string, number>;
+        warnings?: PropertyWarning[];
+      };
       if (receipt.rowCount) result = receipt.rows[0].result;
       else {
         const approval = await db.query(
@@ -678,7 +848,11 @@ export async function publish(
           "UPDATE batches SET data=$3 WHERE workspace_id=$1 AND id=$2",
           [ctx.workspaceId, id, published],
         );
-        result = { batchId: id, versions };
+        result = {
+          batchId: id,
+          versions,
+          ...(permissionSnapshot.warnings.length ? { warnings: permissionSnapshot.warnings } : {}),
+        };
         await db.query("INSERT INTO publications VALUES($1,$2,$3)", [
           ctx.workspaceId,
           id,

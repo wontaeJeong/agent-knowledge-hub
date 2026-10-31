@@ -11,11 +11,13 @@ import {
 } from "./repository";
 import { visiblePageIds } from "./provenance";
 import * as publication from "./publication";
-import { authorizeManaged, effectiveAccess } from "./access";
+import { authorizeManaged, effectiveAccess } from "./access/index";
 
 export interface Context {
   workspaceId: string;
   principalId: string;
+  /** Generated at the authenticated transport boundary, never read from a caller DTO/header. */
+  requestId?:string;
   /** Server-resolved hashed credential, never parsed from a caller context. */
   credentialId?: string;
   /** Server-created request capability; never accepted from a client DTO. */

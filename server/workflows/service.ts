@@ -19,6 +19,12 @@ import {
 } from "../provenance";
 import { digest, propose } from "../publication";
 import type { RuntimeService } from "../runtime/knowledge";
+import {
+  assertDraftNotRetired,
+  isDraftRetired,
+  draftRetirementId,
+} from "../retention/drafts";
+import { fingerprint } from "../provenance";
 
 export type WorkflowResource = { kind: "page" | "source"; id: string };
 export type WorkflowAuthorizer = (
@@ -44,6 +50,7 @@ const draftSchema = z
     originSpaceId: id.optional(),
     sourceIds: z.array(id).max(100).optional(),
     dependencyVersions: dependencyVersions.optional(),
+    mutationId: z.string().uuid().optional(),
   })
   .strict();
 const editSchema = z
@@ -195,6 +202,8 @@ export class WorkflowService {
       const items = [];
       for (const row of rows.rows) {
         try {
+          if (await isDraftRetired(db, ctx, row.id)) continue;
+          await this.draftHistoryAccess(db, ctx, row.id);
           if (row.data.pageId) await this.page(db, ctx, row.data.pageId);
           for (const sid of row.data.sourceIds ?? [])
             await requireRead(db, ctx, "source", sid);
@@ -215,6 +224,24 @@ export class WorkflowService {
       return { items };
     });
   }
+  private async draftHistoryAccess(
+    db: PoolClient,
+    ctx: Context,
+    draftId: string,
+  ) {
+    const history = await db.query(
+      "SELECT data FROM workflow_draft_revision_history WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3 UNION ALL SELECT data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
+      [ctx.workspaceId, ctx.principalId, draftId],
+    );
+    for (const row of history.rows) {
+      const d = row.data;
+      if (d.pageId) await this.page(db, ctx, d.pageId);
+      for (const sid of d.sourceIds ?? [])
+        await requireRead(db, ctx, "source", sid);
+      for (const dependency of Object.keys(d.dependencyVersions ?? {}))
+        await this.page(db, ctx, dependency);
+    }
+  }
   async saveDraft(ctx: Context, input: unknown) {
     const d = draftSchema.parse(input);
     return this.run(
@@ -224,6 +251,8 @@ export class WorkflowService {
       async (db) => {
         if (d.originSpaceId && d.originSpaceId !== ctx.workspaceId)
           throw Error("SOURCE_SCOPE_CONFLICT");
+        await assertDraftNotRetired(db, ctx, d.id);
+        await this.draftHistoryAccess(db, ctx, d.id);
         if (d.pageId) {
           const p = await this.page(db, ctx, d.pageId);
           if (!d.baseVersion) throw Error("VALIDATION_FAILED");
@@ -237,19 +266,76 @@ export class WorkflowService {
           const p = await this.page(db, ctx, dependency);
           await this.requireVersion(db, ctx, p, version);
         }
+        if (d.mutationId) {
+          const previous = await db.query(
+            "SELECT input_hash,result FROM workflow_draft_save_mutations WHERE workspace_id=$1 AND owner_id=$2 AND mutation_id=$3",
+            [ctx.workspaceId, ctx.principalId, d.mutationId],
+          );
+          if (previous.rowCount) {
+            if (previous.rows[0].input_hash !== fingerprint(d))
+              throw Error("IDEMPOTENCY_CONFLICT");
+            return previous.rows[0].result;
+          }
+        }
         const before = await db.query(
-          "SELECT revision FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
+          "SELECT revision,data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
           [ctx.workspaceId, ctx.principalId, d.id],
         );
         if ((before.rows[0]?.revision ?? 0) !== d.expectedRevision)
           throw Error("STALE_VERSION");
         const next = d.expectedRevision + 1;
-        const { expectedRevision: _, ...data } = d;
+        const { expectedRevision: _, mutationId: __, ...submitted } = d;
+        const previous = before.rows[0]?.data;
+        // Removing client labels is not removal of inherited evidence. Keep
+        // provenance in the current row too, so submitDraft's existing envelope
+        // and commitGuard cannot publish a lineage-stripped private revision.
+        const sourceIds = [
+          ...new Set<string>([
+            ...(previous?.sourceIds ?? []),
+            ...(d.sourceIds ?? []),
+          ]),
+        ];
+        const dependencies = {
+          ...(previous?.dependencyVersions ?? {}),
+          ...(d.dependencyVersions ?? {}),
+        };
+        if (
+          previous?.pageId &&
+          previous.pageId !== d.pageId &&
+          previous.baseVersion
+        )
+          dependencies[previous.pageId] = previous.baseVersion;
+        const data = {
+          ...submitted,
+          ...(sourceIds.length ? { sourceIds } : {}),
+          ...(Object.keys(dependencies).length
+            ? { dependencyVersions: dependencies }
+            : {}),
+          ...(previous?.originSpaceId
+            ? { originSpaceId: previous.originSpaceId }
+            : {}),
+        };
         await db.query(
           "INSERT INTO workflow_drafts(workspace_id,owner_id,id,revision,data) VALUES($1,$2,$3,$4,$5) ON CONFLICT(workspace_id,owner_id,id) DO UPDATE SET revision=excluded.revision,data=excluded.data,updated_at=now()",
           [ctx.workspaceId, ctx.principalId, d.id, next, data],
         );
         await audit(db, ctx, "draft.save", d.id);
+        await db.query(
+          "INSERT INTO workflow_draft_revision_history(workspace_id,owner_id,draft_id,revision,data) VALUES($1,$2,$3,$4,$5)",
+          [ctx.workspaceId, ctx.principalId, d.id, next, data],
+        );
+        if (d.mutationId)
+          await db.query(
+            "INSERT INTO workflow_draft_save_mutations(workspace_id,owner_id,mutation_id,draft_id,input_hash,result) VALUES($1,$2,$3,$4,$5,$6)",
+            [
+              ctx.workspaceId,
+              ctx.principalId,
+              d.mutationId,
+              d.id,
+              fingerprint(d),
+              { ...data, revision: next },
+            ],
+          );
         return { ...data, revision: next };
       },
     );
@@ -263,6 +349,27 @@ export class WorkflowService {
         [ctx.workspaceId, ctx.principalId, draftId, expectedRevision],
       );
       if (!r.rowCount) throw Error("STALE_VERSION");
+      await db.query(
+        "INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,'draft',$2,'[]',$3,$4) ON CONFLICT DO NOTHING",
+        [
+          ctx.workspaceId,
+          draftRetirementId(ctx.principalId, draftId),
+          fingerprint([draftId, expectedRevision, "manual-delete"]),
+          ctx.principalId,
+        ],
+      );
+      await db.query(
+        "DELETE FROM workflow_draft_revision_history WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3",
+        [ctx.workspaceId, ctx.principalId, draftId],
+      );
+      await db.query(
+        "DELETE FROM workflow_draft_save_mutations WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3",
+        [ctx.workspaceId, ctx.principalId, draftId],
+      );
+      await db.query(
+        "DELETE FROM workflow_draft_recovery_grants WHERE workspace_id=$1 AND owner_id=$2 AND binding->>'id'=$3",
+        [ctx.workspaceId, ctx.principalId, draftId],
+      );
       await audit(db, ctx, "draft.delete", draftId);
       return { id: draftId };
     });
@@ -362,6 +469,8 @@ export class WorkflowService {
       "changeset.propose",
       undefined,
       async (db) => {
+        await assertDraftNotRetired(db, ctx, draftId);
+        await this.draftHistoryAccess(db, ctx, draftId);
         const row = await db.query(
           "SELECT revision,data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
           [ctx.workspaceId, ctx.principalId, id.parse(draftId)],
@@ -380,6 +489,7 @@ export class WorkflowService {
       d.sourceIds ?? [],
       d.dependencyVersions ?? {},
       async (db) => {
+        await assertDraftNotRetired(db, ctx, draftId);
         const row = await db.query(
           "SELECT revision FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
           [ctx.workspaceId, ctx.principalId, draftId],

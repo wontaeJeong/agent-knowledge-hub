@@ -4,7 +4,7 @@ import { RefinementService } from "./service";
 import { digest } from "../publication";
 import { claim } from "./fixtures";
 import type { WorkflowAuthorizer } from "../workflows/service";
-import { authorizeInTransaction } from "../access";
+import { authorizeInTransaction } from "../access/index";
 import { trustedFixtureVerifier, fixtureSigningKey } from "./execution-fixture";
 import { createExecutionVerifier } from "./execution";
 

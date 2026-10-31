@@ -104,10 +104,38 @@ jobs:
       - run: npm run check:server
       - run: npm run test:server
 
+  k8s:
+    name: K8s site overlay and release guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Verify Kubernetes manifest and unit tests (not native Kind acceptance)
+        run: |
+          kubectl version --client
+          node scripts/k8s/test.mjs
+      - name: Build reviewed synthetic STG/PROD overlays (never apply to cluster)
+        run: |
+          node scripts/k8s/prepare-site.mjs deploy/fixtures/site-ci-stg.json
+          node scripts/k8s/prepare-site.mjs deploy/fixtures/site-ci-prod.json
+          node scripts/k8s/validate-production.mjs deploy/sites/stg
+          node scripts/k8s/validate-production.mjs deploy/sites/prod
+      - name: Confirm unconfigured templates fail production guard
+        run: |
+          if node scripts/k8s/validate-production.mjs deploy/overlays/stg; then exit 1; fi
+          if node scripts/k8s/validate-production.mjs deploy/overlays/prod; then exit 1; fi
+
   check:
     name: check
     if: always()
-    needs: [verify, container, server]
+    needs: [verify, container, server, k8s]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -116,4 +144,5 @@ jobs:
           VERIFY_RESULT: ${{ needs.verify.result }}
           CONTAINER_RESULT: ${{ needs.container.result }}
           SERVER_RESULT: ${{ needs.server.result }}
-        run: test "$VERIFY_RESULT" = success && test "$CONTAINER_RESULT" = success && test "$SERVER_RESULT" = success
+          K8S_RESULT: ${{ needs.k8s.result }}
+        run: test "$VERIFY_RESULT" = success && test "$CONTAINER_RESULT" = success && test "$SERVER_RESULT" = success && test "$K8S_RESULT" = success

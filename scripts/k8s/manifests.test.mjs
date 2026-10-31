@@ -4,6 +4,22 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { parseAllDocuments } from "yaml";
 
+test('audit and backup targets use separate persistent mounts, not live content or temporary files',()=>{
+  for(const environment of ['local','stg','prod']){
+    const resources=parseAllDocuments(execFileSync('kubectl',['kustomize',`deploy/overlays/${environment}`],{encoding:'utf8'})).map(d=>d.toJSON());
+    const pod=resources.find(r=>r.kind==='Deployment'&&r.metadata.name==='knowledge-app').spec.template.spec,app=pod.containers.find(c=>c.name==='app');
+    const claims=[];
+    for(const [key,path]of[['AKH_AUDIT_ROOT','/data/audit/private'],['AKH_BACKUP_ROOT','/data/backups']]){
+      assert.equal(app.env.find(e=>e.name===key)?.value,path);
+      const mount=app.volumeMounts.find(m=>path===m.mountPath||path.startsWith(m.mountPath+'/'));assert.ok(mount);
+      const volume=pod.volumes.find(v=>v.name===mount.name);assert.ok(volume.persistentVolumeClaim);
+      const claim=volume.persistentVolumeClaim.claimName;claims.push(claim);assert.notEqual(claim,'knowledge-blobs');
+      assert.ok(resources.find(r=>r.kind==='PersistentVolumeClaim'&&r.metadata.name===claim&&r.metadata.namespace===`agent-knowledge-hub-${environment}`));
+    }
+    assert.notEqual(claims[0],claims[1]);
+  }
+});
+
 test("rendered app stores content in an environment-local PVC rather than the temporary root", () => {
   for (const env of ["local", "stg", "prod"]) {
     const resources = parseAllDocuments(

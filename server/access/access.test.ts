@@ -90,8 +90,11 @@ test("designated independent human approvals are invalidated by grant/policy cha
           workspaceId: f.workspaceId,
           team: { slug: f.workspaceId, name: "Review" },
           owners: [{ principalId: "editor" }],
-          grants: [{ principalId: "reviewer", role: "maintain" }],
-          reviewers: ["reviewer"],
+          grants: [
+            { principalId: "reviewer", role: "maintain" },
+            { principalId: "reader", role: "maintain" },
+          ],
+          reviewers: ["reviewer", "reader"],
         },
       ],
     });
@@ -108,7 +111,7 @@ test("designated independent human approvals are invalidated by grant/policy cha
       (await access.effective(f.editor)).space.policyVersion,
     );
     await expect(
-      runtime.core.publish(f.editor, b.id, b.hash, "publish"),
+      runtime.core.publish(f.reader, b.id, b.hash, "publish"),
     ).rejects.toThrow("APPROVAL_STALE");
     await syncIdentity(f.pool, {
       issuer: "https://fixture.invalid",
@@ -407,9 +410,9 @@ test("publication waits for the workspace policy lock then rejects revoked revie
           owners: [{ principalId: "editor" }],
           grants: [
             { principalId: "reviewer", role: "maintain" },
-            { principalId: "reader", role: "read" },
+            { principalId: "reader", role: "maintain" },
           ],
-          reviewers: ["reviewer"],
+          reviewers: ["reviewer", "reader"],
         },
       ],
     });
@@ -432,7 +435,7 @@ test("publication waits for the workspace policy lock then rejects revoked revie
         "UPDATE access_spaces SET policy_version=policy_version+1 WHERE workspace_id=$1",
         [f.workspaceId],
       );
-      pending = runtime.core.publish(f.editor, b.id, b.hash, "race");
+      pending = runtime.core.publish(f.reader, b.id, b.hash, "race");
       const checked = expect(pending).rejects.toThrow("APPROVAL_STALE");
       await db.query("COMMIT");
       await checked;
@@ -449,6 +452,11 @@ test("publication waits for the workspace policy lock then rejects revoked revie
         ])
       ).rowCount,
     ).toBe(0);
+    await a.setGrant(f.editor, {
+      principalId: "reader",
+      role: "read",
+      expectedVersion: (await a.effective(f.editor)).space.policyVersion,
+    });
     const c = await a.issueCredential(f.reader, {
       actions: ["knowledge.read"],
       expiresAt: new Date(Date.now() + 60000).toISOString(),

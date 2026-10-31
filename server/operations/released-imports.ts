@@ -224,5 +224,19 @@ export async function replayReleasedInputRemoval(
       "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id=ANY($2::text[])",
       [intent.workspace_id, sources],
     );
+    // Match live withdrawSources: redact ONLY snapshots of these owned withdrawn sources.
+    // Source withdrawal is not authority to erase unrelated wiki pages or other inputs.
+    const affected = await db.query(
+      `UPDATE batches b SET data=jsonb_set(b.data,'{snapshots}',
+      (SELECT jsonb_agg(CASE WHEN item->>'id'=ANY($2::text[]) THEN jsonb_set(item,'{content}',to_jsonb('[원본 소유자가 철회한 자료]'::text)) ELSE item END ORDER BY ordinal)
+       FROM jsonb_array_elements(CASE WHEN jsonb_typeof(b.data->'snapshots')='array' THEN b.data->'snapshots' ELSE '[]'::jsonb END) WITH ORDINALITY AS original(item,ordinal)))
+      WHERE b.workspace_id=$1 AND EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(b.data->'snapshots')='array' THEN b.data->'snapshots' ELSE '[]'::jsonb END) AS snapshot WHERE snapshot->>'id'=ANY($2::text[])) RETURNING b.id`,
+      [intent.workspace_id, sources],
+    );
+    if (affected.rows.length)
+      await db.query(
+        "DELETE FROM approvals WHERE workspace_id=$1 AND batch_id=ANY($2::text[])",
+        [intent.workspace_id, affected.rows.map((r) => r.id)],
+      );
   }
 }

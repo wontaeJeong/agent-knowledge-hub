@@ -2,7 +2,25 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import type { Source, Page } from "../src/domain/types";
 import { migrate } from "./database";
-import { bootstrapAccess } from "./access";
+import { bootstrapAccess } from "./access/index";
+
+/** Released main scenarios use an explicitly named Owner, never infer one from reviewer. */
+export async function adoptLegacyFixture(pool: Pool, workspaceId: string) {
+  await bootstrapAccess(pool, {
+    spaces: [
+      {
+        workspaceId,
+        team: { slug: workspaceId, name: "Platform " + workspaceId },
+        owners: [{ principalId: "editor" }],
+        grants: [
+          { principalId: "reviewer", role: "maintain" },
+          { principalId: "reader", role: "read" },
+        ],
+        reviewers: ["reviewer"],
+      },
+    ],
+  });
+}
 
 /** Explicit adoption of known local test identities; never called by production runtime. */
 export async function adoptFixture(pool: Pool, workspaceId: string) {
@@ -73,7 +91,7 @@ export async function fixture() {
     connectionTimeoutMillis: 3000,
   });
   await migrate(pool);
-  const workspaceId = randomUUID();
+  const workspaceId: string = randomUUID();
   await pool.query("INSERT INTO workspaces VALUES($1)", [workspaceId]);
   for (const [id, role] of [
     ["editor", "editor"],

@@ -5,7 +5,7 @@ import { fixture } from "../test-support";
 import { OidcAuth } from "./auth";
 import { RuntimeService } from "./knowledge";
 import { createRuntimeHandler } from "./http";
-import { bootstrapAccess } from "../access";
+import { bootstrapAccess } from "../access/index";
 
 let f: Awaited<ReturnType<typeof fixture>>,
   app: Server,

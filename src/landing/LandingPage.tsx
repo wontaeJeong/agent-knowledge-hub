@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BrandIcon, type BrandIconName } from "../ui/BrandIcon";
+import { BrandMark } from "../ui/BrandMark";
 import { demoHref, workspaceHref } from "../entry";
 import "./landing.css";
 
@@ -87,6 +88,11 @@ export default function LandingPage() {
   const [theme, setTheme] = useState(initialTheme);
   const example = examples[selected];
 
+  // Keep root design tokens (and favicon) aligned with this page's theme.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
   return (
     <div className="landing" data-theme={theme}>
       <a className="landing-skip" href="#landing-main">
@@ -98,12 +104,7 @@ export default function LandingPage() {
           href="/"
           aria-label="agent-knowledge-hub 소개 홈"
         >
-          <img
-            src={theme === "dark" ? "/brand/mark-dark.svg" : "/brand/mark.svg"}
-            alt=""
-            width="34"
-            height="34"
-          />
+          <BrandMark size={34} />
           <span>agent-knowledge-hub</span>
         </a>
         <nav className="landing-nav" aria-label="서비스 소개">
@@ -525,12 +526,7 @@ export default function LandingPage() {
       </main>
       <footer className="landing-footer landing-container">
         <a className="landing-brand" href="/">
-          <img
-            src={theme === "dark" ? "/brand/mark-dark.svg" : "/brand/mark.svg"}
-            alt=""
-            width="26"
-            height="26"
-          />
+          <BrandMark size={26} />
           <span>agent-knowledge-hub</span>
         </a>
         <span>Knowledge that compounds.</span>

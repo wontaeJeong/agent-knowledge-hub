@@ -1,0 +1,38 @@
+{
+  "environment": "prod",
+  "appHost": "CHANGE-ME-PROD.invalid",
+  "ingressClass": "CHANGE-ME",
+  "tlsSecretName": "knowledge-tls",
+  "oidcIssuer": "https://CHANGE-ME-IDP.invalid/realms/knowledge",
+  "oidcClientId": "CHANGE-ME-prod",
+  "oidcGroupRoles": {
+    "wiki-readers": "reader",
+    "wiki-writers": "editor",
+    "wiki-reviewers": "reviewer"
+  },
+  "appImage": "registry.example.invalid/knowledge/app@sha256:REPLACE-WITH-REAL-DIGEST",
+  "postgresImage": "docker.io/library/postgres@sha256:REPLACE-WITH-REAL-DIGEST",
+  "ingressController": {
+    "namespace": "ingress-system",
+    "podLabels": {
+      "app.kubernetes.io/name": "ingress-controller"
+    }
+  },
+  "oidcEgressCidrs": [
+    "10.40.1.10/32"
+  ],
+  "modelEgress": [
+    {
+      "cidr": "10.40.2.20/32",
+      "port": 8000
+    }
+  ],
+  "quota": {
+    "requestsCpu": "2",
+    "requestsMemory": "2Gi",
+    "limitsCpu": "4",
+    "limitsMemory": "4Gi",
+    "storage": "60Gi"
+  },
+  "dbStorageClass": "fast-rwo"
+}

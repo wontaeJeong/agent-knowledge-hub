@@ -1,7 +1,7 @@
 import { test, expect, afterAll } from "vitest";
 import { Pool } from "pg";
 import { fixture, adoptFixture } from "../test-support";
-import { authorizeInTransaction } from "../access";
+import { authorizeInTransaction } from "../access/index";
 import { OperationsService } from "./service";
 import { previewErasure, executeErasure } from "./erasure";
 import { operationsAuthorizer } from "./authorization";

@@ -12,7 +12,7 @@ import {
   type AuditHeadStore,
 } from "./audit-protocol";
 import { previewErasure, executeErasure } from "./erasure";
-import { effectiveAccess } from "../access";
+import { effectiveAccess } from "../access/index";
 import { requireRead } from "../repository";
 import { randomUUID } from "node:crypto";
 export interface OperationsRouteInput {

@@ -9,7 +9,7 @@ import {
   AccessService,
   authorizeInTransaction,
   effectiveAccess,
-} from "../access";
+} from "../access/index";
 import { transaction } from "../database";
 import { StorageService } from "./service";
 import { FileBlobStore, bounded } from "./content";

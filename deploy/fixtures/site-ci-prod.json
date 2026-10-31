@@ -1,0 +1,38 @@
+{
+  "environment": "prod",
+  "appHost": "wiki-prod.tests.example.org",
+  "ingressClass": "internal-nginx",
+  "tlsSecretName": "knowledge-tls",
+  "oidcIssuer": "https://login.tests.example.org/realms/knowledge",
+  "oidcClientId": "knowledge-prod",
+  "oidcGroupRoles": {
+    "wiki-readers": "reader",
+    "wiki-writers": "editor",
+    "wiki-reviewers": "reviewer"
+  },
+  "appImage": "registry.tests.example.org/knowledge/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "postgresImage": "docker.io/library/postgres@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "ingressController": {
+    "namespace": "ingress-system",
+    "podLabels": {
+      "app.kubernetes.io/name": "ingress-controller"
+    }
+  },
+  "oidcEgressCidrs": [
+    "10.40.1.10/32"
+  ],
+  "modelEgress": [
+    {
+      "cidr": "10.40.2.20/32",
+      "port": 8000
+    }
+  ],
+  "quota": {
+    "requestsCpu": "2",
+    "requestsMemory": "2Gi",
+    "limitsCpu": "4",
+    "limitsMemory": "4Gi",
+    "storage": "60Gi"
+  },
+  "dbStorageClass": "fast-rwo"
+}

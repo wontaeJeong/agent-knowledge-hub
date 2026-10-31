@@ -1,7 +1,18 @@
+import {executionErrorStatuses} from '../refinement/execution';
+import {governanceErrorStatuses} from '../workflows/governance/http';
 /** Explicit public codes only: native/provider messages and paths must never become responses. */
 export const extensionErrorStatuses: Readonly<Record<string, number>> =
   Object.freeze(
     Object.assign(Object.create(null), {
+      ...executionErrorStatuses,
+      ...governanceErrorStatuses,
+      SEMANTIC_JOB_REQUIRED:409,
+      MODEL_TRANSMISSION_DENIED:403,
+      FEATURE_DISABLED:403,
+      POLICY_RESOURCE_LIMIT:413,
+      POLICY_CONFIGURATION:503,
+      POLICY_INPUT:400,
+      TRACE_RESULT_LIMIT:413,
       OFFICIAL_REVIEW_REQUIRED: 409,
       DOCUMENT_PROTECTED: 409,
       SOURCE_REGISTRATION_REQUIRED: 409,

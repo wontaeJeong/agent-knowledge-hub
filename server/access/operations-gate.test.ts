@@ -82,7 +82,7 @@ test("global access mutations hold the shared recovery gate and audit failure ro
     await f.pool.end();
   }
 });
-test("personal creation from an unbound selected space records a nullable global audit without inventing workspace authority", async () => {
+test("personal creation from an unbound selected space audits the actual created resource without inventing workspace authority", async () => {
   const f = await fixture();
   try {
     await f.pool.query(
@@ -106,7 +106,15 @@ test("personal creation from an unbound selected space records a nullable global
           [space.id],
         )
       ).rows[0].workspace_id,
-    ).toBeNull();
+    ).toBe(space.id);
+    expect(
+      (
+        await f.pool.query(
+          "SELECT 1 FROM operations_audit_chain WHERE workspace_id=$1",
+          [missing],
+        )
+      ).rowCount,
+    ).toBe(0);
   } finally {
     await f.pool.end();
   }

@@ -86,7 +86,11 @@ export type ExecutionVerification =
   ExecutionProof | { status: "unverified"; reason: string };
 export interface ExecutionVerifier {
   readonly provider: string;
-  verify(input: ExecutionChallenge): Promise<ExecutionProof>;
+  readonly destinationUrl?: string;
+  verify(
+    input: ExecutionChallenge,
+    options?: { beforeTransmission?: (endpoint: string) => Promise<void> },
+  ): Promise<ExecutionProof>;
   /** Local cryptographic/time/binding validation only; MUST NOT perform network I/O. */
   assertProof(proof: unknown, binding: ExecutionBinding): ExecutionProof;
 }
@@ -290,8 +294,9 @@ export function createExecutionVerifier(
   };
   return {
     provider,
+    destinationUrl: endpoint.href,
     assertProof,
-    verify: async (input) => {
+    verify: async (input, options) => {
       const q = challengeSchema.parse(input);
       const { fingerprint, ...unsigned } = q;
       const now = Date.now(),
@@ -314,6 +319,7 @@ export function createExecutionVerifier(
       if (dispatched.size >= 10000) throw Error("EXECUTION_VERIFIER_BUSY");
       dispatched.set(q.nonce, Date.parse(q.expiresAt));
       assertSafeModelInput(q);
+      await options?.beforeTransmission?.(endpoint.href);
       let response: Response;
       try {
         response = await transport(endpoint, {

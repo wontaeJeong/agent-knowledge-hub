@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 import type { Context } from "./service";
 import type { Role, State, Page, Source } from "../src/domain/types";
 import type { Batch } from "../src/domain/wiki";
-import { effectiveAccess } from "./access";
+import { effectiveAccess } from "./access/index";
 import { appendOperationalAudit } from "./operations/service";
 
 export async function membership(db: PoolClient, ctx: Context): Promise<Role> {
@@ -32,7 +32,7 @@ export async function membership(db: PoolClient, ctx: Context): Promise<Role> {
     "SELECT role FROM memberships WHERE workspace_id=$1 AND principal_id=$2 FOR SHARE",
     [ctx.workspaceId, ctx.principalId],
   );
-  if (!r.rowCount) throw Error("NOT_FOUND");
+  if (!r.rowCount || !r.rows[0].role) throw Error("NOT_FOUND");
   return r.rows[0].role;
 }
 export async function readers(

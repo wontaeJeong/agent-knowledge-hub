@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
+import { approveInProcessModelFixture } from "../policy/test-fixture";
 import { createServer, type Server } from "node:http";
 import { fixture, source, adoptFixture } from "../test-support";
 import { RuntimeService } from "./knowledge";
@@ -228,6 +229,13 @@ test("MCP uses same authenticated filtered views and never exposes approval tool
   expect(res.status).toBe(200);
   const rpc = await res.json();
   expect(rpc.result.tools.map((t: { name: string }) => t.name)).toEqual([
+    "knowledge_import_selection",
+    "knowledge_import_text",
+    "knowledge_import_preview",
+    "knowledge_import_start",
+    "knowledge_import_status",
+    "knowledge_import_cancel",
+    "knowledge_import_resume",
     "knowledge_search",
     "knowledge_query",
     "knowledge_ingest",
@@ -298,6 +306,11 @@ test("revoked linked evidence cannot leak copied title through a still-readable 
 test("delayed model cannot propose after ACL revocation and receives only server-approved context", async () => {
   const fresh = await fixture();
   try {
+    await adoptFixture(fresh.pool, fresh.workspaceId);
+    const authorization = await approveInProcessModelFixture(
+      fresh.pool,
+      fresh.workspaceId,
+    );
     let finish!: (value: unknown) => void;
     let started!: () => void;
     const entered = new Promise<void>((r) => (started = r));
@@ -310,7 +323,11 @@ test("delayed model cannot propose after ACL revocation and receives only server
         return new Promise((r) => (finish = r));
       },
     );
-    const pending = runtime.ingest(fresh.editor, [source.id], "model");
+    const pending = runtime.ingest(
+      { ...fresh.editor, authorization },
+      [source.id],
+      "model",
+    );
     await entered;
     await fresh.pool.query(
       "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='editor'",
@@ -335,6 +352,7 @@ test("delayed model cannot propose after ACL revocation and receives only server
     expect(await runtime.changesets(fresh.ctx)).toEqual([]);
     expect((await runtime.jobs(fresh.editor)).at(-1)?.status).toBe("failed");
   } finally {
+    vi.unstubAllEnvs();
     await fresh.pool.end();
   }
 });

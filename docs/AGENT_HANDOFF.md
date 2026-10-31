@@ -1,5 +1,28 @@
 # 에이전트 인계
 
+## 운영 기능 체크포인트 — 부분 구현
+
+- 관련 범위: ACL/IAM, COL, EDT, VER, JOB, SEC, OPS와 CORE 지식 순환. 기존 요구사항의 전체 수용 완료가 아니다. 변경은 `server/`의 접근·작업·정책·편입·보존·운영 모듈과 `src/operational/`, K8s 배포 도구 및 관련 테스트에 걸친다.
+- Node 24 환경에서 `npm run check`와 파일별 독립 PostgreSQL DB를 사용하는 `npm run test:server` 83개 파일이 현재 통합 트리에서 통과했다. 이는 이후 main 통합 및 최종 CI 결과를 대체하지 않는다. 초안 복구 경로는 실제 서버 핸들러에서 인증·CSRF 뒤 연결하고 회수 검사를 유지했다.
+- 질문·버전 메타데이터·협업의 일부 호스트 연결, 보존의 주기 실행 및 전체 삭제 범위, 수집기 권한, 실제 브라우저·최종 이미지/IdP·운영 인수는 미완료 또는 미검증이다. Owner가 확인되지 않은 기존 공간은 격리되므로 기존 3역할 호환성에 제한이 있다. reviewer를 Owner로 추정하지 않는다.
+- 실제 DeepSeek 평가 `evaluation-05a7d023183e5e89`: 33개 배정 중 32개 완료, 1개 시간 초과, 인용 안전성 실패 3개, 합성 라벨 일치 10개, 종료 코드 1이다. 품질 및 업무 효과는 미확인이다.
+
+## 2026-10-30: 최신 main K8s 운영 사이트 도구 내용 통합
+
+- 내용 출처: `fb8298acca1987fb5f62a62a260534f29bc20594`(PR #15). 활성 merge 기준 `a9cfcdbdd5ce842e07e77def277ddb3132187c15` 이후 16개 파일의 추가분을 현재 작업에 적용했다. 이 기록은 내용 반영이며 최신 커밋의 ancestry 병합 완료 선언이 아니다. coordinator가 기존 merge 완료 후 실제 최신 커밋을 병합해야 한다.
+- OPS-001~014, NFR-001~010, SEC-007~013, JOB-007 관련: `prepare-site.mjs`의 STG/PROD 비밀 없는 site·Ingress/제한 egress·Quota·digest 생성, `deploy-site.mjs`의 Secret 사전 검사·동일 이미지 승격·DB→migration→App 순서, `release.mjs`의 namespace/DB/TLS/NetworkPolicy 가드를 유지한다. 기존 전체 운영 후속 구현·테마·브랜드 기록은 보존했다.
+- 호환: site migration은 공통 `release.mjs` factory로 `migrate:server`와 DATABASE_URL/선택적 ACCESS_BOOTSTRAP_JSON만 전달한다. 앱의 모델·감사 Secret이나 PVC를 상속하지 않는다. Secret 환경변수 allowlist를 명시된 운영 키로만 확장하고 감사/서명/metrics 강도·독립성 및 사용 시 backup keyring 일치를 검사한다. 권한·issuer·기능·목적지 registry 정책을 Secret으로 덮어쓸 수 없다.
+- site는 base의 blob/audit/backup PVC를 환경별 namespace에서 상속한다. DB·backup staging·blob·audit·backup 총 5 PVC/45Gi에 맞춰 synthetic fixture와 예제 quota를 60Gi로 수정했다. StorageClass는 DB와 일반 PVC에 적용한다. 이는 실제 용량 보증이 아니다. 선택적 명시 registry는 실제 코드 계약의 주소/용도/분류만 허용하며 기본 `[]`다. egress/업로드 자체는 원본 반출 승인이 아니다.
+- CI K8s job은 `scripts/k8s/test.mjs`로 오직 native Kind·전용 DB가 필요한 `operations-backup-db.test.mjs`만 제외하며 미실행을 출력한다. 나머지 operations/TLS/format/release 시험을 포함한다. 해당 Kind 게이트는 별도 실제 실행 근거로만 보고한다. CI aggregate `check`에 k8s를 포함한다.
+- 이 단위의 실제 검증: Node24 `node scripts/k8s/test.mjs` **38/38 통과**(대상 upstream deploy/prepare/순차 배포 시험과 기존 release/manifests/local-secrets 및 나머지 operations 포함). native Kind·전용 DB 시험 하나는 runner가 명시적으로 미실행 표시한다. 4개 실행 모듈 `node --check`, `git diff --check` 통과. synthetic STG/PROD 생성물의 production guard 모두 통과, 미설정 STG/PROD 템플릿 모두 거부. 렌더된 환경별 4 일반 PVC + DB claim의 namespace/StorageClass·5 PVC/60Gi quota·기본 빈 registry를 별도 assertion으로 확인했다. 최신 `productionFailures` 가드 본문과 보조 함수는 upstream과 byte-identical임을 확인했다. 실제 클러스터 배포·IdP/TLS/CNI 집행·운영 인수·최신 GitHub CI 통과를 이 내용 반영으로 주장하지 않는다.
+
+## 2026-10-30: 1차 K8s 운영 사이트 생성/검증/순차 배포 도구 (PR 작업)
+
+- 기준: 최신 main `31b7d9a`의 서버/OIDC/DB/Kustomize 구조 유지. OPS-001~014, NFR-001~010, SEC-007~013, JOB-007 등 운영/영속성 계약에 대한 기능 보강이며 기존 인수 상태는 변경하지 않는다.
+- 구현: `scripts/k8s/prepare-site.mjs`로 STG/PROD 비밀 없는 오버레이·Ingress controller ingress·OIDC/model 제한 egress·Quota·digest 생성, `deploy-site.mjs`로 정적 리소스/실제 Secret/동일 이미지 승격 점검과 DB→migration→App 순서 보장. `release.mjs`의 네임스페이스/DB/Ingress/NetPol 미비 거부. 예제·CI synthetic fixture 및 테스트 추가.
+- 보안/격리: Secret 값을 git/파일 출력하지 않으며 앱 DB URL과 DB password 일치 검사, PROD 명시적 승인 필요. 실사용 DNS/인증서, 실제 네트워크 집행, 백업 복원, 서버 측 인수·부하는 추가 검증 필요.
+- 검증: CI에 K8s unit + Kustomize 렌더링/production guard 테스트 추가(실행 결과는 GitHub Actions에서 확인). 로컬 도구 환경의 kubectl/사내 클러스터·실제 운영 배포 시험을 수행했다고 주장하지 않는다.
+
 ## 2026-10-30 전체 운영 기능 후속 구현 — 진행 중
 
 **부분 구현을 전체 완료로 보고하지 않는다.** [계속 실행 계획](superpowers/plans/2026-10-30-complete-operational-workflows.md)의 파일·작업 DB를 분리해 진행하고 있다. 기본 체크아웃은 `main`, 후속 작업은 기존 전용 워크트리의 `feat/complete-operational-workflows`다.
@@ -14,6 +37,41 @@
 - 후속 연결 검증: 22:08의 작성/편입 API·권한/DB·SDK/커넥터·세션/프로브·대기열 접수/조회/취소 대상 19파일 **104건 통과**, `npm test`의 프런트엔드76건+Node48건·요구사항251개 연결·빌드 통과. 실제 서비스 요청은 202 접수와 실행 결과를 구분하고 원래 주체·살아 있는 부모 세션/현재 디렉터리·전체 입력 계보·fence를 효과 commit 직전에 검사한다. 이전 MCP 경로도 운영 설정에서는 직접 모델을 실행하지 않는다. 저장 답변 재열람도 질문자와 현재 전체 입력 권한을 재검사하고 내부 ACL은 응답하지 않는다. 전체 서버 타입 검사는 별도 작업 중인 `operations/released-imports.ts:160` 진단이 남은 시점을 포함하므로 위 대상 검증을 전역 최종 통과로 표시하지 않는다.
 - 실제 모델 평가는 `deepseek-flash` 합성33개 배정 중32개 완료/1개 시간 초과/3개 인용 안전성 실패였다. 고정 합성 라벨 일치는10개이며 실제 업무 성공률이나 지식 활용 효과로 해석하지 않는다. 비용/토큰의 불완전 합계는 null로 보존했고 평가 종료 코드1을 통과로 바꾸거나 정답을 수정하지 않았다.
 - 계속할 작업: 파일/blob·수집/가져오기/내보내기, 지속 작업/일정/예산/실제 모델 계측, 주장·시간·경험 정련/고정 대조 평가, DB+blob 일관 백업/삭제 재적용/감사 외부 보호/관측과 운영 UI는 별도 모듈 작업 및 최종 runtime 통합·실제 kind 검증이 진행 중이다. 현재 화면·서비스가 있다는 이유로 모든 251개 수용 조건·사내 운영 인수나 지식/후속 에이전트 성능 개선을 완료로 표시하지 않는다. 실제 새 브라우저 390/1440px·최종 이미지/IdP/모델/10사용자 혼합 부하·독립 보안 리뷰·PR/CI/머지는 계속 실행해야 한다.
+## 2026-10-30 PR #14 테마 대응 브랜드, 최신 운영 콘솔과 통합
+
+- PR #16의 운영 콘솔·관리 목업·대시보드를 보존하고, 기존 PR #14를 최신 main에 통합했다. 랜딩·데모·`ConsoleShell` 브랜드 마크는 모두 원형을 유지한 `BrandMark` SVG 및 의미 기반 색상 토큰을 사용한다. 마크의 원본 경로/8·6 stroke는 `src/ui/brand-mark.json`을 공유한다.
+- `src/main.tsx`는 운영/목업 `preview` 진입 로직을 유지하면서 저장된 테마와 동적 파비콘 반영을 추가했다. 원래 PR의 `src/operational/App.tsx` 헤더 변경은 새 구조의 `ConsoleShell`을 사용하도록 대체했다. 기존 서버·권한·편입·위키 정책 및 251개 요구사항 상태는 변경하지 않는다.
+- 런타임 SVG와 favicon만 자동 색 변경한다. PNG·OG·ICO·배너는 고정 Plum 원본이고, 다른 팔레트 선택 UI는 별도 작업이다. 검증은 새 병합 커밋의 CI 결과를 기준으로 판단한다.
+
+## 2026-10-30 에이전트 운영 콘솔 · 누락 관리 UI 목업
+
+- 사용자 요청: 에이전트에게 지식을 제공하는 환경을 중심으로 웹 UI·필수 관리 누락을 재점검하고 미구현 기능은 목업으로 제공, 의미 있는 대시보드·목업 제시, 최신 코드 기준 PR/머지까지 진행. 추가 질문 없이 판단하도록 위임했다.
+- 기준: 처음 `e89921c`에서 시작했고 작업 중 병합된 최신 `origin/main@31b7d9a`를 통합했다. 실제 ImportWorkbench/AccessManager, Organization·Team/공간5역할/초대, 독립 검토 자격·분류와 서버 편입 worker를 보존한다. 최신 구현을 과거 설계 문구 때문에 목업으로 덮지 않는다.
+- 구현: 공통 그룹별 사이드바/모바일 접기·hash 직접 링크/뒤로·앞으로/테마·본문 이동, 운영 개요의 접근 지식·검토/발행 대기·본인 작업/실패·조치 링크·7일 호출, 정확한 계측/분모·미점검/미수집/미평가 경계. 기존7개 업무 화면과 실제 자료입력/접근관리를 보존했다.
+- 독립 `/?preview=1`: 네트워크/로그인 없는 메모리 API/관리 상태. 사용자/초대/역할·세션 영향, 공간/소유/공개, 서비스 주체·허용 범위 토큰 메타데이터/폐기, 연동/예약·예산/중지, 검토·공유/반출, 초안/복원/보관/휴지통·첨부/협업, 알림/감사·복구, 평가/성과 환류를 시연한다. 일부 동작은 설명·확인 시나리오이며 실제 기능 성공으로 표시하지 않는다. 251개 원 요구사항 검색/25건 페이지·수용 기준·탐색 경로를 제공하며 기준/운영 상태를 올리지 않는다. [계약/한계](AGENT_CONSOLE.md).
+- 변경 파일: `src/entry.ts`, `src/main.tsx`, `src/operational/App.tsx`, ConsoleShell/Overview·console.css, preview adapter, management state/ManagementPreview/PreviewDialog/ConsoleTable/FeatureCoverage/ImportPreview와 테스트, `UsageDashboard.tsx` 계측 설명, 이 인계/README·설계/계획·화면 계약과 캡처.
+- 관련 ID: GOV-001/003/005/009, IAM-001~011, ACL-002/010/011, SHR-001~012, EDT/VER/LIF의 편집·복원/보존·반출, REV-001~009, MGR/JOB/INT/SEC/OPS 관리·관측, EVA-001~010, UX-001~008, CORE-002~012. 화면 연결/목업은 해당 ID의 전체 수용 기준 충족 증거가 아니다. 기존251개/35개 인수 시험과 North Star·런타임 규칙 의미는 보존한다.
+- 독립 리뷰: 중요3건(늦은401, 목록실패의0건표시, 초대취소→중지→활성화 우회)을 실제 RED→GREEN으로 수정했다. 이전 세션의 늦은 목록 응답도 무시한다. 최신 편입 worker와 별도 예약 유지관리의 범위 오인을 수정했다. 브라우저에서 발견한 dialog Tab 순환/Escape/초점복귀도 수정 후 재실행했다.
+- 실제 로컬 검증: Node24.22.2 `npm ci`/`npm run check` 통과. 클라이언트61개+Node48개+파서/정리15개, 요구사항251개, 서버 타입 검사, 빌드·HTTP smoke. 390/1440px 18화면(36레이아웃),62 UI assertion, API요청0/pageerror0. 실제 앱 라우트는 합성 HTTP 계약으로 AccessManager·ImportWorkbench/0건집계 보존7검사, 세션/오류3검사를 통과했다. [원시 결과·화면·동일fixture 전후](pr-assets/agent-console/README.md).
+- 전후: 최신main과 같은244호출fixture의 실제 앱 사용량 화면, 모바일 첫결론779→522px/문서2738→2616px, 데스크톱581→380px/문서2280→2145px. 그래프14px·표행53.75px 유지. 새 개요 첫판단232px/369px(데스크톱/모바일). 화면 레이아웃 비교이며 지식/에이전트 효과나 성능 개선 주장이 아니다.
+- 남은 한계: 전역 계정/세션 관리·서비스 주체/Bearer·수신자grant·예약 유지관리·범용편집/공유/수명주기·알림/운영 제어는 추가 서버 연결/검증 필요. 이 작업의 브라우저 검증은 실제 사내SSO/DB/LLM·운영 인수나 전체 접근성 인증이 아니다. PostgreSQL/다중OS·Docker 회귀는 PR의 실제 CI 결과를 따른다. PR/머지 결과는 후속 원격 기록으로 확인한다.
+
+## 2026-10-30 PR #12와 공개 랜딩 PR #13 통합
+
+- 최신 `main@e89921c`를 PR #12에 병합했다. `server/runtime/auth.ts`의 충돌은 Organization/개인 공간 권한 처리에 필요한 import와 공개 랜딩의 `workspaceHref` import를 모두 보존해 해결했다. OIDC 로그인 성공 후 `/?app=1`로 복귀하며, 자료 편입·조직/Team/공간 권한 동작은 유지한다. 이 인계 문서의 두 작업 기록도 모두 보존했다.
+- 관련 기준: GOV-001/003, ACL·INT·SEC 및 CORE 순환. 요구사항·North Star·런타임 위키 규칙의 의미는 변경하지 않았다.
+- 통합 상태에서 `npm ci`와 `npm run check`를 통과했다. 클라이언트 43개, Node 회귀 48개, 편입 순수 15개, 251개 요구사항 연결, 서버 타입 검사, 프로덕션 빌드와 정적 HTTP smoke를 확인했다. `git diff --check`도 통과했다.
+- PostgreSQL/OIDC 통합과 OS·Node 매트릭스·Docker 회귀는 이 병합 커밋의 GitHub CI를 기준으로 확인한다. 이번 충돌 해결이 실제 사내 IdP·모델 의미 품질·운영 인수를 새로 검증했다는 뜻은 아니다.
+
+## 2026-10-30 웹 자료 편입과 실제 조직 권한 구현 (구현 PR #12)
+
+- 사용자의 추가 지시: 이전 열린 PR 모두 머지, 설계뿐 아니라 실제 기능 구현·PR. #11을 main@1e521db1에 squash merge했다. 이번 변경은 그 뒤의 구현이다.
+- 실행 계약: [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md). 개인 붙여넣기/파일 업로드, 안전한 파싱, 영속 worker/재개/취소, 기존 위키와 모델 정리, 원본 공개 검토, 독립 지식 검토/원자 발행, 같은 REST/SDK MCP 경로를 구현했다. 개인 Owner는 본인 전용 위키 저장 경로를 사용한다.
+- 실제 권한: Organization Owner/Member, Team, 개인/조직 공간, 직접/Team 5역할·만료·실효 경로, 수락/만료/취소 초대, 마지막 Owner, 지정 검토자, 감사·철회·명시적 기존 공간 이관. OIDC 그룹은 이관 후 제품 grant를 덮어쓰지 않는다. 원본 ACL은 Owner에게도 상한이다.
+- 주요 파일: server/imports/*, server/access{,-http,.test}.ts, migrations/006·007, runtime auth/http/mcp/model, repository/publication, domain imports/access, 운영 UI ImportWorkbench/AccessManager. 초기 App1/DB1에서 원본 조각은 제한된 PostgreSQL bytea로 보관하며 별도 broker/object store를 필수화하지 않는다.
+- 관련 요구사항: COL-002/005/012/013, JOB 지속 작업, GOV/ACL/SHR/REV/VER/INT/SEC/OPS와 CORE 순환. 기존 251개 요구사항·35개 인수 시나리오는 변경하지 않았다. North Star·wiki/SCHEMA.md 의미도 변경하지 않는다.
+- 현재 로컬 근거: npm run check 통과(기존 테스트 + 편입 순수 15개, 서버 타입/빌드/요구사항/정적 smoke), PGlite 보조 DB에서 새 편입/HTTP/SDK MCP·접근 관리 회귀 24개 통과. 실제 PostgreSQL 첫 CI는 116개 중 115개 통과 후 기존 /me DTO 호환성 기대 한 건으로 실패했고, 미이관 공간의 응답 형태를 보존해 수정했다. 개인 저장·OIDC 회수·Triage/사용량 회귀를 추가했다. 최종 PG CI는 PR 커밋 상태를 따른다.
+- 의미 품질은 실제 외부 LLM/실사용 자료 대조로 아직 측정하지 않았다. 브라우저 Chromium 153에서 실제 웹 붙여넣기→서버 분석→개인 정리→별도 원본 공개 검토→독립 지식 승인/원자 발행→독자 열람을 통과했다. 1440px/390px에서 가로 넘침/JS 오류가 없었고 캡처·JSON 증거는 docs/pr-assets/ingestion에 둔다. QA 모델은 결정적 계약 fixture다. Company/Guest/Public·범위 Bearer/서비스 주체·실제 로컬 커넥터 통합·전체 251개 구현/운영 인수 완료라고 표시하지 않는다. Organization 관리 전환·Team 생성/멤버 추가/공간 Write 부여도 같은 실제 UI에서 확인했다. 500개 발언의 원문 근거를 청크 통합 후에도 보존하는 회귀를 추가했다. 아래 이전 인계는 당시 변경 범위의 기록이다.
 
 ## 2026-10-30 공개 랜딩과 Memory·RAG·Wiki 역할 안내
 

@@ -331,3 +331,37 @@ test("legacy management keeps disabled/expired members visible as blocked withou
     await f.pool.end();
   }
 });
+
+test("private personal-space names and IDs do not leak into the previously selected team's management audit", async () => {
+  const f = await setup();
+  const previous = process.env.ACCESS_ALLOW_ORG_CREATE;
+  try {
+    const privateName = "private_name_" + randomUUID(),
+      privateSpace = await f.access.createSpace(f.reader, privateName);
+    const otherOwnerAudit = JSON.stringify(
+      (await f.access.state(f.editor)).audit,
+    );
+    expect(otherOwnerAudit).not.toContain(privateName);
+    expect(otherOwnerAudit).not.toContain(privateSpace.id);
+    process.env.ACCESS_ALLOW_ORG_CREATE = "true";
+    const organization = await f.access.createOrganization(
+      f.reader,
+      "Private organization",
+    );
+    expect(
+      JSON.stringify((await f.access.state(f.editor)).audit),
+    ).not.toContain(organization.id);
+    const ownAudit = (
+      await f.pool.query(
+        "SELECT workspace_id FROM access_audit WHERE operation='team.create' AND target_id=$1",
+        [organization.id],
+      )
+    ).rows;
+    expect(ownAudit).toHaveLength(1);
+    expect(ownAudit[0].workspace_id).toBeNull();
+  } finally {
+    if (previous === undefined) delete process.env.ACCESS_ALLOW_ORG_CREATE;
+    else process.env.ACCESS_ALLOW_ORG_CREATE = previous;
+    await f.pool.end();
+  }
+});

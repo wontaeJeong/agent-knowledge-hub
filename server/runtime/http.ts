@@ -22,9 +22,12 @@ import {
   AccessService,
   authorizeAction,
   authorizeInTransaction,
-} from "../access";
+} from "../access/index";
 import { WorkflowService } from "../workflows/service";
 import { handleWorkflowRoute } from "../workflows/http";
+import { handleRetentionRoute } from "../retention/http";
+import { DraftRecoveryService } from "../retention/recovery";
+import { ContentRetentionService } from "../retention/service";
 import { AgentService } from "../agents/service";
 import { handleAgentRoute } from "../agents/http";
 import { handleAgentMcp } from "../agents/mcp";
@@ -45,6 +48,13 @@ import type { ShutdownController } from "../operations/monitoring";
 import { runtimeCapabilities, type RuntimeJobsBridge } from "../jobs/runtime";
 import { handleJobRoute } from "../jobs/http";
 import { readStoredAnswer } from "../workflows/answers";
+import {handlePolicyRequest} from '../policy/http';
+import {recordJobTrace,readJobTrace} from './traces';
+import {GovernanceService} from '../workflows/governance/service';
+import {handleGovernanceRoute} from '../workflows/governance/http';
+import { handleImportRequest } from "../imports/http";
+import { AccessService as LegacyAccessService } from "../access";
+import { handleAccessRequest } from "../access-http";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
@@ -66,6 +76,22 @@ export function createRuntimeHandler(options: {
   const storageHandler = options.storage
     ? storageRoutes(options.storage, options.collector)
     : undefined;
+  const legacyAccess = new LegacyAccessService(options.pool);
+  const retention = {
+    recovery: new DraftRecoveryService(options.pool),
+    retention: new ContentRetentionService(options.pool, authorizeInTransaction),
+  };
+  if (options.auth)
+    options.service.imports.authorizer = (row) =>
+      options.auth!.backgroundContext(
+        row as {
+          workspace_id: string;
+          principal_id: string;
+          session_id: string | null;
+          grant_role: string;
+          grant_expires_at: Date | string;
+        },
+      );
   return async (req: IncomingMessage, res: ServerResponse) => {
     const requestId = randomUUID();
     res.setHeader("Cache-Control", "private, no-store");
@@ -168,7 +194,18 @@ export function createRuntimeHandler(options: {
         ? { ...credential, role: "reader" as const, csrfToken: "" }
         : await (options.auth?.authenticate(req) ?? Promise.resolve(null));
       if (!session) return send(401, { code: "UNAUTHENTICATED", requestId });
+      if (
+        session.workspaceId !== options.workspaceId &&
+        !(
+          await options.pool.query(
+            "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
+            [session.workspaceId],
+          )
+        ).rowCount
+      )
+        return send(403, { code: "FORBIDDEN" });
       const ctx: Context = {
+        requestId,
         workspaceId: session.workspaceId,
         principalId: session.principalId,
         credentialId: credential?.credentialId,
@@ -218,6 +255,16 @@ export function createRuntimeHandler(options: {
         );
       }
       const service = options.service;
+      if (await handleRetentionRoute({ method: req.method ?? "GET", path, body, ctx, send }, retention)) return;
+      if(await handleGovernanceRoute({method:req.method??'GET',path,body,ctx,send},new GovernanceService(options.pool,authorizeInTransaction)))return;
+      const submitInteractive=async(actor:Context,kind:'query'|'ingest'|'lint',payload:unknown,key:string)=>{
+        if(!options.jobs)throw Error('EXECUTION_NOT_CONFIGURED');
+        const receipt=await options.jobs.submitInteractive(actor,kind,payload,key);
+        await recordJobTrace(options.pool,actor,requestId,kind==='lint'&&payload&&typeof payload==='object'&&'semantic' in payload&&payload.semantic===true?'semantic-lint':kind,receipt.id);
+        return {...receipt,requestId};
+      };
+      const policyResponse=await handlePolicyRequest(options.pool,ctx,req.method??'GET',path,body);
+      if(policyResponse)return send(policyResponse.status,policyResponse.body);
       if (
         options.jobs &&
         req.method === "POST" &&
@@ -230,7 +277,7 @@ export function createRuntimeHandler(options: {
           .parse(req.headers["idempotency-key"]);
         return send(
           202,
-          await options.jobs.submitInteractive(
+          await submitInteractive(
             ctx,
             "lint",
             { semantic: true, context: body },
@@ -273,7 +320,7 @@ export function createRuntimeHandler(options: {
         ))
       )
         return;
-      const accessResult = await accessRoute(
+      const accessResult = path.startsWith('/api/v1/access')?undefined:await accessRoute(
         access,
         ctx,
         req.method,
@@ -282,6 +329,36 @@ export function createRuntimeHandler(options: {
         url.searchParams,
       );
       if (accessResult) return send(accessResult.status, accessResult.body);
+      if (path === "/api/v1/access/switch" && req.method === "POST") {
+        const b = z.object({ spaceId: id }).strict().parse(body);
+        return send(
+          200,
+          await options.auth!.switchSpace(req, session, b.spaceId),
+        );
+      }
+      if (path.startsWith("/api/v1/access")) {
+        const result = await handleAccessRequest(
+          legacyAccess,
+          ctx,
+          req.method || "GET",
+          path,
+          body,
+          url.searchParams,
+        );
+        if (result) return send(result.status, result.body);
+      }
+      if (path.startsWith("/api/v1/import")) {
+        const result = await handleImportRequest(
+          service.imports,
+          ctx,
+          req.method || "GET",
+          path,
+          body,
+          req.headers,
+          url.searchParams,
+        );
+        if (result) return send(result.status, result.body);
+      }
       if (path === "/auth/logout" && req.method === "POST") {
         if (credential) throw Error("FORBIDDEN");
         await options.auth?.logout(req, res);
@@ -347,6 +424,8 @@ export function createRuntimeHandler(options: {
         }
       }
       if (options.jobs) {
+        const trace=path.match(/^\/api\/v1\/traces\/([a-zA-Z0-9_-]{1,100})$/);
+        if(req.method==='GET'&&trace)return send(200,await readJobTrace(options.pool,options.jobs,ctx,trace[1]));
         if (req.method === "GET" && path === "/api/v1/execution-identities") {
           const accessState = await authorizeAction(
             options.pool,
@@ -388,8 +467,11 @@ export function createRuntimeHandler(options: {
           }
           return send(200, { items, directoryConfigured: true });
         }
-        if (req.method === "POST" && path === "/api/v1/jobs-v2")
-          return send(202, await options.jobs.submitDelegated(ctx, body));
+        if (req.method === "POST" && path === "/api/v1/jobs-v2"){
+          const receipt=await options.jobs.submitDelegated(ctx,body);
+          await recordJobTrace(options.pool,ctx,requestId,receipt.kind,receipt.id);
+          return send(202,{...receipt,requestId});
+        }
         if (
           await handleJobRoute(
             {
@@ -515,7 +597,7 @@ export function createRuntimeHandler(options: {
               .parse(req.headers["idempotency-key"]);
             return send(
               202,
-              await options.jobs.submitInteractive(
+              await submitInteractive(
                 ctx,
                 "ingest",
                 b,
@@ -538,7 +620,7 @@ export function createRuntimeHandler(options: {
               .parse(req.headers["idempotency-key"]);
             return send(
               202,
-              await options.jobs.submitInteractive(
+              await submitInteractive(
                 ctx,
                 "query",
                 b,
@@ -561,7 +643,7 @@ export function createRuntimeHandler(options: {
               .parse(req.headers["idempotency-key"]);
             return send(
               202,
-              await options.jobs.submitInteractive(
+              await submitInteractive(
                 ctx,
                 "lint",
                 {},
@@ -580,10 +662,24 @@ export function createRuntimeHandler(options: {
           return send(201, await service.file(ctx, id.parse(file[1])));
         }
         const action = path.match(
-          /^\/api\/v1\/changesets\/([^/]+)\/(approve|publish|reject)$/,
+          /^\/api\/v1\/changesets\/([^/]+)\/(approve|publish|reject|triage)$/,
         );
         if (action) {
           const batchId = id.parse(action[1]);
+          if (action[2] === "triage") {
+            const b = z
+              .object({
+                label: z.enum([
+                  "untriaged",
+                  "needs-review",
+                  "duplicate",
+                  "blocked",
+                ]),
+              })
+              .strict()
+              .parse(body);
+            return send(200, await service.triage(ctx, batchId, b.label));
+          }
           const { hash } = approvalInput.parse(body);
           if (action[2] === "publish") {
             const key = z
@@ -598,8 +694,8 @@ export function createRuntimeHandler(options: {
           }
           if (action[2] === "reject")
             return send(200, await service.reject(ctx, batchId, hash));
-          await service.core.approve(ctx, batchId, hash);
-          return send(200, { id: batchId, hash });
+          const approved=await service.core.approve(ctx, batchId, hash);
+          return send(200, { id: batchId, hash,...(approved?.warnings?.length?{warnings:approved.warnings}:{}) });
         }
       }
       return send(404, { code: "NOT_FOUND", requestId });
@@ -635,6 +731,36 @@ export function createRuntimeHandler(options: {
         MODEL_CONFIGURATION: 503,
         MODEL_CONTEXT_LIMIT: 413,
         JOB_CAPACITY: 429,
+        INPUT_CHANGED: 409,
+        INVITATION_REQUIRED: 409,
+        ORGANIZATION_MEMBERSHIP_REQUIRED: 409,
+        ALREADY_MANAGED: 409,
+        POLICY_CHANGED: 409,
+        MODEL_CONFIGURATION_CHANGED: 409,
+        INPUT_FROZEN: 409,
+        IMPORT_BUSY: 409,
+        UPLOAD_INCOMPLETE: 409,
+        CHECKSUM_MISMATCH: 400,
+        INVALID_UPLOAD: 400,
+        PREFLIGHT_REQUIRED: 409,
+        WARNINGS_REQUIRE_ACKNOWLEDGEMENT: 409,
+        AUTHORIZATION_REQUIRED: 401,
+        IMPORT_QUOTA: 429,
+        RETRY_LIMIT: 409,
+        BUDGET_EXCEEDED: 413,
+        ALREADY_PROPOSED: 409,
+        UNSUPPORTED_FORMAT: 415,
+        INVALID_ARCHIVE: 400,
+        UNSAFE_ARCHIVE: 400,
+        ARCHIVE_LIMIT: 413,
+        ENCODING_REQUIRED: 400,
+        INVALID_JSON: 400,
+        INVALID_CSV: 400,
+        CSV_MAPPING_REQUIRED: 400,
+        NO_RECORDS: 400,
+        RECORD_LIMIT: 413,
+        INVALID_MODEL_EVIDENCE: 502,
+        CONTEXT_INCOMPLETE: 409,
       };
       const status = Object.hasOwn(statuses, code)
         ? statuses[code]

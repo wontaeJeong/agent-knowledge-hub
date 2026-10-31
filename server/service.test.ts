@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { KnowledgeService } from "./service";
 import { fixture, source, adoptFixture } from "./test-support";
-import { AccessService } from "./access";
+import { AccessService } from "./access/index";
 import type { Draft } from "../src/domain/wiki";
 
 let f: Awaited<ReturnType<typeof fixture>>;

@@ -1,4 +1,6 @@
-import { expect, test } from "vitest";
+import { expect, test, afterEach, vi } from "vitest";
+import { approveInProcessModelFixture } from "../policy/test-fixture";
+afterEach(() => vi.unstubAllEnvs());
 import { Pool } from "pg";
 import { createServer } from "node:http";
 import { readFile, readdir } from "node:fs/promises";
@@ -24,6 +26,20 @@ async function connection(
       .present
   )
     await (await import("../test-support")).adoptFixture(pool, workspaceId);
+  if (
+    (await pool.query("SELECT to_regclass('model_destinations') AS present"))
+      .rows[0].present
+  ) {
+    const sources = await pool.query(
+      "SELECT id FROM sources WHERE workspace_id=$1",
+      [workspaceId],
+    );
+    await approveInProcessModelFixture(
+      pool,
+      workspaceId,
+      sources.rows.map((r) => r.id),
+    );
+  }
   let count = 0;
   const provider = createServer(async (_req, res) => {
     await onInfo?.(++count);
@@ -271,7 +287,8 @@ for (const operation of ["query", "ingest"] as const)
             },
       );
       client = await connection(runtime, f.workspaceId, async (count) => {
-        if (count === 3) {
+        if (count === 4) {
+          // Authenticate → policy preflight → post-model refresh → final release.
           entered();
           await hold;
         }

@@ -31,6 +31,10 @@ import {
   type Evidence,
 } from "./logic";
 import type { SemanticLintProvider } from "./semantic";
+import { semanticProviderEndpoint } from "./semantic";
+import { bindModelTransmission } from "../policy/binding";
+import { prepareTransmission } from "../policy/model";
+import { assertFeature } from "../policy/features";
 import {
   assertSafeModelInput,
   validateFindings,
@@ -503,6 +507,7 @@ export class RefinementService {
     );
     if (prepared.existing) return prepared.existing;
     let executionVerification: ExecutionVerification | undefined;
+    let transmissionCheck: ((db: PoolClient) => Promise<void>) | undefined;
     const verifier = this.options.executionVerifier;
     if (d.kind === "independent-execution") {
       executionVerification = {
@@ -512,9 +517,38 @@ export class RefinementService {
       if (verifier) {
         const binding = this.executionBinding(ctx, d),
           challenge = createExecutionChallenge(binding, verifier.provider);
+        const policyRequired = Boolean(
+          ctx.authorization || ctx.credentialId || verifier.destinationUrl,
+        );
+        const prepare = async (endpoint: string) => {
+          const destinationId =
+            process.env.AGENT_KNOWLEDGE_HUB_EXECUTION_VERIFIER_DESTINATION_ID;
+          if (!destinationId) throw Error("MODEL_TRANSMISSION_DENIED");
+          transmissionCheck = await prepareTransmission(
+            this.pool,
+            ctx,
+            {
+              destinationId,
+              purpose: "execution-verification",
+              pageIds: [],
+              sourceIds: [binding.sourceId],
+            },
+            endpoint,
+          );
+        };
+        if (policyRequired) {
+          const endpoint =
+            verifier.destinationUrl ??
+            process.env.AGENT_KNOWLEDGE_HUB_EXECUTION_VERIFIER_URL;
+          if (!endpoint) throw Error("EXECUTION_VERIFIER_UNCONFIGURED");
+          await prepare(endpoint);
+        }
         // No DB transaction/client/lock is held while invoking the external trusted gateway.
         executionVerification = verifier.assertProof(
-          await verifier.verify(challenge),
+          await verifier.verify(
+            challenge,
+            policyRequired ? { beforeTransmission: prepare } : undefined,
+          ),
           binding,
         );
       }
@@ -522,6 +556,7 @@ export class RefinementService {
     return this.run(ctx, "changeset.propose", undefined, async (db) => {
       // All ACLs, parent provenance and canonical source identity are checked again after the await.
       const fresh = await this.prepareEvidence(db, ctx, d);
+      await transmissionCheck?.(db);
       if (fresh.existing) return fresh.existing;
       if (executionVerification?.status === "attested") {
         const proof = verifier!.assertProof(
@@ -1228,20 +1263,26 @@ export class RefinementService {
       sourceIds = new Set<string>(),
       seenClaims = new Set<string>(),
       seenEvidence = new Set<string>();
-    const visitEvidence = async (eid: string): Promise<void> => {
+    const visitEvidence = async (eid: string, depth = 0): Promise<void> => {
+      if (depth > 32) throw Error("POLICY_RESOURCE_LIMIT");
       if (seenEvidence.has(eid)) return;
+      if (seenEvidence.size + seenClaims.size >= 200)
+        throw Error("POLICY_RESOURCE_LIMIT");
       seenEvidence.add(eid);
       const e = await this.evidence(db, ctx, eid);
       if (e.sourceId) sourceIds.add(e.sourceId);
-      for (const p of e.parentIds) await visitEvidence(p);
+      for (const p of e.parentIds) await visitEvidence(p, depth + 1);
     };
-    const visitClaim = async (cid: string): Promise<void> => {
+    const visitClaim = async (cid: string, depth = 0): Promise<void> => {
+      if (depth > 32) throw Error("POLICY_RESOURCE_LIMIT");
       if (seenClaims.has(cid)) return;
+      if (seenEvidence.size + seenClaims.size >= 200)
+        throw Error("POLICY_RESOURCE_LIMIT");
       seenClaims.add(cid);
       const c = await this.claim(db, ctx, cid);
       pageIds.add(c.pageId);
       for (const eid of c.evidenceIds) await visitEvidence(eid);
-      for (const parent of c.supersedes) await visitClaim(parent);
+      for (const parent of c.supersedes) await visitClaim(parent, depth + 1);
     };
     for (const c of view.items) {
       await visitClaim(c.id);
@@ -1316,6 +1357,7 @@ export class RefinementService {
       root: `source:${digest(state.sources.find((s) => s.id === sid)!.content)}`,
     }));
     return {
+      envelope,
       modelClaims,
       claimIds,
       contextFingerprint: fingerprint,
@@ -1408,15 +1450,22 @@ export class RefinementService {
       return fresh;
     };
     const prepared = await this.run(ctx, "lint.run", undefined, recheck);
+    let transmissionCheck: ((db: PoolClient) => Promise<void>) | undefined;
     let findings: ReturnType<typeof validateFindings> = [];
     if (prepared.modelClaims.length) {
       if (!this.provider) throw Error("MODEL_NOT_CONFIGURED");
       assertSafeModelInput({ claims: prepared.modelClaims });
+      const binding = await bindModelTransmission(
+        this.pool,
+        ctx,
+        "semantic-lint",
+        prepared.envelope,
+        execution.modelOptions,
+        semanticProviderEndpoint(this.provider),
+      );
+      transmissionCheck = binding.recheck;
       const raw = await execution.modelResult("semantic-lint", () =>
-        this.provider!(
-          { claims: prepared.modelClaims },
-          execution.modelOptions,
-        ),
+        this.provider!({ claims: prepared.modelClaims }, binding.options),
       );
       try {
         findings = validateFindings(raw, prepared.modelClaims);
@@ -1427,6 +1476,9 @@ export class RefinementService {
     }
     return this.run(ctx, "lint.run", undefined, async (db) => {
       await recheck(db);
+      await transmissionCheck?.(db);
+      if (ctx.authorization || ctx.credentialId)
+        await assertFeature(db, ctx, "lint", undefined, "lint.run");
       return execution.persist(db, "semantic-lint", async () => {
         execution.modelOptions.signal?.throwIfAborted();
         if (!prepared.modelClaims.length)
@@ -1473,7 +1525,11 @@ export class RefinementService {
   }
   async semanticLint(ctx: Context, input: unknown) {
     // Production sessions/delegated identities MUST enter the durable job adapter, never inline HTTP.
-    if (ctx.authorization || ctx.credentialId)
+    if (
+      ctx.authorization ||
+      ctx.credentialId ||
+      (this.provider && semanticProviderEndpoint(this.provider))
+    )
       return this.run(ctx, "lint.run", undefined, async () => {
         throw Error("SEMANTIC_JOB_REQUIRED");
       });

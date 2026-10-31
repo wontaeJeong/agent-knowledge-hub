@@ -47,6 +47,10 @@ spec:
               value: "8080"
             - name: AKH_BLOB_ROOT
               value: /data/blobs
+            - name: AKH_AUDIT_ROOT
+              value: /data/audit/private
+            - name: AKH_BACKUP_ROOT
+              value: /data/backups
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -76,11 +80,21 @@ spec:
               cpu: "1"
               memory: 512Mi
           volumeMounts:
+            - name: audit
+              mountPath: /data/audit
+            - name: backups
+              mountPath: /data/backups
             - name: content
               mountPath: /data/blobs
             - name: temporary
               mountPath: /tmp
       volumes:
+        - name: audit
+          persistentVolumeClaim:
+            claimName: knowledge-audit
+        - name: backups
+          persistentVolumeClaim:
+            claimName: knowledge-backups
         - name: content
           persistentVolumeClaim:
             claimName: knowledge-blobs

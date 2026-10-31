@@ -17,6 +17,9 @@ export type SemanticLintProvider = (
   },
   options?: ModelOptions,
 ) => Promise<unknown>;
+const providerEndpoints = new WeakMap<SemanticLintProvider, string>();
+export const semanticProviderEndpoint = (provider: SemanticLintProvider) =>
+  providerEndpoints.get(provider);
 const citation = z
   .object({
     claimId: id,
@@ -126,7 +129,7 @@ export function createSemanticProvider(
     !["enabled", "disabled"].includes(config.thinking)
   )
     throw Error("MODEL_CONFIGURATION");
-  return async (input, options = {}) => {
+  const call: SemanticLintProvider = async (input, options = {}) => {
     const serialized = assertSafeModelInput(input);
     const rules =
       options.rules ??
@@ -171,6 +174,7 @@ export function createSemanticProvider(
       throw Error("MODEL_CONTEXT_LIMIT");
     options.signal?.throwIfAborted();
     await options.beforeCall?.(provider, requestedModel);
+    await options.beforeTransmission?.(endpoint.href);
     let usage: ModelUsage = {
       provider,
       model: null,
@@ -299,4 +303,6 @@ export function createSemanticProvider(
       await options.onUsage?.(usage);
     }
   };
+  providerEndpoints.set(call, endpoint.href);
+  return call;
 }

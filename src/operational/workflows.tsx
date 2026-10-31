@@ -1,10 +1,20 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { StoragePanel } from "./storage";
 import { Button } from "../ui/primitives";
 import type { Page } from "../domain/types";
+import {
+  DraftAutosave,
+  RecoveryCache,
+  draftRequest,
+  saveStatusLabel,
+  type RecoveryBinding,
+  type RecoveredDraft,
+  type SaveStatus,
+  type RecoveryValidation,
+} from "./draft-recovery";
 
 interface PrivateDraft {
   id: string;
@@ -325,6 +335,37 @@ export function WorkflowPanel({
   const [templates, setTemplates] = useState<Template[]>([]);
   const [draft, setDraft] = useState<PrivateDraft | null>(null);
   const [content, setContent] = useState("");
+  const autosave = useRef<DraftAutosave | null>(null);
+  const recoveryCache = useRef<RecoveryCache | null>(null);
+  const recoveryGrant = useRef<RecoveryBinding | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [localRecovery, setLocalRecovery] = useState<RecoveredDraft | null>(
+    null,
+  );
+  const [localCopyNotice, setLocalCopyNotice] = useState(
+    "로컬 복사 허용을 확인하기 전에는 브라우저에 본문을 보관하지 않습니다.",
+  );
+  const [conflictServer, setConflictServer] = useState<PrivateDraft | null>(
+    null,
+  );
+  const [conflictRevision, setConflictRevision] = useState(0);
+  const resumeRecovery = useRef<RecoveredDraft | null>(null);
+  const identityScope = `${principalId ?? ""}:${spaceId ?? ""}`;
+  const previousIdentity = useRef(identityScope);
+  const identityChanged = previousIdentity.current !== identityScope;
+  useEffect(() => {
+    if (previousIdentity.current !== identityScope) {
+      previousIdentity.current = identityScope;
+      autosave.current?.dispose();
+      recoveryCache.current?.clearAll();
+      recoveryGrant.current = null;
+      resumeRecovery.current = null;
+      setDraft(null);
+      setContent("");
+      setDetail(null);
+      setLocalRecovery(null);
+    }
+  }, [identityScope]);
   const [reason, setReason] = useState("");
   const [comment, setComment] = useState("");
   const [anchor, setAnchor] = useState("");
@@ -351,6 +392,10 @@ export function WorkflowPanel({
   const fail = useCallback(
     (e: unknown) => {
       if (e instanceof ApiError && [401, 403, 404].includes(e.status)) {
+        recoveryCache.current?.clearAll();
+        recoveryGrant.current = null;
+        autosave.current?.dispose();
+        setLocalRecovery(null);
         setDetail(null);
         setComments([]);
         setDraft(null);
@@ -365,6 +410,215 @@ export function WorkflowPanel({
     },
     [onExpired],
   );
+  // A cached body is never assigned to UI fields until a fresh identity and the
+  // server's current full-lineage/local.copy/CAS check have succeeded.
+  useEffect(() => {
+    setLocalRecovery(null);
+    if (!principalId || !spaceId || !selected || !detail || draft) return;
+    const abort = new AbortController();
+    let active = true;
+    try {
+      recoveryCache.current ??= new RecoveryCache(window.localStorage);
+    } catch {
+      return;
+    }
+    void recoveryCache.current
+      .recover(principalId, spaceId, selected, async (binding) => {
+        const identity = await draftRequest<{
+          principalId: string;
+          workspaceId: string;
+        }>(api, "/me", undefined, abort.signal);
+        if (
+          identity.principalId !== principalId ||
+          identity.workspaceId !== spaceId
+        )
+          throw new ApiError("현재 계정 또는 공간이 변경되었습니다.", 403);
+        return draftRequest<RecoveryValidation>(
+          api,
+          "/workflows/recovery/validate",
+          { binding },
+          abort.signal,
+        );
+      })
+      .then((recovered) => {
+        if (active) setLocalRecovery(recovered);
+      })
+      .catch((e) => {
+        if (active) {
+          setContent("");
+          setDraft(null);
+          setLocalRecovery(null);
+          setLocalCopyNotice(
+            "이전 입력은 현재 권한·정책을 확인할 수 없어 브라우저에서 제거했습니다. 오프라인 복원은 제공하지 않습니다.",
+          );
+          if (e instanceof ApiError && [401, 403, 404].includes(e.status))
+            fail(e);
+        }
+      });
+    return () => {
+      active = false;
+      abort.abort();
+    };
+  }, [api, principalId, spaceId, selected, detail?.page.id, draft?.id, fail]);
+  useEffect(() => {
+    if (!draft || !principalId || !spaceId || identityChanged) return;
+    let active = true;
+    const original = draft;
+    const grantAbort = new AbortController();
+    recoveryGrant.current = null;
+    try {
+      recoveryCache.current ??= new RecoveryCache(window.localStorage);
+    } catch {
+      /* Server autosave remains available. */
+    }
+    const resuming = resumeRecovery.current;
+    resumeRecovery.current = null;
+    const instance = new DraftAutosave(
+      original,
+      async (input, signal) => {
+        try {
+          return await draftRequest<PrivateDraft>(
+            api,
+            "/workflows/drafts",
+            input,
+            signal,
+          );
+        } catch (e) {
+          if (
+            active &&
+            e instanceof ApiError &&
+            [401, 403, 404].includes(e.status)
+          )
+            fail(e);
+          throw e;
+        }
+      },
+      (state) => {
+        if (!active) return;
+        setSaveStatus(state.status);
+        setDraft(state.draft);
+        if (state.status === "saved")
+          recoveryCache.current?.clear(principalId, spaceId, selected);
+        else
+          recoveryCache.current?.write(
+            recoveryGrant.current,
+            state.draft,
+            state.content,
+            state.pending,
+          );
+        if (state.status === "conflict") {
+          // Readback remains current-authorized; never overwrite the unsent side.
+          void draftRequest<{ items: PrivateDraft[] }>(
+            api,
+            "/workflows/drafts",
+            undefined,
+            instance.abort.signal,
+          )
+            .then((result) => {
+              if (!active) return;
+              const server =
+                result.items.find((d) => d.id === original.id) ?? null;
+              setConflictServer(server);
+              setConflictRevision(server?.revision ?? 0);
+            })
+            .catch((e) => {
+              if (active) fail(e);
+            });
+        }
+      },
+      resuming?.pending,
+    );
+    autosave.current = instance;
+    setSaveStatus(instance.status);
+    instance.content = content;
+    if (resuming?.validation.status === "conflict") {
+      instance.conflict(resuming.validation.serverDraft);
+      setConflictServer(resuming.validation.serverDraft);
+      setConflictRevision(resuming.validation.revision);
+    }
+    const permission = async () => {
+      if (!active) return;
+      try {
+        const d = instance.draft;
+        const binding = await draftRequest<RecoveryBinding>(
+          api,
+          "/workflows/recovery/permission",
+          {
+            id: d.id,
+            pageId: d.pageId,
+            baseVersion: d.baseVersion,
+            expectedRevision: d.revision,
+            sourceIds: d.sourceIds ?? [],
+            dependencyVersions: d.dependencyVersions ?? {},
+          },
+          grantAbort.signal,
+        );
+        if (!active) return;
+        if (
+          binding.principalId !== principalId ||
+          binding.workspaceId !== spaceId
+        ) {
+          fail(new ApiError("현재 계정 또는 공간이 변경되었습니다.", 403));
+          return;
+        }
+        recoveryGrant.current = binding;
+        setLocalCopyNotice(
+          "로컬 복사가 허용된 입력만 최대 5분·항목 128KiB·전체 512KiB/10건 한도로 임시 보관합니다. 재시작 복원에는 온라인 권한 재확인이 필요합니다.",
+        );
+        if (instance.content !== instance.draft.content || instance.pending)
+          recoveryCache.current?.write(
+            binding,
+            instance.draft,
+            instance.content,
+            instance.pending,
+          );
+      } catch (e) {
+        if (!active) return;
+        recoveryGrant.current = null;
+        if (e instanceof ApiError)
+          recoveryCache.current?.clear(principalId, spaceId, selected);
+        setLocalCopyNotice(
+          "브라우저 복구 보관은 허용되지 않거나 현재 확인할 수 없습니다. 서버 자동 저장만 사용하며 미전송 입력은 재시작 시 유실될 수 있습니다.",
+        );
+        if (e instanceof ApiError && [401, 404].includes(e.status)) fail(e);
+      }
+    };
+    void permission();
+    const renewal = setInterval(() => {
+      if (navigator.onLine) void permission();
+    }, 60000);
+    const flush = () => {
+      void instance.flush();
+    };
+    const reconnect = () => {
+      void permission().then(flush);
+    };
+    window.addEventListener("online", reconnect);
+    window.addEventListener("pagehide", flush); // best-effort only, never guaranteed delivery
+    if (content !== original.content && instance.status !== "conflict")
+      instance.edit(content);
+    return () => {
+      active = false;
+      grantAbort.abort();
+      instance.dispose();
+      clearInterval(renewal);
+      window.removeEventListener("online", reconnect);
+      window.removeEventListener("pagehide", flush);
+      recoveryGrant.current = null;
+      autosave.current = null;
+      recoveryCache.current?.clearAll();
+    };
+    // The coordinator owns revisions/content after initialization; remount only for identity/space/draft changes.
+  }, [api, principalId, spaceId, selected, draft?.id, fail, identityChanged]);
+  const flushDraft = async () => {
+    const saved = await autosave.current?.flush();
+    if (!saved)
+      throw Error(
+        "개인 초안의 서버 저장을 확인하지 못했습니다. 연결 또는 충돌을 확인하세요.",
+      );
+    setDraft(saved);
+    return saved;
+  };
   const load = useCallback(async () => {
     const [d, n, t, x] = await Promise.all([
       write
@@ -512,6 +766,52 @@ export function WorkflowPanel({
       )}
       {notice && <p role="status">{notice}</p>}
       {busy && <p role="status">서버에 저장하고 있습니다…</p>}
+      {localRecovery && !draft && (
+        <section
+          role="dialog"
+          aria-label="개인 초안 입력 복구"
+          aria-modal="false"
+        >
+          <h3>이 브라우저의 미전송 입력 복구</h3>
+          <p>
+            현재 계정·공간·원본 권한·로컬 복사 정책을 서버에서 확인했습니다.
+            자동으로 덮어쓰지 않습니다.
+          </p>
+          <p>
+            문서 {localRecovery.draft.title} · 기준 v
+            {localRecovery.draft.baseVersion} · 서버 r
+            {localRecovery.validation.revision}
+          </p>
+          <Button
+            disabled={busy}
+            onClick={() =>
+              action(async () => {
+                const validation = await draftRequest<RecoveryValidation>(
+                  api,
+                  "/workflows/recovery/validate",
+                  { binding: localRecovery.binding },
+                );
+                resumeRecovery.current = { ...localRecovery, validation };
+                setDraft(localRecovery.draft);
+                setContent(localRecovery.content);
+                setLocalRecovery(null);
+              })
+            }
+          >
+            권한 재확인 후 입력 복구
+          </Button>
+          <Button
+            disabled={busy}
+            onClick={() => {
+              if (principalId && spaceId)
+                recoveryCache.current?.clear(principalId, spaceId, selected);
+              setLocalRecovery(null);
+            }}
+          >
+            보관 입력 버리기
+          </Button>
+        </section>
+      )}
       <label>
         문서 선택
         <select
@@ -642,10 +942,7 @@ export function WorkflowPanel({
               onSubmit={(e) => {
                 e.preventDefault();
                 void action(async () => {
-                  const saved = await api.post<PrivateDraft>(
-                    "/workflows/drafts",
-                    draftInput(draft, content, latest.number),
-                  );
+                  const saved = await flushDraft();
                   setDraft(saved);
                   setNotice(
                     "서버에 개인 초안을 저장했습니다. 발행하지 않았습니다.",
@@ -656,16 +953,75 @@ export function WorkflowPanel({
               <h3>
                 개인 초안 · 기준 v{draft.baseVersion} · 저장 r{draft.revision}
               </h3>
+              <p role="status">{saveStatusLabel[saveStatus]}</p>
+              <p>{localCopyNotice}</p>
+              <p>
+                입력 후 최대 1초 안에 자동 저장을 시도하며, 포커스 이동·재연결
+                때 다시 시도합니다. 탭 종료 전 전송은 최선의 시도이며 전달을
+                보장하지 않습니다.
+              </p>
               <label>
                 Markdown 본문
                 <textarea
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
+                  onChange={(e) => {
+                    setContent(e.target.value);
+                    autosave.current?.edit(e.target.value);
+                  }}
+                  onBlur={() => {
+                    void autosave.current?.flush();
+                  }}
                   rows={14}
                   required
                   disabled={busy}
                 />
               </label>
+              {saveStatus === "conflict" && (
+                <section
+                  role="dialog"
+                  aria-label="개인 초안 저장 충돌"
+                  aria-modal="false"
+                >
+                  <h4>양쪽 입력을 보존했습니다 · 서버 r{conflictRevision}</h4>
+                  <details>
+                    <summary>서버의 현재 입력</summary>
+                    <pre>
+                      {conflictServer?.content ?? "현재 서버 초안 없음"}
+                    </pre>
+                  </details>
+                  <details>
+                    <summary>이 브라우저의 미전송 입력</summary>
+                    <pre>{content}</pre>
+                  </details>
+                  <p>
+                    위 편집창에서 병합할 수 있습니다. 선택 후 새 revision CAS로
+                    저장하며 다른 탭이 바꾸면 다시 충돌합니다.
+                  </p>
+                  <Button
+                    disabled={busy}
+                    onClick={() => {
+                      autosave.current?.resolve(conflictRevision, content);
+                      void autosave.current?.flush();
+                    }}
+                  >
+                    내 입력·수동 병합본으로 새 저장 시도
+                  </Button>
+                  <Button
+                    disabled={busy || !conflictServer}
+                    onClick={() => {
+                      if (!conflictServer) return;
+                      setContent(conflictServer.content);
+                      autosave.current?.resolve(
+                        conflictRevision,
+                        conflictServer.content,
+                      );
+                      void autosave.current?.flush();
+                    }}
+                  >
+                    서버 입력을 명시적으로 선택
+                  </Button>
+                </section>
+              )}
               <Button type="submit" disabled={busy}>
                 개인 초안 저장
               </Button>
@@ -702,10 +1058,7 @@ export function WorkflowPanel({
                         )
                       )
                         return;
-                      const saved = await api.post<PrivateDraft>(
-                        "/workflows/drafts",
-                        draftInput(draft, content, latest.number),
-                      );
+                      const saved = await flushDraft();
                       setDraft(saved);
                       await api.post(
                         `/workflows/drafts/${encodeURIComponent(saved.id)}/submit`,
@@ -1250,7 +1603,342 @@ export function WorkflowPanel({
         </details>
       )}
       <NotificationPreferences api={api} perform={action} />
+      {can("space.admin") && (
+        <RetentionPanel key={`${principalId}:${spaceId}`} api={api} />
+      )}
     </section>
+  );
+}
+
+type RetentionClass =
+  "drafts" | "publishedVersions" | "sourceVersions" | "runtimeResults";
+interface RetentionPolicy {
+  enabled: boolean;
+  drafts: number | null;
+  publishedVersions: number | null;
+  sourceVersions: number | null;
+  runtimeResults: number | null;
+}
+interface RetentionPreview {
+  hash: string;
+  policyRevision: number;
+  counts: { eligible: number; blocked: number; storageReferences: number };
+  records: {
+    kind: RetentionClass;
+    id: string;
+    eligible: boolean;
+    reasons: string[];
+    retainedBy: { table: string; id: string }[];
+  }[];
+}
+const retentionLabels: Record<RetentionClass, string> = {
+  drafts: "개인 초안",
+  publishedVersions: "발행 버전",
+  sourceVersions: "원본 버전",
+  runtimeResults: "실행 결과",
+};
+const retentionReasons: Record<string, string> = {
+  POLICY_DISABLED: "자동 삭제 정책 비활성",
+  RETAIN_FOREVER: "영구 보존",
+  NOT_DUE: "보존 기간 미경과",
+  AGE_UNAVAILABLE: "기준 시각 미확인",
+  LEGAL_HOLD: "법적 보존",
+  RETAINED_REFERENCE: "보존 자료의 참조 근거",
+  IMMUTABLE_HISTORY_REQUIRES_REVIEWED_PRUNING:
+    "불변 이력: 검토된 의존성 안전 가지치기 미지원 — 삭제하지 않음",
+};
+function RetentionReferences({
+  items,
+}: {
+  items: { table: string; id: string }[];
+}) {
+  const [page, setPage] = useState(0);
+  return (
+    <details>
+      <summary>보존을 요구하는 참조 {items.length}건</summary>
+      {pageItems(items, page).map((ref, i) => (
+        <p key={i} style={{ overflowWrap: "anywhere" }}>
+          {ref.table} · {ref.id}
+        </p>
+      ))}
+      <Pager count={items.length} page={page} set={setPage} />
+    </details>
+  );
+}
+export function RetentionPanel({ api }: { api: OperationalApi }) {
+  const [settings, setSettings] = useState<{
+    revision: number;
+    policy: RetentionPolicy;
+  } | null>(null);
+  const [preview, setPreview] = useState<RetentionPreview | null>(null);
+  const [page, setPage] = useState(0),
+    [busy, setBusy] = useState(false),
+    [message, setMessage] = useState("");
+  const [receipts, setReceipts] = useState<
+    {
+      id: string;
+      status: string;
+      details: { deleted?: number; blocked?: number };
+    }[]
+  >([]);
+  const [receiptPage, setReceiptPage] = useState(0);
+  const [holdClass, setHoldClass] = useState<RetentionClass>("drafts"),
+    [holdReason, setHoldReason] = useState("");
+  const run = async (work: () => Promise<void>) => {
+    setBusy(true);
+    setMessage("");
+    try {
+      await work();
+    } catch (e) {
+      setMessage(
+        e instanceof Error ? e.message : "보존 작업을 완료하지 못했습니다.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <details
+      onToggle={(e) => {
+        if (e.currentTarget.open && !settings && !busy)
+          void run(async () => {
+            const [policy, history] = await Promise.all([
+              api.get<{ revision: number; policy: RetentionPolicy }>(
+                "/retention/policy",
+              ),
+              api.get<{ items: typeof receipts }>("/retention/receipts"),
+            ]);
+            setSettings(policy);
+            setReceipts(history.items);
+          });
+      }}
+    >
+      <summary>자료 유형별 보존 정책 · 공간 관리자</summary>
+      <p>
+        기본은 자동 삭제 없음입니다. 일반 보존은 법정 삭제나 공간 전체 삭제가
+        아닙니다. 참조 중인 원본·이력과 법적 보존 자료는 삭제하지 않습니다.
+        발행·원본·실행 이력의 기간을 설정해도 현재 안전한 가지치기가 지원되지
+        않으면 차단으로 표시합니다.
+      </p>
+      {message && <p role="status">{message}</p>}
+      {settings && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (
+              !window.confirm(
+                "이 유형별 보존 정책을 적용할까요? 활성화하면 연결된 서버 주기 작업이 적격 개인 초안만 정리할 수 있습니다.",
+              )
+            )
+              return;
+            void run(async () => {
+              setSettings(
+                await api.post("/retention/policy", {
+                  expectedRevision: settings.revision,
+                  policy: settings.policy,
+                }),
+              );
+              setPreview(null);
+              setMessage(
+                "정책을 저장했습니다. 실제 삭제 결과는 실행 영수증에서 확인하세요.",
+              );
+            });
+          }}
+        >
+          <label>
+            <input
+              type="checkbox"
+              checked={settings.policy.enabled}
+              disabled={busy}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  policy: { ...settings.policy, enabled: e.target.checked },
+                })
+              }
+            />
+            명시적 자동 정리 허용
+          </label>
+          {(Object.keys(retentionLabels) as RetentionClass[]).map((kind) => (
+            <label key={kind}>
+              {retentionLabels[kind]} 보존 일수 (빈 값은 영구 보존)
+              <input
+                type="number"
+                min={1}
+                max={36500}
+                disabled={busy}
+                value={settings.policy[kind] ?? ""}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    policy: {
+                      ...settings.policy,
+                      [kind]:
+                        e.target.value === "" ? null : Number(e.target.value),
+                    },
+                  })
+                }
+              />
+            </label>
+          ))}
+          <Button type="submit" disabled={busy}>
+            정책 변경 확인
+          </Button>
+        </form>
+      )}
+      {settings && (
+        <details>
+          <summary>유형별 법적 보존 · 별도 확인</summary>
+          <label>
+            보존 유형
+            <select
+              value={holdClass}
+              disabled={busy}
+              onChange={(e) => setHoldClass(e.target.value as RetentionClass)}
+            >
+              {(Object.keys(retentionLabels) as RetentionClass[]).map(
+                (kind) => (
+                  <option key={kind} value={kind}>
+                    {retentionLabels[kind]}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+          <label>
+            설정·해제 근거
+            <input
+              value={holdReason}
+              disabled={busy}
+              maxLength={2000}
+              onChange={(e) => setHoldReason(e.target.value)}
+            />
+          </label>
+          {[true, false].map((enabled) => (
+            <Button
+              key={String(enabled)}
+              disabled={busy || !holdReason.trim()}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `${retentionLabels[holdClass]}의 유형별 법적 보존을 ${enabled ? "설정" : "해제"}할까요? 원본·문서별 기존 법적 보존은 변경하지 않습니다.`,
+                  )
+                )
+                  return;
+                void run(async () => {
+                  await api.post("/retention/holds", {
+                    contentClass: holdClass,
+                    enabled,
+                    reason: holdReason,
+                    expectedPolicyRevision: settings.revision,
+                  });
+                  setPreview(null);
+                  setMessage(
+                    enabled
+                      ? "유형별 보존을 설정했습니다."
+                      : "유형별 보존을 해제했습니다. 다른 법적 보존은 유지됩니다.",
+                  );
+                });
+              }}
+            >
+              {enabled ? "유형별 보존 설정" : "유형별 보존 해제 확인"}
+            </Button>
+          ))}
+        </details>
+      )}
+      <Button
+        disabled={busy || !settings}
+        onClick={() =>
+          run(async () => {
+            setPreview(await api.post("/retention/preview", {}));
+            setPage(0);
+          })
+        }
+      >
+        실제 대상·보존 의존성 미리보기
+      </Button>
+      {preview && (
+        <section>
+          <h3>
+            삭제 가능 {preview.counts.eligible}건 · 보존/차단{" "}
+            {preview.counts.blocked}건
+          </h3>
+          <p>
+            첨부·가져오기 저장 참조 {preview.counts.storageReferences}건을 함께
+            검사했습니다.
+          </p>
+          {pageItems(preview.records, page).map((r, i) => (
+            <article key={`${r.kind}:${r.id}:${i}`}>
+              <strong style={{ overflowWrap: "anywhere" }}>
+                {retentionLabels[r.kind]} · {r.id}
+              </strong>
+              <p>
+                {r.eligible
+                  ? "정리 가능"
+                  : r.reasons
+                      .map((reason) => retentionReasons[reason] ?? reason)
+                      .join(" · ")}
+              </p>
+              <RetentionReferences items={r.retainedBy} />
+            </article>
+          ))}
+          <Pager count={preview.records.length} page={page} set={setPage} />
+          <Button
+            disabled={busy}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  `정리 가능한 초안 ${preview.counts.eligible}건을 실제 정리할까요? 현재 정책·참조·법적 보존을 다시 검사합니다.`,
+                )
+              )
+                return;
+              void run(async () => {
+                const receipt = await api.post<{
+                  status: string;
+                  deleted: number;
+                  blocked: number;
+                }>("/retention/execute", {
+                  previewHash: preview.hash,
+                  policyRevision: preview.policyRevision,
+                });
+                setMessage(
+                  `${receipt.status === "completed" ? "정리 실행 완료" : "삭제 차단"} · 실제 삭제 ${receipt.deleted}건 · 보존 ${receipt.blocked}건`,
+                );
+                setPreview(null);
+                setReceipts(
+                  (
+                    await api.get<{ items: typeof receipts }>(
+                      "/retention/receipts",
+                    )
+                  ).items,
+                );
+              });
+            }}
+          >
+            고정 미리보기로 실행
+          </Button>
+        </section>
+      )}
+      <details>
+        <summary>실제 보존 실행 영수증 {receipts.length}건</summary>
+        {pageItems(receipts, receiptPage).map((r) => (
+          <p key={r.id}>
+            {r.status === "completed"
+              ? "완료"
+              : r.status === "blocked"
+                ? "차단"
+                : "실패"}{" "}
+            · 삭제 {r.details.deleted ?? "미확인"} · 보존{" "}
+            {r.details.blocked ?? "미확인"} · {r.id}
+          </p>
+        ))}
+        <Pager
+          count={receipts.length}
+          page={receiptPage}
+          set={setReceiptPage}
+        />
+      </details>
+    </details>
   );
 }
 

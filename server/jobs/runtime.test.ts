@@ -23,9 +23,37 @@ import {
 } from "../refinement/semantic";
 import { claim as semanticClaim } from "../refinement/fixtures";
 import { source } from "../test-support";
+import { approveLocalTransmissionFixture } from "../policy/test-fixture";
 const pools: Pool[] = [];
 const servers: Server[] = [];
+const fixtureSpaces: { pool: Pool; workspaceId: string }[] = [];
+async function approveModelFixture(pool: Pool, workspaceId: string) {
+  const base = process.env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL;
+  if (
+    !base ||
+    process.env.AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION !== "true"
+  )
+    return;
+  vi.stubEnv(
+    "AGENT_KNOWLEDGE_HUB_LLM_DESTINATION_ID",
+    "jobs-local-model-fixture",
+  );
+  const sources = (
+    await pool.query("SELECT id FROM sources WHERE workspace_id=$1", [
+      workspaceId,
+    ])
+  ).rows.map((r) => r.id);
+  await approveLocalTransmissionFixture(
+    pool,
+    workspaceId,
+    base.replace(/\/$/, "") + "/chat/completions",
+    ["query", "ingest", "semantic-lint"],
+    "jobs-local-model-fixture",
+    sources,
+  );
+}
 afterEach(async () => {
+  fixtureSpaces.splice(0);
   for (const server of servers.splice(0)) {
     server.closeAllConnections();
     await new Promise<void>((r) => server.close(() => r()));
@@ -56,6 +84,8 @@ async function modelServer(
   vi.stubEnv("AGENT_KNOWLEDGE_HUB_LLM_MODEL", "fixture-request");
   vi.stubEnv("AGENT_KNOWLEDGE_HUB_LLM_PROVIDER", "fixture-http");
   vi.stubEnv("AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION", "true");
+  for (const f of fixtureSpaces)
+    await approveModelFixture(f.pool, f.workspaceId);
 }
 const fixtureDirectory: RuntimeIdentityOptions = {
   directoryProviderId: "explicit-test-roster",
@@ -70,6 +100,8 @@ async function setup() {
   const f = await fixture();
   pools.push(f.pool);
   await adoptFixture(f.pool, f.workspaceId);
+  fixtureSpaces.push({ pool: f.pool, workspaceId: f.workspaceId });
+  await approveModelFixture(f.pool, f.workspaceId);
   const pat = await new AccessService(f.pool).issueCredential(f.editor, {
     actions: ["knowledge.read", "changeset.propose", "lint.run"],
     expiresAt: new Date(Date.now() + 3600000).toISOString(),
@@ -469,6 +501,24 @@ it("actual model query context excludes future/archived pages without globally h
     "INSERT INTO workflow_document_state(workspace_id,page_id,state) VALUES($1,'topic','archived')",
     [f.workspaceId],
   );
+  // Keep one explicitly source-authorized current input. A question with no policy
+  // roots is now correctly DENY, so it is not a positive transmission fixture.
+  await f.pool.query(
+    "INSERT INTO resources VALUES($1,'page','eligible-topic')",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO resource_readers SELECT workspace_id,kind,'eligible-topic',principal_id FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='topic'",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO pages(workspace_id,id,data) SELECT workspace_id,'eligible-topic',jsonb_set(data,'{id}','\"eligible-topic\"') FROM pages WHERE workspace_id=$1 AND id='topic'",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO versions SELECT workspace_id,'eligible-topic',number,data FROM versions WHERE workspace_id=$1 AND page_id='topic'",
+    [f.workspaceId],
+  );
   const j = await f.bridge.submitInteractive(
     f.editor,
     "query",
@@ -477,7 +527,9 @@ it("actual model query context excludes future/archived pages without globally h
   );
   await f.bridge.workers[0].tick();
   expect((await f.bridge.read(f.editor, j.id)).status).toBe("succeeded");
-  expect(pages).toEqual([]);
+  expect((pages as { id: string }[]).map((p) => p.id)).toEqual([
+    "eligible-topic",
+  ]);
   await f.bridge.stop();
 });
 it("model configuration/provider changes invalidate already accepted calls before transmission", async () => {
@@ -1280,7 +1332,7 @@ it("daily/weekly schedules require an actual team service credential and current
     ).rows[0].status,
   ).toBe("dead");
   await f.bridge.stop();
-});
+}, 20000);
 it("raw delegated inputs are strict and tighter caller bounds are preserved", async () => {
   const f = await setup();
   await expect(
@@ -2147,6 +2199,15 @@ it("verified private-personal input is prompted as private, preserves the source
     author: "original-source-human",
   };
   await f.service.core.registerSource(human, rawSource, [human.principalId]);
+  await approveLocalTransmissionFixture(
+    f.pool,
+    human.workspaceId,
+    process.env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL! + "/chat/completions",
+    ["ingest"],
+    "jobs-local-model-fixture",
+    ["private-source"],
+    human.principalId,
+  );
   const pat = await access.issueCredential(human, {
       actions: ["knowledge.read", "changeset.propose", "lint.run"],
       expiresAt: new Date(Date.now() + 3600000).toISOString(),

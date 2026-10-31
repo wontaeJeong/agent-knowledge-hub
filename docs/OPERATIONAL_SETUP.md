@@ -76,6 +76,64 @@ node scripts/k8s/validate-production.mjs /path/to/reviewed/site-overlay
 
 이 검사는 리소스별 immutable image/개발 placeholder/평문 Secret/HTTPS·TLS/기본 거부 정책을 정적으로 검사한다. 통과가 실제 인증·네트워크·복원·지식 품질을 보장하지는 않는다. 기본 템플릿이 검사에 실패하는 것은 의도된 배포 차단이다.
 
+## STG/PROD 운영 사이트 설정과 단계별 배포 도구 (2026-10-30)
+
+기존 `deploy/overlays/stg`·`prod`는 운영 미설정 템플릿이다. 설정값이 하드코딩된 리소스를 직접 적용하지 않는다. **`deploy/examples/site-*.example.json`을 복사하여 각 사이트의 비밀이 아닌 값만 채운다.** 샘플의 CHANGE-ME·가짜 digest·invalid 호스트로는 생성기가 실패한다. 실제 사이트 파일/생성물은 `/deploy/sites/`에 두고 Git에 올리지 않는다.
+
+| 설정 | 확인할 내용 |
+| --- | --- |
+| `appHost` · `ingressClass` · `tlsSecretName` | 환경별 서로 다른 FQDN, 실제 ingress class, 인증서 Secret |
+| `oidcIssuer` · `oidcClientId` · `oidcGroupRoles` | HTTPS 사내 IdP issuer, 클라이언트 등록, 실제 그룹→reader/editor/reviewer |
+| `appImage` · `postgresImage` | 모든 이미지의 검증된 `@sha256` digest; App 이미지의 STG→PROD 동일 digest 승격 |
+| `ingressController` | Ingress 컨트롤러의 실제 **네임스페이스와 Pod 라벨**. NetworkPolicy의 namespaceSelector + podSelector 일치 필요 |
+| `oidcEgressCidrs` | IdP로 향하는 HTTPS 443의 실제, 필요한 목적지 IP/CIDR만 입력. DNS 반환·로드밸런서 IP가 변할 수 있으므로 운영자와 검토 |
+| `modelEgress` | 선택적인 온프레미스/게이트웨이 목적지 IP/CIDR + 명시적 TCP 포트(예: 8000). 미사용이면 빈 배열 |
+| `quota` · `dbStorageClass` | 실제 네임스페이스 용량 제한 및 PVC StorageClass. STG와 PROD 개별 계산 |
+
+```bash
+cp deploy/examples/site-stg.example.json /secure/path/site-stg.json
+cp deploy/examples/site-prod.example.json /secure/path/site-prod.json
+# 두 JSON을 수정: 실제 호스트/IDP/이미지 digest/네트워크/자원으로 교체
+node scripts/k8s/prepare-site.mjs /secure/path/site-stg.json
+node scripts/k8s/prepare-site.mjs /secure/path/site-prod.json
+
+# 변경 내용을 사람이 리뷰한 다음, 실제 클러스터 적용 전 정적 검증
+node scripts/k8s/validate-production.mjs deploy/sites/stg
+node scripts/k8s/validate-production.mjs deploy/sites/prod
+node scripts/k8s/deploy-site.mjs CONTEXT_NAME stg deploy/sites/stg
+node scripts/k8s/deploy-site.mjs CONTEXT_NAME prod deploy/sites/prod
+```
+
+생성기는 기존 `deploy/sites/stg` 또는 `deploy/sites/prod` 디렉터리를 **덮어쓰지 않는다**. 설정 갱신 시 승인된 원본 JSON을 수정하고 기존 생성 폴더를 보관/이동 후 다시 생성·검토한다. 출력은 Kustomize 설정, 이미지 digest, HTTPS/OIDC 공개 설정, Ingress·IdP/모델 egress NetworkPolicy, ResourceQuota다. DB 비밀번호, OIDC client secret, TLS 개인키 같은 **Secret은 절대 생성하지 않는다.**
+
+운영 대상 네임스페이스는 사전에 생성하고 아래 **서로 다른 Secret**을 승인된 비밀 관리 흐름(External Secrets/Secret 관리 등)으로 주입한다. 환경에 따라 namespace 생성 예: `kubectl --context CONTEXT_NAME apply -f deploy/overlays/stg/namespace.yaml` 및 `deploy/overlays/prod/namespace.yaml` (다른 컨텍스트나 클러스터에 잘못 생성하지 않도록 주의). 비밀번호를 쉘 인자·레포·로그·PR에 기록하지 않는다.
+
+- `knowledge-db-secret`: `password`. 환경별로 서로 다른 충분히 긴 비밀번호.
+- `knowledge-secrets`: `DATABASE_URL` (`postgres://knowledge:<password>@knowledge-db:5432/knowledge`, 실제 비밀번호 URL 인코딩), `OIDC_CLIENT_SECRET`. 다른 모델 키 등 선택적 비밀도 여기서 공급.
+- `knowledge-tls` 또는 사이트에서 명시한 이름: `kubernetes.io/tls` 형식의 유효한 TLS 인증서와 키. Hostname/SAN/체인은 별도로 실제 TLS 검증이 필요.
+
+```bash
+# 별도 승인 후에만 적용한다. 컨텍스트를 명시하며 기본 kubectl context에 의존하지 않는다.
+node scripts/k8s/deploy-site.mjs CONTEXT_NAME stg deploy/sites/stg --apply
+
+# STG의 실사용 SSO 로그인/권한/모델/Ingress/CNI/백업·복원/합성 부하 인수 후
+node scripts/k8s/deploy-site.mjs CONTEXT_NAME prod deploy/sites/prod --apply --approve-prod
+```
+
+운영 스크립트는 리소스가 실제 네임스페이스 1곳을 가리키는지, 기본 격리·허용 네트워크 정책·리소스 제한·TLS·이미지 digest/앱 1·DB 1 상태인지 정적으로 확인한다. `--apply` 때 **대상 컨텍스트/네임스페이스의 Secret 존재와 DB URL↔DB 비밀번호 일치**를 먼저 확인한다. PROD는 같은 컨텍스트의 STG Deployment App 이미지 digest와 다르면 차단한다. 이후 인프라 적용→DB StatefulSet 준비→**별도 migration Job 성공**→App 배포/rollout 순서로 실행한다. Migration Job은 서버와 같은 이미지·네트워크 경계에서 `migrate:server`를 실행하되 DATABASE_URL과 선택적 ACCESS_BOOTSTRAP_JSON만 참조한다. 전체 앱 Secret/envFrom·모델/감사 키·운영 PVC·probe는 상속하지 않는다. 실패하면 새 App 배포를 진행하지 않는다.
+
+주의: 현재 앱의 `Recreate` 배포는 중단이 발생할 수 있다. DB 스키마 변경은 **하위 호환 마이그레이션만** 기존 앱 실행 중 적용한다. 실행기는 정적 검사·요청 순서 도구이지 DB 롤백/무중단 운영·실제 CNI 정책 집행/IdP·TLS 연결/SSO 그룹 권한·모델 엔드포인트/복원을 보장하지 않는다. 단일 클러스터의 STG·PROD는 공유 노드/Ingress/스토리지 장애의 영향권에 있을 수 있다. 승인된 클러스터, DNS, ingress-controller label, Secret 공급, 스토리지 및 실제 사용자 승인/규정은 운영자가 확인해야 한다.
+
+CI에서는 비밀 없이 `deploy/fixtures/site-ci-*.json`만 렌더링하여 테스트한다. 이 주소·이미지 digest·IP 대역은 **합성 fixture**이며 사용 가능한 실제 서비스 값이 아니다. 운영 인수에는 반드시 실제 환경 확인이 추가로 필요하다.
+
+### 현재 운영 서버와의 호환 조건
+
+- `knowledge-secrets`의 필수 `AUDIT_EXPORT_KEY`, `AUDIT_SIGNING_KEY`, `AKH_METRICS_TOKEN`은 서로 다른 32자 이상 키다. 선택적 백업을 설정하면 `AGENT_KNOWLEDGE_HUB_BACKUP_KEY`, `BACKUP_KEY_ID`, `BACKUP_KEYS_JSON`을 함께 제공하고 현재 ID의 keyring 값과 일치시킨다. 이전 복원용 keyring 키도 보존한다. 감사·metrics·백업 키를 재사용하지 않는다.
+- 추가 allowlist는 `AKH_ALERT_RELAY_TOKEN`, `AGENT_KNOWLEDGE_HUB_EXECUTION_VERIFIER_HMAC_KEY_BASE64`와 기존 LLM 연결/자격증명 키, `NODE_EXTRA_CA_CERTS`뿐이다. NODE_ENV, APP_ORIGIN, issuer/역할, ACCESS_BOOTSTRAP_JSON, 기능 기본값, 목적지 registry 정책은 Secret에서 금지한다. bootstrap은 별도 리뷰한 ConfigMap 설정으로만 전달한다.
+- base의 `/data/blobs`, `/data/audit`, `/data/backups`는 서로 다른 환경 내 PVC다. DB 5Gi + backup staging 5Gi + blob 10Gi + audit 5Gi + backup 20Gi의 총 요청 45Gi/5 PVC를 반영해 synthetic 예제 quota는 60Gi로 둔다. 실제 용량·외부 백업·감사 보호 인수는 별도다.
+- `modelEgress`는 네트워크 허용일 뿐 원본 반출 승인이 아니다. 선택적 `modelTransmissionDestinations`는 신뢰된 운영자가 리뷰한 전체 registry 배열(`id`, 정확한 최종 `url`, `purposes`, 명시적 `classifications`, `active`)이며 기본값은 `[]`다. 선택적 `modelDestinationId`는 그중 활성 항목을 선택한다. URL에는 자격증명/query/fragment를 넣지 않는다. 원본별 인간 Admin 승인·현재 권한/원본 상한·정확한 목적지/입력 계보 검사는 별도로 필요하며 업로드나 전역 모델 연결이 이를 승인하지 않는다.
+- `node scripts/k8s/test.mjs`는 native Kind + 전용 DB가 필요한 `operations-backup-db.test.mjs`만 명시적으로 미실행 처리하고 나머지 K8s/operations 단위를 모두 실행한다. 이 CI job은 native Kind 백업/복원 인수 근거가 아니다.
+
 ## DB 백업과 폐기용 복원 검증
 
 ```sh
@@ -86,10 +144,15 @@ node scripts/k8s/verify-restore.mjs /external/private-backups/knowledge-TIMESTAM
 
 환경 `AGENT_KNOWLEDGE_HUB_BACKUP_KEY`는32자 이상이어야 한다. AES-256-GCM+scrypt로 pg_dump를 암호화하고 SHA-256 manifest를 별도로 저장한다. 잘못된 키/변조는 거부한다. 파일·폴더는0600/0700이며 키를 명령행 인자로 받지 않는다. 복원 검증은 로컬 cluster에 직접 생성한 임시 DB에만 복원하고 그것만 정리한다. 기존 운영 DB를 덮어쓰지 않는다.
 
-현재 도구는 **DB 백업/로컬 복원 검증**이다. 외부 blob과 일관된 manifest·독립 스토리지 자동 보관·스케줄/보관·삭제 tombstone 재적용·사내 복원 시간 측정까지 제공됐다고 주장하지 않는다. 같은 디스크의 파일/PVC만으로 운영 백업 완료가 아니다. 실제 운영 인수에서 이 미충족 조건을 해결해야 한다.
+현재 도구는 **DB 백업/로컬 복원 검증**이다. 새 편입 원본은 제한된 DB bytea 조각이므로 이 DB 백업에 포함되며, 향후 외부 객체 저장소 어댑터를 붙이면 별도 원자성/복원 경계가 필요하다. 외부 blob과 일관된 manifest·독립 스토리지 자동 보관·스케줄/보관·삭제 tombstone 재적용·사내 복원 시간 측정까지 제공됐다고 주장하지 않는다. 같은 디스크의 파일/PVC만으로 운영 백업 완료가 아니다. 실제 운영 인수에서 이 미충족 조건을 해결해야 한다.
 
 ## 제한의 보고
 
 원래 251개 기준별 남은 구현 작업·검증 사례·외부/소프트웨어 차단은 [operational-backlog.json](requirements/operational-backlog.json)에 있다. 각 행의 수용 기준은 원문과 같으며 전체 상태는 open이다. 이 작업표의 존재도 구현·인수 완료가 아니다.
 
 실패/미실행/미수집을0 또는 성공으로 표시하지 않는다. 모델이 실제 호출됐다는 사실은 의미 품질/지식 누적 개선의 증거가 아니다. 기존251개 수용 기준은 유지하며 기능 구현·kind 시험·사내 운영 인수를 별도로 추적한다. 남은 조건이 있으면 민감 자료 운영을 승인하지 않는다.
+
+
+## 웹 편입 · 조직 접근 관리 구현 (2026-10-30)
+
+[실제 실행 계약·설정·검증과 남은 범위](IMPLEMENTATION_GUIDE.md), [웹 자료 편입 설계](DATA_INGESTION.md), [대화 기록](CONVERSATION_IMPORT.md)를 참조한다. 웹/REST/MCP의 개인 원본 접수·서버 영속 정리·선택 원본 공개 승인·독립 지식 검토/발행을 연결했다. Organization/Team/공간별 역할·초대·Owner·현재 권한 철회를 구현하며 기존 공간은 명시적 이관 전까지 기존 OIDC 역할을 유지한다. 원본 제한은 관리자에게도 적용한다. 새 기능의 구현은 전체 251개 요구사항이나 실제 LLM 의미 품질/운영 인수 통과를 뜻하지 않는다.

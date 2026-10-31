@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { fixture, adoptFixture, source } from "../test-support";
-import { authorizeInTransaction } from "../access";
+import { authorizeInTransaction } from "../access/index";
 import { FileBlobStore } from "../storage/content";
 import { StorageService } from "../storage/service";
 import { OperationsService } from "./service";

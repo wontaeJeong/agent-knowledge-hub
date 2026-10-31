@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { PoolClient } from "pg";
 import type { Context } from "../service";
-import { effectiveAccess } from "../access";
+import { effectiveAccess } from "../access/index";
 import { requireRead } from "../repository";
 import { appendOperationalAudit, type OperationsService } from "./service";
 import {

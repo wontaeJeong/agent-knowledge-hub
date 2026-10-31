@@ -3,7 +3,7 @@ import type { Context } from "./service";
 import type { UsageSummary } from "../src/domain/usage";
 import { transaction } from "./database";
 import { membership } from "./repository";
-import { effectiveAccess } from "./access";
+import { effectiveAccess } from "./access/index";
 
 export async function usageSummary(
   pool: Pool,

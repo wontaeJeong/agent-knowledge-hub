@@ -500,9 +500,16 @@ export class LegacyAccessService {
             workspaceId,
           );
         }
-        await rememberName(db, ctx, "space", workspaceId, value);
+        await rememberName(
+          db,
+          { ...ctx, workspaceId },
+          "space",
+          workspaceId,
+          value,
+        );
         return { id: workspaceId };
       },
+      (result) => ({ workspaceId: result.id }),
     );
   }
   async adminTx<T>(

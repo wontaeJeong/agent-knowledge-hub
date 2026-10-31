@@ -1,4 +1,14 @@
 import { randomBytes } from "node:crypto";
+/** Local synthetic testing only. Source-level approval remains a separate explicit operation. */
+export function localModelPolicyRegistry(env){
+  if(env.AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION!=='true'||!env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL||!env.AGENT_KNOWLEDGE_HUB_LLM_MODEL)return {AKH_MODEL_DESTINATIONS_JSON:'[]'};
+  try{
+    const base=new URL(env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL);
+    if(!['http:','https:'].includes(base.protocol)||base.username||base.password||base.search||base.hash)throw Error();
+    const url=base.href.replace(/\/$/,'')+'/chat/completions';
+    return {AGENT_KNOWLEDGE_HUB_LLM_DESTINATION_ID:'local-model',AKH_MODEL_DESTINATIONS_JSON:JSON.stringify([{id:'local-model',url,purposes:['query','ingest','organize','semantic-lint'],classifications:['synthetic'],active:true}])};
+  }catch{throw Error('POLICY_CONFIGURATION');}
+}
 const secretNames = [
   "AKH_METRICS_TOKEN",
   "AUDIT_EXPORT_KEY",

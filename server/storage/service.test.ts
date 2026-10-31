@@ -3,7 +3,7 @@ import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fixture, source, page, adoptFixture } from "../test-support";
-import { authorizeActionDb, type Action } from "../access";
+import { authorizeActionDb, type Action } from "../access/index";
 import { FileBlobStore } from "./content";
 import { StorageService, type StorageAuthorizer } from "./service";
 let f: Awaited<ReturnType<typeof fixture>>, root: string, s: StorageService;

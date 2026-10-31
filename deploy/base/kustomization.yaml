@@ -4,3 +4,4 @@ resources:
   - app.yaml
   - postgres.yaml
   - blob-storage.yaml
+  - operational-storage.yaml

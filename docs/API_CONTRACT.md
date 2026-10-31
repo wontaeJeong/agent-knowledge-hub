@@ -27,9 +27,9 @@
 
 MCP의 검색·읽기·등록·변경 제안도 같은 서비스 계층을 호출해야 한다. MCP 호출자의 대화 속 사용자 이름으로 신원을 결정하지 않는다. 실제 도구 버전·스키마를 fixture로 검증하고 현재 미구현 도구를 지원한다고 표기하지 않는다.
 
-## 공간 권한 확장 API (2026-10-30 제안, 미구현)
+## 공간 권한의 확장 계약과 현행 API (2026-10-30)
 
-[권한 모델](ACCESS_CONTROL.md)과 [ADR 005](adr/005-github-style-access-control.md)의 소유권·5역할·공개/자료 제한을 구현할 때 필요한 경계다. 다음은 경로 설계 제안이며 현행 단일 `WORKSPACE_ID` 서버에 존재하지 않는다. 기존 API에 space ID를 받는 것만으로 범위를 늘리지 말고 신원·공간·자원·위임 상한을 공통 서비스에서 검증한다. 기존 클라이언트 호환/버전 정책은 구현 PR에서 명시한다.
+[권한 모델](ACCESS_CONTROL.md)과 [ADR 005](adr/005-github-style-access-control.md)의 소유권·5역할·공개/자료 제한을 구현할 때 필요한 경계다. 아래 표의 경로명은 최종 확장 설계다. 현재 실제 경로는 이 문서 끝의 `/api/v1/access`와 IMPLEMENTATION_GUIDE를 따른다. 서버는 세션에 선택한 관리 공간을 사용하며 클라이언트의 임의 workspace 헤더로 경계를 넓히지 않는다. 기존 API에 space ID를 받는 것만으로 범위를 늘리지 말고 신원·공간·자원·위임 상한을 공통 서비스에서 검증한다. 기존 클라이언트 호환/버전 정책은 구현 PR에서 명시한다.
 
 | 제안 경로 | 정책/응답의 핵심 |
 | --- | --- |
@@ -49,3 +49,12 @@ MCP의 검색·읽기·등록·변경 제안도 같은 서비스 계층을 호�
 미발행 개인 스냅샷/변경 집합은 개인 공간 권한을 목적지에 넘기지 않는 별도 제출 계약을 사용한다. 기존 changesets 승인/발행에도 목적지 공간, 지정 검토자·독립 승인, 고정 개인 revision·기준/정책/ACL 해시와 현재 자격을 적용한다. API/MCP 위임 토큰에는 승인·발행·멤버/정책 관리 경로를 노출하지 않는다.
 
 접근 변경은 `If-Match`로 정책 버전을 검사하고 결과의 새 정책 버전과 추적 ID를 반환한다. 버전 충돌은 `STALE_VERSION`, 승인 스냅샷 변경은 `APPROVAL_STALE`, 근거보다 넓은 공개는 `SOURCE_SCOPE_CONFLICT`로 구분한다. 존재 비노출·입력/출력 상한·멱등 생성·페이지네이션·자격증명 원문 비노출을 유지한다. AC-01~24는 후속 실행 수용 사례이며 현재 API 시험의 통과 결과가 아니다.
+
+
+## 웹 편입 · 조직 접근 관리 구현 (2026-10-30)
+
+[실제 실행 계약·설정·검증과 남은 범위](IMPLEMENTATION_GUIDE.md), [웹 자료 편입 설계](DATA_INGESTION.md), [대화 기록](CONVERSATION_IMPORT.md)를 참조한다. 웹/REST/MCP의 개인 원본 접수·서버 영속 정리·선택 원본 공개 승인·독립 지식 검토/발행을 연결했다. Organization/Team/공간별 역할·초대·Owner·현재 권한 철회를 구현하며 기존 공간은 명시적 이관 전까지 기존 OIDC 역할을 유지한다. 원본 제한은 관리자에게도 적용한다. 새 기능의 구현은 전체 251개 요구사항이나 실제 LLM 의미 품질/운영 인수 통과를 뜻하지 않는다.
+
+현재 접근 관리 REST: `/api/v1/access`는 현재 공간의 서버 capability·실효 경로를, `/spaces`, `/organizations`, `/invitations`는 본인에게 보이는 목록을 반환한다. POST `/bootstrap`은 명시적 운영자 바인딩 이관, `/spaces`·`/organizations`는 생성, `/switch`는 허용된 공간 선택과 CSRF 교체다. 초대 생성/수락/취소, 조직 멤버 강등/제명, Team 생성·멤버 추가/회수, `/grants` 역할/만료·회수, `/reviewers` 지정, `/visibility`는 서버의 관리 capability를 요구한다. 요청 DTO/엄격한 검증은 `server/access-http.ts`가 기준이다. 실제 제품 grant를 `OIDC_GROUP_ROLES` 값으로 클라이언트에서 덮어쓰지 않는다.
+
+`POST /api/v1/changesets/:id/triage`는 Triage 이상의 공간 역할과 변경안 전체 근거의 현재 읽기를 함께 확인하고 `untriaged/needs-review/duplicate/blocked` 분류만 바꾼다. 승인·본문·발행 상태를 바꾸지 않는다.

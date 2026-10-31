@@ -45,7 +45,7 @@ export function trustedFixtureVerifier(
   beforeResponse?: (input: ExecutionChallenge) => Promise<void>,
   changes: Record<string, unknown> = {},
 ) {
-  return createExecutionVerifier(
+  const verifier = createExecutionVerifier(
     {
       url: "https://trusted-fixture.invalid/v1/executions/verify",
       approvedOrigin: "https://trusted-fixture.invalid",
@@ -74,4 +74,7 @@ export function trustedFixtureVerifier(
       );
     },
   )!;
+  // In-memory signed-record transport only: no network destination exists here.
+  // Production contexts still require policy; this fixture is used by legacy DB-only proofs.
+  return { ...verifier, destinationUrl: undefined };
 }

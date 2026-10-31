@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import { transaction } from "../database";
 import { membership, audit } from "../repository";
 import { assertEnvelope } from "../provenance";
-import { authorizeInTransaction } from "../access";
+import { authorizeInTransaction } from "../access/index";
 import { answerOutput, id as identifier } from "../runtime/schema";
 import type { RuntimeService } from "../runtime/knowledge";
 import type { Context } from "../service";

@@ -27,7 +27,7 @@ localStorage 키는 `agent-knowledge-hub.demo.v1`, 테마 키는 `agent-knowledg
 
 ## 1차 K8s 릴리즈와 장기 확장 계획
 
-- [K8S_RELEASE.md](K8S_RELEASE.md): 같은 클러스터의 STG/PROD 네임스페이스에서 앱 1·DB 1로 시작하는 목표 배포 구조, 보안·백업·배포·관측의 최소 필수 게이트. **이 단계는 아직 구현/검증되지 않았다.**
+- [K8S_RELEASE.md](K8S_RELEASE.md): 같은 클러스터의 STG/PROD 네임스페이스에서 앱 1·DB 1로 시작하는 목표 배포 구조, 보안·백업·배포·관측의 최소 필수 게이트. **서버·기본 Kustomize 배포 경로와 생성/사전 검증 도구가 구현되었으나, 실제 사내 클러스터 운영 인수는 미실행이다.**
 - [SCALING_PLAN.md](SCALING_PLAN.md): 사용자 30,000명 시나리오, DAU/RPS/에이전트 작업 기준의 실측 계획, App/worker/DB/검색의 순차적 확장 방안.
 - [ADR 003](adr/003-single-cluster-initial-release.md): 단일 인스턴스·네임스페이스 분리를 선택한 이유와 명시적인 다운타임/공동 장애 위험.
 

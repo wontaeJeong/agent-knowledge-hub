@@ -6,6 +6,12 @@ import { transaction } from "../database";
 import { readers } from "../repository";
 import { acquireSharedMutationGate } from "../operations/gate";
 import { appendOperationalAudit } from "../operations/service";
+import {
+  projectDirectoryMemberships,
+  setManualGroupMembership,
+} from "../identity/directory";
+import { identityTransaction } from "../identity/sessions";
+import { emergencyAuthority } from "../identity/authority";
 
 export const spaceRoles = [
   "read",
@@ -62,27 +68,33 @@ export async function recordAccessAudit(
   operation: string,
   targetId: string,
   data: unknown = {},
+  /** Trusted operation target, never the browser's previously selected space. */
+  workspaceId: string | null = ctx.workspaceId,
 ) {
   const workspace = await db.query("SELECT id FROM workspaces WHERE id=$1", [
-    ctx.workspaceId,
+    workspaceId,
   ]);
   await db.query(
     "INSERT INTO access_audit(principal_id,operation,workspace_id,target_id,data) VALUES($1,$2,$3,$4,$5)",
     [
       ctx.principalId,
       operation,
-      workspace.rowCount ? ctx.workspaceId : null,
+      workspace.rowCount ? workspaceId : null,
       targetId,
       data,
     ],
   );
   if (workspace.rowCount)
-    await appendOperationalAudit(db as PoolClient, ctx, {
-      operation,
-      ...(operation === "source.egress-policy"
-        ? { resource: { kind: "source" as const, id: targetId } }
-        : {}),
-    });
+    await appendOperationalAudit(
+      db as PoolClient,
+      { ...ctx, workspaceId: workspaceId! },
+      {
+        operation,
+        ...(operation === "source.egress-policy"
+          ? { resource: { kind: "source" as const, id: targetId } }
+          : {}),
+      },
+    );
 }
 export type SpaceDescriptor = {
   id: string;
@@ -105,6 +117,11 @@ export async function effectiveAccess(
   db: DB,
   ctx: Context,
 ): Promise<EffectiveAccess> {
+  if ("connect" in db && !("release" in db))
+    return identityTransaction(db as Pool, (client) =>
+      effectiveAccess(client, ctx),
+    );
+  await projectDirectoryMemberships(db, ctx.principalId);
   const r = await db.query(
     `SELECT s.*,n.kind,n.slug AS namespace_slug,n.owner_id,p.kind AS principal_kind,p.company_reader,p.team_create
     FROM access_spaces s JOIN access_namespaces n ON n.id=s.namespace_id
@@ -209,6 +226,7 @@ export async function authorizeActionDb(
   action: Action,
   resource?: { kind: "page" | "source"; id: string; version?: number },
 ) {
+  await ctx.authorization?.assertSession(db as PoolClient);
   const a = await effectiveAccess(db, ctx);
   let shared = false;
   if (
@@ -236,8 +254,50 @@ export async function authorizeActionDb(
         )
       ).rowCount;
   }
-  if (!a.role && !shared) throw Error("NOT_FOUND");
-  if (!a.capabilities.includes(action) && !shared) throw Error("FORBIDDEN");
+  let emergency = false;
+  const authority = emergencyAuthority(ctx);
+  if (
+    authority &&
+    !a.capabilities.includes(action) &&
+    !shared &&
+    resource?.kind === "page" &&
+    Number.isSafeInteger(resource.version) &&
+    resource.version! > 0 &&
+    a.space.namespaceKind === "team" &&
+    ["knowledge.read", "queue.triage", "triage.manage"].includes(action)
+  ) {
+    const admitted = await db.query(
+      "SELECT 1 FROM access_team_members WHERE team_id=$1 AND principal_id=$2 AND active",
+      [a.space.namespaceId, ctx.principalId],
+    );
+    const exact = await db.query(
+      "SELECT 1 FROM versions WHERE workspace_id=$1 AND page_id=$2 AND number=$3",
+      [ctx.workspaceId, resource.id, resource.version],
+    );
+    if (admitted.rowCount && exact.rowCount) {
+      await assertResourceUpperBound(db, ctx, action, resource);
+      emergency = (
+        await authority.emergencyEffectiveCapabilities(db, ctx, resource.id, [
+          action,
+        ])
+      ).includes(action);
+    }
+  }
+  if (!a.role && !shared && !emergency) throw Error("NOT_FOUND");
+  if (!a.capabilities.includes(action) && !shared && !emergency)
+    throw Error("FORBIDDEN");
+  await assertResourceUpperBound(db, ctx, action, resource);
+  return a;
+}
+/** Independent current resource/source/provenance ceiling. Deliberately checks
+ * no role, share or emergency authority: neither approval nor an incident grant
+ * may manufacture original readers or bypass export/lifecycle restrictions. */
+export async function assertResourceUpperBound(
+  db: DB,
+  ctx: Context,
+  action: Action,
+  resource?: { kind: "page" | "source"; id: string; version?: number },
+) {
   if (resource) {
     ident.parse(resource.id);
     const manageTrash = action === "lifecycle.manage";
@@ -336,7 +396,6 @@ export async function authorizeActionDb(
   } else if (action === "data.export" || action === "local.copy") {
     throw Error("FORBIDDEN"); // Reading is never an implicit export/local-copy policy.
   }
-  return a;
 }
 export async function authorizeAction(
   pool: Pool,
@@ -771,6 +830,7 @@ export class AccessService {
       let targets: string[];
       if (b.principalId) targets = [b.principalId];
       else {
+        await projectDirectoryMemberships(db);
         const g = await db.query(
           "SELECT 1 FROM access_groups WHERE id=$1 AND team_id=$2",
           [b.groupId, a.space.namespaceId],
@@ -882,6 +942,7 @@ export class AccessService {
   async readShare(ctx: Context, id: string) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
       await ctx.authorization?.assertSession(db);
+      await projectDirectoryMemberships(db, ctx.principalId);
       const r = await db.query(
         "SELECT * FROM access_shares WHERE workspace_id=$1 AND id=$2 AND NOT revoked AND expires_at>clock_timestamp() AND (principal_id=$3 OR group_id IN (SELECT group_id FROM access_group_members WHERE principal_id=$3))",
         [ctx.workspaceId, ident.parse(id), ctx.principalId],
@@ -1118,31 +1179,38 @@ export class AccessService {
       .object({ slug, name: z.string().min(1).max(100) })
       .strict()
       .parse(input);
-    return this.globalTransaction(ctx, "team.create", async (db) => {
-      const p = await this.principal(db, ctx);
-      if (!p.team_create && process.env.ACCESS_ALLOW_ORG_CREATE !== "true")
-        throw Error("FORBIDDEN");
-      const owned = await db.query(
-        "SELECT count(*)::int AS n FROM access_team_members WHERE principal_id=$1 AND role='owner' AND active",
-        [ctx.principalId],
-      );
-      if (owned.rows[0].n >= 20) throw Error("RATE_LIMITED");
-      const id = randomUUID();
-      await db.query(
-        "INSERT INTO access_namespaces(id,kind,slug,name) VALUES($1,'team',$2,$3)",
-        [id, b.slug, b.name],
-      );
-      await db.query(
-        "INSERT INTO access_team_members VALUES($1,$2,'owner',true)",
-        [id, ctx.principalId],
-      );
-      return { id, ...b, role: "owner", version: 1 };
-    });
+    return this.globalTransaction(
+      ctx,
+      "team.create",
+      async (db) => {
+        const p = await this.principal(db, ctx);
+        if (!p.team_create && process.env.ACCESS_ALLOW_ORG_CREATE !== "true")
+          throw Error("FORBIDDEN");
+        const owned = await db.query(
+          "SELECT count(*)::int AS n FROM access_team_members WHERE principal_id=$1 AND role='owner' AND active",
+          [ctx.principalId],
+        );
+        if (owned.rows[0].n >= 20) throw Error("RATE_LIMITED");
+        const id = randomUUID();
+        await db.query(
+          "INSERT INTO access_namespaces(id,kind,slug,name) VALUES($1,'team',$2,$3)",
+          [id, b.slug, b.name],
+        );
+        await db.query(
+          "INSERT INTO access_team_members VALUES($1,$2,'owner',true)",
+          [id, ctx.principalId],
+        );
+        return { id, ...b, role: "owner", version: 1 };
+      },
+      () => ({ workspaceId: null }),
+    );
   }
   async globalTransaction<T>(
     ctx: Context,
     operation: string,
     run: (db: PoolClient) => Promise<T>,
+    /** Server-only audit projection. It neither changes identity nor authorizes the operation. */
+    auditScope?: (result: T) => { workspaceId: string | null },
   ) {
     const db = await this.pool.connect();
     try {
@@ -1160,6 +1228,8 @@ export class AccessService {
         typeof r === "object" && r && "id" in r && typeof r.id === "string"
           ? r.id
           : ctx.workspaceId,
+        {},
+        auditScope?.(r).workspaceId,
       );
       await db.query("COMMIT");
       return r;
@@ -1175,37 +1245,42 @@ export class AccessService {
       .object({ slug, teamId: ident.optional() })
       .strict()
       .parse(input);
-    return this.globalTransaction(ctx, "space.create", async (db) => {
-      await this.principal(db, ctx);
-      let ns: string;
-      if (b.teamId) {
-        await this.teamOwner(db, ctx, b.teamId);
-        ns = b.teamId;
-      } else {
-        const existing = await db.query(
-          "SELECT id FROM access_namespaces WHERE kind='personal' AND owner_id=$1",
-          [ctx.principalId],
-        );
-        ns = existing.rows[0]?.id ?? randomUUID();
-        if (!existing.rowCount)
-          await db.query(
-            "INSERT INTO access_namespaces(id,kind,slug,name,owner_id) VALUES($1,'personal',$2,'Personal',$3)",
-            [ns, `user-${ctx.principalId}`, ctx.principalId],
+    return this.globalTransaction(
+      ctx,
+      "space.create",
+      async (db) => {
+        await this.principal(db, ctx);
+        let ns: string;
+        if (b.teamId) {
+          await this.teamOwner(db, ctx, b.teamId);
+          ns = b.teamId;
+        } else {
+          const existing = await db.query(
+            "SELECT id FROM access_namespaces WHERE kind='personal' AND owner_id=$1",
+            [ctx.principalId],
           );
-      }
-      const id = randomUUID();
-      await db.query("INSERT INTO workspaces VALUES($1)", [id]);
-      await db.query(
-        "INSERT INTO access_spaces(workspace_id,namespace_id,slug) VALUES($1,$2,$3)",
-        [id, ns, b.slug],
-      );
-      await db.query("INSERT INTO memberships VALUES($1,$2,'reader')", [
-        id,
-        ctx.principalId,
-      ]);
-      if (b.teamId) await this.ensureCompatibilityMembers(db, ns, id);
-      return (await effectiveAccess(db, { ...ctx, workspaceId: id })).space;
-    });
+          ns = existing.rows[0]?.id ?? randomUUID();
+          if (!existing.rowCount)
+            await db.query(
+              "INSERT INTO access_namespaces(id,kind,slug,name,owner_id) VALUES($1,'personal',$2,'Personal',$3)",
+              [ns, `user-${ctx.principalId}`, ctx.principalId],
+            );
+        }
+        const id = randomUUID();
+        await db.query("INSERT INTO workspaces VALUES($1)", [id]);
+        await db.query(
+          "INSERT INTO access_spaces(workspace_id,namespace_id,slug) VALUES($1,$2,$3)",
+          [id, ns, b.slug],
+        );
+        await db.query("INSERT INTO memberships VALUES($1,$2,'reader')", [
+          id,
+          ctx.principalId,
+        ]);
+        if (b.teamId) await this.ensureCompatibilityMembers(db, ns, id);
+        return (await effectiveAccess(db, { ...ctx, workspaceId: id })).space;
+      },
+      (result) => ({ workspaceId: result.id }),
+    );
   }
   async activeMember(db: DB, teamId: string, principalId: string) {
     const r = await db.query(
@@ -1480,14 +1555,31 @@ export class AccessService {
       if (n.version !== b.expectedVersion) throw Error("STALE_VERSION");
       await this.lockTeamSpaces(db, n.id);
       for (const p of b.principalIds) await this.activeMember(db, n.id, p);
-      await db.query("DELETE FROM access_group_members WHERE group_id=$1", [
-        id,
-      ]);
-      for (const p of new Set(b.principalIds))
-        await db.query("INSERT INTO access_group_members VALUES($1,$2)", [
-          id,
-          p,
-        ]);
+      const existing = await db.query(
+        `SELECT principal_id FROM access_group_members WHERE group_id=$1
+       UNION SELECT principal_id FROM identity_manual_group_members WHERE group_id=$1
+       UNION SELECT e.principal_id FROM identity_directory_edges e JOIN identity_directory_bindings b ON b.id=e.binding_id WHERE b.group_id=$1`,
+        [id],
+      );
+      const selected = new Set(b.principalIds);
+      // Explicit selection is a manual product grant. Unselected projected rows
+      // receive a tombstone; unchanged directory-visible rows are not silently
+      // promoted unless explicitly selected by this authorized product change.
+      for (const p of existing.rows)
+        if (!selected.has(p.principal_id))
+          await setManualGroupMembership(
+            db,
+            ctx,
+            id,
+            p.principal_id,
+            false,
+            async () => {},
+            { canonicalMutation: true },
+          );
+      for (const p of selected)
+        await setManualGroupMembership(db, ctx, id, p, true, async () => {}, {
+          canonicalMutation: true,
+        });
       await this.invalidateTeam(db, n.id);
       return { ok: true };
     });

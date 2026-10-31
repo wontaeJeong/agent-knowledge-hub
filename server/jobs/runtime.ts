@@ -11,6 +11,8 @@ import {
 import { transaction } from "../database";
 import { fingerprint } from "../provenance";
 import type { Context } from "../service";
+import { assertJobFeatures } from "../policy/features";
+import { sourcePolicyHash } from "../policy/model";
 import { RuntimeService, type RuntimeExecution } from "../runtime/knowledge";
 import { modelConfig, MODEL_CONTRACT_VERSION } from "../runtime/model";
 import { ingestInput, queryInput } from "../runtime/schema";
@@ -23,6 +25,23 @@ import {
 } from "./identity";
 
 export interface RuntimeJobsOptions extends RuntimeIdentityOptions {
+  /** Trusted DB-only sealed conversation preparation; not caller-selected source scope. */
+  questions?: {
+    prepare: (
+      db: PoolClient,
+      ctx: Context,
+      input: unknown,
+    ) => Promise<{
+      payload: Record<string, unknown>;
+      pageIds: string[];
+      sourceIds: string[];
+    }>;
+    execute: (
+      ctx: Context,
+      payload: Record<string, unknown>,
+      execution: RuntimeExecution,
+    ) => Promise<unknown>;
+  };
   semanticLint?: {
     prepare: (
       db: PoolClient,
@@ -84,7 +103,27 @@ function payloadFor(
   payload: unknown,
   internal = false,
 ): Record<string, unknown> {
-  if (kind === "query") return queryInput.parse(payload);
+  if (kind === "query") {
+    if (payload && typeof payload === "object" && "threadId" in payload) {
+      const base = z
+        .object({
+          threadId: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+          turnId: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+        })
+        .strict();
+      return (
+        internal
+          ? base
+              .extend({
+                mode: z.enum(["offline", "model"]),
+                prepared: z.record(z.string(), z.unknown()),
+              })
+              .strict()
+          : base
+      ).parse(payload);
+    }
+    return queryInput.parse(payload);
+  }
   if (kind === "ingest") return ingestInput.parse(payload);
   if (
     kind === "lint" &&
@@ -241,6 +280,10 @@ export function createRuntimeJobs(
       ).rowCount;
       return fingerprint({
         access,
+        transmissionPolicy: await sourcePolicyHash(db, ctx, {
+          pageIds: [],
+          sourceIds: [],
+        }),
         flags: flags.map((f) => ({
           ...f,
           currentRecommendation:
@@ -271,7 +314,25 @@ export function createRuntimeJobs(
       )
         throw Error("SEMANTIC_SCHEDULE_NOT_SUPPORTED");
       const payload = payloadFor(input.kind, input.payload, true);
+      if (purpose !== "read") await assertJobFeatures(db, ctx, input.kind);
       await authorizeActionDb(db, ctx, actionFor(input.kind));
+      if (input.kind === "query" && typeof payload.threadId === "string") {
+        if (!options.questions) throw Error("QUESTION_JOBS_NOT_CONFIGURED");
+        const fresh = await options.questions.prepare(
+          db,
+          ctx,
+          payload.prepared,
+        );
+        if (
+          fingerprint(fresh.payload) !== fingerprint(payload.prepared) ||
+          fresh.payload.mode !== payload.mode ||
+          fingerprint([...fresh.pageIds].sort()) !==
+            fingerprint([...input.pageIds].sort()) ||
+          fingerprint([...fresh.sourceIds].sort()) !==
+            fingerprint([...input.sourceIds].sort())
+        )
+          throw Error("STALE_VERSION");
+      }
       if (payload.semantic === true) {
         const sealed = await prepareSemantic(db, ctx, payload.prepared);
         if (
@@ -351,7 +412,8 @@ export function createRuntimeJobs(
       } else if (
         actor?.kind === "service" &&
         purpose === "execute" &&
-        payload.semantic !== true
+        payload.semantic !== true &&
+        typeof payload.threadId !== "string"
       ) {
         const state = (await service.view(db, ctx)).state;
         if (
@@ -440,6 +502,31 @@ export function createRuntimeJobs(
   ): Promise<JobInput> => {
     await authorizeInTransaction(db, ctx, actionFor(kind));
     await authorizeActionDb(db, ctx, "knowledge.read");
+    if (kind === "query" && typeof payload.threadId === "string") {
+      if (!options.questions) throw Error("QUESTION_JOBS_NOT_CONFIGURED");
+      const prepared = await options.questions.prepare(db, ctx, payload);
+      if (
+        Buffer.byteLength(JSON.stringify(prepared)) > 450000 ||
+        prepared.pageIds.length + prepared.sourceIds.length > 200
+      )
+        throw Error("INPUT_LIMIT");
+      const mode = z.enum(["offline", "model"]).parse(prepared.payload.mode);
+      return {
+        ...settings(
+          kind,
+          {
+            threadId: payload.threadId,
+            turnId: payload.turnId,
+            mode,
+            prepared: prepared.payload,
+          },
+          key,
+          requested,
+        ),
+        pageIds: [...new Set(prepared.pageIds)].sort(),
+        sourceIds: [...new Set(prepared.sourceIds)].sort(),
+      };
+    }
     if (kind === "lint" && payload.semantic === true) {
       const prepared = await prepareSemantic(db, ctx, payload);
       return {
@@ -479,6 +566,12 @@ export function createRuntimeJobs(
     const payload = payloadFor(kind, raw);
     if (payload.semantic === true && !options.semanticLint)
       throw Error("SEMANTIC_LINT_NOT_CONFIGURED");
+    if (
+      kind === "query" &&
+      typeof payload.threadId === "string" &&
+      !options.questions
+    )
+      throw Error("QUESTION_JOBS_NOT_CONFIGURED");
     await ctx.authorization?.revalidate();
     const parentSession = ctx.authorization
       ? await authority.prepareSession(ctx)
@@ -790,7 +883,14 @@ export function createRuntimeJobs(
     const input = run.lease.input,
       payload = payloadFor(input.kind, input.payload, true);
     let value: unknown;
-    if (input.kind === "query")
+    if (input.kind === "query" && typeof payload.threadId === "string") {
+      if (!options.questions) throw Error("QUESTION_JOBS_NOT_CONFIGURED");
+      value = await options.questions.execute(
+        ctx,
+        payload.prepared as Record<string, unknown>,
+        e,
+      );
+    } else if (input.kind === "query")
       value = await service.query(
         ctx,
         payload.question as string,

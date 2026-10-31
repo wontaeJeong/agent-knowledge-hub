@@ -6,7 +6,7 @@ import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fixture, adoptFixture } from "../test-support";
-import { AccessService, authorizeInTransaction } from "../access";
+import { AccessService, authorizeInTransaction } from "../access/index";
 import { StorageService, FileBlobStore } from "../storage";
 import { RefinementService } from "../refinement/service";
 import { RuntimeService } from "./knowledge";
@@ -375,6 +375,8 @@ test("production HTTP accepts durable work before execution and exposes only the
     expect(accepted.status).toBe(202);
     const receipt = await accepted.json();
     expect(receipt).toMatchObject({ status: "queued" });
+    const requestId=accepted.headers.get('x-request-id');expect(requestId).toBeTruthy();
+    const trace=await fetch(url+`/api/v1/traces/${requestId}`,{headers});expect(trace.status).toBe(200);expect(await trace.json()).toMatchObject({requestId,operation:'query',job:{id:receipt.id,status:'queued'},modelCalls:[]});
     expect(await jobs.worker.tick()).toBe(true);
     const done = await fetch(url + `/api/v1/jobs-v2/${receipt.id}`, {
       headers,
@@ -488,4 +490,15 @@ test("actual probes expose protected measured metrics, keep liveness independent
   } finally {
     await new Promise<void>((r) => live.close(() => r()));
   }
+});
+test('disabled query policy blocks the direct authenticated URL and cannot be changed by a delegated token',async()=>{
+  const ownerHeaders={Cookie:`akh_session=${ownerCookie}`,Origin:'http://localhost','X-CSRF-Token':'owner-csrf','Content-Type':'application/json'};
+  const forbidden=await fetch(base+'/api/v1/policy/features/query',{method:'PUT',headers:{Authorization:`Bearer ${secret}`,'Content-Type':'application/json'},body:JSON.stringify({expectedRevision:0,enabled:false})});
+  expect(forbidden.status).toBe(403);
+  const disabled=await fetch(base+'/api/v1/policy/features/query',{method:'PUT',headers:ownerHeaders,body:JSON.stringify({expectedRevision:0,enabled:false})});
+  expect(disabled.status,await disabled.clone().text()).toBe(200);
+  try{
+    const denied=await fetch(base+'/api/v1/query',{method:'POST',headers:{Cookie:`akh_session=${cookie}`,Origin:'http://localhost','X-CSRF-Token':'csrf','Content-Type':'application/json'},body:JSON.stringify({question:'기존 내용',mode:'offline'})});
+    expect(denied.status).toBe(403);expect(await denied.json()).toMatchObject({code:'FEATURE_DISABLED'});
+  }finally{expect((await fetch(base+'/api/v1/policy/features/query',{method:'PUT',headers:ownerHeaders,body:JSON.stringify({expectedRevision:1,enabled:true})})).status).toBe(200);}
 });

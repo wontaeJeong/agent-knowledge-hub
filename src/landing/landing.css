@@ -51,7 +51,7 @@
   font-weight: 700;
   letter-spacing: -0.5px;
 }
-.landing-brand img {
+.landing-brand svg {
   flex-shrink: 0;
 }
 .landing-nav,
@@ -674,7 +674,7 @@
     font-size: 13px;
     gap: 6px;
   }
-  .landing-header .landing-brand img {
+  .landing-header .landing-brand svg {
     width: 28px;
     height: 28px;
   }

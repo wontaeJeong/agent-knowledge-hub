@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { fixture, adoptFixture } from "../test-support";
-import { AccessService } from "../access";
+import { AccessService } from "../access/index";
 import { RuntimeService } from "./knowledge";
 import { createRuntimeHandler } from "./http";
 import { createRuntimeJobs } from "../jobs/runtime";
