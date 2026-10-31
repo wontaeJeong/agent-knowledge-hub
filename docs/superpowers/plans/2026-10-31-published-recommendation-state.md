@@ -29,8 +29,8 @@
 
 **Files:** `src/operational/App.tsx`, focused UI test(s), and dependency metadata only if needed.
 
-- [x] Write interactive failing tests for all/default, current/non-current/unknown, overdue independence, filtering, search, pagination and empty results.
-- [x] Run tests and observe the expected failure before implementation.
+- [ ] Original RED covered the initial status labels/default list and filtering only; it did not separately demonstrate failures for every search, pagination or empty-result case. Later regression coverage is recorded in the handoff.
+- [x] Run the initial status test and observe the expected failure before implementation.
 - [x] Add server-value-only Korean status labels, independent overdue explanation and opt-in filter. Reset pagination on selection and data change; hide protected list while reloading or on error.
 - [x] Run focused tests and confirm passing.
 
@@ -40,5 +40,5 @@
 
 - [x] Verify actual runtime HTTP response and authorization revocation using test DB; cover current, overdue, future and replacement states.
 - [x] Run Node 24 `npm run check`; inspect results rather than treating missing tests as passing.
-- [ ] Verify real Chromium at 390px and 1440px including keyboard, pagination, empty results and overflow; identify actual versus synthetic API fixtures and capture both viewports. **Partial:** native select arrow-key operation remains unverified; pagination was exercised in Chromium with 30 synthetic pages.
+- [x] Verify Chromium at 390px and 1440px including keyboard, pagination, empty results and overflow; identify actual versus synthetic API fixtures and capture both viewports. Linux Chromium keyboard operation passed; macOS native menu operation remains unverified as described in the handoff.
 - [ ] Record exact verification and remaining gaps; commit, push via SSH and open a small PR without merging.
