@@ -351,6 +351,13 @@ test("unintegrated turn submission and bearer credentials fail closed", async ()
       })
     ).status,
   ).toBe(403);
+  expect(
+    (
+      await fetch(base + path + "/" + thread.id, {
+        headers: { Authorization: "Bearer " + secret },
+      })
+    ).status,
+  ).toBe(403);
   const old = process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED;
   process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED = "true";
   try {
@@ -364,6 +371,13 @@ test("unintegrated turn submission and bearer credentials fail closed", async ()
     expect(
       (
         await fetch(base + path, {
+          headers: { Authorization: "Bearer " + token },
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await fetch(base + path + "/" + thread.id, {
           headers: { Authorization: "Bearer " + token },
         })
       ).status,
