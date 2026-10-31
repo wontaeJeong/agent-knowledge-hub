@@ -35,7 +35,7 @@ it("rejects assistant artifacts without a trusted session binding regardless of 
     );
   }
 });
-it("parses actual 2.2.2 API response fixture without elevating author statements", async () => {
+it("rejects synthetic artifacts without a trusted binding or exclusion policy", async () => {
   const fixture = JSON.parse(
     await readFile(
       new URL("./fixtures/opencode-2.2.2-synthetic.json", import.meta.url),
@@ -49,11 +49,9 @@ it("parses actual 2.2.2 API response fixture without elevating author statements
     selectedIds: [fixture.data.id],
     excludedSessionIds: [],
   };
-  const result = collectArtifact(fixture, opts);
-  expect(result.content).toContain("한글");
-  expect(result.verification).toBe("unverified");
-  expect(result.kind).toBe("author-statement");
-  expect(collectArtifact(fixture, opts).sha256).toBe(result.sha256);
+  expect(() => collectArtifact(fixture, opts)).toThrow(
+    "ARTIFACT_SESSION_UNVERIFIED",
+  );
   expect(() => collectArtifact(fixture, { ...opts, version: "2.2.3" })).toThrow(
     "UNSUPPORTED_COLLECTOR_VERSION",
   );
@@ -62,9 +60,9 @@ it("parses actual 2.2.2 API response fixture without elevating author statements
       ...opts,
       excludedSessionIds: [fixture.data.sessionID],
     }),
-  ).toThrow("COLLECTION_EXCLUDED");
+  ).toThrow("ARTIFACT_SESSION_UNVERIFIED");
   expect(() => collectArtifact(fixture, { ...opts, selectedIds: [] })).toThrow(
-    "COLLECTION_EXCLUDED",
+    "ARTIFACT_SESSION_UNVERIFIED",
   );
   const hidden = structuredClone(fixture);
   hidden.data.payload.reasoning = "private";

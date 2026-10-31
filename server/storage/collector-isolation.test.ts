@@ -15,33 +15,38 @@ it("rejects an assistant artifact with a caller-spoofed session before source in
   const ingestText = vi.fn();
   const send = vi.fn();
   const route = storageRoutes({ ingestText } as unknown as StorageService);
-  await expect(
-    route({
-      method: "POST",
-      path: "/api/v1/storage/collect-artifact",
-      ctx: {} as Context,
-      send,
-      body: {
-        artifact,
-        tool: "opencode",
-        version: "2.2.2",
-        format: "api.assistant-message",
-        sessionId: "ses_other",
-        selectedIds: [artifact.data.id],
-        selectedToolIds: ["call_redacted1"],
-        excludedSessionIds: ["ses_redactedFixture"],
-        title: "fixture",
-        project: "fixture",
-      },
-    }),
-  ).rejects.toThrow("ARTIFACT_SESSION_UNVERIFIED");
+  await route({
+    method: "POST",
+    path: "/api/v1/storage/collect-artifact",
+    ctx: {} as Context,
+    send,
+    body: {
+      artifact,
+      tool: "opencode",
+      version: "2.2.2",
+      format: "api.assistant-message",
+      sessionId: "ses_other",
+      selectedIds: [artifact.data.id],
+      selectedToolIds: ["call_redacted1"],
+      excludedSessionIds: ["ses_redactedFixture"],
+      title: "fixture",
+      project: "fixture",
+    },
+  });
   expect(ingestText).not.toHaveBeenCalled();
-  expect(send).not.toHaveBeenCalled();
+  expect(send).toHaveBeenCalledWith(
+    409,
+    expect.objectContaining({ code: "ARTIFACT_SESSION_UNVERIFIED" }),
+  );
 });
 
-it("advertises assistant collection as unavailable and preserves synthetic collection", async () => {
+it("advertises both formats as unavailable and rejects synthetic collection", async () => {
   expect(
     collectorSupport.find((item) => item.format === "api.assistant-message")
+      ?.available,
+  ).toBe(false);
+  expect(
+    collectorSupport.find((item) => item.format === "api.synthetic-message")
       ?.available,
   ).toBe(false);
   const artifact = JSON.parse(
@@ -69,6 +74,9 @@ it("advertises assistant collection as unavailable and preserves synthetic colle
       project: "fixture",
     },
   });
-  expect(ingestText).toHaveBeenCalledOnce();
-  expect(send).toHaveBeenCalledWith(201, { id: "source-fixture" });
+  expect(ingestText).not.toHaveBeenCalled();
+  expect(send).toHaveBeenCalledWith(
+    409,
+    expect.objectContaining({ code: "ARTIFACT_SESSION_UNVERIFIED" }),
+  );
 });
