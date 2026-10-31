@@ -1,12 +1,15 @@
 import { test, expect, afterAll } from "vitest";
 import { Pool } from "pg";
 import { createHash, randomUUID } from "node:crypto";
-import { fixture, adoptFixture } from "../test-support";
+import { fixture, adoptFixture, page } from "../test-support";
+import { transaction } from "../database";
+import { capturePublishedVersionMetadata } from "../workflows/versions/metadata";
 import { authorizeInTransaction } from "../access/index";
 import { OperationsService } from "./service";
-import { previewErasure, executeErasure, replayProductErasure } from "./erasure";
+import { previewErasure, executeErasure, replayProductErasure, hasVersionWorkflowData } from "./erasure";
 import { operationsAuthorizer } from "./authorization";
 import { recordModelUsage } from "../model-usage";
+import { captureRecoveryLedger, readRecoveryLedger } from "./recovery";
 import { handleCredentialRequest, pollDevice, startDevice } from "../agent-credentials";
 import { QuestionsService } from "../questions/service";
 import { RuntimeService } from "../runtime/knowledge";
@@ -48,6 +51,168 @@ async function setup() {
     s: new OperationsService(f.pool, authorizeInTransaction),
   };
 }
+test("workspace erasure cannot complete while immutable version metadata remains", async () => {
+  const f = await setup();
+  await transaction(f.pool, f.workspaceId, async db => {
+    await db.query("INSERT INTO versions VALUES($1,'topic',2,$2)", [f.workspaceId, {...page.versions[0], number: 2}]);
+    await capturePublishedVersionMetadata(db, f.editor, "topic", 2);
+  });
+  const input = {scope: "workspace" as const};
+  const preview = await previewErasure(f.s, f.ctx, input);
+  await expect(executeErasure(f.s, f.ctx, {...input, previewHash: preview.previewHash, confirm: "ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+  expect((await f.pool.query("SELECT 1 FROM version_metadata WHERE workspace_id=$1", [f.workspaceId])).rowCount).toBe(1);
+});
+test("workspace erasure cannot complete while immutable metadata events remain", async () => {
+  const f = await setup();
+  await f.pool.query("INSERT INTO version_metadata_events(workspace_id,page_id,actor_id,reason,before_snapshot,after_snapshot) VALUES($1,'topic','editor','private reason',$2,$3)", [f.workspaceId, {title: "private before"}, {title: "private after"}]);
+  const input = {scope: "workspace" as const};
+  const preview = await previewErasure(f.s, f.ctx, input);
+  await expect(executeErasure(f.s, f.ctx, {...input, previewHash: preview.previewHash, confirm: "ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+  expect((await f.pool.query("SELECT 1 FROM version_metadata_events WHERE workspace_id=$1", [f.workspaceId])).rowCount).toBe(1);
+});
+test("unsupported version preflight failure leaves no deletion fence and permits later writes", async () => {
+  const f = await setup();
+  await f.pool.query("INSERT INTO version_metadata_events(workspace_id,page_id,actor_id,reason,before_snapshot,after_snapshot) VALUES($1,'topic','editor','reason','{}','{}')", [f.workspaceId]);
+  const input = {scope:"workspace" as const}, preview = await previewErasure(f.s, f.ctx, input);
+  for (let i=0;i<2;i++) await expect(executeErasure(f.s,f.ctx,{...input,previewHash:preview.previewHash,confirm:"ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+  const receipts = (await f.pool.query("SELECT status,error_code FROM operations_erasure_receipts WHERE workspace_id=$1",[f.workspaceId])).rows;
+  expect(receipts).toHaveLength(2);
+  expect(receipts.every(r=>r.status==="failed" && r.error_code==="ERASURE_VERSION_METADATA_UNSUPPORTED")).toBe(true);
+  expect((await f.pool.query("SELECT count(*)::int AS n FROM operations_audit_chain WHERE workspace_id=$1 AND event->>'operation'='content.erasure-blocked'",[f.workspaceId])).rows[0].n).toBe(2);
+  expect((await f.pool.query("SELECT 1 FROM operations_tombstones WHERE workspace_id=$1",[f.workspaceId])).rowCount).toBe(0);
+  const key="recovery-key".repeat(5), signing="independent-recovery".repeat(4);
+  const ledger=readRecoveryLedger(await captureRecoveryLedger(f.pool,key,signing),key,signing);
+  expect(ledger.erasureScopes?.some(s=>s.workspace_id===f.workspaceId)).toBe(false);
+  const questions = new QuestionsService(f.pool,{runtime:new RuntimeService(f.pool),authorize:authorizeInTransaction,runQuery:async()=>{throw Error('NOT_CONFIGURED');}});
+  await expect(questions.createThread({...f.editor,authorization:{revalidate:async()=>{},assertSession:async()=>{}}})).resolves.toHaveProperty("id");
+  const old=process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED;
+  process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED="true";
+  try {
+    await expect(handleCredentialRequest(f.pool,f.ctx,"POST","/api/v1/credentials/keys",{name:"fixture",scope:"read"},"http://localhost")).resolves.toBeTruthy();
+    await expect(recordModelUsage({pool:f.pool,workspaceId:f.workspaceId,principalId:"editor"},{operation:"query",provider:"openai",backend:"external",model:"fixture",deploymentId:null,succeeded:true,latencyMs:1,inputTokens:null,outputTokens:null,cacheReadTokens:null,cacheWriteTokens:null,costUsd:null,errorCode:null})).resolves.toBeUndefined();
+  } finally { if(old===undefined)delete process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED;else process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED=old; }
+});
+test("an existing blocked workspace receipt still fences question and agent writes", async () => {
+  const f=await setup();
+  await f.pool.query("INSERT INTO operations_erasure_receipts(workspace_id,id,preview_hash,scope,approved_by,status,counts,error_code) VALUES($1,$2,$3,'workspace','fixture-owner','blocked','{}','LEGAL_HOLD')",[f.workspaceId,randomUUID(),'a'.repeat(64)]);
+  const questions=new QuestionsService(f.pool,{runtime:new RuntimeService(f.pool),authorize:authorizeInTransaction,runQuery:async()=>{throw Error('NOT_CONFIGURED');}});
+  await expect(questions.createThread({...f.editor,authorization:{revalidate:async()=>{},assertSession:async()=>{}}})).rejects.toThrow("ERASURE_QUESTION_WRITES_FENCED");
+  await expect(recordModelUsage({pool:f.pool,workspaceId:f.workspaceId,principalId:"editor"},{operation:"query",provider:"openai",backend:"external",model:"fixture",deploymentId:null,succeeded:true,latencyMs:1,inputTokens:null,outputTokens:null,cacheReadTokens:null,cacheWriteTokens:null,costUsd:null,errorCode:null})).rejects.toThrow("ERASURE_AGENT_WRITES_FENCED");
+  const old=process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED;process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED="true";
+  try {await expect(handleCredentialRequest(f.pool,f.ctx,"POST","/api/v1/credentials/keys",{name:"fixture",scope:"read"},"http://localhost")).rejects.toThrow("ERASURE_AGENT_WRITES_FENCED");}
+  finally {if(old===undefined)delete process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED;else process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED=old;}
+});
+test("legal hold takes precedence over unsupported version preflight", async () => {
+  const f=await setup();
+  await f.pool.query("INSERT INTO version_metadata_events(workspace_id,page_id,actor_id,reason,before_snapshot,after_snapshot) VALUES($1,'topic','editor','reason','{}','{}')",[f.workspaceId]);
+  await f.pool.query("INSERT INTO operations_legal_holds(workspace_id,id,resource_kind,resource_id,placed_by) VALUES($1,'hold','workspace',$1,'fixture-owner')",[f.workspaceId]);
+  const input={scope:"workspace" as const},preview=await previewErasure(f.s,f.ctx,input);
+  expect(preview.legalHold).toBe(true);
+  await expect(executeErasure(f.s,f.ctx,{...input,previewHash:preview.previewHash,confirm:"ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("LEGAL_HOLD");
+  expect((await f.pool.query("SELECT status,error_code FROM operations_erasure_receipts WHERE workspace_id=$1",[f.workspaceId])).rows).toContainEqual({status:"blocked",error_code:"LEGAL_HOLD"});
+});
+test.each(["resource","workspace"] as const)("%s erasure rechecks metadata committed while waiting for the gate", async scope => {
+  const f=await setup(), writer=await f.pool.connect();
+  const input=scope==="resource"?{scope,resource:{kind:"source" as const,id:"source-a"}}:{scope};
+  const preview=await previewErasure(f.s,f.ctx,input);
+  let attempt:Promise<unknown>|undefined;
+  try {
+    await writer.query("BEGIN");
+    await writer.query("SELECT pg_advisory_xact_lock_shared(822025)");
+    const pid=(await writer.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    await writer.query("INSERT INTO version_metadata_events(workspace_id,page_id,actor_id,reason,before_snapshot,after_snapshot) VALUES($1,'topic','editor','reason','{}','{}')",[f.workspaceId]);
+    attempt=executeErasure(f.s,f.ctx,{...input,previewHash:preview.previewHash,confirm:scope==="resource"?"ERASE_PREVIEWED_RESOURCE_LINEAGE":"ERASE_ENTIRE_WORKSPACE"});
+    const rejected=expect(attempt).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+    let blocked:number[]=[];
+    for(let i=0;i<1000&&!blocked.length;i++) blocked=(await writer.query("SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND $1=ANY(pg_blocking_pids(pid))",[pid])).rows.map(r=>r.pid);
+    expect(blocked.length).toBeGreaterThan(0);
+    await writer.query("COMMIT");
+    await rejected;
+    expect((await f.pool.query("SELECT status,error_code FROM operations_erasure_receipts WHERE workspace_id=$1",[f.workspaceId])).rows).toContainEqual({status:"failed",error_code:"ERASURE_VERSION_METADATA_UNSUPPORTED"});
+    expect((await f.pool.query("SELECT 1 FROM operations_tombstones WHERE workspace_id=$1",[f.workspaceId])).rowCount).toBe(0);
+  } finally {await writer.query("ROLLBACK");writer.release();if(attempt)await attempt.catch(()=>{});}
+});
+test("version workflow data blocks both scopes and replay only in its own workspace", async () => {
+  const a = await setup(), b = await setup();
+  const resource = {scope: "resource" as const, resource: {kind: "source" as const, id: "source-a"}};
+  const before = await previewErasure(a.s, a.ctx, resource);
+  await a.pool.query("INSERT INTO version_restore_previews(workspace_id,principal_id,hash,payload,expires_at) VALUES($1,'editor','preview',$2,now()+interval '1 hour')", [a.workspaceId, {content: "protected"}]);
+  await expect(executeErasure(a.s, a.ctx, {...resource, previewHash:before.previewHash, confirm:"ERASE_PREVIEWED_RESOURCE_LINEAGE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+  for (const input of [resource, {scope: "workspace" as const}]) {
+    const preview = await previewErasure(a.s, a.ctx, input);
+    expect(preview.versionWorkflowDataUnsupported).toBe(true);
+    await expect(executeErasure(a.s, a.ctx, {...input, previewHash: preview.previewHash, confirm: input.scope === "resource" ? "ERASE_PREVIEWED_RESOURCE_LINEAGE" : "ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+    const db = await a.pool.connect();
+    try {
+      await db.query("BEGIN");
+      await expect(replayProductErasure(db, a.workspaceId, input.scope === "resource" ? [input.resource] : [], input.scope === "workspace")).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+    } finally { await db.query("ROLLBACK"); db.release(); }
+  }
+  expect((await previewErasure(b.s, b.ctx, resource)).versionWorkflowDataUnsupported).toBe(false);
+  const preview = await previewErasure(b.s, b.ctx, resource);
+  expect((await executeErasure(b.s, b.ctx, {...resource, previewHash: preview.previewHash, confirm: "ERASE_PREVIEWED_RESOURCE_LINEAGE"})).status).toBe("completed");
+  expect((await a.pool.query("SELECT payload FROM version_restore_previews WHERE workspace_id=$1", [a.workspaceId])).rows[0].payload.content).toBe("protected");
+});
+test.each(["versions_decisions", "version_restore_plans", "version_restore_applications"])("%s records block workspace erasure", async table => {
+  const f = await setup();
+  await f.pool.query("INSERT INTO batches(workspace_id,id,data,hash) VALUES($1,'batch','{}','hash')", [f.workspaceId]);
+  if (table === "versions_decisions") {
+    await f.pool.query("INSERT INTO versions_decisions(id,workspace_id,original_batch_id,original_hash,actor_id,decision,selected_page_ids,reasons,attribution) VALUES($2,$1,'batch','hash','editor','reject',ARRAY['topic'], $3,$3)", [f.workspaceId, randomUUID(), {reason:"private"}]);
+  } else {
+    await f.pool.query("INSERT INTO version_restore_plans(workspace_id,batch_id,batch_hash,page_id,plan_hash,payload) VALUES($1,'batch','hash','topic','hash',$2)", [f.workspaceId, {content:"private"}]);
+    if (table === "version_restore_applications") await f.pool.query("INSERT INTO version_restore_applications(workspace_id,batch_id,page_id,number,plan_hash,applied_by) VALUES($1,'batch','topic',1,'hash','editor')", [f.workspaceId]);
+  }
+  const input = {scope:"workspace" as const}, preview = await previewErasure(f.s, f.ctx, input);
+  expect(preview.versionWorkflowDataUnsupported).toBe(true);
+  await expect(executeErasure(f.s, f.ctx, {...input, previewHash:preview.previewHash, confirm:"ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+});
+test("each version workflow EXISTS independently detects its own real row", async () => {
+  const f=await setup(), db=await f.pool.connect();
+  const tables=["version_metadata","version_metadata_events","versions_decisions","version_restore_previews","version_restore_plans","version_restore_applications"];
+  try {
+    await db.query("INSERT INTO version_metadata(workspace_id,page_id,number,snapshot,snapshot_hash,anchors,actor_id) VALUES($1,'topic',1,'{}','hash','{}','editor')",[f.workspaceId]);
+    await db.query("INSERT INTO version_metadata_events(workspace_id,page_id,actor_id,reason,before_snapshot,after_snapshot) VALUES($1,'topic','editor','reason','{}','{}')",[f.workspaceId]);
+    await db.query("INSERT INTO batches(workspace_id,id,data,hash) VALUES($1,'batch','{}','hash')",[f.workspaceId]);
+    await db.query("INSERT INTO versions_decisions(id,workspace_id,original_batch_id,original_hash,actor_id,decision,selected_page_ids,reasons,attribution) VALUES($2,$1,'batch','hash','editor','reject',ARRAY['topic'],'{}','{}')",[f.workspaceId,randomUUID()]);
+    await db.query("INSERT INTO version_restore_previews(workspace_id,principal_id,hash,payload,expires_at) VALUES($1,'editor','preview','{}',now()+interval '1 hour')",[f.workspaceId]);
+    await db.query("INSERT INTO version_restore_plans(workspace_id,batch_id,batch_hash,page_id,plan_hash,payload) VALUES($1,'batch','hash','topic','hash','{}')",[f.workspaceId]);
+    await db.query("INSERT INTO version_restore_applications(workspace_id,batch_id,page_id,number,plan_hash,applied_by) VALUES($1,'batch','topic',1,'hash','editor')",[f.workspaceId]);
+    for (const target of [...tables, "none"]) {
+      let replaced=0;
+      const proxy={query:(sql:string,values:unknown[])=>{
+        for(const table of tables.filter(t=>t!==target)) {
+          const part=`EXISTS(SELECT 1 FROM ${table} WHERE workspace_id=$1)`;
+          expect(sql).toContain(part); sql=sql.replace(part,"($1::text IS NULL AND FALSE)"); replaced++;
+        }
+        return db.query(sql,values);
+      }} as unknown as import("pg").PoolClient;
+      expect(await hasVersionWorkflowData(proxy,f.workspaceId),target).toBe(target!=="none");
+      expect(replaced).toBe(target==="none"?6:5);
+    }
+  } finally {db.release();}
+});
+test("legacy arbitrary-client capture bypasses the exclusive erasure gate", async () => {
+  const f = await setup();
+  const gate = await f.pool.connect(), writer = await f.pool.connect();
+  let capture: Promise<void> | undefined;
+  try {
+    await writer.query("BEGIN");
+    await writer.query("INSERT INTO versions VALUES($1,'topic',2,$2)", [f.workspaceId, {...page.versions[0], number: 2}]);
+    const pid = (await writer.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    await gate.query("BEGIN");
+    await gate.query("SELECT pg_advisory_xact_lock(822025)");
+    capture = capturePublishedVersionMetadata(writer, f.editor, "topic", 2);
+    await gate.query("SELECT pg_sleep(0.1)");
+    const activity = (await gate.query("SELECT wait_event_type,wait_event FROM pg_stat_activity WHERE pid=$1", [pid])).rows[0];
+    expect(activity).toMatchObject({wait_event_type: "Client", wait_event: "ClientRead"});
+  } finally {
+    await gate.query("ROLLBACK");
+    if (capture) await capture;
+    await writer.query("ROLLBACK");
+    gate.release();
+    writer.release();
+  }
+});
 test("question copies block resource and workspace erasure and recovery without affecting other workspaces", async () => {
   const a = await setup(), b = await setup();
   await a.pool.query("INSERT INTO question_threads(workspace_id,id,principal_id,revision) VALUES($1,'thread','editor',1)", [a.workspaceId]);

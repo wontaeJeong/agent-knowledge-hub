@@ -8,7 +8,9 @@ test("unsupported or unknown credential data blocks erasure", () => {
   expect(erasureAllowed({legalHold:true,agentDataUnsupported:false})).toBe(false);
   expect(erasureAllowed({legalHold:false,agentDataUnsupported:false})).toBe(false);
   expect(erasureAllowed({legalHold:false,agentDataUnsupported:false,questionDataUnsupported:true})).toBe(false);
-  expect(erasureAllowed({legalHold:false,agentDataUnsupported:false,questionDataUnsupported:false})).toBe(true);
+  expect(erasureAllowed({legalHold:false,agentDataUnsupported:false,questionDataUnsupported:false})).toBe(false);
+  expect(erasureAllowed({legalHold:false,agentDataUnsupported:false,questionDataUnsupported:false,versionWorkflowDataUnsupported:true})).toBe(false);
+  expect(erasureAllowed({legalHold:false,agentDataUnsupported:false,questionDataUnsupported:false,versionWorkflowDataUnsupported:false})).toBe(true);
 });
 test("operations panel stays Korean, scope explicit and browser never accepts backup paths/keys/SQL", () => {
   const html = renderToStaticMarkup(

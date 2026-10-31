@@ -38,10 +38,11 @@ type Preview = {
   legalHold: boolean;
   agentDataUnsupported?: boolean;
   questionDataUnsupported?: boolean;
+  versionWorkflowDataUnsupported?: boolean;
   unresolvedUnlineagedRows: number;
 };
-export function erasureAllowed(preview: { legalHold: boolean; agentDataUnsupported?: boolean; questionDataUnsupported?: boolean }) {
-  return !preview.legalHold && preview.agentDataUnsupported === false && preview.questionDataUnsupported === false;
+export function erasureAllowed(preview: { legalHold: boolean; agentDataUnsupported?: boolean; questionDataUnsupported?: boolean; versionWorkflowDataUnsupported?: boolean }) {
+  return !preview.legalHold && preview.agentDataUnsupported === false && preview.questionDataUnsupported === false && preview.versionWorkflowDataUnsupported === false;
 }
 type Receipt = {
   id: string;
@@ -356,6 +357,9 @@ export function OperationsPanel({
                 )}
                 {preview.questionDataUnsupported !== false && (
                   <p role="alert">질문·피드백 기록의 삭제 및 복원 처리 지원 여부를 확인할 수 없거나 아직 지원되지 않아 영구 삭제를 차단했습니다.</p>
+                )}
+                {preview.versionWorkflowDataUnsupported !== false && (
+                  <p role="alert">버전 이력·복원 기록의 삭제 및 복원 처리 지원 여부를 확인할 수 없거나 아직 지원되지 않아 영구 삭제를 차단했습니다.</p>
                 )}
                 <p>
                   계보가 없는 자료는 선택 자료의 사본이라고 추정하지 않으며,
