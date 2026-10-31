@@ -4,6 +4,8 @@ import type { Context } from "./service";
 import { transaction } from "./database";
 import { audit, membership } from "./repository";
 import { z } from "zod";
+import { acquireSharedMutationGate } from "./operations/gate";
+import { assertAgentWritesNotErased } from "./model-usage";
 
 const hash = (token:string) => createHash("sha256").update(token).digest("hex");
 const random = () => randomBytes(32).toString("base64url");
@@ -32,6 +34,7 @@ async function requireSpaceAdmin(db:PoolClient,ctx:Context){
  if(r.rows[0]?.role!=="Admin")throw Error("FORBIDDEN");
 }
 async function issue(db:PoolClient,workspace:string,principal:string,params:{name:string;scope:AgentScope;days:number},clientId:string|null=null) {
+ await assertAgentWritesNotErased(db,workspace);
  const token="akh_sk_"+random();
  const id=randomUUID();
  await db.query(
@@ -143,6 +146,7 @@ export async function handleCredentialRequest(pool:Pool,ctx:Context,method:strin
   const {name}=clientForm.parse(body);
   return transaction(pool,ctx.workspaceId,async db=>{
    await authorize(db,ctx);
+   await assertAgentWritesNotErased(db,ctx.workspaceId);
    const count=await db.query("SELECT count(*)::int AS value FROM agent_device_clients WHERE workspace_id=$1 AND principal_id=$2 AND active",[ctx.workspaceId,ctx.principalId]);
    if(count.rows[0].value>=20)throw Error("CLIENT_LIMIT");
    const id=randomUUID();
@@ -169,10 +173,12 @@ export async function startDevice(pool:Pool,body:unknown,origin:string) {
  const input=clientStart.parse(body);
  const client=await pool.connect();
  try{
-  await client.query("BEGIN");
-  const owner=await client.query("SELECT * FROM agent_device_clients WHERE id=$1 AND active=true FOR UPDATE",[input.clientId]);
+   await client.query("BEGIN");
+   await acquireSharedMutationGate(client);
+   const owner=await client.query("SELECT * FROM agent_device_clients WHERE id=$1 AND active=true FOR UPDATE",[input.clientId]);
   if(!owner.rowCount)throw Error("INVALID_CLIENT");
-  const item=owner.rows[0];
+   const item=owner.rows[0];
+   await assertAgentWritesNotErased(client,item.workspace_id);
   const live=await client.query("SELECT effective_membership($1,$2) AS role",[item.workspace_id,item.principal_id]);
   if(!live.rows[0]?.role)throw Error("INVALID_CLIENT");
   const cap=await client.query("SELECT count(*)::int AS value FROM agent_device_grants WHERE client_id=$1 AND created_at>clock_timestamp()-interval '10 minutes'",[input.clientId]);
@@ -216,10 +222,12 @@ export async function pollDevice(pool:Pool,body:unknown){
  const {deviceCode}=pollForm.parse(body);
  const db=await pool.connect();
  try{
-  await db.query("BEGIN");
-  const row=await db.query("SELECT g.*,c.active,c.principal_id,c.name FROM agent_device_grants g JOIN agent_device_clients c ON c.id=g.client_id WHERE g.device_hash=$1 FOR UPDATE OF g",[hash(deviceCode)]);
+   await db.query("BEGIN");
+   await acquireSharedMutationGate(db);
+   const row=await db.query("SELECT g.*,c.active,c.principal_id,c.name FROM agent_device_grants g JOIN agent_device_clients c ON c.id=g.client_id WHERE g.device_hash=$1 FOR UPDATE OF g",[hash(deviceCode)]);
   if(!row.rowCount)throw Error("INVALID_GRANT");
-  const grant=row.rows[0];
+   const grant=row.rows[0];
+   await assertAgentWritesNotErased(db,grant.workspace_id);
   if(new Date(grant.expires_at).getTime()<=Date.now())throw Error("EXPIRED_GRANT");
   if(grant.status==="consumed")throw Error("INVALID_GRANT");
   if(grant.status==="denied")throw Error("ACCESS_DENIED");

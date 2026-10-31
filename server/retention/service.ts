@@ -81,13 +81,18 @@ async function inventory(
       columns.some(
         (c) => c.table_name === table && c.column_name === "delivery_id",
       );
-    if (!scoped && !jobScoped && !deliveryScoped)
+    const keyScoped = table === "agent_key_requests" && columns.some(
+      (c) => c.table_name === table && c.column_name === "key_id",
+    );
+    if (!scoped && !jobScoped && !deliveryScoped && !keyScoped)
       throw Error("RETENTION_GRAPH_UNSUPPORTED");
     const scope = scoped
       ? "workspace_id=$1"
       : jobScoped
         ? "job_id IN(SELECT id FROM durable_jobs WHERE workspace_id=$1)"
-        : "delivery_id IN(SELECT id FROM collaboration_digest_outbox WHERE workspace_id=$1)";
+        : deliveryScoped
+          ? "delivery_id IN(SELECT id FROM collaboration_digest_outbox WHERE workspace_id=$1)"
+          : "key_id IN(SELECT id FROM agent_api_keys WHERE workspace_id=$1)";
     const r = await db.query(
       `SELECT t.ctid::text AS locator,${releasedImportProjection(table) ?? "to_jsonb(t)"} AS data FROM "${table}" t WHERE ${scope} ORDER BY t.ctid LIMIT 10001`,
       [workspaceId],

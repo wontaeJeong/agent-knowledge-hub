@@ -4,6 +4,7 @@ import type { PoolClient } from "pg";
 import type { Context } from "../service";
 import { effectiveAccess } from "../access/index";
 import { requireRead } from "../repository";
+import { MUTATION_GATE } from "./gate";
 import { appendOperationalAudit, type OperationsService } from "./service";
 import {
   allContentReferences,
@@ -333,6 +334,21 @@ interface Inventory {
   rows: ProductRow[];
   columns: Map<string, { name: string; type: string }[]>;
 }
+/** Temporary fail-closed boundary. Follow-up must implement credential redaction/revocation,
+ * usage retention and attribution, restore replay, and safe retirement of the write fence. */
+async function hasAgentData(db: PoolClient, workspaceId: string) {
+  const result = await db.query(`SELECT EXISTS (
+    SELECT 1 FROM agent_api_keys WHERE workspace_id=$1
+    UNION ALL SELECT 1 FROM agent_device_clients WHERE workspace_id=$1
+    UNION ALL SELECT 1 FROM agent_device_grants WHERE workspace_id=$1 OR client_id IN (SELECT id FROM agent_device_clients WHERE workspace_id=$1)
+    UNION ALL SELECT 1 FROM agent_key_audit WHERE workspace_id=$1 OR key_id IN (SELECT id FROM agent_api_keys WHERE workspace_id=$1)
+    UNION ALL SELECT 1 FROM model_usage_events WHERE workspace_id=$1
+  ) AS present`, [workspaceId]);
+  return result.rows[0].present as boolean;
+}
+async function assertNoAgentData(db: PoolClient, workspaceId: string) {
+  if (await hasAgentData(db, workspaceId)) throw Error("ERASURE_AGENT_DATA_UNSUPPORTED");
+}
 async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
   const metadata = (
       await db.query(
@@ -352,13 +368,14 @@ async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
   const rows: ProductRow[] = [];
   for (const [table, cols] of columns) {
     const scoped = cols.some((c) => c.name === "workspace_id"),
-      jobScoped = cols.some((c) => c.name === "job_id");
-    if (!scoped && !jobScoped)
+      jobScoped = cols.some((c) => c.name === "job_id"),
+      keyScoped = table === "agent_key_requests" && cols.some((c) => c.name === "key_id");
+    if (!scoped && !jobScoped && !keyScoped)
       throw Error(`ERASURE_SCOPE_UNSUPPORTED:${table}`);
     let offset = 0;
     for (;;) {
       const result = await db.query(
-        `SELECT t.ctid::text AS locator,${releasedImportProjection(table) ?? "to_jsonb(t)"} AS data FROM "${table}" t WHERE ${scoped ? "t.workspace_id=$1" : "t.job_id IN(SELECT id FROM durable_jobs WHERE workspace_id=$1)"} ORDER BY t.ctid LIMIT 1000 OFFSET $2 FOR UPDATE OF t`,
+        `SELECT t.ctid::text AS locator,${releasedImportProjection(table) ?? "to_jsonb(t)"} AS data FROM "${table}" t WHERE ${scoped ? "t.workspace_id=$1" : jobScoped ? "t.job_id IN(SELECT id FROM durable_jobs WHERE workspace_id=$1)" : "t.key_id IN(SELECT id FROM agent_api_keys WHERE workspace_id=$1)"} ORDER BY t.ctid LIMIT 1000 OFFSET $2 FOR UPDATE OF t`,
         [ctx.workspaceId, offset],
       );
       for (const r of result.rows)
@@ -378,6 +395,8 @@ export async function replayProductErasure(
   entireWorkspace = false,
 ) {
   if (!resources.length && !entireWorkspace) return;
+  await db.query("SELECT pg_advisory_xact_lock($1)", [MUTATION_GATE]);
+  await assertNoAgentData(db, workspaceId);
   const ctx = { workspaceId, principalId: "signed-recovery-ledger" },
     all = await inventory(db, ctx),
     selected = selectErasureRows(
@@ -454,6 +473,7 @@ export async function replayProductErasure(
               (typeof v === "string" && v.length > 100),
           ),
       ).length + unmappedReleasedImports(all.rows, selected);
+  if (opaque || storage.shared) throw Error("RECOVERY_ERASURE_INCOMPLETE");
   counts.unresolved_unlineaged_rows = opaque;
   counts.shared_live_blob_hashes = storage.shared;
   await db.query(
@@ -566,6 +586,7 @@ export async function previewErasure(
       total: p.selected.length,
       legalHold: p.blocked,
       unresolvedUnlineagedRows: p.opaque,
+      agentDataUnsupported: await hasAgentData(db, ctx.workspaceId),
       allCopiesErased: false,
     };
   });
@@ -613,6 +634,7 @@ export async function executeErasure(
           status = "blocked";
           throw Error("LEGAL_HOLD");
         }
+        await assertNoAgentData(db, ctx.workspaceId);
         const resources: Resource[] =
           d.scope === "workspace"
             ? (

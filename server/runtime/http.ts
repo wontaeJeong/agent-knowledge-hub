@@ -274,7 +274,7 @@ export function createRuntimeHandler(options: {
           return send(403,{code:"FORBIDDEN",requestId});
         await recordAgentRequest(options.pool,agent,path);
       }
-      if (path.startsWith("/api/v1/credentials")) {
+      if (/^\/api\/v1\/credentials\/(?:keys|clients|admin\/keys)(?:\/|$)/.test(path)) {
         if (agent) return send(403,{code:"FORBIDDEN",requestId});
         const result=await handleCredentialRequest(options.pool,ctx,req.method || "GET",path,body,options.origin);
         if(result) return send(result.status,result.body);

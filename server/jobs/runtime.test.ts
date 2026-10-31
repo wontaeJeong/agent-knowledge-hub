@@ -652,7 +652,9 @@ it.each(["query", "ingest", "lint"] as const)(
     let now = new Date();
     const bridge = createRuntimeJobs(f.pool, f.service, {
       workerCount: 1,
-      queue: { leaseMs: 1000, clock: () => now },
+      // Match the crash worker: keep its heartbeat outside the test timeout so
+      // this test exercises a post-commit crash, not transient QUEUE_BUSY.
+      queue: { leaseMs: 60000, clock: () => now },
     });
     const payload =
       kind === "query"
@@ -690,7 +692,7 @@ it.each(["query", "ingest", "lint"] as const)(
       const exit = once(child, "exit");
       child.kill("SIGKILL");
       await exit;
-      now = new Date(+now + 1001);
+      now = new Date(+now + 60001);
       await bridge.workers[0].tick();
       const result = await bridge.read(f.editor, job.id);
       expect(result.status).toBe("succeeded");
@@ -817,7 +819,7 @@ it("SIGKILL after model checkpoint reuses real HTTP output and charges its actua
   let now = new Date();
   const bridge = createRuntimeJobs(f.pool, f.service, {
     workerCount: 1,
-    queue: { leaseMs: 1000, clock: () => now },
+    queue: { leaseMs: 60000, clock: () => now },
   });
   const j = await bridge.submitInteractive(
     f.editor,
@@ -849,7 +851,7 @@ it("SIGKILL after model checkpoint reuses real HTTP output and charges its actua
     const exit = once(child, "exit");
     child.kill("SIGKILL");
     await exit;
-    now = new Date(+now + 1001);
+    now = new Date(+now + 60001);
     await bridge.workers[0].tick();
     expect((await bridge.read(f.editor, j.id)).status).toBe("succeeded");
     expect(calls).toBe(1);
@@ -874,6 +876,8 @@ it("SIGKILL after model checkpoint reuses real HTTP output and charges its actua
     await bridge.stop();
   }
 }, 20000);
+// These multi-stage integration tests perform thousands of real DB round trips,
+// including repeated authorization checks; do not weaken them to meet 5s.
 it("real PostgreSQL serialization failure retries the domain stage from cached model output without another provider call", async () => {
   let calls = 0;
   await modelServer((_body, res) => {
@@ -936,7 +940,7 @@ it("real PostgreSQL serialization failure retries the domain stage from cached m
   expect(calls).toBe(1);
   expect((await bridge.jobs.telemetry(f.editor, j.id)).items).toHaveLength(1);
   await bridge.stop();
-});
+}, 20000);
 it("shutdown waits for signal-aware model telemetry cleanup before the pool may close", async () => {
   let begun!: () => void;
   const transmitting = new Promise<void>((r) => (begun = r));
@@ -1038,7 +1042,7 @@ it("model ingest excludes archived policy context and cannot overwrite protected
     ).rows[0].n,
   ).toBe(1);
   await f.bridge.stop();
-});
+}, 20000);
 it("one-shot consent binds operation, payload, key, resources and revocation; no approve/publish capability is minted", async () => {
   const f = await setup();
   const j = await f.bridge.submitInteractive(
@@ -1829,7 +1833,7 @@ it("explicit model no-change is not source completion, and unchanged maintenance
     ).rows[0].processed,
   ).toBe(false);
   await f.bridge.stop();
-});
+}, 20000);
 it("browser close/restart continues only with the SAME live parent session, without copying tokens into jobs", async () => {
   const f = await setup();
   await f.bridge.stop();

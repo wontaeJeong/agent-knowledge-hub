@@ -36,8 +36,12 @@ type Preview = {
   counts: Record<string, number>;
   total: number;
   legalHold: boolean;
+  agentDataUnsupported?: boolean;
   unresolvedUnlineagedRows: number;
 };
+export function erasureAllowed(preview: { legalHold: boolean; agentDataUnsupported?: boolean }) {
+  return !preview.legalHold && preview.agentDataUnsupported === false;
+}
 type Receipt = {
   id: string;
   status: string;
@@ -346,6 +350,9 @@ export function OperationsPanel({
                   {preview.legalHold ? "차단" : "확인된 차단 없음"} · 계보
                   미확인 {preview.unresolvedUnlineagedRows}행
                 </p>
+                {preview.agentDataUnsupported !== false && (
+                  <p role="alert">인증 또는 모델 사용 기록의 삭제·복원 처리가 아직 지원되지 않아 영구 삭제를 차단했습니다. 기록을 유지하고 후속 처리를 기다려 주세요.</p>
+                )}
                 <p>
                   계보가 없는 자료는 선택 자료의 사본이라고 추정하지 않으며,
                   별도의 공간 전체 미리보기 없이 자동 확대 삭제하지 않습니다.
@@ -368,7 +375,7 @@ export function OperationsPanel({
                 </label>
                 <button
                   disabled={
-                    busy || preview.legalHold || confirm !== "영구 삭제 승인"
+                    busy || !erasureAllowed(preview) || confirm !== "영구 삭제 승인"
                   }
                   onClick={() =>
                     void work(async () => {

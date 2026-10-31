@@ -1,7 +1,13 @@
 import { test, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { OperationalApi } from "./api";
-import { OperationsPanel, erasureRequest, retentionBody } from "./operations";
+import { OperationsPanel, erasureRequest, retentionBody, erasureAllowed } from "./operations";
+test("unsupported or unknown credential data blocks erasure", () => {
+  expect(erasureAllowed({legalHold:false,agentDataUnsupported:true})).toBe(false);
+  expect(erasureAllowed({legalHold:false})).toBe(false);
+  expect(erasureAllowed({legalHold:true,agentDataUnsupported:false})).toBe(false);
+  expect(erasureAllowed({legalHold:false,agentDataUnsupported:false})).toBe(true);
+});
 test("operations panel stays Korean, scope explicit and browser never accepts backup paths/keys/SQL", () => {
   const html = renderToStaticMarkup(
     <OperationsPanel api={new OperationalApi()} canAdmin canOwner />,

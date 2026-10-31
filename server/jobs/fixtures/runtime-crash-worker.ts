@@ -12,7 +12,7 @@ const bridge = createRuntimeJobs(pool, new RuntimeService(pool), {
     verifiedAt: new Date().toISOString(),
     validUntil: new Date(Date.now() + 10000).toISOString(),
   }),
-  queue: { leaseMs: 1000, clock: () => new Date(process.env.JOB_TEST_CLOCK!) },
+  queue: { leaseMs: 60000, clock: () => new Date(process.env.JOB_TEST_CLOCK!) },
 });
 if (process.env.JOB_CRASH_STAGE === "model") {
   const save = bridge.jobs.savePrepared.bind(bridge.jobs);
