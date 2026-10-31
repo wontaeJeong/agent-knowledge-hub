@@ -17,6 +17,7 @@ test("console deep links normalize unknown and malformed routes", () => {
   expect(readConsoleTab("#workflows")).toBe("workflows");
   expect(readConsoleTab("#refinement")).toBe("refinement");
   expect(readConsoleTab("#access")).toBe("access");
+  expect(readConsoleTab("#boards")).toBe("boards");
   expect(readConsoleTab("#%ZZ")).toBe("overview");
   expect(readConsoleTab("")).toBe("overview");
 });

@@ -214,7 +214,9 @@ export function UsageDashboard() {
             onChange={(e) => setDays(Number(e.target.value))}
           >
             <option value={7}>최근 7일</option>
+            <option value={14}>최근 14일</option>
             <option value={30}>최근 30일</option>
+            <option value={90}>최근 90일</option>
           </select>
         </label>
       </div>

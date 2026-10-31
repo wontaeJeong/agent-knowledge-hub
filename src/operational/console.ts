@@ -58,6 +58,7 @@ export const consoleGroups = [
       { id: "policies", label: "검토 · 공유 정책" },
       { id: "lifecycle", label: "편집 · 수명주기" },
       { id: "activity", label: "알림 · 감사 · 운영" },
+      { id: "boards", label: "공지 · VOC · 내부 검토" },
       { id: "evaluation", label: "평가 · 성과 환류" },
       { id: "coverage", label: "전체 기능 점검" },
     ],

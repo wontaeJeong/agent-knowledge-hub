@@ -15,6 +15,7 @@ import {
   Layers3,
   ListChecks,
   Menu,
+  MessageSquareText,
   Moon,
   Plug,
   SearchCheck,
@@ -49,6 +50,7 @@ const icons = {
   policies: ShieldCheck,
   lifecycle: Settings2,
   activity: Activity,
+  boards: MessageSquareText,
   evaluation: FlaskConical,
   coverage: CircleHelp,
 };

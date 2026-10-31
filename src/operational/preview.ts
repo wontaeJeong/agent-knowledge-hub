@@ -94,7 +94,7 @@ export class PreviewApi extends OperationalApi {
             },
           ],
         };
-      else if (/^\/usage\?days=(7|30)$/.test(path))
+      else if (/^\/usage\?days=(7|14|30|90)$/.test(path))
         result = previewUsage(Number(path.split("=")[1]));
       else {
         const match = /^\/pages\/([^/]+)\/versions\/(\d+)$/.exec(path);
