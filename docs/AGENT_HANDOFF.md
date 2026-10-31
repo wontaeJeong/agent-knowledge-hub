@@ -2,6 +2,7 @@
 
 ## 법적 삭제 에이전트 경계 진단 — 부분 구현
 
+- PR #22 독립 리뷰 수정: 교차 공간 grant/audit FK가 허용되는 상황에서 이웃 행 존재가 분류에 노출되는 결함을 재현했다. `agentDataBoundary`는 직접 소속만 공개하고 `agentDataUnsupported`와 실행·복원의 기존 보수적 참조 검사 `hasAgentData`는 유지한다. 직접 분류와 전체 차단값은 다를 수 있다. 비소유 Admin의 원본 ACL/전체 공간 Owner 검사와 미리보기 뒤 사용량 추가 시 실행 차단도 실제 DB로 검증했다. Node 24.22.2 `npm run check`와 별도 PostgreSQL의 신규·기존 삭제 회귀 14건(기존 게이트 경합 회귀 포함)이 통과했다. CI·독립 재검토는 별도다.
 - 관련 요구사항: LIF-008/010, IAM-009, SEC-009/010/011, OPS-004 및 CORE-002/005의 삭제·권한·복구 경계. 수용 상태는 변경하지 않았다.
 - `server/operations/erasure.ts`, `server/operations/erasure-agent-boundary-db.test.ts`, `docs/OPERATIONS.md`와 이 기록: 권한 검사된 미리보기에 공간 전체의 다섯 분류별 존재 여부만 추가한다. 자료와의 관계는 unknown이며 기존 fail-closed 실행/복원 게이트와 write fence를 완화하지 않는다. 기존 지식과 본문을 수정하지 않는다.
 - 검증: Node 24.22.2 `npm ci`, `npm run check` 통과(기본 테스트·요구사항 251·서버 타입·빌드·smoke). 전용 임시 PostgreSQL DB에서 신규 및 기존 삭제 회귀 11건 통과. CI·독립 리뷰와 실제 운영 검증은 별도다.

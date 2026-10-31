@@ -351,8 +351,8 @@ async function agentDataBoundary(db: PoolClient, workspaceId: string) {
   const result = await db.query(`SELECT
     EXISTS(SELECT 1 FROM agent_api_keys WHERE workspace_id=$1) AS "apiKeys",
     EXISTS(SELECT 1 FROM agent_device_clients WHERE workspace_id=$1) AS "deviceClients",
-    EXISTS(SELECT 1 FROM agent_device_grants WHERE workspace_id=$1 OR client_id IN (SELECT id FROM agent_device_clients WHERE workspace_id=$1)) AS "deviceGrants",
-    EXISTS(SELECT 1 FROM agent_key_audit WHERE workspace_id=$1 OR key_id IN (SELECT id FROM agent_api_keys WHERE workspace_id=$1)) AS "keyAudit",
+    EXISTS(SELECT 1 FROM agent_device_grants WHERE workspace_id=$1) AS "deviceGrants",
+    EXISTS(SELECT 1 FROM agent_key_audit WHERE workspace_id=$1) AS "keyAudit",
     EXISTS(SELECT 1 FROM model_usage_events WHERE workspace_id=$1) AS "modelUsage"`, [workspaceId]);
   const { apiKeys, deviceClients, deviceGrants, keyAudit, modelUsage } = result.rows[0];
   return { scope: "workspace" as const, resourceRelationship: "unknown" as const, apiKeys: apiKeys as boolean, deviceClients: deviceClients as boolean, deviceGrants: deviceGrants as boolean, keyAudit: keyAudit as boolean, modelUsage: modelUsage as boolean };
@@ -597,7 +597,7 @@ export async function previewErasure(
       total: p.selected.length,
       legalHold: p.blocked,
       unresolvedUnlineagedRows: p.opaque,
-      agentDataUnsupported: boundary.apiKeys || boundary.deviceClients || boundary.deviceGrants || boundary.keyAudit || boundary.modelUsage,
+      agentDataUnsupported: await hasAgentData(db, ctx.workspaceId),
       agentDataBoundary: boundary,
       allCopiesErased: false,
     };
