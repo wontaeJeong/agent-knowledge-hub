@@ -195,6 +195,48 @@ it("rejects repackaged assistant output with forged synthetic session and omitte
     ).rows,
   ).toEqual(before);
 });
+it("rejects a spoofed manual tool without saving and stores an explicitly manual source", async () => {
+  const post = (body: unknown) =>
+    fetch(base + "/api/v1/storage/sources", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  const body = {
+    title: "수동 입력",
+    project: "fixture",
+    tool: "manual",
+    content: "수동으로 제출한 내용",
+  };
+  const count = async () =>
+    (
+      await f.pool.query(
+        "SELECT count(*) AS n FROM sources WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows;
+  const before = await count();
+  const spoofed = await post({ ...body, tool: "opencode@2.2.2" });
+  expect(spoofed.status).toBe(400);
+  expect(await count()).toEqual(before);
+  const response = await post(body);
+  expect(response.status).toBe(201);
+  const result = await response.json();
+  const row = (
+    await f.pool.query(
+      "SELECT data FROM sources WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, result.id],
+    )
+  ).rows[0].data;
+  expect(row).toMatchObject({
+    tool: "manual",
+    scope: "private",
+    verification: "미검증",
+    projectVerified: false,
+    collection: null,
+    external: null,
+  });
+});
 it("allows manual private unverified input but rejects forged collector metadata", async () => {
   const body = {
     title: "수동 입력",

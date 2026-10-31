@@ -2,9 +2,10 @@
 
 ## 2026-10-31 수집기 세션 결합 안전 차단
 
-- COL-002/012, ACL-005/007, SEC-002/004 관련: `server/storage/collectors.ts`는 신뢰 가능한 artifact-세션 결합과 서버 제외 정책이 없는 OpenCode 2.2.2 assistant 및 synthetic 자동 수집을 `ARTIFACT_SESSION_UNVERIFIED`로 차단한다. 기존 성공 테스트를 차단 테스트로 교체한 것은 의도적인 기능 축소이며 요구사항 완료가 아니다. 수동 텍스트 접수는 개인·미검증으로 유지하되 요청에서 수집 메타데이터를 위조할 수 없다.
+- COL-002/012, ACL-005/007, SEC-002/004 관련: `server/storage/collectors.ts`는 신뢰 가능한 artifact-세션 결합과 서버 제외 정책이 없는 OpenCode 2.2.2 assistant 및 synthetic 자동 수집을 `ARTIFACT_SESSION_UNVERIFIED`로 차단한다. 기존 성공 테스트를 차단 테스트로 교체한 것은 의도적인 기능 축소이며 요구사항 완료가 아니다. 수동 HTTP 요청은 `tool:"manual"`만 허용하고 다른 도구명이나 collection/external 필드는 거부한다. 이는 자료 내용의 출처가 사실임을 보장하거나 직접 내부 서비스 호출을 제한하는 검증은 아니다.
 - `server/storage/collector-isolation.test.ts`는 실제 익명화 fixture에서 위조 요청이 수정 전 성공하는 RED와 수정 후 차단을 검증한다. 저장 호출 이전 실패이므로 해당 route에서 저장·후속 전송이 시작되지 않는다. `collectors.test.ts`, `routes.test.ts`, storage/fixtures 설명도 갱신했다. 기존 지식의 내용이나 발행 상태를 바꾸지 않는다.
 - 검증: Node 24.22.2 `npm run check` 통과. 별도 PostgreSQL 17 컨테이너의 수집기 단위·실제 storage HTTP·인증된 runtime HTTP 4파일 12건 통과. 실제 fixture 재포장과 수동 수집 메타데이터 위조는 수정 전 각각 201로 처리되는 RED를 확인했고 수정 후 거부됐다. 첫 전체 검사의 테스트 타입 오류는 수정 후 재실행해 통과했다. 최종 CI는 별도 확인한다.
+- 추가 검증: 위조 도구명을 수동 HTTP에 제출하면 수정 전 201이었던 RED가 수정 후 400이며 저장 행이 늘지 않는다. `manual`은 개인·미검증으로 저장된다. runtime 마운트와 인증·CSRF 경로를 확인하고 PostgreSQL 17 대상 4파일 14건 및 Node 24 `npm run check`를 재실행해 통과했다. 직접 `StorageService.ingestText`를 외부 입력에 노출하는 별도 호스트는 이 HTTP 가드를 우회하므로 신뢰 계약을 지켜야 한다.
 - 한계: trusted authority, 실제 호스트/원격 세션 결합, 현재 권한 및 원본 범위의 완전 검증은 구현하지 않았다. 재활성화에는 정확한 artifact와 세션의 검증된 결합 및 위조·제외·교체·권한 회귀와 실제 호스트 검증이 필요하다. 품질·운영 인수 효과는 미평가다.
 
 ## 법적 삭제 에이전트 경계 진단 — 부분 구현

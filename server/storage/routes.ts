@@ -174,7 +174,7 @@ export function storageRoutes(
           title: z.string(),
           content: z.string(),
           project: z.string(),
-          tool: z.string(),
+          tool: z.literal("manual"),
           targetPageId: z.string().optional(),
         })
         .strict()

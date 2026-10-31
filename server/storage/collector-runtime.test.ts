@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as oidc from "openid-client";
@@ -42,7 +42,7 @@ beforeAll(async () => {
   const auth = new OidcAuth(f.pool, config, "http://localhost", f.workspaceId, {
     writers: "editor",
   });
-  root = await mkdtemp(join(tmpdir(), "akh-collector-runtime-"));
+  root = await realpath(await mkdtemp(join(tmpdir(), "akh-collector-runtime-")));
   const storage = new StorageService(
     f.pool,
     new FileBlobStore(root),
@@ -106,4 +106,46 @@ it("returns a stable Korean security error for both collector formats through au
     });
   }
   expect((await f.pool.query(sql, [f.workspaceId])).rows).toEqual(before);
+});
+
+it("rejects an impersonated tool and stores manual input without collector provenance through runtime HTTP", async () => {
+  const sql = "SELECT count(*) AS n FROM sources WHERE workspace_id=$1";
+  const before = (await f.pool.query(sql, [f.workspaceId])).rows;
+  const body = {
+    title: "수동 입력",
+    content: "수동으로 제출한 내용",
+    tool: "manual",
+    project: "fixture",
+  };
+  const post = (input: unknown) =>
+    fetch(base + "/api/v1/storage/sources", {
+      method: "POST",
+      headers: {
+        Cookie: `akh_session=${token}`,
+        "Content-Type": "application/json",
+        Origin: "http://localhost",
+        "X-CSRF-Token": "csrf",
+      },
+      body: JSON.stringify(input),
+    });
+  const rejected = await post({ ...body, tool: "opencode@2.2.2" });
+  expect(rejected.status).toBe(400);
+  expect((await f.pool.query(sql, [f.workspaceId])).rows).toEqual(before);
+  const accepted = await post(body);
+  expect(accepted.status).toBe(201);
+  const result = await accepted.json();
+  const source = (
+    await f.pool.query(
+      "SELECT data FROM sources WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, result.id],
+    )
+  ).rows[0].data;
+  expect(source).toMatchObject({
+    tool: "manual",
+    scope: "private",
+    verification: "미검증",
+    projectVerified: false,
+    collection: null,
+    external: null,
+  });
 });
