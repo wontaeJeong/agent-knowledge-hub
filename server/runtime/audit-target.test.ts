@@ -13,6 +13,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -29,9 +30,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 const realFs =
   await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
-const temporary = realpathSync(
-  "/private/var/folders/s0/kkh09qs52bv52h5n4nf4d2fw0000gq/T/opencode",
-);
+const temporary = realpathSync(tmpdir());
 const files: string[] = [];
 const dirs: string[] = [];
 afterEach(async () => {

@@ -36,6 +36,33 @@ test("normalization preserves unknown fields and server-reported zero vs missing
  expect(normalizeProviderUsage("bedrock",{usage:{inputTokens:8,outputTokens:2,cacheReadInputTokens:4,cacheWriteInputTokens:1}})).toMatchObject({inputTokens:8,outputTokens:2,cacheReadTokens:4,cacheWriteTokens:1,costUsd:null});
  expect(normalizeProviderUsage("openai",{})).toMatchObject({inputTokens:null,outputTokens:null,costUsd:null});
 });
+test.each([
+ {status:200,succeeded:true,input:"120",output:"25"},
+ {status:500,succeeded:false,input:null,output:null},
+])("default OpenAI provider records actual HTTP call with status $status",async({status,succeeded,input,output})=>{
+ delete process.env.AGENT_KNOWLEDGE_HUB_LLM_PROVIDER;
+ Object.assign(process.env,{
+  AGENT_KNOWLEDGE_HUB_LLM_BACKEND:"unknown",
+  AGENT_KNOWLEDGE_HUB_LLM_BASE_URL:base+"/v1",
+  AGENT_KNOWLEDGE_HUB_LLM_MODEL:"test",
+  AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION:"true",
+ });
+ systemStatus=status;
+ let hookProvider:string|undefined,usageProvider:string|undefined;
+ const call=callModel("query",{question:"secret"},{
+  pool:f.pool,workspaceId:f.workspaceId,principalId:"editor",
+  beforeCall:async(provider)=>{hookProvider=provider;},
+  onUsage:async(usage)=>{usageProvider=usage.provider;},
+ });
+ if(succeeded) await expect(call).resolves.toMatchObject({content:"answer"});
+ else await expect(call).rejects.toThrow("MODEL_UNAVAILABLE");
+ expect(providerCalls).toBe(1);
+ const result=await f.pool.query("SELECT * FROM model_usage_events WHERE workspace_id=$1",[f.workspaceId]);
+ expect(result.rowCount).toBe(1);
+ expect(result.rows[0]).toMatchObject({provider:"openai",succeeded,input_tokens:input,output_tokens:output});
+ expect(hookProvider).toBe("openai");
+ expect(usageProvider).toBe("openai");
+});
 test("LiteLLM reports actual token/cache/cost per principal without storing prompts",async()=>{
  Object.assign(process.env,{
   AGENT_KNOWLEDGE_HUB_LLM_PROVIDER:"litellm",

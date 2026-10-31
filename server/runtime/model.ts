@@ -87,8 +87,7 @@ export const callModel: ModelCall = async (
         : operation === "ingest"
           ? `Return JSON {"updates":[{"id":"ascii-id","title":"title","summary":"summary","content":"markdown","scope":"${scopeContract}","links":["id"],"sourceIds":["source-id"],"facts":[{"key":"key","context":"applicable context","value":"value","sourceId":"source-id","quote":"exact source substring"}],"baseVersion":0}]}. Integrate sources with existing concepts and topic pages together. Preserve existing human text and evidence. Exact existing ids/baseVersion/scope. Allow 0..20 updates. If evidence adds no actual change, return {"updates":[],"noChanges":true}; NEVER invent changes, paraphrase unchanged content, or add documents just to produce an update. New pages baseVersion=0. Link related pages. Never expand source scope. ${privateInputs ? "These are verified private personal inputs: scope MUST be exactly private; NEVER team/company." : "Do not invent private scope for shared inputs."} Requesting actor and original source author are not the AI text producer; do not forge author, approval or independent execution evidence.`
           : 'Return JSON {"content":"answer","insufficient":false,"citations":[{"pageId":"id","title":"exact title","version":1,"quote":"exact contiguous substring of page content"}]}. Only supplied published pages are evidence. Explain limits and conflicts.';
-  const provider =
-    process.env.AGENT_KNOWLEDGE_HUB_LLM_PROVIDER || endpoint.origin;
+  const provider = config.provider;
   let usage: ModelUsage = {
     provider,
     model: null,

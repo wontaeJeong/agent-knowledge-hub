@@ -21,24 +21,9 @@ import {
 } from "./current-policy";
 import { sealExport } from "./service";
 import { assertReleasedImportContext } from "./released-imports";
+import { runTestPgTool as run } from "./test-pg-tools";
 const digest = (s: string | Buffer) =>
   createHash("sha256").update(s).digest("hex");
-const base = [
-  "--context",
-  "kind-knowledge-hub-dev",
-  "-n",
-  "agent-knowledge-hub-local",
-  "exec",
-  "-i",
-  "knowledge-db-0",
-  "--",
-];
-const run = (args: string[], input?: Buffer) =>
-  execFileSync("kubectl", [...base, ...args], {
-    input,
-    stdio: "pipe",
-    maxBuffer: 128 * 1024 * 1024,
-  });
 async function isolatedRecoveryFixture() {
   const original = process.env.TEST_DATABASE_URL!;
   const control = new Pool({ connectionString: original }),

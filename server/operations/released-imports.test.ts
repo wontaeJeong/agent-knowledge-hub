@@ -7,6 +7,7 @@ import { authorizeInTransaction } from "../access/index";
 import { OperationsService } from "./service";
 import { previewErasure, executeErasure } from "./erasure";
 import { assertReleasedImportUsable } from "./released-imports";
+import { runTestPgTool as run } from "./test-pg-tools";
 import {
   captureRecoveryLedger,
   readRecoveryLedger,
@@ -100,23 +101,7 @@ test("released006 raw chunks/parsed/results/disclosures are real source closure;
       scope: "resource",
       resource: { kind: "source", id: "source-a" },
     },
-    database = "akh_ops_restore_" + randomUUID().replaceAll("-", ""),
-    base = [
-      "--context",
-      "kind-knowledge-hub-dev",
-      "-n",
-      "agent-knowledge-hub-local",
-      "exec",
-      "-i",
-      "knowledge-db-0",
-      "--",
-    ];
-  const run = (args: string[], input?: Buffer) =>
-    execFileSync("kubectl", [...base, ...args], {
-      input,
-      stdio: "pipe",
-      maxBuffer: 128 * 1024 * 1024,
-    });
+    database = "akh_ops_restore_" + randomUUID().replaceAll("-", "");
   let created = false,
     restored: Pool | undefined;
   try {
@@ -229,23 +214,7 @@ test("unmapped released private input stays BLOCKED until a separate explicit Ow
     ).rows[0].n,
   ).toBeGreaterThan(0);
   const sourceDb = (await f.pool.query("SELECT current_database() AS name"))
-      .rows[0].name,
-    base = [
-      "--context",
-      "kind-knowledge-hub-dev",
-      "-n",
-      "agent-knowledge-hub-local",
-      "exec",
-      "-i",
-      "knowledge-db-0",
-      "--",
-    ];
-  const run = (args: string[], input?: Buffer) =>
-    execFileSync("kubectl", [...base, ...args], {
-      input,
-      stdio: "pipe",
-      maxBuffer: 128 * 1024 * 1024,
-    });
+      .rows[0].name;
   const dump = run(["pg_dump", "-U", "knowledge", "-d", sourceDb, "-Fc"]);
   const all = await previewErasure(f.ops, f.owner, { scope: "workspace" });
   expect(
@@ -312,23 +281,7 @@ test("unmapped released private input stays BLOCKED until a separate explicit Ow
 }, 120000);
 test("ordinary preserved import.remove is replayed for private chunks without blanket erasure of company wiki", async () => {
   const f = await setup(true),
-    sourceDb = (await f.pool.query("SELECT current_database() AS n")).rows[0].n,
-    base = [
-      "--context",
-      "kind-knowledge-hub-dev",
-      "-n",
-      "agent-knowledge-hub-local",
-      "exec",
-      "-i",
-      "knowledge-db-0",
-      "--",
-    ],
-    run = (args: string[], input?: Buffer) =>
-      execFileSync("kubectl", [...base, ...args], {
-        input,
-        stdio: "pipe",
-        maxBuffer: 128 * 1024 * 1024,
-      });
+    sourceDb = (await f.pool.query("SELECT current_database() AS n")).rows[0].n;
   const batchId = randomUUID();
   await f.pool.query(
     "INSERT INTO batches(workspace_id,id,data,hash) VALUES($1,$2,$3,$4)",

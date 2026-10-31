@@ -247,6 +247,7 @@ export function createRuntimeHandler(options: {
         )
           return send(403, { code: "CSRF_FAILED" });
         if (req.method === "PUT" && path === "/api/v1/storage/blobs") {
+          if (agent) return send(403, { code: "FORBIDDEN", requestId });
           if (!storageHandler) throw Error("STORAGE_NOT_CONFIGURED");
           if (
             await storageHandler({

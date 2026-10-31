@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { approveLocalTransmissionFixture } from "../policy/test-fixture";
 import { registerTrustedDestinations } from "../policy/model";
 import { createServer, request } from "node:https";
-import { execFileSync } from "node:child_process";
+import { testTlsCertificate } from "../test-tls-fixture";
 import { Readable } from "node:stream";
 import { createHmac } from "node:crypto";
 import {
@@ -40,34 +40,9 @@ const challenge = () =>
     "fixture-gateway",
   );
 beforeAll(async () => {
-  // Test-only ephemeral certificate/key in memory; no TLS verification disabling or persisted keys.
-  const pem = execFileSync(
-    "openssl",
-    [
-      "req",
-      "-x509",
-      "-newkey",
-      "rsa:2048",
-      "-nodes",
-      "-keyout",
-      "/dev/stdout",
-      "-out",
-      "/dev/stdout",
-      "-days",
-      "1",
-      "-subj",
-      "/CN=localhost",
-      "-addext",
-      "subjectAltName=DNS:localhost,IP:127.0.0.1",
-    ],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-  );
-  cert = pem.match(
-    /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/,
-  )![0];
-  const key = pem.match(
-    /-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA )?PRIVATE KEY-----/,
-  )![0];
+  const tls = testTlsCertificate();
+  cert = tls.cert;
+  const key = tls.key;
   server = createServer({ cert, key }, async (req, res) => {
     calls++;
     let raw = "";

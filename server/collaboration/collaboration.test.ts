@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from "vitest";
 import { Pool } from "pg";
 import { createServer, type Server } from "node:https";
-import { execFileSync } from "node:child_process";
+import { testTlsCertificate } from "../test-tls-fixture";
 import { once } from "node:events";
 import { fixture, adoptFixture } from "../test-support";
 import { authorizeInTransaction } from "../access/index";
@@ -38,33 +38,7 @@ const defaults: Preferences = {
   quietHours: { enabled: false, start: "22:00", end: "07:00" },
 };
 async function tlsRelay() {
-  const pem = execFileSync(
-    "openssl",
-    [
-      "req",
-      "-x509",
-      "-newkey",
-      "rsa:2048",
-      "-nodes",
-      "-keyout",
-      "/dev/stdout",
-      "-out",
-      "/dev/stdout",
-      "-days",
-      "1",
-      "-subj",
-      "/CN=localhost",
-      "-addext",
-      "subjectAltName=DNS:localhost,IP:127.0.0.1",
-    ],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-  );
-  const cert = pem.match(
-      /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/,
-    )![0],
-    key = pem.match(
-      /-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA )?PRIVATE KEY-----/,
-    )![0];
+  const { cert, key } = testTlsCertificate();
   let requests = 0,
     emails = 0,
     loseAck = false,
