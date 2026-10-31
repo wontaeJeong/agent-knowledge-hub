@@ -246,3 +246,9 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 범위: 작은 기능 단위 PR, UI 변경 PR의 화면 캡처, 실수·실패와 재발 방지 기록. 제품 요구사항 ID의 수용 상태나 지식 순환·권한·North Star 의미는 바꾸지 않는다.
 - 변경: `AGENTS.md`, `README.md`, `docs/DEVELOPMENT.md`, `docs/PR_WORKFLOW.md`, `docs/MISTAKE_LOG.md`. 기록은 실제 관찰과 미확인을 구분하며 비밀·개인 정보·원문을 제외한다.
 - 검증: 문서 링크와 `git diff --check`를 확인한다. 저장소 규칙의 실제 준수와 향후 실수 감소 효과는 운영 중 별도로 확인해야 한다.
+# Private question thread HTTP 경계 (2026-10-31)
+
+- 관련 요구사항: QNA005/QNA008 및 CORE-005 관련 일부 경계만; 전체 수용 완료 아님.
+- `server/runtime/http.ts`: 기존 세션 인증·Origin/CSRF 이후 개인 스레드 생성·목록·제목·내용을 `QuestionsService`와 현재 ACL에 연결한다. 다른 인증 종류는 보수적으로 거부한다. 새 질문/재개는 DB 저장 전 503, 검색·피드백은 404다.
+- `server/questions/runtime-http.test.ts`: 실제 HTTP·OIDC 세션·PostgreSQL에서 사용자/공간 격리, 권한 철회 후 내용 생략, CSRF 및 bearer 거부, 큐 미연결 시 미저장을 검사한다. 기존 도메인 테스트와 함께 격리 DB에서 11개 통과. Node 24에서 `npm run check` 통과.
+- Query 순환의 개인 대화 접근 경계를 개선하나 기존 지식을 변경하거나 새 모델 전송을 하지 않는다. 턴 수락→실제 큐→RuntimeService trusted context→모델/답변 영속화와 UI 연결, 검색/피드백 호스트 연결, erasure/export/backup 통합은 후속이다. 큐 미연결을 답변 완료로 표시하지 않는다. 지식 품질이나 에이전트 성능 효과는 대조 평가 전 목표다.
