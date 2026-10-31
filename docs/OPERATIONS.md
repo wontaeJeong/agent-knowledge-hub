@@ -42,3 +42,5 @@ localStorage 키는 `agent-knowledge-hub.demo.v1`, 테마 키는 `agent-knowledg
 `POST /api/v1/operations/erasure/preview`는 기존 공간 관리자 권한·자료 읽기 검사 후 `agentDataBoundary`를 반환한다. `scope: "workspace"`와 `resourceRelationship: "unknown"`은 선택 자료와의 연관성을 확인하지 못한다는 뜻이다. `apiKeys`, `deviceClients`, `deviceGrants`, `keyAudit`, `modelUsage`는 해당 공간에 직접 소속된 행의 존재 여부만 표시하며 건수·식별자·키·본문을 포함하지 않는다. 반면 `agentDataUnsupported`와 실행/복원 차단은 직접 소속 외에도 공간 client/key를 참조하는 grant/audit을 보수적으로 검사한다. 따라서 직접 소속 분류와 전체 차단값은 다를 수 있고, 별도 쿼리 사이의 동시 변경으로도 결과가 달라질 수 있다. 모두 false여도 다른 법적 보류·저장소 등의 삭제 조건이 충족되었다는 뜻은 아니다.
 
 이 값은 조회 시점 진단이며 승인이나 삭제 보장이 아니다. 실행과 복원 재적용은 현재 데이터를 별도로 검사해 기존 fail-closed 차단을 유지한다. 자격증명 취소·삭제, 사용량 보존/귀속, 복원 재적용 및 write fence의 안전한 해제는 아직 구현되지 않았다.
+
+테스트 전용 자격증명 취소 precursor는 운영 경로에 연결되어 있지 않다. `blocked`/`completed` receipt는 기존 발급 차단 조건이지 이 실험을 실행할 승인이나 전체 삭제 완료의 증거가 아니다. 승인·원자적 삭제·복원 계약, 토큰/해시 비식별화와 사용량 보존/귀속은 후속 과제다.

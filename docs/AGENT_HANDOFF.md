@@ -1,5 +1,13 @@
 # 에이전트 인계
 
+## 자격증명 삭제 선행 실험 — 테스트 전용, 운영 미연결
+
+- 관련 기준: LIF-008/010, IAM-009, SEC-009/010/011, OPS-004, CORE-002/005. 원본·파생 지식의 권한과 법적 삭제 불변식을 지키기 위한 DB 안전성 실험이며 기존 지식·요구사항 수용 상태는 바꾸지 않는다.
+- `server/operations/credential-erasure.test-support.ts`와 `credential-erasure-db.test.ts`는 테스트 전용 precursor다. 전용 트랜잭션이 exclusive mutation gate를 workspace 행보다 먼저 얻고 기존 workspace receipt fence를 확인해 공간 내 키·장치·미완료 grant 상태를 바꾸는 실험이다. 교차 공간/소유자 불일치는 fail-closed다. 운영 서버·HTTP·실제 삭제/복원에는 연결하지 않았다.
+- `blocked` receipt는 실패나 법적 보류로도 생기므로 승인 증거가 아니다. 별도 운영용 단독 함수가 이를 승인으로 취급하면 권한 없이 취소할 수 있다. 정당한 명시 승인과 receipt 생성, 원자적 취소·최종 삭제, signed recovery ledger 전달을 결합하는 별도 내부 계약이 필요하다. 기존 실행/복원 차단과 write fence는 유지한다.
+- 토큰/해시 비식별화, 사용량 보존·귀속, 복원 재적용 및 실제 erasure gate 연결은 미완료다. 이 실험이나 receipt를 삭제 완료로 해석하지 않는다. 지식 품질·에이전트 성능 효과는 측정하지 않았다.
+- 검증: Node 24.22.2 `npm ci`와 `npm run check` 통과. 격리된 신규 PostgreSQL DB에서 precursor 5건 및 기존 삭제 회귀를 포함해 19건 통과했다. 실제 운영 승인·복원 경합·독립 리뷰·최종 CI는 별도다.
+
 ## 법적 삭제 에이전트 경계 진단 — 부분 구현
 
 - PR #22 독립 리뷰 수정: 교차 공간 grant/audit FK가 허용되는 상황에서 이웃 행 존재가 분류에 노출되는 결함을 재현했다. `agentDataBoundary`는 직접 소속만 공개하고 `agentDataUnsupported`와 실행·복원의 기존 보수적 참조 검사 `hasAgentData`는 유지한다. 직접 분류와 전체 차단값은 다를 수 있다. 비소유 Admin의 원본 ACL/전체 공간 Owner 검사와 미리보기 뒤 사용량 추가 시 실행 차단도 실제 DB로 검증했다. Node 24.22.2 `npm run check`와 별도 PostgreSQL의 신규·기존 삭제 회귀 14건(기존 게이트 경합 회귀 포함)이 통과했다. CI·독립 재검토는 별도다.
