@@ -346,6 +346,17 @@ async function hasAgentData(db: PoolClient, workspaceId: string) {
   ) AS present`, [workspaceId]);
   return result.rows[0].present as boolean;
 }
+/** Presence only: these workspace-wide records have no reliable resource lineage. */
+async function agentDataBoundary(db: PoolClient, workspaceId: string) {
+  const result = await db.query(`SELECT
+    EXISTS(SELECT 1 FROM agent_api_keys WHERE workspace_id=$1) AS "apiKeys",
+    EXISTS(SELECT 1 FROM agent_device_clients WHERE workspace_id=$1) AS "deviceClients",
+    EXISTS(SELECT 1 FROM agent_device_grants WHERE workspace_id=$1 OR client_id IN (SELECT id FROM agent_device_clients WHERE workspace_id=$1)) AS "deviceGrants",
+    EXISTS(SELECT 1 FROM agent_key_audit WHERE workspace_id=$1 OR key_id IN (SELECT id FROM agent_api_keys WHERE workspace_id=$1)) AS "keyAudit",
+    EXISTS(SELECT 1 FROM model_usage_events WHERE workspace_id=$1) AS "modelUsage"`, [workspaceId]);
+  const { apiKeys, deviceClients, deviceGrants, keyAudit, modelUsage } = result.rows[0];
+  return { scope: "workspace" as const, resourceRelationship: "unknown" as const, apiKeys: apiKeys as boolean, deviceClients: deviceClients as boolean, deviceGrants: deviceGrants as boolean, keyAudit: keyAudit as boolean, modelUsage: modelUsage as boolean };
+}
 async function assertNoAgentData(db: PoolClient, workspaceId: string) {
   if (await hasAgentData(db, workspaceId)) throw Error("ERASURE_AGENT_DATA_UNSUPPORTED");
 }
@@ -577,7 +588,7 @@ export async function previewErasure(
       !(await effectiveAccess(db, ctx)).space.owner
     )
       throw Error("OWNER_REQUIRED");
-    const p = await calculate(db, ctx, d);
+    const p = await calculate(db, ctx, d), boundary = await agentDataBoundary(db, ctx.workspaceId);
     return {
       scope: p.d.scope,
       resource: p.d.resource,
@@ -586,7 +597,8 @@ export async function previewErasure(
       total: p.selected.length,
       legalHold: p.blocked,
       unresolvedUnlineagedRows: p.opaque,
-      agentDataUnsupported: await hasAgentData(db, ctx.workspaceId),
+      agentDataUnsupported: boundary.apiKeys || boundary.deviceClients || boundary.deviceGrants || boundary.keyAudit || boundary.modelUsage,
+      agentDataBoundary: boundary,
       allCopiesErased: false,
     };
   });

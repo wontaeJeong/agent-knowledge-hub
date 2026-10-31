@@ -1,0 +1,46 @@
+import { afterAll, expect, test } from "vitest";
+import { randomUUID } from "node:crypto";
+import { Pool } from "pg";
+import { fixture, adoptFixture } from "../test-support";
+import { authorizeInTransaction } from "../access/index";
+import { OperationsService } from "./service";
+import { previewErasure, executeErasure } from "./erasure";
+
+const pools: Pool[] = [];
+afterAll(async () => { await Promise.all(pools.map((pool) => pool.end())); });
+
+test("preview diagnoses workspace-wide unsupported agent categories without leaking records or crossing spaces", async () => {
+  const a = await fixture(), b = await fixture();
+  pools.push(a.pool, b.pool);
+  await adoptFixture(a.pool, a.workspaceId);
+  await adoptFixture(b.pool, b.workspaceId);
+  const service = new OperationsService(a.pool, authorizeInTransaction);
+  const owner = { workspaceId: a.workspaceId, principalId: "fixture-owner" };
+  const other = { workspaceId: b.workspaceId, principalId: "fixture-owner" };
+  const input = { scope: "resource" as const, resource: { kind: "source" as const, id: "source-a" } };
+  for (const f of [a, b]) await f.pool.query("INSERT INTO resource_readers SELECT workspace_id,kind,id,'fixture-owner' FROM resources WHERE workspace_id=$1 ON CONFLICT DO NOTHING", [f.workspaceId]);
+  const empty = await previewErasure(service, owner, input);
+  expect(empty.agentDataBoundary).toEqual({ scope: "workspace", resourceRelationship: "unknown", apiKeys: false, deviceClients: false, deviceGrants: false, keyAudit: false, modelUsage: false });
+  await expect(previewErasure(service, a.reader, input)).rejects.toThrow();
+  const key = randomUUID(), client = randomUUID(), secret = `sensitive-${randomUUID()}`;
+  await a.pool.query("INSERT INTO agent_device_clients(id,workspace_id,principal_id,name) VALUES($1,$2,'editor',$3)", [client, a.workspaceId, secret]);
+  expect((await previewErasure(service, owner, input)).agentDataBoundary).toEqual({ ...empty.agentDataBoundary, deviceClients: true });
+  await a.pool.query("INSERT INTO agent_api_keys(id,workspace_id,principal_id,name,token_hash,suffix,scope,expires_at) VALUES($1,$2,'editor',$3,$4,'test','read',now()+interval '1 day')", [key, a.workspaceId, secret, randomUUID()]);
+  expect((await previewErasure(service, owner, input)).agentDataBoundary).toEqual({ ...empty.agentDataBoundary, deviceClients: true, apiKeys: true });
+  await a.pool.query("INSERT INTO agent_device_grants(id,client_id,workspace_id,device_hash,user_code,requested_scope,expires_at) VALUES($1,$2,$3,$4,$5,'read',now()+interval '5 minutes')", [randomUUID(),client,a.workspaceId,randomUUID(),randomUUID().slice(0,8).toUpperCase()]);
+  expect((await previewErasure(service, owner, input)).agentDataBoundary).toEqual({ ...empty.agentDataBoundary, deviceClients: true, apiKeys: true, deviceGrants: true });
+  await a.pool.query("INSERT INTO agent_key_audit(workspace_id,actor_id,key_id,action,reason) VALUES($1,'editor',$2,'revoke',$3)", [a.workspaceId,key,secret]);
+  expect((await previewErasure(service, owner, input)).agentDataBoundary).toEqual({ ...empty.agentDataBoundary, deviceClients: true, apiKeys: true, deviceGrants: true, keyAudit: true });
+  await a.pool.query("INSERT INTO model_usage_events(workspace_id,principal_id,operation,provider,backend,model,succeeded,latency_ms) VALUES($1,'editor','query','openai','external',$2,true,1)", [a.workspaceId,secret]);
+  const result = await previewErasure(service, owner, input);
+  expect(result.agentDataBoundary).toEqual({ scope: "workspace", resourceRelationship: "unknown", apiKeys: true, deviceClients: true, deviceGrants: true, keyAudit: true, modelUsage: true });
+  expect(result.agentDataUnsupported).toBe(true);
+  expect(JSON.stringify(result)).not.toContain(secret);
+  expect(JSON.stringify(result)).not.toContain(key);
+  const workspace = await previewErasure(service, owner, {scope:"workspace"});
+  expect(workspace.agentDataBoundary).toEqual(result.agentDataBoundary);
+  const isolated = await previewErasure(service, other, input);
+  expect(isolated.agentDataBoundary).toEqual(empty.agentDataBoundary);
+  await expect(executeErasure(service, owner, {...input, previewHash: result.previewHash, confirm:"ERASE_PREVIEWED_RESOURCE_LINEAGE"})).rejects.toThrow("ERASURE_AGENT_DATA_UNSUPPORTED");
+  expect((await a.pool.query("SELECT name FROM agent_api_keys WHERE id=$1", [key])).rows[0].name).toBe(secret);
+});

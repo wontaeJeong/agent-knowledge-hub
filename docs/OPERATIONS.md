@@ -36,3 +36,9 @@ localStorage 키는 `agent-knowledge-hub.demo.v1`, 테마 키는 `agent-knowledg
 ## 0.2 실행 경로
 
 오프라인/모델 모드의 실행과 회사 CA 설정 경계는 MODEL_SETUP.md를 따른다. .env 변경은 Node 실행기 재시작 후 적용된다. Node는 dist가 있으면 우선 사용하고 배포 ZIP에서는 demo-dist를 사용한다. npm run dev와 nginx 컨테이너는 오프라인 UI 경로이며 모델 중계는 npm run demo가 제공한다. 브라우저 종료 후 자동 점검은 아직 없다.
+
+## 법적 삭제 미리보기의 에이전트 경계
+
+`POST /api/v1/operations/erasure/preview`는 기존 권한·자료 읽기 검사 후 `agentDataBoundary`를 반환한다. `scope: "workspace"`와 `resourceRelationship: "unknown"`은 선택 자료와의 연관성을 확인하지 못한다는 뜻이다. `apiKeys`, `deviceClients`, `deviceGrants`, `keyAudit`, `modelUsage`는 해당 공간의 차단 대상 존재 여부만 표시하며 건수·식별자·키·본문을 포함하지 않는다. grant/audit은 공간 직접 소속 또는 공간에 속한 client/key 참조를 검사한다. 모두 false여도 다른 법적 보류·저장소 등의 삭제 조건이 충족되었다는 뜻은 아니다.
+
+이 값은 조회 시점 진단이며 승인이나 삭제 보장이 아니다. 실행과 복원 재적용은 현재 데이터를 별도로 검사해 기존 fail-closed 차단을 유지한다. 자격증명 취소·삭제, 사용량 보존/귀속, 복원 재적용 및 write fence의 안전한 해제는 아직 구현되지 않았다.
