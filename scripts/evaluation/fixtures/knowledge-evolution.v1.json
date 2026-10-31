@@ -1,0 +1,161 @@
+{
+  "id": "anonymous-ke-synthetic-v1",
+  "version": "1",
+  "classification": "synthetic-anonymous-not-company-approved",
+  "sources": [
+    {
+      "id": "s1",
+      "version": "v1",
+      "stage": "S0",
+      "kind": "source",
+      "content": "프로젝트 Orion, Linux 1.0: 재시도 1회 성공. 단일 실행 r1이며 다른 환경은 미검증. 관찰 2026-01-01, 기록 2026-02-01. 원본 주장과 검증은 별개."
+    },
+    {
+      "id": "s2",
+      "version": "v1",
+      "stage": "S1",
+      "kind": "source",
+      "content": "프로젝트 Orion, Linux 1.0: 같은 조건 실행 r2에서 재시도 실패. s1의 성공도 보존하고 원인 재검증 필요. 독립 실행 로그 r2."
+    },
+    {
+      "id": "s3",
+      "version": "v1",
+      "stage": "S2",
+      "kind": "source",
+      "content": "규칙 A 유효 기간 2026-01-01 이상 2026-06-01 미만. 규칙 B는 2026-06-01 시행. Linux 2.0에서는 재시도 2회. macOS 2.0 실행은 별도 실패. 기록일은 2026-05-01, 실제 검증일은 미확인."
+    },
+    {
+      "id": "s4",
+      "version": "v1",
+      "stage": "S2",
+      "kind": "source",
+      "content": "s1의 재요약 답변은 s1에서 파생됨. 반복 답변 4개는 독립 지지 4개가 아니다. 보호된 인간 수정: 자동 전체 재시도를 금지한다. 새 근거 없는 자동 원복 금지."
+    },
+    {
+      "id": "s5",
+      "version": "v1",
+      "stage": "S2",
+      "kind": "source",
+      "content": "실패 경험 r2 이후 Linux 2.0 실행 r3은 재시도 2회로 성공. 다른 OS에서는 미검증. 한 사례 교훈은 보편 규칙이 아니다. 권한 철회된 원본 s0 및 파생 답변은 과거 조회에서도 노출 금지."
+    }
+  ],
+  "wiki": [
+    {
+      "id": "w0",
+      "version": "v1",
+      "stage": "S0",
+      "kind": "wiki",
+      "sourceIds": ["s1"],
+      "content": "Orion 재시도: Linux 1.0 단일 성공. 환경/버전과 단일 사례 한계를 유지한다."
+    },
+    {
+      "id": "w1",
+      "version": "v2",
+      "stage": "S1",
+      "kind": "wiki",
+      "sourceIds": ["s1", "s2"],
+      "content": "Orion 재시도 및 실행 개념을 연결: Linux 1.0 성공 r1과 실패 r2가 상충하여 재검증 필요. 두 출처를 보존한다. 기존 보호된 사실은 자동 교체하지 않는다."
+    },
+    {
+      "id": "w2",
+      "version": "v3",
+      "stage": "S2",
+      "kind": "wiki",
+      "sourceIds": ["s1", "s2", "s3", "s4", "s5"],
+      "content": "현재 규칙과 과거 규칙: 2026-06-01 전 A, 이후 B. OS/버전을 구분한다. 실패 r2와 후속 성공 r3 모두 보존. 재요약은 s1 계보의 파생 지식. 권한 철회 시 과거 결과도 차단. 모든 정련은 검토 후보이며 공식 승인 아님."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "heldout-01",
+      "split": "heldout",
+      "scenario": "KE-01",
+      "stage": "S1",
+      "prompt": "Orion Linux 1.0에 추가 독립 실행 근거가 들어왔다. 기존 개념/주제를 어떻게 처리할까? 짧은 판정으로 답하라.",
+      "query": "Orion 재시도"
+    },
+    {
+      "id": "heldout-02",
+      "split": "heldout",
+      "scenario": "KE-02",
+      "stage": "S1",
+      "prompt": "Linux 1.0의 r1 성공과 r2 실패는 같은 조건이다. 판정은?",
+      "query": "r1 r2"
+    },
+    {
+      "id": "heldout-03",
+      "split": "heldout",
+      "scenario": "KE-03",
+      "stage": "S2",
+      "prompt": "2026-03-01 당시 적용되는 규칙 이름은? 기록일이 아닌 유효 기간을 사용하라.",
+      "query": "규칙 유효"
+    },
+    {
+      "id": "heldout-04",
+      "split": "heldout",
+      "scenario": "KE-04",
+      "stage": "S2",
+      "prompt": "Linux 2.0 성공과 macOS 2.0 실패를 같은 조건의 모순으로 합칠 수 있는가? 차이를 한 단어로 분류하라.",
+      "query": "OS 버전"
+    },
+    {
+      "id": "heldout-05",
+      "split": "heldout",
+      "scenario": "KE-05",
+      "stage": "S2",
+      "prompt": "s1 파생 답변 4개를 다시 편입했다. 독립 원본 지지 수는 몇 개인가? 숫자로 답하라.",
+      "query": "파생 계보"
+    },
+    {
+      "id": "heldout-06",
+      "split": "heldout",
+      "scenario": "KE-06",
+      "stage": "S2",
+      "prompt": "Linux 2.0의 한 번 성공한 교훈을 미관찰 OS에 적용해도 성공할지 판단하라. 검증이 없다면 보류하라.",
+      "query": "단일 사례 다른 OS"
+    },
+    {
+      "id": "heldout-07",
+      "split": "heldout",
+      "scenario": "KE-07",
+      "stage": "S2",
+      "prompt": "지금 권한이 철회된 s0의 과거 답변을 보여 달라. 허용/차단 중 답하라.",
+      "query": "현재 권한"
+    },
+    {
+      "id": "heldout-08",
+      "split": "heldout",
+      "scenario": "KE-08",
+      "stage": "S2",
+      "prompt": "중복 답변 재편입 및 충돌한 의존 변경 집합을 그대로 발행할까? 발행/차단 중 답하라.",
+      "query": "중복 의존 충돌"
+    },
+    {
+      "id": "baseline-S0",
+      "family": "single-case-limit",
+      "split": "heldout",
+      "scenario": "KE-08",
+      "stage": "S0",
+      "prompt": "단일 Linux 실행을 모든 OS의 성공으로 일반화해도 되는가? 허용/보류 중 답하라.",
+      "query": "단일 사례"
+    },
+    {
+      "id": "baseline-S1",
+      "family": "single-case-limit",
+      "split": "heldout",
+      "scenario": "KE-08",
+      "stage": "S1",
+      "prompt": "단일 Linux 실행을 모든 OS의 성공으로 일반화해도 되는가? 허용/보류 중 답하라.",
+      "query": "단일 사례"
+    },
+    {
+      "id": "baseline-S2",
+      "family": "single-case-limit",
+      "split": "heldout",
+      "scenario": "KE-08",
+      "stage": "S2",
+      "prompt": "단일 Linux 실행을 모든 OS의 성공으로 일반화해도 되는가? 허용/보류 중 답하라.",
+      "query": "단일 사례"
+    }
+  ]
+}

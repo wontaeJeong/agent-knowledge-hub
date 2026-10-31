@@ -28,7 +28,7 @@ const example = (environment = "stg") => ({
     requestsMemory: "2Gi",
     limitsCpu: "4",
     limitsMemory: "4Gi",
-    storage: "30Gi",
+    storage: "60Gi",
   },
   dbStorageClass: "fast-rwo",
 });
@@ -53,6 +53,10 @@ test("separate site overlays have immutable images, HTTPS and env-specific names
     assert.ok(outbound.spec.egress.every((rule) =>
       rule.ports[0].port > 0 && rule.to[0].ipBlock.cidr !== "0.0.0.0/0"));
     assert.equal(JSON.parse(files["quota.json"]).spec.hard.pods, "8");
+    assert.equal(JSON.parse(files["quota.json"]).spec.hard["count/persistentvolumeclaims"], "5");
+    assert.match(k, /AKH_MODEL_DESTINATIONS_JSON=\[\]/);
+    assert.deepEqual(JSON.parse(files["operational-storage-patch.json"]),
+      [{ op: "add", path: "/spec/storageClassName", value: "fast-rwo" }]);
     assert.ok(Object.keys(files).every((n) => n !== "secrets.yaml"));
   }
 });
@@ -87,4 +91,20 @@ test("generator never overwrites a reviewed site", () => {
 test("site without separate model connection allows OIDC only", () => {
   const files = siteFiles({ ...example("prod"), modelEgress: [] });
   assert.equal(JSON.parse(files["external-egress.json"]).spec.egress.length, 1);
+});
+test("reviewed model registry uses exact runtime fields, no inferred source approvals", () => {
+  const entry = { id: "approved-model", url: "https://model.example.org/v1/chat/completions",
+    purposes: ["query"], classifications: ["synthetic"], active: true };
+  const config = { ...example(), modelTransmissionDestinations: [entry],
+    modelDestinationId: entry.id };
+  const files = siteFiles(config);
+  assert.match(files["kustomization.yaml"], /AGENT_KNOWLEDGE_HUB_LLM_DESTINATION_ID=approved-model/);
+  for (const patch of [{ url: "https://user:password@model.example.org/v1" },
+    { purposes: ["automatic-approval"] }, { classifications: [] },
+    { apiKey: "must-not-render" }]) {
+    assert.throws(() => siteFiles({ ...config,
+      modelTransmissionDestinations: [{ ...entry, ...patch }] }), /MODEL_DESTINATIONS_INVALID/);
+  }
+  assert.throws(() => siteFiles({ ...config, modelDestinationId: "unregistered" }),
+    /MODEL_DESTINATION_ID_INVALID/);
 });

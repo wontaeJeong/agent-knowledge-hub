@@ -9,6 +9,12 @@ import {
   type StatementKind,
 } from "../domain/imports";
 import { Button, Badge } from "../ui/primitives";
+import {
+  PrivateImportPolicy,
+  privateImportApproved,
+  startApprovedPrivateImport,
+  type PrivateImportPolicySnapshot,
+} from "./PrivateImportPolicy";
 
 const labels: Record<string, string> = {
   uploading: "업로드 중",
@@ -90,6 +96,19 @@ export default function ImportWorkbench({
   const [reviewer, setReviewer] = useState(""),
     [audience, setAudience] = useState<string[]>([identity.principalId]);
   const [disclosures, setDisclosures] = useState<Disclosure[]>([]);
+  const [transmissionPolicy, setTransmissionPolicy] =
+      useState<PrivateImportPolicySnapshot | null>(null),
+    [policyRefresh, setPolicyRefresh] = useState(0);
+  const policyApi = useRef(api);
+  const receiveTransmissionPolicy = useCallback(
+    (p: PrivateImportPolicySnapshot | null) => {
+      policyApi.current = api;
+      setTransmissionPolicy(p);
+    },
+    [api],
+  );
+  const currentTransmissionPolicy =
+    policyApi.current === api ? transmissionPolicy : null;
   const active = useRef(true),
     generation = useRef(0),
     selectionDirty = useRef(false);
@@ -279,12 +298,36 @@ export default function ImportWorkbench({
   const start = (mode: "model" | "offline") =>
     perform(async () => {
       if (!view) return;
-      const revision = await saveSelection();
-      await api.post(
-        `/imports/${view.id}/runs`,
-        { revision, mode },
-        crypto.randomUUID(),
-      );
+      if (mode === "model") {
+        if (
+          !privateImportApproved(
+            currentTransmissionPolicy,
+            view.id,
+            view.revision,
+            selectionDirty.current,
+          )
+        )
+          throw Error("현재 입력의 전송 승인을 먼저 확인하세요.");
+        try {
+          await startApprovedPrivateImport(
+            api,
+            view.id,
+            view.revision,
+            crypto.randomUUID(),
+          );
+        } catch (e) {
+          setTransmissionPolicy(null);
+          setPolicyRefresh((n) => n + 1);
+          throw e;
+        }
+      } else {
+        const revision = await saveSelection();
+        await api.post(
+          `/imports/${view.id}/runs`,
+          { revision, mode },
+          crypto.randomUUID(),
+        );
+      }
       await open(view.id);
       setMessage(
         mode === "model"
@@ -620,10 +663,7 @@ export default function ImportWorkbench({
                         type="checkbox"
                         checked={selection.acknowledgeWarnings}
                         onChange={(e) => {
-                          setSelection((s) => ({
-                            ...s,
-                            acknowledgeWarnings: e.target.checked,
-                          }));
+                          update("acknowledgeWarnings", e.target.checked);
                         }}
                       />
                       누락/제외·신원/원본 ACL 미확인 범위를 확인했습니다.
@@ -690,6 +730,17 @@ export default function ImportWorkbench({
                     실행하세요.
                   </p>
                 )}
+                <PrivateImportPolicy
+                  key={`${view.id}:${view.revision}`}
+                  api={api}
+                  importId={view.id}
+                  revision={view.revision}
+                  dirty={selectionDirty.current}
+                  disabled={busy || !!pending}
+                  refresh={policyRefresh}
+                  onState={receiveTransmissionPolicy}
+                  onExpired={onExpired}
+                />
                 <div className="op-actions">
                   <Button
                     variant="primary"
@@ -697,6 +748,12 @@ export default function ImportWorkbench({
                       busy ||
                       pending ||
                       selectionDirty.current ||
+                      !privateImportApproved(
+                        currentTransmissionPolicy,
+                        view.id,
+                        view.revision,
+                        selectionDirty.current,
+                      ) ||
                       (view.parsed.warnings.length > 0 &&
                         !selection.acknowledgeWarnings)
                     }

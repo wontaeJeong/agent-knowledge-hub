@@ -120,11 +120,19 @@ node scripts/k8s/deploy-site.mjs CONTEXT_NAME stg deploy/sites/stg --apply
 node scripts/k8s/deploy-site.mjs CONTEXT_NAME prod deploy/sites/prod --apply --approve-prod
 ```
 
-운영 스크립트는 리소스가 실제 네임스페이스 1곳을 가리키는지, 기본 격리·허용 네트워크 정책·리소스 제한·TLS·이미지 digest/앱 1·DB 1 상태인지 정적으로 확인한다. `--apply` 때 **대상 컨텍스트/네임스페이스의 Secret 존재와 DB URL↔DB 비밀번호 일치**를 먼저 확인한다. PROD는 같은 컨텍스트의 STG Deployment App 이미지 digest와 다르면 차단한다. 이후 인프라 적용→DB StatefulSet 준비→**별도 migration Job 성공**→App 배포/rollout 순서로 실행한다. Migration Job은 서버 이미지와 동일하며 권한·환경변수·보안설정을 상속하고 앱 readiness/liveness probe는 제거한다. 실패하면 새 App 배포를 진행하지 않는다.
+운영 스크립트는 리소스가 실제 네임스페이스 1곳을 가리키는지, 기본 격리·허용 네트워크 정책·리소스 제한·TLS·이미지 digest/앱 1·DB 1 상태인지 정적으로 확인한다. `--apply` 때 **대상 컨텍스트/네임스페이스의 Secret 존재와 DB URL↔DB 비밀번호 일치**를 먼저 확인한다. PROD는 같은 컨텍스트의 STG Deployment App 이미지 digest와 다르면 차단한다. 이후 인프라 적용→DB StatefulSet 준비→**별도 migration Job 성공**→App 배포/rollout 순서로 실행한다. Migration Job은 서버와 같은 이미지·네트워크 경계에서 `migrate:server`를 실행하되 DATABASE_URL과 선택적 ACCESS_BOOTSTRAP_JSON만 참조한다. 전체 앱 Secret/envFrom·모델/감사 키·운영 PVC·probe는 상속하지 않는다. 실패하면 새 App 배포를 진행하지 않는다.
 
 주의: 현재 앱의 `Recreate` 배포는 중단이 발생할 수 있다. DB 스키마 변경은 **하위 호환 마이그레이션만** 기존 앱 실행 중 적용한다. 실행기는 정적 검사·요청 순서 도구이지 DB 롤백/무중단 운영·실제 CNI 정책 집행/IdP·TLS 연결/SSO 그룹 권한·모델 엔드포인트/복원을 보장하지 않는다. 단일 클러스터의 STG·PROD는 공유 노드/Ingress/스토리지 장애의 영향권에 있을 수 있다. 승인된 클러스터, DNS, ingress-controller label, Secret 공급, 스토리지 및 실제 사용자 승인/규정은 운영자가 확인해야 한다.
 
 CI에서는 비밀 없이 `deploy/fixtures/site-ci-*.json`만 렌더링하여 테스트한다. 이 주소·이미지 digest·IP 대역은 **합성 fixture**이며 사용 가능한 실제 서비스 값이 아니다. 운영 인수에는 반드시 실제 환경 확인이 추가로 필요하다.
+
+### 현재 운영 서버와의 호환 조건
+
+- `knowledge-secrets`의 필수 `AUDIT_EXPORT_KEY`, `AUDIT_SIGNING_KEY`, `AKH_METRICS_TOKEN`은 서로 다른 32자 이상 키다. 선택적 백업을 설정하면 `AGENT_KNOWLEDGE_HUB_BACKUP_KEY`, `BACKUP_KEY_ID`, `BACKUP_KEYS_JSON`을 함께 제공하고 현재 ID의 keyring 값과 일치시킨다. 이전 복원용 keyring 키도 보존한다. 감사·metrics·백업 키를 재사용하지 않는다.
+- 추가 allowlist는 `AKH_ALERT_RELAY_TOKEN`, `AGENT_KNOWLEDGE_HUB_EXECUTION_VERIFIER_HMAC_KEY_BASE64`와 기존 LLM 연결/자격증명 키, `NODE_EXTRA_CA_CERTS`뿐이다. NODE_ENV, APP_ORIGIN, issuer/역할, ACCESS_BOOTSTRAP_JSON, 기능 기본값, 목적지 registry 정책은 Secret에서 금지한다. bootstrap은 별도 리뷰한 ConfigMap 설정으로만 전달한다.
+- base의 `/data/blobs`, `/data/audit`, `/data/backups`는 서로 다른 환경 내 PVC다. DB 5Gi + backup staging 5Gi + blob 10Gi + audit 5Gi + backup 20Gi의 총 요청 45Gi/5 PVC를 반영해 synthetic 예제 quota는 60Gi로 둔다. 실제 용량·외부 백업·감사 보호 인수는 별도다.
+- `modelEgress`는 네트워크 허용일 뿐 원본 반출 승인이 아니다. 선택적 `modelTransmissionDestinations`는 신뢰된 운영자가 리뷰한 전체 registry 배열(`id`, 정확한 최종 `url`, `purposes`, 명시적 `classifications`, `active`)이며 기본값은 `[]`다. 선택적 `modelDestinationId`는 그중 활성 항목을 선택한다. URL에는 자격증명/query/fragment를 넣지 않는다. 원본별 인간 Admin 승인·현재 권한/원본 상한·정확한 목적지/입력 계보 검사는 별도로 필요하며 업로드나 전역 모델 연결이 이를 승인하지 않는다.
+- `node scripts/k8s/test.mjs`는 native Kind + 전용 DB가 필요한 `operations-backup-db.test.mjs`만 명시적으로 미실행 처리하고 나머지 K8s/operations 단위를 모두 실행한다. 이 CI job은 native Kind 백업/복원 인수 근거가 아니다.
 
 ## DB 백업과 폐기용 복원 검증
 

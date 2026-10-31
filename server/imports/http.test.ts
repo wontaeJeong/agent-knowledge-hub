@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "vitest";
 import { createServer, type Server } from "node:http";
 import { randomUUID } from "node:crypto";
 import * as oidc from "openid-client";
-import { fixture } from "../test-support";
+import { fixture, adoptLegacyFixture } from "../test-support";
 import { RuntimeService } from "../runtime/knowledge";
 import { OidcAuth, sessionHash } from "../runtime/auth";
 import { createRuntimeHandler } from "../runtime/http";
@@ -16,16 +16,7 @@ afterEach(async () => {
 
 test("managed organization permissions survive real OIDC admission checks without resurrecting a revoked role", async () => {
   const a = await app();
-  process.env.ACCESS_BOOTSTRAP_OWNERS = "editor";
   const access = new AccessService(a.pool);
-  expect(
-    (
-      await a.post("/api/v1/access/bootstrap", {
-        name: "Platform",
-        confirm: "adopt-existing-members-and-preserve-source-acls",
-      })
-    ).status,
-  ).toBe(201);
   const state = await (
     await fetch(a.base + "/api/v1/access", { headers: a.headers })
   ).json();
@@ -47,19 +38,33 @@ test("managed organization permissions survive real OIDC admission checks withou
   await access.member(a.ctx, "editor", null);
   expect(
     (await fetch(a.base + "/api/v1/pages", { headers: a.headers })).status,
-  ).toBe(401);
+  ).toBe(404);
   const replacement = randomUUID();
   await a.pool.query(
     "INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,subject,access_token,expires_at) VALUES($1,$2,'editor','csrf','editor','unused',now()+interval '1 hour')",
     [sessionHash(replacement), a.workspaceId],
   );
+  const identity = await fetch(a.base + "/api/v1/me", {
+    headers: { ...a.headers, Cookie: "akh_session=" + replacement },
+  });
+  expect(identity.status).toBe(200);
+  const current = await identity.json();
+  expect(current.space).toBeNull();
+  for (const action of [
+    "knowledge.read",
+    "source.create",
+    "changeset.propose",
+    "changeset.approve",
+    "space.admin",
+  ])
+    expect(current.capabilities).not.toContain(action);
   expect(
     (
-      await fetch(a.base + "/api/v1/me", {
+      await fetch(a.base + "/api/v1/pages", {
         headers: { ...a.headers, Cookie: "akh_session=" + replacement },
       })
     ).status,
-  ).toBe(401);
+  ).toBe(404);
   expect(
     (
       await a.pool.query("SELECT access_role($1,'editor') AS role", [
@@ -71,6 +76,7 @@ test("managed organization permissions survive real OIDC admission checks withou
 async function app() {
   const f = await fixture();
   cleanup.push(() => f.pool.end());
+  await adoptLegacyFixture(f.pool, f.workspaceId);
   let groups = ["writers"];
   const provider = createServer((_req, res) => {
     res.setHeader("Content-Type", "application/json");
@@ -114,6 +120,13 @@ async function app() {
       excluded: [],
     };
   });
+  runtime.imports.options.trustedLocalModel = true;
+  runtime.imports.options.beforeModelTransmission = async (
+    _ctx,
+    _metadata,
+    _envelope,
+    options,
+  ) => ({ options, recheck: async () => {} });
   let handler: ReturnType<typeof createRuntimeHandler>;
   const server = createServer((req, res) => {
     void handler(req, res);

@@ -36,6 +36,8 @@ const icons = {
   usage: Activity,
   jobs: ListChecks,
   knowledge: BookOpen,
+  workflows: Settings2,
+  refinement: FlaskConical,
   imports: Database,
   sources: Database,
   review: ClipboardCheck,

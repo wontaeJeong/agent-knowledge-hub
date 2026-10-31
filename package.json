@@ -22,7 +22,7 @@
     "check": "npm run doctor && npm test && npm run test:imports && npm run check:requirements && npm run check:server && npm run build && npm run test:smoke",
     "test:imports": "vitest run server/imports/parser.test.ts server/imports/organizer.test.ts",
     "test:smoke": "node scripts/smoke.mjs",
-    "test:server": "vitest run server --maxWorkers=1",
+    "test:server": "node --test scripts/test-server.test.mjs && node scripts/test-server.mjs",
     "check:server": "tsc -p tsconfig.server.json",
     "db:migrate": "node --experimental-strip-types scripts/migrate.mts",
     "wiki": "node scripts/wiki-connector/cli.mjs",

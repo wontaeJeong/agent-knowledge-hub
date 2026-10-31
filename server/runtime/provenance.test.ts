@@ -1,4 +1,7 @@
-import { expect, test } from "vitest";
+import { expect, test, afterEach, vi } from "vitest";
+import { approveInProcessModelFixture } from "../policy/test-fixture";
+import { adoptFixture } from "../test-support";
+afterEach(() => vi.unstubAllEnvs());
 import { createServer, type Server } from "node:http";
 import * as oidc from "openid-client";
 import { randomUUID } from "node:crypto";
@@ -78,13 +81,20 @@ async function setup() {
   );
   await runtime.core.approve(f.ctx, b.id, b.hash);
   await runtime.core.publish(f.ctx, b.id, b.hash, "setup");
-  return { ...f, runtime };
+  await adoptFixture(f.pool, f.workspaceId);
+  const authorization = await approveInProcessModelFixture(
+    f.pool,
+    f.workspaceId,
+    [source.id, "broad-source"],
+  );
+  return { ...f, editor: { ...f.editor, authorization }, runtime };
 }
 async function http(
   runtime: RuntimeService,
   f: Awaited<ReturnType<typeof fixture>>,
   principal = "editor",
 ) {
+  await (await import("../test-support")).adoptFixture(f.pool, f.workspaceId);
   const provider = createServer((_req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.end(
@@ -402,7 +412,11 @@ test("omitted model links cannot drop page ACL provenance across publication and
       expect(JSON.stringify(context)).not.toContain("derived");
       return { content: "no evidence", insufficient: true, citations: [] };
     });
-    await consumer.query(f.reader, "shared-token", "model");
+    await consumer.query(
+      { ...f.reader, authorization: f.editor.authorization },
+      "shared-token",
+      "model",
+    );
   } finally {
     await f.pool.end();
   }

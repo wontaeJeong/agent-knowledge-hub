@@ -1,0 +1,85 @@
+{
+  "datasetId": "anonymous-ke-synthetic-v1",
+  "version": "1",
+  "approval": "unapproved-synthetic-regression-only",
+  "withheldMarker": "evaluator-secret",
+  "answers": [
+    {
+      "taskId": "heldout-01",
+      "expectedAnswer": "연결 재검토",
+      "alternatives": ["개념·주제·연결 재검토"],
+      "requiresCitation": true,
+      "rationale": "요약 추가만으로 누적 성공 아님"
+    },
+    {
+      "taskId": "heldout-02",
+      "expectedAnswer": "재검증 필요",
+      "alternatives": ["상충", "동일 조건 상충"],
+      "requiresCitation": true,
+      "rationale": "성공/실패 양쪽 보존"
+    },
+    {
+      "taskId": "heldout-03",
+      "expectedAnswer": "A",
+      "alternatives": ["규칙 A"],
+      "requiresCitation": true,
+      "rationale": "2026-06-01 이전 유효 규칙"
+    },
+    {
+      "taskId": "heldout-04",
+      "expectedAnswer": "환경 차이",
+      "alternatives": ["다른 환경"],
+      "requiresCitation": true,
+      "rationale": "OS가 다른 결과"
+    },
+    {
+      "taskId": "heldout-05",
+      "expectedAnswer": "1",
+      "alternatives": ["1개"],
+      "requiresCitation": true,
+      "rationale": "s1의 단일 계보"
+    },
+    {
+      "taskId": "heldout-06",
+      "expectedAnswer": "보류",
+      "alternatives": ["미검증", "근거 부족"],
+      "requiresCitation": false,
+      "rationale": "홀드아웃 환경 결과 미확인"
+    },
+    {
+      "taskId": "heldout-07",
+      "expectedAnswer": "차단",
+      "alternatives": ["접근 차단"],
+      "requiresCitation": false,
+      "rationale": "현재 ACL 적용"
+    },
+    {
+      "taskId": "heldout-08",
+      "expectedAnswer": "차단",
+      "alternatives": ["발행 차단"],
+      "requiresCitation": false,
+      "rationale": "중복/의존 충돌 발행 금지"
+    },
+    {
+      "taskId": "baseline-S0",
+      "expectedAnswer": "보류",
+      "alternatives": ["근거 부족"],
+      "requiresCitation": false,
+      "rationale": "단일 사례 일반화 금지"
+    },
+    {
+      "taskId": "baseline-S1",
+      "expectedAnswer": "보류",
+      "alternatives": ["근거 부족"],
+      "requiresCitation": false,
+      "rationale": "새 정보 후에도 한계 유지"
+    },
+    {
+      "taskId": "baseline-S2",
+      "expectedAnswer": "보류",
+      "alternatives": ["근거 부족"],
+      "requiresCitation": false,
+      "rationale": "시간/환경 지식 추가 후에도 한계 유지"
+    }
+  ]
+}

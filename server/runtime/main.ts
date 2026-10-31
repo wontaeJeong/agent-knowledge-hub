@@ -4,6 +4,28 @@ import { migrate, assertSchemaCurrent } from "../database";
 import { OidcAuth } from "./auth";
 import { RuntimeService } from "./knowledge";
 import { createRuntimeHandler } from "./http";
+import { bootstrapAccess, validateAccessBootstrap } from "../access/index";
+import { authorizeInTransaction } from "../access/index";
+import { StorageService, FileBlobStore, UrlCollector } from "../storage";
+import { RefinementService } from "../refinement/service";
+import {
+  createSemanticProvider,
+  semanticConfigFromEnvironment,
+} from "../refinement/semantic";
+import { HttpAdmission } from "./admission";
+import {assertOperationalStartup} from "../operations";
+import { createRuntimeJobs } from "../jobs/runtime";
+import { directoryFromEnvironment } from "./directory";
+import { z } from "zod";
+import { ShutdownController, operationsProbeHandler } from "../operations";
+import { modelConfig } from "./model";
+import { modelAvailabilityProbe } from "./probe-model";
+import {createExecutionVerifier,executionConfigFromEnvironment} from '../refinement/execution';
+import {createOperationalHost} from './operational-host';
+import {OperationsLoop} from './operations-loop';
+import {monitorOnce,webhookAdapter,emailGatewayAdapter} from '../operations';
+import {registerTrustedDestinations} from '../policy/model';
+import {scanHandoffs} from '../workflows/governance/maintenance';
 
 if (!process.env.DATABASE_URL) throw Error("DATABASE_URL_REQUIRED");
 const pool = new Pool({
@@ -13,9 +35,22 @@ const pool = new Pool({
 });
 if (process.argv.includes("--migrate")) {
   await migrate(pool);
+  if (process.env.ACCESS_BOOTSTRAP_JSON) {
+    const input = validateAccessBootstrap(
+      JSON.parse(process.env.ACCESS_BOOTSTRAP_JSON),
+    );
+    for (const s of input.spaces ?? [])
+      await pool.query(
+        "INSERT INTO workspaces VALUES($1) ON CONFLICT DO NOTHING",
+        [s.workspaceId],
+      );
+    await bootstrapAccess(pool, input);
+  }
   await pool.end();
 } else {
   await assertSchemaCurrent(pool);
+  await assertOperationalStartup(pool);
+  try{await registerTrustedDestinations(pool,JSON.parse(process.env.AKH_MODEL_DESTINATIONS_JSON??'[]'));}catch{throw Error('POLICY_CONFIGURATION');}
   const auth = await OidcAuth.create(pool);
   // Accepted in-flight jobs are visible after restart as interrupted, never silently successful.
   await pool.query(
@@ -24,6 +59,76 @@ if (process.argv.includes("--migrate")) {
      DELETE FROM runtime_answers WHERE data->>'requestAuthorizationPending'='true';`,
   );
   const service = new RuntimeService(pool);
+  if (!process.env.AKH_BLOB_ROOT) throw Error("STORAGE_NOT_CONFIGURED");
+  const minimumAvailableBytes = Number(
+    process.env.AKH_BLOB_MIN_AVAILABLE_BYTES ?? 64 * 1024 * 1024,
+  );
+  if (
+    !Number.isSafeInteger(minimumAvailableBytes) ||
+    minimumAvailableBytes < 5 * 1024 * 1024
+  )
+    throw Error("STORAGE_CAPACITY_CONFIGURATION");
+  const storage = new StorageService(
+    pool,
+    new FileBlobStore(process.env.AKH_BLOB_ROOT),
+    authorizeInTransaction,
+    { minimumAvailableBytes },
+  );
+  const collector = new UrlCollector({
+    enabled: process.env.AKH_URL_COLLECTION_ENABLED === "true",
+    approvedOrigins: JSON.parse(
+      process.env.AKH_APPROVED_COLLECTION_ORIGINS ?? "[]",
+    ),
+  });
+  const refinement = new RefinementService(
+    pool,
+    authorizeInTransaction,
+    createSemanticProvider(semanticConfigFromEnvironment()),
+    {executionVerifier:createExecutionVerifier(executionConfigFromEnvironment())},
+  );
+  const operationalHost=await createOperationalHost({pool,authorize:authorizeInTransaction,contentRoot:process.env.AKH_BLOB_ROOT});
+  const operations=operationalHost.route;
+  let platformOperatorIds: string[];
+  try {
+    platformOperatorIds = z
+      .array(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/))
+      .max(100)
+      .parse(JSON.parse(process.env.AKH_PLATFORM_OPERATOR_IDS ?? "[]"));
+  } catch {
+    throw Error("PLATFORM_OPERATOR_CONFIGURATION_REQUIRED");
+  }
+  const jobs = createRuntimeJobs(pool, service, {
+    ...directoryFromEnvironment(),
+    platformOperatorIds,
+    semanticLint: refinement.semanticJobAdapter(),
+    revalidateInteractiveGrant: (binding) =>
+      auth.revalidateInteractiveGrant(binding),
+    assertInteractiveGrant: (db, binding) =>
+      auth.assertInteractiveGrant(db, binding),
+  });
+  const shutdown = new ShutdownController();
+  const probeConfig={
+    pool,
+    shutdown,
+    metricsToken: process.env.AKH_METRICS_TOKEN,
+    modelProbe: modelAvailabilityProbe({
+      ...modelConfig(),
+      baseUrl: process.env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL,
+      apiKey: process.env.AGENT_KNOWLEDGE_HUB_LLM_API_KEY,
+    }),
+    contentDirectory: process.env.AKH_BLOB_ROOT,
+    minimumAvailableBytes,
+  };
+  const probe=operationsProbeHandler(probeConfig);
+  const interval=Number(process.env.AKH_MONITOR_INTERVAL_MS??60000);
+  const alertConfig=process.env.AKH_ALERT_RELAY_URL?{
+    url:process.env.AKH_ALERT_RELAY_URL,
+    allowedOrigins:z.array(z.string().url()).max(20).parse(JSON.parse(process.env.AKH_ALERT_ALLOWED_ORIGINS??'[]')),
+    token:process.env.AKH_ALERT_RELAY_TOKEN??'',
+  }:undefined;
+  const deliver=alertConfig?(process.env.AKH_ALERT_EMAIL_RECIPIENTS?emailGatewayAdapter({...alertConfig,recipients:z.array(z.string()).max(20).parse(JSON.parse(process.env.AKH_ALERT_EMAIL_RECIPIENTS))}):webhookAdapter(alertConfig)):async()=>{throw Error('ALERT_DELIVERY_NOT_CONFIGURED');};
+  const monitor=new OperationsLoop(()=>monitorOnce(operationalHost.service,probeConfig,{suppressionSeconds:300,queueLimit:100,deliver}),{intervalMs:interval,onError:async()=>{await operationalHost.service.queueAlert('MONITOR_FAILED',`monitor-failed:${Math.floor(Date.now()/300000)}`);}});
+  const handoffs=new OperationsLoop(()=>scanHandoffs(pool),{intervalMs:60000,onError:async()=>{await operationalHost.service.queueAlert('HANDOFF_SCAN_FAILED',`handoff-scan-failed:${Math.floor(Date.now()/300000)}`);}});
   const server = createServer(
     createRuntimeHandler({
       pool,
@@ -31,18 +136,35 @@ if (process.argv.includes("--migrate")) {
       auth,
       origin: auth.origin,
       workspaceId: auth.workspaceId,
+      storage,
+      collector,
+      refinement,
+      operations,
+      jobs,
+      platformOperatorIds,
+      shutdown,
+      probe,
+      admission: new HttpAdmission(),
     }),
   );
   server.requestTimeout = 75000;
   server.headersTimeout = 10000;
   server.listen(Number(process.env.PORT || 8080), "0.0.0.0");
+  jobs.start();
+  monitor.start();
+  handoffs.start();
   const stopImports =
     process.env.IMPORT_WORKER_ENABLED === "false"
       ? () => {}
       : service.imports.startWorker();
   const stop = () => {
+    shutdown.draining = true;
     stopImports();
     server.close(async () => {
+      await jobs.stop();
+      await monitor.stop();
+      await handoffs.stop();
+      await shutdown.drain(8000);
       await pool.end();
       process.exit(0);
     });

@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseAllDocuments } from "yaml";
-import { productionFailures, splitRelease } from "./release.mjs";
+import { productionFailures, splitRelease, migrationJob as createMigrationJob } from "./release.mjs";
 
 const expectedNamespace = (environment) => {
   if (!["stg", "prod"].includes(environment))
@@ -31,9 +31,40 @@ export function liveSecretFailures(secrets, expectedTLS) {
     "AGENT_KNOWLEDGE_HUB_LLM_API_KEY",
     "AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION",
     "AGENT_KNOWLEDGE_HUB_LLM_THINKING",
+    "AUDIT_EXPORT_KEY", "AUDIT_SIGNING_KEY", "AKH_METRICS_TOKEN",
+    "AGENT_KNOWLEDGE_HUB_BACKUP_KEY", "BACKUP_KEYS_JSON", "BACKUP_KEY_ID",
+    "AKH_ALERT_RELAY_TOKEN",
+    "AGENT_KNOWLEDGE_HUB_EXECUTION_VERIFIER_HMAC_KEY_BASE64",
   ]);
   if (Object.keys(app?.data ?? {}).some((key) => !allowedAppKeys.has(key)))
     errors.push("unapproved app Secret environment override");
+  const strong = (value) => typeof value === "string" &&
+    value.length >= 32 && value.length <= 4096 && !value.includes("\0");
+  const operational = ["AUDIT_EXPORT_KEY", "AUDIT_SIGNING_KEY", "AKH_METRICS_TOKEN"]
+    .map((key) => decode(app, key));
+  if (!operational.every(strong) || new Set(operational).size !== operational.length)
+    errors.push("independent strong audit and metrics keys required");
+  const backup = decode(app, "AGENT_KNOWLEDGE_HUB_BACKUP_KEY");
+  const backupId = decode(app, "BACKUP_KEY_ID");
+  const backupRing = decode(app, "BACKUP_KEYS_JSON");
+  if ([backup, backupId, backupRing].some((value) => value !== null)) {
+    try {
+      const validId = (value) => typeof value === "string" &&
+        /^[a-zA-Z0-9_-]{1,100}$/.test(value) &&
+        !["__proto__", "constructor", "prototype"].includes(value);
+      const ring = JSON.parse(backupRing ?? "null");
+      if (!strong(backup) || operational.includes(backup) || !validId(backupId) ||
+        !ring || typeof ring !== "object" || Array.isArray(ring) ||
+        Object.keys(ring).length > 128 ||
+        !Object.entries(ring).every(([id, key]) => validId(id) && strong(key) && !operational.includes(key)) ||
+        !Object.hasOwn(ring, backupId) || ring[backupId] !== backup)
+        throw Error();
+    } catch { errors.push("backup keyring configuration invalid"); }
+  }
+  const verifier = decode(app, "AGENT_KNOWLEDGE_HUB_EXECUTION_VERIFIER_HMAC_KEY_BASE64");
+  if (verifier !== null && (!/^[A-Za-z0-9+/]+={0,2}$/.test(verifier) ||
+    Buffer.from(verifier, "base64").length < 32))
+    errors.push("execution verifier key invalid");
   const dbPassword = decode(db, "password");
   if (!dbPassword || dbPassword.length < 16)
     errors.push("database password Secret is missing or too short");
@@ -65,30 +96,9 @@ export function liveSecretFailures(secrets, expectedTLS) {
 }
 
 export function migrationJob(app, suffix) {
-  const pod = structuredClone(app.spec.template.spec);
-  const container = pod.containers.find((c) => c.name === "app");
-  if (!container) throw Error("APP_CONTAINER_MISSING");
-  delete container.readinessProbe;
-  delete container.livenessProbe;
-  delete container.startupProbe;
-  delete container.ports;
-  container.command = ["npm", "run", "db:migrate"];
-  delete container.args;
-  pod.restartPolicy = "Never";
-  // Shared app label permits the existing app-to-db NetworkPolicy, not ingress.
-  return {
-    apiVersion: "batch/v1",
-    kind: "Job",
-    metadata: {
-      name: "knowledge-migrate-" + suffix,
-      namespace: app.metadata.namespace,
-    },
-    spec: {
-      backoffLimit: 0,
-      ttlSecondsAfterFinished: 86400,
-      template: { metadata: { labels: { app: "knowledge-app" } }, spec: pod },
-    },
-  };
+  // One minimal-input factory for local and site releases; never inherit app
+  // Secret envFrom, model credentials, operational PVCs or runtime commands.
+  return createMigrationJob(app, "knowledge-migrate-" + suffix);
 }
 
 export function rolloutPlan(resources) {

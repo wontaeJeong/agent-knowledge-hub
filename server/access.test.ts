@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { fixture, source } from "./test-support";
+import { fixture, source, adoptLegacyFixture } from "./test-support";
 import { AccessService, registerPrincipal } from "./access";
+import { syncIdentity } from "./access/index";
 import { RuntimeService } from "./runtime/knowledge";
 import { membership } from "./repository";
 import { transaction } from "./database";
@@ -53,9 +54,8 @@ test("Triage classifies only currently readable proposals and Maintain has no or
 async function setup() {
   const f = await fixture();
   cleanup.push(() => f.pool.end());
-  vi.stubEnv("ACCESS_BOOTSTRAP_OWNERS", "editor");
+  await adoptLegacyFixture(f.pool, f.workspaceId);
   const access = new AccessService(f.pool);
-  await access.bootstrap(f.editor, "Platform " + f.workspaceId);
   const state = await access.state(f.editor);
   return {
     ...f,
@@ -71,11 +71,53 @@ test("adoption requires explicit operator binding; legacy reviewer is Maintain, 
   vi.stubEnv("ACCESS_BOOTSTRAP_OWNERS", "");
   await expect(a.bootstrap(f.ctx, "Org")).rejects.toThrow("FORBIDDEN");
   expect((await a.state(f.ctx)).managed).toBe(false);
-  vi.stubEnv("ACCESS_BOOTSTRAP_OWNERS", "editor");
-  await a.bootstrap(f.editor, "Org");
+  await adoptLegacyFixture(f.pool, f.workspaceId);
   expect((await a.state(f.ctx)).space?.role).toBe("Maintain");
   expect((await a.state(f.ctx)).capabilities.manageSpace).toBe(false);
   expect((await a.state(f.editor)).space?.role).toBe("Admin");
+});
+test("released bootstrap accepts a verified explicit adoption policy without restoring unchosen legacy roles or broadening raw ACLs", async () => {
+  const f = await fixture();
+  cleanup.push(() => f.pool.end());
+  const issuer = "https://verified-bootstrap.invalid",
+    subject = randomUUID();
+  const principalId = await syncIdentity(f.pool, { issuer, subject }),
+    ctx = { workspaceId: f.workspaceId, principalId };
+  vi.stubEnv("ACCESS_BOOTSTRAP_OWNERS", principalId);
+  vi.stubEnv(
+    "ACCESS_LEGACY_ADOPTION_JSON",
+    JSON.stringify({
+      spaces: [
+        {
+          workspaceId: f.workspaceId,
+          team: { slug: f.workspaceId, name: "Explicit" },
+          owners: [{ issuer, subject }],
+          grants: [{ principalId: "reviewer", role: "maintain" }],
+          reviewers: ["reviewer"],
+        },
+      ],
+    }),
+  );
+  const a = new AccessService(f.pool),
+    before = (
+      await f.pool.query(
+        "SELECT * FROM resource_readers WHERE workspace_id=$1 ORDER BY kind,resource_id,principal_id",
+        [f.workspaceId],
+      )
+    ).rows;
+  expect((await a.state(ctx)).bootstrapAllowed).toBe(true);
+  await a.bootstrap(ctx, "Verified organization");
+  expect((await a.state(ctx)).space?.role).toBe("Admin");
+  expect((await a.state(f.ctx)).space?.role).toBe("Maintain");
+  await expect(a.state(f.editor)).rejects.toThrow("NOT_FOUND");
+  expect(
+    (
+      await f.pool.query(
+        "SELECT * FROM resource_readers WHERE workspace_id=$1 ORDER BY kind,resource_id,principal_id",
+        [f.workspaceId],
+      )
+    ).rows,
+  ).toEqual(before);
 });
 test("organization and space invitations grant nothing before acceptance; last owner remains protected during transfer", async () => {
   const f = await setup();
@@ -144,12 +186,12 @@ test("Team and direct paths combine only inside their organization; revocation a
       .rows[0].r,
   ).toBeNull();
   const foreign = randomUUID();
-  await f.pool.query("INSERT INTO access_orgs VALUES($1,$2)", [
-    foreign,
-    "Other",
-  ]);
+  await f.pool.query(
+    "INSERT INTO access_namespaces(id,kind,slug,name) VALUES($1,'team',$2,'Other')",
+    [foreign, foreign],
+  );
   const cross = randomUUID();
-  await f.pool.query("INSERT INTO access_teams VALUES($1,$2,$3)", [
+  await f.pool.query("INSERT INTO access_groups VALUES($1,$2,$3)", [
     cross,
     foreign,
     "Other team",
@@ -177,15 +219,13 @@ test("organization removal retires all Team/direct paths; re-adding does not res
     principalId: "reader",
     role: "member",
   });
-  // Use the recipient's own established space, not another person's context.
-  await f.pool.query("INSERT INTO workspaces VALUES($1)", [
-    "reader-" + f.workspaceId,
-  ]);
-  await f.pool.query("INSERT INTO memberships VALUES($1,'reader','reader')", [
-    "reader-" + f.workspaceId,
-  ]);
+  // Establish the recipient's actual personal ownership, not a raw legacy membership.
+  const readerPersonal = await f.access.createSpace(
+    f.reader,
+    "Reader personal",
+  );
   await f.access.invitation(
-    { workspaceId: "reader-" + f.workspaceId, principalId: "reader" },
+    { workspaceId: readerPersonal.id, principalId: "reader" },
     i.id,
     "accept",
   );

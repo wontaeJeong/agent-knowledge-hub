@@ -1,6 +1,7 @@
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
+import { approveInProcessModelFixture } from "../policy/test-fixture";
 import { createServer, type Server } from "node:http";
-import { fixture, source } from "../test-support";
+import { fixture, source, adoptFixture } from "../test-support";
 import { RuntimeService } from "./knowledge";
 import { createRuntimeHandler } from "./http";
 import { OidcAuth, sessionHash } from "./auth";
@@ -33,6 +34,7 @@ let service: RuntimeService;
 let provider: Server;
 beforeAll(async () => {
   f = await fixture();
+  await adoptFixture(f.pool, f.workspaceId);
   service = new RuntimeService(f.pool);
   await f.pool.query(
     `INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,expires_at,subject,access_token) VALUES($1,$2,'editor','csrf',now()+interval '1 hour','editor','unused')`,
@@ -95,7 +97,7 @@ test("database session revalidates IdP and CSRF; bounded DTOs reject malformed d
     headers: { Cookie: `akh_session=${sessionToken}` },
   });
   expect(me.status).toBe(200);
-  expect(await me.json()).toEqual({
+  expect(await me.json()).toMatchObject({
     principalId: "editor",
     workspaceId: f.workspaceId,
     role: "editor",
@@ -304,6 +306,11 @@ test("revoked linked evidence cannot leak copied title through a still-readable 
 test("delayed model cannot propose after ACL revocation and receives only server-approved context", async () => {
   const fresh = await fixture();
   try {
+    await adoptFixture(fresh.pool, fresh.workspaceId);
+    const authorization = await approveInProcessModelFixture(
+      fresh.pool,
+      fresh.workspaceId,
+    );
     let finish!: (value: unknown) => void;
     let started!: () => void;
     const entered = new Promise<void>((r) => (started = r));
@@ -316,7 +323,11 @@ test("delayed model cannot propose after ACL revocation and receives only server
         return new Promise((r) => (finish = r));
       },
     );
-    const pending = runtime.ingest(fresh.editor, [source.id], "model");
+    const pending = runtime.ingest(
+      { ...fresh.editor, authorization },
+      [source.id],
+      "model",
+    );
     await entered;
     await fresh.pool.query(
       "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='editor'",
@@ -341,6 +352,7 @@ test("delayed model cannot propose after ACL revocation and receives only server
     expect(await runtime.changesets(fresh.ctx)).toEqual([]);
     expect((await runtime.jobs(fresh.editor)).at(-1)?.status).toBe("failed");
   } finally {
+    vi.unstubAllEnvs();
     await fresh.pool.end();
   }
 });

@@ -1,9 +1,9 @@
 import {afterEach,beforeEach,expect,test} from "vitest";
-import {fixture} from "./test-support";
+import {fixture,adoptFixture} from "./test-support";
 import {authenticateAgentKey,handleCredentialRequest,startDevice,pollDevice,verifyDevice,decideDevice,permittedAgentRoute} from "./agent-credentials";
 let f:Awaited<ReturnType<typeof fixture>>;
 const original=process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED;
-beforeEach(async()=>{process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED="true";f=await fixture();});
+beforeEach(async()=>{process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED="true";f=await fixture();await adoptFixture(f.pool,f.workspaceId);});
 afterEach(async()=>{await f.pool.end();if(original===undefined)delete process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED;else process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED=original;});
 async function issue(ctx:typeof f.ctx,scope:"read"|"write"="read"){
  const result=await handleCredentialRequest(f.pool,ctx,"POST","/api/v1/credentials/keys",{name:"CI integration",scope,days:90},"http://localhost");

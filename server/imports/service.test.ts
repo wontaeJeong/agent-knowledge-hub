@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "vitest";
 import { randomUUID } from "node:crypto";
-import { fixture } from "../test-support";
+import { fixture, adoptLegacyFixture } from "../test-support";
 import { RuntimeService } from "../runtime/knowledge";
 import type { ModelCall } from "../runtime/model";
 import { defaultSelection } from "../../src/domain/imports";
@@ -21,9 +21,7 @@ test("space policy revision changes during a model call fence the result even wh
     await access.grant(f.editor, { principalId: "reader", role: "Triage" });
     return model(op, raw);
   });
-  process.env.ACCESS_BOOTSTRAP_OWNERS = "editor";
   access = new AccessService(f.pool);
-  await access.bootstrap(f.editor, "Team");
   const item = await upload(f);
   await f.runtime.imports.tick();
   let view = await f.runtime.imports.view(f.editor, item.id);
@@ -73,10 +71,21 @@ const model: ModelCall = async (op, raw) => {
     excluded: [],
   };
 };
+function localFixture(runtime: RuntimeService) {
+  runtime.imports.options.trustedLocalModel = true;
+  runtime.imports.options.beforeModelTransmission = async (
+    _ctx,
+    _metadata,
+    _envelope,
+    options,
+  ) => ({ options, recheck: async () => {} });
+  return runtime;
+}
 async function setup(call: ModelCall = model) {
   const f = await fixture();
   pools.push(f);
-  return { ...f, runtime: new RuntimeService(f.pool, call) };
+  await adoptLegacyFixture(f.pool, f.workspaceId);
+  return { ...f, runtime: localFixture(new RuntimeService(f.pool, call)) };
 }
 async function upload(
   f: Awaited<ReturnType<typeof setup>>,
@@ -140,7 +149,7 @@ test("raw upload is durable, bounded, idempotent and isolated even from workspac
     "NOT_FOUND",
   );
   expect(await f.runtime.imports.list(f.ctx)).toEqual([]);
-  const next = new RuntimeService(f.pool, model);
+  const next = localFixture(new RuntimeService(f.pool, model));
   await next.imports.tick();
   const view = await next.imports.view(f.editor, item.id);
   expect(view.parsed?.counts.selected).toBe(2);
@@ -316,10 +325,13 @@ test("revocation during model call prevents result commits and requires fresh au
   );
   const execution = f.runtime.imports.tick();
   await ready;
-  await f.pool.query(
-    "UPDATE memberships SET role='reader' WHERE workspace_id=$1 AND principal_id='editor'",
-    [f.workspaceId],
-  );
+  const access = new AccessService(f.pool),
+    invite = await access.invite(f.editor, {
+      principalId: "reviewer",
+      role: "owner",
+    });
+  await access.invitation(f.ctx, invite.id, "accept");
+  await access.member(f.ctx, "editor", null);
   release();
   await execution;
   const stored = await f.pool.query(
@@ -402,7 +414,7 @@ test("restart reclaims an expired running preflight without a process-local queu
     "UPDATE import_runs SET status='running',lease_token=7,lease_until=now()-interval '1 minute',attempt=1 WHERE workspace_id=$1 AND id=$2",
     [f.workspaceId, item.preflight],
   );
-  const restarted = new RuntimeService(f.pool, model);
+  const restarted = localFixture(new RuntimeService(f.pool, model));
   expect(await restarted.imports.tick()).toBe(true);
   const run = await restarted.imports.runViewFor(f.editor, item.preflight);
   expect(run.status).toBe("parsed");
@@ -438,7 +450,7 @@ test("a recovered lease fences out a late worker without replacing the winner's 
     "UPDATE import_runs SET lease_until=now()-interval '1 second' WHERE workspace_id=$1 AND id=$2",
     [f.workspaceId, run.id],
   );
-  const recovered = new RuntimeService(f.pool, model);
+  const recovered = localFixture(new RuntimeService(f.pool, model));
   await recovered.imports.tick();
   release();
   await stale;

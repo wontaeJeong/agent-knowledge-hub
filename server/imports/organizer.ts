@@ -5,7 +5,8 @@ import type {
   ImportTopic,
 } from "../../src/domain/imports";
 import { statementKinds } from "../../src/domain/imports";
-import type { ModelCall } from "../runtime/model";
+import type { ModelCall, ModelOptions } from "../runtime/model";
+import { createHash } from "node:crypto";
 
 const short = z.string().trim().min(1).max(2000);
 export const topicSchema = z
@@ -65,6 +66,17 @@ export type ContextPage = {
   content: string;
   version: number;
 };
+export interface OrganizeCall {
+  index: number;
+  phase: "extract" | "consolidate";
+  inputHash: string;
+  contextBytes: number;
+}
+export interface OrganizeHooks {
+  modelOptions?: (call: OrganizeCall) => Promise<ModelOptions>;
+  onCallError?: (call: OrganizeCall, error: unknown) => Promise<void>;
+  onCallFinished?: (call: OrganizeCall) => Promise<void>;
+}
 export async function organizeRecords(
   records: ImportRecord[],
   pages: ContextPage[],
@@ -73,6 +85,7 @@ export async function organizeRecords(
   check: () => Promise<void>,
   checkpoint: (calls: number) => Promise<void>,
   maxCalls = 20,
+  hooks: OrganizeHooks = {},
 ): Promise<ImportResult> {
   if (mode === "offline")
     return {
@@ -108,6 +121,27 @@ export async function organizeRecords(
   const pageIds = new Set(pages.map((p) => p.id));
   const byId = new Map(records.map((r) => [r.id, r]));
   let calls = 0;
+  const invoke = async (context: unknown, phase: OrganizeCall["phase"]) => {
+    const serialized = JSON.stringify(context),
+      meta = {
+        index: calls + 1,
+        phase,
+        inputHash: createHash("sha256").update(serialized).digest("hex"),
+        contextBytes: Buffer.byteLength(serialized),
+      };
+    let options: ModelOptions | undefined;
+    try {
+      options = await hooks.modelOptions?.(meta);
+      calls++;
+      await checkpoint(calls);
+      return await model("organize", context, options);
+    } catch (error) {
+      await hooks.onCallError?.(meta, error);
+      throw error;
+    } finally {
+      await hooks.onCallFinished?.(meta);
+    }
+  };
   const validate = (raw: unknown, expected: ImportRecord[]) => {
     const data = outputSchema.parse(raw),
       accounted = new Set<string>();
@@ -150,9 +184,7 @@ export async function organizeRecords(
     };
     if (Buffer.byteLength(JSON.stringify(context)) > 290_000)
       throw Error("MODEL_CONTEXT_LIMIT");
-    calls++;
-    await checkpoint(calls);
-    outputs.push(validate(await model("organize", context), part));
+    outputs.push(validate(await invoke(context, "extract"), part));
     await check();
   }
   let output = outputs[0] || { topics: [], excluded: [] };
@@ -183,9 +215,9 @@ export async function organizeRecords(
     };
     if (Buffer.byteLength(JSON.stringify(context)) > 290_000)
       throw Error("MODEL_CONTEXT_LIMIT");
-    calls++;
-    await checkpoint(calls);
-    const merged = consolidationSchema.parse(await model("organize", context));
+    const merged = consolidationSchema.parse(
+      await invoke(context, "consolidate"),
+    );
     const assigned = new Set<string>();
     const claim = (id: string) => {
       const candidate = candidates.find((c) => c.id === id);

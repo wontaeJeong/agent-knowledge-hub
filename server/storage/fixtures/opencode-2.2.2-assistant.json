@@ -1,0 +1,109 @@
+{
+  "data": {
+    "id": "msg_redactedAssistant",
+    "time": {
+      "created": 1793348419064,
+      "streamed": 1793348430737,
+      "completed": 1793348433321
+    },
+    "type": "assistant",
+    "agent": "general",
+    "model": {
+      "id": "redacted-model",
+      "providerID": "redacted-provider",
+      "variant": "default"
+    },
+    "content": [
+      {
+        "type": "reasoning",
+        "text": "[redacted reasoning omitted]",
+        "time": { "created": 1793348424398, "completed": 1793348430710 }
+      },
+      {
+        "type": "tool",
+        "id": "call_redacted1",
+        "name": "shell",
+        "executed": false,
+        "state": {
+          "status": "completed",
+          "input": { "redacted": true },
+          "content": [
+            { "type": "text", "text": "익명화한 실제 도구 출력: 한글 fixture" }
+          ],
+          "metadata": { "redacted": true }
+        },
+        "time": {
+          "created": 1793348430719,
+          "ran": 1793348430725,
+          "completed": 1793348433297
+        }
+      },
+      {
+        "type": "tool",
+        "id": "call_redacted2",
+        "name": "shell",
+        "executed": false,
+        "state": {
+          "status": "completed",
+          "input": { "redacted": true },
+          "content": [
+            { "type": "text", "text": "익명화한 실제 도구 출력: 한글 fixture" },
+            { "type": "text", "text": "익명화한 실제 도구 출력: 한글 fixture" }
+          ],
+          "metadata": { "redacted": true }
+        },
+        "time": {
+          "created": 1793348430725,
+          "ran": 1793348430726,
+          "completed": 1793348431300
+        }
+      },
+      {
+        "type": "tool",
+        "id": "call_redacted3",
+        "name": "shell",
+        "executed": false,
+        "state": {
+          "status": "completed",
+          "input": { "redacted": true },
+          "content": [
+            { "type": "text", "text": "익명화한 실제 도구 출력: 한글 fixture" }
+          ],
+          "metadata": { "redacted": true }
+        },
+        "time": {
+          "created": 1793348430728,
+          "ran": 1793348430730,
+          "completed": 1793348431654
+        }
+      },
+      {
+        "type": "tool",
+        "id": "call_redacted4",
+        "name": "shell",
+        "executed": false,
+        "state": {
+          "status": "completed",
+          "input": { "redacted": true },
+          "content": [
+            { "type": "text", "text": "익명화한 실제 도구 출력: 한글 fixture" }
+          ],
+          "metadata": { "redacted": true }
+        },
+        "time": {
+          "created": 1793348430730,
+          "ran": 1793348430731,
+          "completed": 1793348430894
+        }
+      }
+    ],
+    "finish": "tool-calls",
+    "cost": 0,
+    "tokens": {
+      "input": 117,
+      "output": 150,
+      "reasoning": 53,
+      "cache": { "read": 98560, "write": 0 }
+    }
+  }
+}

@@ -20,7 +20,8 @@ function sample(environment) {
         containers: [{ name: "app", image: appImage,
           securityContext: { readOnlyRootFilesystem: true },
           startupProbe: {}, livenessProbe: {}, readinessProbe: {},
-          envFrom: [{ secretRef: { name: "knowledge-secrets" } }],
+          envFrom: [{ configMapRef: { name: "knowledge-config-synthetic" } },
+            { secretRef: { name: "knowledge-secrets" } }],
         }],
       } },
     },
@@ -85,7 +86,7 @@ function sample(environment) {
   ];
 }
 function fakeKubectl(environment, options = {}) {
-  const calls = [];
+  const calls = [], jobs = [];
   const resources = sample(environment);
   const render = resources.map((r) => stringify(r)).join("---\n");
   const password = "fake-not-a-real-long-password";
@@ -94,6 +95,9 @@ function fakeKubectl(environment, options = {}) {
       DATABASE_URL: encode("postgres://knowledge:" + password +
         "@knowledge-db:5432/knowledge"),
       OIDC_CLIENT_SECRET: encode("synthetic-client-secret"),
+      AUDIT_EXPORT_KEY: encode("e".repeat(32)),
+      AUDIT_SIGNING_KEY: encode("s".repeat(32)),
+      AKH_METRICS_TOKEN: encode("m".repeat(32)),
     } },
     "knowledge-db-secret": { type: "Opaque", data: {
       password: encode(password),
@@ -102,9 +106,10 @@ function fakeKubectl(environment, options = {}) {
       "tls.crt": encode("test-only-cert"), "tls.key": encode("test-only-key"),
     } },
   };
-  const executor = (_bin, args) => {
+  const executor = (_bin, args, settings) => {
     const command = args.join(" ");
     calls.push(command);
+    if (command.includes("create -f -")) jobs.push(JSON.parse(settings.input));
     if (args[0] === "kustomize") return render;
     if (command.includes("get namespace")) return "namespace/" +
       "agent-knowledge-hub-" + environment;
@@ -121,7 +126,7 @@ function fakeKubectl(environment, options = {}) {
       throw Object.assign(Error("synthetic migration failure"), { status: 1 });
     return "";
   };
-  return { executor, calls };
+  return { executor, calls, jobs };
 }
 test("validation is read-only even when a valid production site is provided", () => {
   const { executor, calls } = fakeKubectl("stg");
@@ -131,7 +136,7 @@ test("validation is read-only even when a valid production site is provided", ()
   assert.deepEqual(calls, ["kustomize deploy/sites/stg"]);
 });
 test("STG deploy waits for successful migration before applying application", () => {
-  const { executor, calls } = fakeKubectl("stg");
+  const { executor, calls, jobs } = fakeKubectl("stg");
   const result = deploySite({ context: "company-cluster", environment: "stg",
     site: "deploy/sites/stg", apply: true }, executor);
   assert.equal(result.status, "deployed");
@@ -142,6 +147,12 @@ test("STG deploy waits for successful migration before applying application", ()
   assert.equal(applyIndices.length, 2);
   assert.ok(applyIndices[0] < migrate);
   assert.ok(migrate < wait && wait < applyIndices[1]);
+  const container = jobs[0].spec.template.spec.containers[0];
+  assert.equal(container.image, appImage);
+  assert.deepEqual(container.command, ["npm", "run", "migrate:server"]);
+  assert.equal(container.envFrom, undefined);
+  assert.equal(container.readinessProbe, undefined);
+  assert.deepEqual(container.env.map((e) => e.name), ["DATABASE_URL", "ACCESS_BOOTSTRAP_JSON"]);
 });
 test("migration error blocks application apply", () => {
   const { executor, calls } = fakeKubectl("stg", { failMigration: true });

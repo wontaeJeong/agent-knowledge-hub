@@ -32,7 +32,7 @@
     "requestsMemory": "2Gi",
     "limitsCpu": "4",
     "limitsMemory": "4Gi",
-    "storage": "30Gi"
+    "storage": "60Gi"
   },
   "dbStorageClass": "fast-rwo"
 }

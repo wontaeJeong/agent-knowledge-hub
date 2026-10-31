@@ -12,6 +12,7 @@ const topKeys = new Set([
   "oidcIssuer", "oidcClientId", "oidcGroupRoles", "appImage", "postgresImage",
   "ingressController", "oidcEgressCidrs", "modelEgress",
   "quota", "dbStorageClass",
+  "modelTransmissionDestinations", "modelDestinationId",
 ]);
 
 function requireField(condition, message) {
@@ -99,6 +100,30 @@ export function validateSiteConfig(config) {
     Object.values(quota).every(quantity), "RESOURCE_QUOTA_INVALID");
   if (config.dbStorageClass !== undefined)
     requireField(name(config.dbStorageClass), "STORAGE_CLASS_INVALID");
+  const validId = (value) => typeof value === "string" &&
+    /^[a-zA-Z0-9_-]{1,100}$/.test(value) &&
+    !Object.hasOwn(Object.prototype, value) && value !== "prototype";
+  const purposes = ["query", "ingest", "organize", "semantic-lint", "embedding",
+    "conversion", "execution-verification", "assessment"];
+  const entries = config.modelTransmissionDestinations ?? [];
+  requireField(Array.isArray(entries) && entries.length <= 1000 && entries.every((entry) => {
+    if (!object(entry) || Object.keys(entry).sort().join(",") !==
+      "active,classifications,id,purposes,url" || !validId(entry.id) ||
+      typeof entry.active !== "boolean" || typeof entry.url !== "string" || entry.url.length > 2048 ||
+      !Array.isArray(entry.purposes) || !entry.purposes.length || entry.purposes.length > purposes.length ||
+      !entry.purposes.every((p) => purposes.includes(p)) ||
+      !Array.isArray(entry.classifications) || !entry.classifications.length ||
+      entry.classifications.length > 100 || !entry.classifications.every(validId)) return false;
+    try {
+      const url = new URL(entry.url);
+      return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password &&
+        !url.search && !url.hash && url.href === entry.url;
+    } catch { return false; }
+  }) && new Set(entries.map((entry) => entry.id)).size === entries.length,
+  "MODEL_DESTINATIONS_INVALID");
+  if (config.modelDestinationId !== undefined)
+    requireField(validId(config.modelDestinationId) && entries.some((entry) =>
+      entry.id === config.modelDestinationId && entry.active), "MODEL_DESTINATION_ID_INVALID");
   return config;
 }
 function json(value) { return JSON.stringify(value, null, 2) + "\n"; }
@@ -128,6 +153,11 @@ export function siteFiles(input) {
     "patches:",
     "  - path: ingress-patch.json",
     ...(config.dbStorageClass ? [
+      "  - path: operational-storage-patch.json",
+      "    target:",
+      "      kind: PersistentVolumeClaim",
+    ] : []),
+    ...(config.dbStorageClass ? [
       "  - path: db-storage-patch.json",
       "    target:",
       "      kind: StatefulSet",
@@ -141,6 +171,8 @@ export function siteFiles(input) {
     "      - " + JSON.stringify("OIDC_ISSUER=" + config.oidcIssuer),
     "      - " + JSON.stringify("OIDC_CLIENT_ID=" + config.oidcClientId),
     "      - " + JSON.stringify("OIDC_GROUP_ROLES=" + JSON.stringify(config.oidcGroupRoles)),
+    "      - " + JSON.stringify("AKH_MODEL_DESTINATIONS_JSON=" + JSON.stringify(config.modelTransmissionDestinations ?? [])),
+    ...(config.modelDestinationId ? ["      - " + JSON.stringify("AGENT_KNOWLEDGE_HUB_LLM_DESTINATION_ID=" + config.modelDestinationId)] : []),
     "images:",
     "  - name: knowledge-hub",
     "    newName: " + JSON.stringify(appImage.name),
@@ -194,7 +226,7 @@ export function siteFiles(input) {
       "limits.cpu": config.quota.limitsCpu,
       "limits.memory": config.quota.limitsMemory,
       "requests.storage": config.quota.storage,
-      "count/persistentvolumeclaims": "4",
+      "count/persistentvolumeclaims": "5",
       pods: "8",
     } },
   };
@@ -205,6 +237,9 @@ export function siteFiles(input) {
     "external-egress.json": json(egressPolicy),
     "quota.json": json(quota),
     ...(config.dbStorageClass ? {
+      "operational-storage-patch.json": json([{
+        op: "add", path: "/spec/storageClassName", value: config.dbStorageClass,
+      }]),
       "db-storage-patch.json": json([{
         op: "add",
         path: "/spec/volumeClaimTemplates/0/spec/storageClassName",

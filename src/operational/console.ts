@@ -10,6 +10,7 @@ export interface PublishedPage {
   scope?: string;
 }
 export interface ChangeSet {
+  reviewWarnings?:{pageId:string;key:string;code:'PROPERTY_REQUIRED';mode:'warn'|'block'}[];
   id: string;
   hash: string;
   status: string;
@@ -38,11 +39,13 @@ export const consoleGroups = [
     label: "지식 순환",
     items: [
       { id: "knowledge", label: "발행 지식" },
+      { id: "workflows", label: "편집 · 협업" },
       { id: "imports", label: "자료 넣기 · 자동 정리" },
       { id: "sources", label: "원본 · 편입" },
       { id: "review", label: "변경 검토" },
       { id: "query", label: "질문 · 재편입" },
       { id: "lint", label: "지식 건강 점검" },
+      { id: "refinement", label: "정련 · 경험" },
     ],
   },
   {

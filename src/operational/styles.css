@@ -90,6 +90,13 @@
   border-radius: 14px;
   margin: 0 0 20px;
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+.operational-app .button {
+  font-size: 14px;
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
 }
 .op-panel h2 {
   font-size: 21px;
@@ -215,7 +222,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 18px;
 }
-.op-diff > div {
+.op-diff > * {
   min-width: 0;
 }
 .op-answer {
@@ -224,6 +231,9 @@
   padding-top: 18px;
 }
 .op-markdown {
+  overflow-wrap: anywhere;
+}
+.op-panel code {
   overflow-wrap: anywhere;
 }
 .op-markdown table {
@@ -317,8 +327,12 @@
   }
   .op-nav {
     gap: 6px;
+    flex-wrap: nowrap;
+    overflow: auto;
+    max-width: 100%;
   }
   .op-nav button {
+    flex: none;
     padding: 9px 11px;
     font-size: 14px;
   }

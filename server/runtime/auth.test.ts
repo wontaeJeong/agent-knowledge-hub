@@ -5,6 +5,7 @@ import { fixture } from "../test-support";
 import { OidcAuth } from "./auth";
 import { RuntimeService } from "./knowledge";
 import { createRuntimeHandler } from "./http";
+import { bootstrapAccess } from "../access/index";
 
 let f: Awaited<ReturnType<typeof fixture>>,
   app: Server,
@@ -106,6 +107,20 @@ beforeAll(async () => {
   });
   await new Promise<void>((r) => provider.listen(0, "127.0.0.1", r));
   issuer = `http://127.0.0.1:${(provider.address() as { port: number }).port}/realms/test`;
+  const principalId = (await import("./auth")).sessionHash(
+    issuer + "\0real-user",
+  );
+  await bootstrapAccess(f.pool, {
+    spaces: [
+      {
+        workspaceId: f.workspaceId,
+        team: { slug: f.workspaceId, name: "OIDC fixture" },
+        owners: [{ principalId: "auth-fixture-owner" }],
+        grants: [{ principalId, role: "write" }],
+        reviewers: [],
+      },
+    ],
+  });
   app = createServer();
   await new Promise<void>((r) => app.listen(0, "127.0.0.1", r));
   origin = `http://127.0.0.1:${(app.address() as { port: number }).port}`;

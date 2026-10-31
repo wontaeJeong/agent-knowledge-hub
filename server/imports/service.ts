@@ -33,7 +33,50 @@ import { hash, MAX_FILE, parseImport } from "./parser";
 import { organizeRecords, type ContextPage } from "./organizer";
 import { isolatedParse } from "./isolated-parser";
 import { modelConfig } from "../runtime/model";
+import type { ModelOptions } from "../runtime/model";
+import { readFile } from "node:fs/promises";
+import type { OrganizeCall, OrganizeHooks } from "./organizer";
+import { bindPrivateImportTransmission } from "../policy/imports";
+import { configuredModelEndpoint } from "../policy/binding";
+import {
+  reserveImportCall,
+  startImportCall,
+  recordImportUsage,
+  finishImportCall,
+  type ImportCallBinding,
+} from "./model-accounting";
+import { authorizeInTransaction, effectiveAccess } from "../access";
+import {
+  assertReleasedImportContext,
+  replayReleasedInputRemoval,
+} from "../operations/released-imports";
 export const IMPORT_POLICY_VERSION = "agent-knowledge-hub/imports/1";
+export interface ImportTransmissionMetadata extends OrganizeCall {
+  runId: string;
+  importId: string;
+  inputRevision: number;
+  attempt: number;
+  pageIds: string[];
+  sourceIds: string[];
+  fullInputHash: string;
+  configuredEndpoint: string;
+}
+export interface ImportServiceOptions {
+  modelOptions?: ModelOptions;
+  maxCostMicrosPerCall?: number;
+  /** Explicit trusted DI for LOCAL deterministic/no-network fixtures only. Never a DTO or env permission fallback. */
+  trustedLocalModel?: boolean;
+  beforeModelTransmission?: (
+    ctx: Context,
+    metadata: ImportTransmissionMetadata,
+    envelope: InputEnvelope,
+    options: ModelOptions,
+  ) => Promise<{
+    options: ModelOptions;
+    recheck: (db: PoolClient) => Promise<void>;
+  }>;
+  correlation?: (ctx: Context) => { requestId?: string; jobId?: string };
+}
 const executionConfig = () => ({
   policy: IMPORT_POLICY_VERSION,
   ...modelConfig(),
@@ -134,20 +177,216 @@ export class ImportService {
   constructor(
     readonly pool: Pool,
     readonly runtime: RuntimeService,
+    readonly options: ImportServiceOptions = {},
   ) {}
-  private async authorize(db: PoolClient, ctx: Context) {
+  private async modelHooks(
+    ctx: Context,
+    row: Row,
+    imported: Row,
+    envelope: InputEnvelope,
+    rechecks: ((db: PoolClient) => Promise<void>)[],
+    bindings: Map<number, ImportCallBinding>,
+  ): Promise<OrganizeHooks> {
+    const fullInputHash = await transaction(
+      this.pool,
+      ctx.workspaceId,
+      async (db) => {
+        const input = await this.own(db, ctx, imported.id, true);
+        const files = (
+          await db.query(
+            "SELECT id,size,sha256,received FROM import_files WHERE workspace_id=$1 AND import_id=$2 ORDER BY id",
+            [ctx.workspaceId, imported.id],
+          )
+        ).rows;
+        return digest({
+          revision: input.revision,
+          selection: input.selection,
+          parsed: input.parsed,
+          files,
+        });
+      },
+    );
+    return {
+      modelOptions: async (meta) => {
+        await this.guard(row, row.lease_token);
+        const endpoint = this.options.trustedLocalModel
+            ? "http://127.0.0.1/trusted-local-model-fixture"
+            : configuredModelEndpoint(),
+          base = {
+            maxContextBytes: 320000,
+            maxOutputTokens: 6000,
+            ...this.options.modelOptions,
+          };
+        const metadata: ImportTransmissionMetadata = {
+          ...meta,
+          runId: row.id,
+          importId: imported.id,
+          inputRevision: row.input_revision,
+          attempt: row.attempt,
+          pageIds: [...envelope.pageIds],
+          sourceIds: [...envelope.sourceIds],
+          fullInputHash,
+          configuredEndpoint: endpoint,
+        };
+        const policy = this.options.beforeModelTransmission
+          ? await this.options.beforeModelTransmission(
+              ctx,
+              metadata,
+              envelope,
+              base,
+            )
+          : await bindPrivateImportTransmission(
+              this.pool,
+              ctx,
+              { importId: imported.id, inputRevision: row.input_revision },
+              envelope,
+              base,
+              endpoint,
+            );
+        if (
+          !policy?.options ||
+          typeof policy.recheck !== "function" ||
+          (!this.options.trustedLocalModel &&
+            typeof policy.options.beforeTransmission !== "function")
+        )
+          throw Error("MODEL_TRANSMISSION_DENIED");
+        const rules =
+            policy.options.rules ??
+            (await readFile(
+              new URL("../../wiki/SCHEMA.md", import.meta.url),
+              "utf8",
+            )),
+          maxOutput = policy.options.maxOutputTokens ?? 6000,
+          maxContext = policy.options.maxContextBytes ?? 320000;
+        const reservation = {
+          tokens:
+            Math.min(
+              maxContext,
+              meta.contextBytes + Buffer.byteLength(rules) + 16384,
+            ) + maxOutput,
+          costMicros: this.options.maxCostMicrosPerCall ?? 100000,
+        };
+        const correlation = this.options.correlation?.(ctx) ?? {
+            requestId: (ctx as Context & { requestId?: string }).requestId,
+          },
+          clean = (v: string | undefined) =>
+            v && /^[a-zA-Z0-9_.:-]{1,128}$/.test(v) ? v : undefined;
+        const b: ImportCallBinding = {
+          workspaceId: ctx.workspaceId,
+          principalId: ctx.principalId,
+          runId: row.id,
+          importId: imported.id,
+          attempt: row.attempt,
+          leaseToken: row.lease_token,
+          inputRevision: row.input_revision,
+          privateInputHash: fullInputHash,
+          meta,
+          requestId: clean(correlation.requestId),
+          jobId: clean(correlation.jobId),
+        };
+        await transaction(this.pool, ctx.workspaceId, async (db) => {
+          const current = await this.own(db, ctx, imported.id, true);
+          await this.authorize(db, ctx, "changeset.propose");
+          await this.assertPolicy(db, ctx, row);
+          if (current.revision !== row.input_revision)
+            throw Error("INPUT_CHANGED");
+          await reserveImportCall(db, b, reservation);
+        });
+        bindings.set(meta.index, b);
+        rechecks.push(policy.recheck);
+        const original = policy.options;
+        return {
+          ...original,
+          beforeCall: async (provider, model) => {
+            await this.guard(row, row.lease_token);
+            await original.beforeCall?.(provider, model);
+            await transaction(this.pool, ctx.workspaceId, async (db) => {
+              await this.own(db, ctx, imported.id, true);
+              await this.authorize(db, ctx, "changeset.propose");
+              await this.assertPolicy(db, ctx, row);
+              await startImportCall(db, b, provider, model);
+            });
+          },
+          onUsage: async (usage) => {
+            const over = await recordImportUsage(this.pool, b, usage);
+            await original.onUsage?.(usage);
+            if (over) throw Error("BUDGET_EXCEEDED");
+          },
+        };
+      },
+      onCallError: async (meta, error) => {
+        const b = bindings.get(meta.index);
+        if (b) await finishImportCall(this.pool, b, error);
+      },
+      onCallFinished: async (meta) => {
+        const b = bindings.get(meta.index);
+        if (b) await finishImportCall(this.pool, b);
+      },
+    };
+  }
+  private async authorize(
+    db: PoolClient,
+    ctx: Context,
+    action:
+      | "knowledge.read"
+      | "source.create"
+      | "changeset.propose" = "knowledge.read",
+  ) {
     const role = await membership(db, ctx);
     await ctx.authorization?.assertSession(db);
+    await authorizeInTransaction(db, ctx, action);
     return role;
   }
-  private async own(db: PoolClient, ctx: Context, id: string) {
-    await this.authorize(db, ctx);
+  private async own(db: PoolClient, ctx: Context, id: string, write = false) {
+    await this.authorize(db, ctx, write ? "source.create" : "knowledge.read");
     const r = await db.query(
       "SELECT * FROM imports WHERE workspace_id=$1 AND id=$2 AND principal_id=$3 FOR UPDATE",
       [ctx.workspaceId, id, ctx.principalId],
     );
     if (!r.rowCount) throw Error("NOT_FOUND");
+    await assertReleasedImportContext(db, ctx, id);
     return r.rows[0] as Row;
+  }
+  private async personalOwner(db: PoolClient, ctx: Context) {
+    const a = await effectiveAccess(db, ctx);
+    return a.space.namespaceKind === "personal" && a.space.owner;
+  }
+  private async qualifiedReviewers(db: PoolClient, ctx: Context) {
+    const rows = (
+      await db.query(
+        "SELECT r.principal_id FROM access_reviewers r JOIN access_principals p ON p.id=r.principal_id AND p.active AND p.kind='human' WHERE r.workspace_id=$1",
+        [ctx.workspaceId],
+      )
+    ).rows;
+    const allowed: string[] = [];
+    for (const row of rows) {
+      const access = await effectiveAccess(db, {
+        workspaceId: ctx.workspaceId,
+        principalId: row.principal_id,
+      });
+      if (
+        access.capabilities.includes("changeset.approve") &&
+        this.reviewers().has(row.principal_id)
+      )
+        allowed.push(row.principal_id);
+    }
+    return allowed;
+  }
+  private async readInputs(
+    db: PoolClient,
+    ctx: Context,
+    envelope: InputEnvelope,
+  ) {
+    for (const id of envelope.sourceIds)
+      await authorizeInTransaction(db, ctx, "knowledge.read", {
+        kind: "source",
+        id,
+      });
+    for (const id of envelope.pageIds)
+      await authorizeInTransaction(db, ctx, "knowledge.read", {
+        kind: "page",
+        id,
+      });
   }
   private reviewers() {
     return new Set(
@@ -160,21 +399,9 @@ export class ImportService {
   async config(ctx: Context) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
       await this.authorize(db, ctx);
-      const r = await db.query(
-        "SELECT principal_id FROM memberships WHERE workspace_id=$1 AND effective_membership(workspace_id,principal_id)='reviewer'",
-        [ctx.workspaceId],
-      );
-      const eligible = r.rows
-        .map((r) => r.principal_id as string)
-        .filter((id) => this.reviewers().has(id));
+      const eligible = await this.qualifiedReviewers(db, ctx);
       return {
-        personal:
-          (
-            await db.query(
-              "SELECT 1 FROM access_spaces WHERE workspace_id=$1 AND owner_id=$2",
-              [ctx.workspaceId, ctx.principalId],
-            )
-          ).rowCount === 1,
+        personal: await this.personalOwner(db, ctx),
         partSize: PART_SIZE,
         maxFileSize: MAX_FILE,
         reviewers: eligible,
@@ -183,27 +410,28 @@ export class ImportService {
     });
   }
   async create(ctx: Context, input: unknown, key: string) {
-    const body = importCreateSchema.parse(input);
-    requestKey.parse(key);
-    const fingerprint = digest(body);
     return transaction(this.pool, ctx.workspaceId, async (db) => {
-      await this.authorize(db, ctx);
+      await this.authorize(db, ctx, "source.create");
+      const body = importCreateSchema.parse(input);
+      requestKey.parse(key);
+      const fingerprint = digest(body);
       const old = await db.query(
         "SELECT id,request_hash FROM imports WHERE workspace_id=$1 AND principal_id=$2 AND request_key=$3",
         [ctx.workspaceId, ctx.principalId, key],
       );
       if (old.rowCount) {
+        await assertReleasedImportContext(db, ctx, old.rows[0].id);
         if (old.rows[0].request_hash !== fingerprint)
           throw Error("IDEMPOTENCY_CONFLICT");
         return { id: old.rows[0].id };
       }
       const limit = await db.query(
-        "SELECT count(*)::int n FROM imports WHERE workspace_id=$1 AND principal_id=$2",
+        "SELECT count(*)::int n FROM imports WHERE workspace_id=$1 AND principal_id=$2 AND status<>'erased'",
         [ctx.workspaceId, ctx.principalId],
       );
       if (limit.rows[0].n >= 100) throw Error("IMPORT_QUOTA");
       const storage = await db.query(
-        "SELECT COALESCE(sum(f.size),0)::bigint total,COALESCE(sum(f.size) FILTER(WHERE i.principal_id=$2),0)::bigint personal FROM import_files f JOIN imports i ON i.workspace_id=f.workspace_id AND i.id=f.import_id WHERE f.workspace_id=$1",
+        "SELECT COALESCE(sum(f.size),0)::bigint total,COALESCE(sum(f.size) FILTER(WHERE i.principal_id=$2),0)::bigint personal FROM import_files f JOIN imports i ON i.workspace_id=f.workspace_id AND i.id=f.import_id WHERE f.workspace_id=$1 AND i.status<>'erased'",
         [ctx.workspaceId, ctx.principalId],
       );
       const reserved = body.files.reduce((n, f) => n + f.size, 0);
@@ -241,6 +469,9 @@ export class ImportService {
     part: number,
     input: unknown,
   ) {
+    await transaction(this.pool, ctx.workspaceId, (db) =>
+      this.own(db, ctx, id, true),
+    );
     const body = partSchema.parse(input);
     identifier.parse(fileId);
     if (!Number.isSafeInteger(part) || part < 0)
@@ -254,7 +485,7 @@ export class ImportService {
     const bytes = Buffer.from(body.data, "base64");
     if (hash(bytes) !== body.sha256) throw Error("CHECKSUM_MISMATCH");
     return transaction(this.pool, ctx.workspaceId, async (db) => {
-      const row = await this.own(db, ctx, id);
+      const row = await this.own(db, ctx, id, true);
       if (row.status !== "uploading") throw Error("INPUT_FROZEN");
       const f = await db.query(
         "SELECT * FROM import_files WHERE workspace_id=$1 AND import_id=$2 AND id=$3",
@@ -288,11 +519,9 @@ export class ImportService {
       return { received: next.rows[0].received };
     });
   }
-  private async files(
-    db: Pick<PoolClient, "query">,
-    workspace: string,
-    id: string,
-  ) {
+  private async files(db: PoolClient, ctx: Context, id: string) {
+    await this.own(db, ctx, id, true);
+    const workspace = ctx.workspaceId;
     const files = await db.query(
       "SELECT * FROM import_files WHERE workspace_id=$1 AND import_id=$2 ORDER BY id",
       [workspace, id],
@@ -319,6 +548,9 @@ export class ImportService {
     mode: string,
     key: string,
   ) {
+    await this.own(db, ctx, row.id, true);
+    if (mode !== "preflight")
+      await this.authorize(db, ctx, "changeset.propose");
     requestKey.parse(key);
     const fingerprint = digest([row.id, row.revision, mode, row.selection]);
     const old = await db.query(
@@ -361,10 +593,10 @@ export class ImportService {
           accessRevision:
             (
               await db.query(
-                "SELECT revision FROM access_spaces WHERE workspace_id=$1",
+                "SELECT policy_version FROM access_spaces WHERE workspace_id=$1",
                 [ctx.workspaceId],
               )
-            ).rows[0]?.revision ?? null,
+            ).rows[0]?.policy_version ?? null,
         },
       ],
     );
@@ -373,9 +605,9 @@ export class ImportService {
   }
   async finalize(ctx: Context, id: string, key: string) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
-      const row = await this.own(db, ctx, id);
+      const row = await this.own(db, ctx, id, true);
       if (row.status === "uploading") {
-        await this.files(db, ctx.workspaceId, id);
+        await this.files(db, ctx, id);
         await db.query(
           "UPDATE imports SET status='finalized',updated_at=now() WHERE workspace_id=$1 AND id=$2",
           [ctx.workspaceId, id],
@@ -385,12 +617,15 @@ export class ImportService {
     });
   }
   async select(ctx: Context, id: string, revision: number, input: unknown) {
+    await transaction(this.pool, ctx.workspaceId, (db) =>
+      this.own(db, ctx, id, true),
+    );
     const selection = selectionSchema.parse(input);
     return transaction(this.pool, ctx.workspaceId, async (db) => {
-      const row = await this.own(db, ctx, id);
+      const row = await this.own(db, ctx, id, true);
       if (row.revision !== revision) throw Error("INPUT_CHANGED");
       const active = await db.query(
-        "SELECT id FROM import_runs WHERE workspace_id=$1 AND import_id=$2 AND (status IN ('queued','running','proposed') OR changeset IS NOT NULL)",
+        "SELECT id FROM import_runs WHERE workspace_id=$1 AND import_id=$2 AND (status IN ('queued','running','proposed') OR changeset IS NOT NULL OR EXISTS(SELECT 1 FROM import_disclosures d WHERE d.workspace_id=import_runs.workspace_id AND d.run_id=import_runs.id AND d.status='approved'))",
         [ctx.workspaceId, id],
       );
       if (active.rowCount) throw Error("INPUT_FROZEN");
@@ -417,9 +652,13 @@ export class ImportService {
     });
   }
   async start(ctx: Context, id: string, input: unknown, key: string) {
+    await transaction(this.pool, ctx.workspaceId, async (db) => {
+      await this.own(db, ctx, id, true);
+      await this.authorize(db, ctx, "changeset.propose");
+    });
     const body = runSchema.parse(input);
     return transaction(this.pool, ctx.workspaceId, async (db) => {
-      const row = await this.own(db, ctx, id);
+      const row = await this.own(db, ctx, id, true);
       if (row.revision !== body.revision) throw Error("INPUT_CHANGED");
       if (!row.parsed) throw Error("PREFLIGHT_REQUIRED");
       if (row.parsed.warnings.length && !row.selection.acknowledgeWarnings)
@@ -432,7 +671,7 @@ export class ImportService {
       await this.authorize(db, ctx);
       return (
         await db.query(
-          'SELECT id,title,status,revision,created_at AS "createdAt" FROM imports WHERE workspace_id=$1 AND principal_id=$2 ORDER BY created_at DESC LIMIT 100',
+          "SELECT id,title,status,revision,created_at AS \"createdAt\" FROM imports WHERE workspace_id=$1 AND principal_id=$2 AND status<>'erased' ORDER BY created_at DESC LIMIT 100",
           [ctx.workspaceId, ctx.principalId],
         )
       ).rows;
@@ -480,6 +719,18 @@ export class ImportService {
               )
             )
               allowed = false;
+          try {
+            await this.readInputs(db, ctx, run.input_envelope);
+          } catch (e) {
+            if (
+              e instanceof Error &&
+              ["NOT_FOUND", "FORBIDDEN", "SOURCE_SCOPE_CONFLICT"].includes(
+                e.message,
+              )
+            )
+              allowed = false;
+            else throw e;
+          }
           if (!allowed) {
             run.result = null;
             run.changeset = null;
@@ -525,7 +776,17 @@ export class ImportService {
         [ctx.workspaceId, id, ctx.principalId],
       );
       if (!r.rowCount) throw Error("NOT_FOUND");
-      if (r.rows[0].changeset) throw Error("ALREADY_PROPOSED");
+      await assertReleasedImportContext(db, ctx, r.rows[0].import_id);
+      if (
+        r.rows[0].changeset ||
+        (
+          await db.query(
+            "SELECT 1 FROM import_disclosures WHERE workspace_id=$1 AND run_id=$2 AND status='approved'",
+            [ctx.workspaceId, id],
+          )
+        ).rowCount
+      )
+        throw Error("ALREADY_PROPOSED");
       await db.query(
         "UPDATE import_runs SET cancel_requested=true,status=CASE WHEN status='running' THEN status ELSE 'cancelled' END,updated_at=now() WHERE workspace_id=$1 AND id=$2",
         [ctx.workspaceId, id],
@@ -583,6 +844,11 @@ export class ImportService {
         "SELECT id FROM sources WHERE workspace_id=$1 AND data->>'importOwnerId'=$2 AND data->>'importId'=$3",
         [ctx.workspaceId, ctx.principalId, id],
       );
+      await replayReleasedInputRemoval(db, {
+        workspace_id: ctx.workspaceId,
+        import_id: id,
+        principal_id: ctx.principalId,
+      });
       await this.withdrawSources(
         db,
         ctx,
@@ -598,13 +864,16 @@ export class ImportService {
   }
   async resume(ctx: Context, id: string) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
-      await this.authorize(db, ctx);
+      await this.authorize(db, ctx, "source.create");
       const r = await db.query(
         "SELECT r.*,i.revision FROM import_runs r JOIN imports i ON i.workspace_id=r.workspace_id AND i.id=r.import_id WHERE r.workspace_id=$1 AND r.id=$2 AND r.principal_id=$3 FOR UPDATE OF r",
         [ctx.workspaceId, id, ctx.principalId],
       );
       if (!r.rowCount) throw Error("NOT_FOUND");
       const row = r.rows[0];
+      await assertReleasedImportContext(db, ctx, row.import_id);
+      if (row.mode !== "preflight")
+        await this.authorize(db, ctx, "changeset.propose");
       if (
         !["failed", "authorization_required", "cancelled"].includes(
           row.status,
@@ -662,18 +931,32 @@ export class ImportService {
       : { workspaceId: r.workspace_id, principalId: r.principal_id };
     if (r.session_id && !this.authorizer) throw Error("AUTHORIZATION_REQUIRED");
     await transaction(this.pool, ctx.workspaceId, async (db) => {
+      let imported: Row;
+      try {
+        if ((await this.authorize(db, ctx, "source.create")) !== r.grant_role)
+          throw Error("AUTHORIZATION_REQUIRED");
+        imported = await this.own(db, ctx, r.import_id, true);
+        if (r.mode !== "preflight")
+          await this.authorize(db, ctx, "changeset.propose");
+      } catch (e) {
+        if (
+          e instanceof Error &&
+          ["FORBIDDEN", "NOT_FOUND", "UNAUTHENTICATED"].includes(e.message)
+        )
+          throw Error("AUTHORIZATION_REQUIRED");
+        throw e;
+      }
       await this.assertPolicy(db, ctx, r);
-      if ((await this.authorize(db, ctx)) !== r.grant_role)
-        throw Error("AUTHORIZATION_REQUIRED");
-      const imported = await this.own(db, ctx, r.import_id);
       if (imported.revision !== r.input_revision) throw Error("INPUT_CHANGED");
-      if (r.input_envelope)
+      if (r.input_envelope) {
+        await this.readInputs(db, ctx, r.input_envelope);
         await assertEnvelope(
           db,
           ctx,
           await loadState(db, ctx.workspaceId),
           r.input_envelope,
         );
+      }
     });
     return ctx;
   }
@@ -681,10 +964,10 @@ export class ImportService {
     const revision =
       (
         await db.query(
-          "SELECT revision FROM access_spaces WHERE workspace_id=$1",
+          "SELECT policy_version FROM access_spaces WHERE workspace_id=$1",
           [ctx.workspaceId],
         )
-      ).rows[0]?.revision ?? null;
+      ).rows[0]?.policy_version ?? null;
     if (
       revision !== (row.execution_config?.accessRevision ?? null) ||
       row.policy_version !== IMPORT_POLICY_VERSION
@@ -696,6 +979,8 @@ export class ImportService {
     this.running = true;
     let row: Row | undefined,
       heartbeat: ReturnType<typeof setInterval> | undefined;
+    const transmissionRechecks: ((db: PoolClient) => Promise<void>)[] = [],
+      modelBindings = new Map<number, ImportCallBinding>();
     try {
       await this.pool.query(
         "UPDATE import_runs SET status='failed',stage='failed',error_code='RETRY_LIMIT',lease_until=NULL,updated_at=now() WHERE attempt>=5 AND (status='queued' OR (status='running' AND lease_until<clock_timestamp()))",
@@ -718,21 +1003,19 @@ export class ImportService {
       }, 20_000);
       heartbeat.unref();
       const ctx = await this.guard(row!, token);
-      const imported = (
-        await this.pool.query(
-          "SELECT * FROM imports WHERE workspace_id=$1 AND id=$2",
-          [ctx.workspaceId, row!.import_id],
-        )
-      ).rows[0];
+      const imported = await transaction(this.pool, ctx.workspaceId, (db) =>
+        this.own(db, ctx, row!.import_id, true),
+      );
       let parsed: ParsedImport = imported.parsed;
       if (!parsed) {
-        parsed = await isolatedParse(
-          await this.files(this.pool, ctx.workspaceId, imported.id),
-          imported.selection,
+        const files = await transaction(this.pool, ctx.workspaceId, (db) =>
+          this.files(db, ctx, imported.id),
         );
         await this.guard(row!, token);
+        parsed = await isolatedParse(files, imported.selection);
+        await this.guard(row!, token);
         await transaction(this.pool, ctx.workspaceId, async (db) => {
-          await this.authorize(db, ctx);
+          await this.own(db, ctx, imported.id, true);
           const lease = await db.query(
             "SELECT id FROM import_runs WHERE workspace_id=$1 AND id=$2 AND lease_token=$3 AND status='running' AND cancel_requested=false AND lease_until>clock_timestamp() FOR UPDATE",
             [ctx.workspaceId, row!.id, token],
@@ -786,18 +1069,34 @@ export class ImportService {
               ),
           )
           .slice(0, 20);
-        const envelope = await transaction(this.pool, ctx.workspaceId, (db) =>
-          captureEnvelope(
-            db,
-            ctx,
-            state,
-            pages.map((p) => p.id),
-          ),
+        const envelope = await transaction(
+          this.pool,
+          ctx.workspaceId,
+          async (db) => {
+            await this.own(db, ctx, imported.id, true);
+            await this.authorize(db, ctx, "changeset.propose");
+            for (const page of pages)
+              await authorizeInTransaction(db, ctx, "knowledge.read", {
+                kind: "page",
+                id: page.id,
+              });
+            return captureEnvelope(
+              db,
+              ctx,
+              state,
+              pages.map((p) => p.id),
+            );
+          },
         );
-        await this.pool.query(
-          "UPDATE import_runs SET input_envelope=$4,state_hash=$5 WHERE workspace_id=$1 AND id=$2 AND lease_token=$3",
-          [ctx.workspaceId, row!.id, token, envelope, digest(state)],
-        );
+        await transaction(this.pool, ctx.workspaceId, async (db) => {
+          await this.own(db, ctx, imported.id, true);
+          await this.authorize(db, ctx, "changeset.propose");
+          await this.assertPolicy(db, ctx, row!);
+          return db.query(
+            "UPDATE import_runs SET input_envelope=$4,state_hash=$5 WHERE workspace_id=$1 AND id=$2 AND lease_token=$3",
+            [ctx.workspaceId, row!.id, token, envelope, digest(state)],
+          );
+        });
         const contextPages: ContextPage[] = pages.map((p) => ({
           id: p.id,
           title: p.title,
@@ -807,24 +1106,28 @@ export class ImportService {
         result = await organizeRecords(
           parsed.records,
           contextPages,
-          (operation,modelContext) => this.runtime.model(operation,modelContext,{pool:this.pool,workspaceId:ctx.workspaceId,principalId:ctx.principalId}),
+          (operation,modelContext,modelOptions) => this.runtime.model(operation,modelContext,{...modelOptions,pool:this.pool,workspaceId:ctx.workspaceId,principalId:ctx.principalId}),
           row!.mode,
           async () => {
             await this.guard(row!, token);
           },
-          async (calls) => {
-            const updated = await this.pool.query(
-              "UPDATE import_runs SET calls=calls+1 WHERE workspace_id=$1 AND id=$2 AND lease_token=$3 AND calls<20 AND cancel_requested=false RETURNING calls",
-              [ctx.workspaceId, row!.id, token],
-            );
-            if (!updated.rowCount) throw Error("BUDGET_EXCEEDED");
-          },
+          async () => {}, // reserveImportCall atomically increments the SAME max20 run budget.
           Math.max(0, 20 - row!.calls),
+          await this.modelHooks(
+            ctx,
+            row!,
+            imported,
+            envelope,
+            transmissionRechecks,
+            modelBindings,
+          ),
         );
       }
       await this.guard(row!, token);
       await transaction(this.pool, ctx.workspaceId, async (db) => {
-        await this.authorize(db, ctx);
+        await this.own(db, ctx, imported.id, true);
+        if (row!.mode !== "preflight")
+          await this.authorize(db, ctx, "changeset.propose");
         const checked = await db.query(
           "SELECT * FROM import_runs WHERE workspace_id=$1 AND id=$2 AND lease_token=$3 FOR UPDATE",
           [ctx.workspaceId, row!.id, token],
@@ -844,6 +1147,7 @@ export class ImportService {
             await loadState(db, ctx.workspaceId),
             checked.rows[0].input_envelope,
           );
+        for (const recheck of transmissionRechecks) await recheck(db);
         if (result) result.calls = checked.rows[0].calls;
         const status =
           row!.mode === "preflight"
@@ -861,6 +1165,10 @@ export class ImportService {
     } catch (e) {
       if (row) {
         const code = safeCode(e);
+        for (const binding of modelBindings.values())
+          await finishImportCall(this.pool, binding, Error(code)).catch(
+            () => {},
+          );
         await this.pool
           .query(
             "UPDATE import_runs SET status=$4,stage=$4,error_code=$5,lease_until=NULL,updated_at=now() WHERE workspace_id=$1 AND id=$2 AND lease_token=$3 AND status='running'",
@@ -905,17 +1213,23 @@ export class ImportService {
     };
   }
   async requestDisclosure(ctx: Context, id: string, input: unknown) {
+    await transaction(this.pool, ctx.workspaceId, async (db) => {
+      await this.authorize(db, ctx, "source.create");
+      await this.authorize(db, ctx, "changeset.propose");
+    });
     const body = disclosureSchema.parse(input),
       audience = [...new Set(body.readers)].sort();
     return transaction(this.pool, ctx.workspaceId, async (db) => {
-      const role = await this.authorize(db, ctx);
-      if (role === "reader") throw Error("FORBIDDEN");
+      await this.authorize(db, ctx, "source.create");
+      await this.authorize(db, ctx, "changeset.propose");
       const r = await db.query(
         "SELECT r.*,i.parsed,i.revision FROM import_runs r JOIN imports i ON i.workspace_id=r.workspace_id AND i.id=r.import_id WHERE r.workspace_id=$1 AND r.id=$2 AND r.principal_id=$3 FOR UPDATE OF r",
         [ctx.workspaceId, id, ctx.principalId],
       );
       if (!r.rowCount) throw Error("NOT_FOUND");
       const row = r.rows[0];
+      await this.own(db, ctx, row.import_id, true);
+      await this.assertPolicy(db, ctx, row);
       if (
         row.status !== "review_ready" ||
         row.input_revision !== row.revision ||
@@ -923,32 +1237,31 @@ export class ImportService {
       )
         throw Error("STALE_VERSION");
       if (
-        !this.reviewers().has(body.reviewerId) ||
+        !(await this.qualifiedReviewers(db, ctx)).includes(body.reviewerId) ||
         body.reviewerId === ctx.principalId ||
         !audience.includes(ctx.principalId) ||
         !audience.includes(body.reviewerId)
       )
         throw Error("FORBIDDEN");
-      const members = await db.query(
-        "SELECT principal_id,effective_membership(workspace_id,principal_id) AS role FROM memberships WHERE workspace_id=$1 AND effective_membership(workspace_id,principal_id) IS NOT NULL",
-        [ctx.workspaceId],
-      );
-      if (
-        audience.some(
-          (id) => !members.rows.some((m) => m.principal_id === id),
-        ) ||
-        !members.rows.some(
-          (m) => m.principal_id === body.reviewerId && m.role === "reviewer",
+      for (const principalId of audience)
+        if (
+          !(
+            await effectiveAccess(db, {
+              workspaceId: ctx.workspaceId,
+              principalId,
+            })
+          ).role
         )
-      )
-        throw Error("FORBIDDEN");
-      if (row.input_envelope)
+          throw Error("FORBIDDEN");
+      if (row.input_envelope) {
+        await this.readInputs(db, ctx, row.input_envelope);
         await assertEnvelope(
           db,
           ctx,
           await loadState(db, ctx.workspaceId),
           row.input_envelope,
         );
+      }
       // Every supplied page/source can taint the synthesized prose. Do not expand its audience.
       for (const [kind, ids] of [
         ["source", row.input_envelope?.sourceIds || []],
@@ -989,11 +1302,12 @@ export class ImportService {
   }
   async disclosureList(ctx: Context) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
-      const role = await this.authorize(db, ctx);
-      if (role !== "reviewer" || !this.reviewers().has(ctx.principalId))
+      await this.authorize(db, ctx);
+      if (!(await this.qualifiedReviewers(db, ctx)).includes(ctx.principalId))
         return [];
+      await authorizeInTransaction(db, ctx, "changeset.approve");
       const rows = await db.query(
-        "SELECT d.*,r.result,r.input_revision,r.input_envelope,r.cancel_requested,i.parsed,i.title,i.revision FROM import_disclosures d JOIN import_runs r ON r.workspace_id=d.workspace_id AND r.id=d.run_id JOIN imports i ON i.workspace_id=r.workspace_id AND i.id=r.import_id WHERE d.workspace_id=$1 AND d.reviewer_id=$2 AND d.status='pending' AND r.status='review_ready' ORDER BY d.created_at DESC LIMIT 50",
+        "SELECT d.*,r.import_id,r.policy_version,r.execution_config,r.result,r.input_revision,r.input_envelope,r.cancel_requested,i.parsed,i.title,i.revision FROM import_disclosures d JOIN import_runs r ON r.workspace_id=d.workspace_id AND r.id=d.run_id JOIN imports i ON i.workspace_id=r.workspace_id AND i.id=r.import_id WHERE d.workspace_id=$1 AND d.reviewer_id=$2 AND d.status='pending' AND r.status='review_ready' ORDER BY d.created_at DESC LIMIT 50",
         [ctx.workspaceId, ctx.principalId],
       );
       const result = [];
@@ -1001,13 +1315,17 @@ export class ImportService {
         if (row.cancel_requested || row.revision !== row.input_revision)
           continue;
         try {
-          if (row.input_envelope)
+          await assertReleasedImportContext(db, ctx, row.import_id);
+          await this.assertPolicy(db, ctx, row);
+          if (row.input_envelope) {
+            await this.readInputs(db, ctx, row.input_envelope);
             await assertEnvelope(
               db,
               ctx,
               await loadState(db, ctx.workspaceId),
               row.input_envelope,
             );
+          }
         } catch {
           continue;
         }
@@ -1029,16 +1347,9 @@ export class ImportService {
       this.pool,
       ctx.workspaceId,
       async (db) => {
-        await this.authorize(db, ctx);
-        if (
-          !(
-            await db.query(
-              "SELECT 1 FROM access_spaces WHERE workspace_id=$1 AND owner_id=$2",
-              [ctx.workspaceId, ctx.principalId],
-            )
-          ).rowCount
-        )
-          throw Error("FORBIDDEN");
+        await this.authorize(db, ctx, "source.create");
+        await this.authorize(db, ctx, "changeset.propose");
+        if (!(await this.personalOwner(db, ctx))) throw Error("FORBIDDEN");
         const r = await db.query(
           "SELECT * FROM import_runs WHERE workspace_id=$1 AND id=$2 AND principal_id=$3 AND status IN ('review_ready','proposed') AND NOT cancel_requested FOR UPDATE",
           [ctx.workspaceId, id, ctx.principalId],
@@ -1052,6 +1363,8 @@ export class ImportService {
             envelope: row.input_envelope,
             audience: [ctx.principalId],
           });
+        await assertReleasedImportContext(db, ctx, row.import_id);
+        await this.assertPolicy(db, ctx, row);
         await db.query(
           "INSERT INTO import_disclosures(workspace_id,run_id,principal_id,reviewer_id,audience,hash) VALUES($1,$2,$3,$3,$4,$5) ON CONFLICT DO NOTHING",
           [
@@ -1094,27 +1407,25 @@ export class ImportService {
       this.pool,
       ctx.workspaceId,
       async (db) => {
-        if (
-          (await this.authorize(db, ctx)) !== "reviewer" ||
-          (!personal && !this.reviewers().has(ctx.principalId))
-        )
-          throw Error("FORBIDDEN");
-        if (
-          personal &&
-          !(
-            await db.query(
-              "SELECT 1 FROM access_spaces WHERE workspace_id=$1 AND owner_id=$2",
-              [ctx.workspaceId, ctx.principalId],
-            )
-          ).rowCount
-        )
+        await this.authorize(db, ctx, "source.create");
+        await this.authorize(db, ctx, "changeset.propose");
+        if (!personal) {
+          await authorizeInTransaction(db, ctx, "changeset.approve");
+          if (
+            !(await this.qualifiedReviewers(db, ctx)).includes(ctx.principalId)
+          )
+            throw Error("FORBIDDEN");
+        }
+        if (personal && !(await this.personalOwner(db, ctx)))
           throw Error("FORBIDDEN");
         const r = await db.query(
-          "SELECT d.*,r.import_id,r.result,r.input_revision,r.input_envelope,r.status AS run_status,r.changeset,r.cancel_requested,i.parsed,i.revision,i.title,i.selection FROM import_disclosures d JOIN import_runs r ON r.workspace_id=d.workspace_id AND r.id=d.run_id JOIN imports i ON i.workspace_id=r.workspace_id AND i.id=r.import_id WHERE d.workspace_id=$1 AND d.run_id=$2 AND d.reviewer_id=$3 FOR UPDATE OF d,r",
+          "SELECT d.*,r.import_id,r.policy_version,r.execution_config,r.result,r.input_revision,r.input_envelope,r.status AS run_status,r.changeset,r.cancel_requested,i.parsed,i.revision,i.title,i.selection FROM import_disclosures d JOIN import_runs r ON r.workspace_id=d.workspace_id AND r.id=d.run_id JOIN imports i ON i.workspace_id=r.workspace_id AND i.id=r.import_id WHERE d.workspace_id=$1 AND d.run_id=$2 AND d.reviewer_id=$3 FOR UPDATE OF d,r",
           [ctx.workspaceId, id, ctx.principalId],
         );
         if (!r.rowCount) throw Error("NOT_FOUND");
         const row = r.rows[0];
+        await assertReleasedImportContext(db, ctx, row.import_id);
+        await this.assertPolicy(db, ctx, row);
         if (row.hash !== expectedHash) throw Error("APPROVAL_STALE");
         if (row.changeset) return row.changeset;
         if (
@@ -1135,20 +1446,22 @@ export class ImportService {
           workspaceId: ctx.workspaceId,
           principalId: row.principal_id,
         };
-        if ((await membership(db, creator)) === "reader")
-          throw Error("FORBIDDEN");
-        const members = await db.query(
-          "SELECT principal_id FROM memberships WHERE workspace_id=$1 AND effective_membership(workspace_id,principal_id) IS NOT NULL",
-          [ctx.workspaceId],
-        );
-        if (
-          row.audience.some(
-            (p: string) => !members.rows.some((m) => m.principal_id === p),
+        await authorizeInTransaction(db, creator, "source.create");
+        await authorizeInTransaction(db, creator, "changeset.propose");
+        for (const principalId of row.audience)
+          if (
+            !(
+              await effectiveAccess(db, {
+                workspaceId: ctx.workspaceId,
+                principalId,
+              })
+            ).role
           )
-        )
-          throw Error("APPROVAL_STALE");
+            throw Error("APPROVAL_STALE");
         const state = await loadState(db, ctx.workspaceId);
         if (row.input_envelope) {
+          await this.readInputs(db, ctx, row.input_envelope);
+          await this.readInputs(db, creator, row.input_envelope);
           await assertEnvelope(db, ctx, state, row.input_envelope);
           await assertEnvelope(db, creator, state, row.input_envelope);
         }
@@ -1188,7 +1501,7 @@ export class ImportService {
               title: row.title + " · 선택 원본 " + index,
               tool: "web-import",
               project: row.selection.project,
-              scope: "team" as const,
+              scope: personal ? ("private" as const) : ("team" as const),
               verification: "미검증" as const,
               content,
               createdAt: new Date().toISOString(),
@@ -1222,7 +1535,7 @@ export class ImportService {
             ? state.pages.find((p) => p.id === t.targetPageId)
             : undefined;
           if (t.targetPageId && !existing) throw Error("STALE_VERSION");
-          if (existing && existing.scope !== "team")
+          if (existing && !personal && existing.scope !== "team")
             throw Error("SOURCE_SCOPE_CONFLICT");
           return {
             id:
@@ -1236,7 +1549,7 @@ export class ImportService {
             title: t.title,
             summary: t.summary,
             content: t.content,
-            scope: "team",
+            scope: personal ? "private" : "team",
             sourceIds: allSources,
             links: t.relatedPageIds.filter((p) => p !== existing?.id),
             facts: [],
@@ -1253,10 +1566,17 @@ export class ImportService {
           sourceIds: allSources,
           envelope: row.input_envelope as InputEnvelope | undefined,
           authorId: row.principal_id,
+          importId: row.import_id as string,
         };
       },
     );
     if ("id" in prepared) return prepared;
+    await transaction(this.pool, ctx.workspaceId, async (db) => {
+      await this.authorize(db, ctx, "source.create");
+      await this.authorize(db, ctx, "changeset.propose");
+      await assertReleasedImportContext(db, ctx, prepared.importId);
+      if (prepared.envelope) await this.readInputs(db, ctx, prepared.envelope);
+    });
     const batch = await propose(
       this.pool,
       ctx,
@@ -1270,10 +1590,17 @@ export class ImportService {
         importAuthorId: prepared.authorId,
       },
     );
-    await this.pool.query(
-      "UPDATE import_runs SET status='proposed',stage='proposed',changeset=$3,updated_at=now() WHERE workspace_id=$1 AND id=$2",
-      [ctx.workspaceId, id, batch],
-    );
+    await transaction(this.pool, ctx.workspaceId, async (db) => {
+      await this.authorize(db, ctx, "source.create");
+      await this.authorize(db, ctx, "changeset.propose");
+      await assertReleasedImportContext(db, ctx, prepared.importId);
+      const saved = await db.query(
+        "UPDATE import_runs SET status='proposed',stage='proposed',changeset=$3,updated_at=now() WHERE workspace_id=$1 AND id=$2 AND cancel_requested=false AND status='review_ready'",
+        [ctx.workspaceId, id, batch],
+      );
+      if (!saved.rowCount) throw Error("IMPORT_CANCELLED");
+      return saved;
+    });
     return batch;
   }
 }

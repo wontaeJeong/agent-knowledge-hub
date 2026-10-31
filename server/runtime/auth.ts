@@ -7,6 +7,41 @@ import type { Context } from "../service";
 import { registerPrincipal, personalSpace } from "../access";
 import type { SpaceRole } from "../../src/domain/access";
 import { workspaceHref } from "../../src/entry";
+import { effectiveAccess, syncIdentity } from "../access/index";
+import type {
+  InteractiveSessionBinding,
+  InteractiveSessionSnapshot,
+} from "../jobs/identity";
+import {
+  assertSessionPolicy,
+  defaultSessionPolicy,
+  identityTransaction,
+  initializeSessionPolicy,
+  invalidateSessionBindings,
+  recoverVerifiedSessionPolicy,
+  sessionPolicyFromEnvironment,
+  touchSession,
+  type SessionPolicy,
+} from "../identity/sessions";
+import {
+  syncDirectoryMemberships,
+  type GroupProof,
+} from "../identity/directory";
+import { createVerifiedOidcDirectoryAdapter } from "../identity/adapters";
+import { registerEmergencyGuard } from "../identity/authority";
+import type { EmergencyAccess } from "../identity/emergency";
+
+export interface OidcIdentityOptions {
+  sessionPolicy?: SessionPolicy;
+  directoryProof?: (
+    subject: string,
+    verifiedUserInfo: Readonly<Record<string, unknown>>,
+    issuer: string,
+  ) => Promise<GroupProof | undefined>;
+  directoryGroupClaim?: string;
+  directoryFreshnessSeconds?: number;
+  emergency?: EmergencyAccess;
+}
 
 export const sessionHash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -20,43 +55,242 @@ export const cookie = (req: IncomingMessage, name: string) =>
 export type Session = Context & {
   role: Role;
   csrfToken: string;
+  identityRole?: Role;
   spaceRole?: SpaceRole | null;
   canReviewKnowledge?: boolean;
   personalSpace?: boolean;
 };
 export class OidcAuth {
+  readonly sessionPolicy: SessionPolicy;
+  private readonly defaultDirectoryProof?: ReturnType<
+    typeof createVerifiedOidcDirectoryAdapter
+  >;
+  private async directoryProof(
+    subject: string,
+    info: Readonly<Record<string, unknown>>,
+  ) {
+    const issuer = this.config.serverMetadata().issuer;
+    if (this.identityOptions.directoryProof)
+      return this.identityOptions.directoryProof(subject, info, issuer);
+    return this.defaultDirectoryProof?.(subject, info);
+  }
+  private async acceptVerifiedIdentity(
+    db: PoolClient,
+    binding: InteractiveSessionBinding,
+    subject: string,
+    proof: GroupProof | undefined,
+  ) {
+    const issuer = this.config.serverMetadata().issuer;
+    const actor = await db.query(
+      "SELECT id,issuer,subject FROM access_principals WHERE id=$1 AND active AND kind='human' FOR SHARE",
+      [binding.principalId],
+    );
+    const p = actor.rows[0];
+    if (
+      !p ||
+      (p.issuer !== null && (p.issuer !== issuer || p.subject !== subject))
+    )
+      throw Error("UNAUTHENTICATED");
+    if (
+      p.issuer === null &&
+      binding.principalId === sessionHash(issuer + "\0" + subject)
+    ) {
+      await syncIdentity(db, { issuer, subject });
+      p.issuer = issuer;
+      p.subject = subject;
+    }
+    await recoverVerifiedSessionPolicy(
+      db,
+      binding,
+      { issuer, subject },
+      this.sessionPolicy,
+    );
+    await assertSessionPolicy(db, binding, this.sessionPolicy);
+    // Legacy unbound principals keep only their explicitly established manual
+    // product paths. We never attach a new issuer to an arbitrary fixture ID.
+    if (proof && p.issuer !== null) {
+      if (proof.subject !== subject || proof.issuer !== issuer)
+        throw Error("DIRECTORY_IDENTITY_MISMATCH");
+      await syncDirectoryMemberships(db, proof);
+    }
+  }
+  private async discardSession(id: string, principalId?: string) {
+    await identityTransaction(this.pool, async (db) => {
+      const row = (
+        await db.query(
+          "SELECT principal_id FROM runtime_sessions WHERE id=$1 AND ($2::text IS NULL OR principal_id=$2) FOR UPDATE",
+          [id, principalId ?? null],
+        )
+      ).rows[0];
+      if (row) await invalidateSessionBindings(db, row.principal_id, [id]);
+    });
+  }
   requestGuard(req: IncomingMessage, expected: Session) {
     const raw = cookie(req, "akh_session");
     const check = async (db: Pick<PoolClient, "query">) => {
       if (!raw) throw Error("UNAUTHENTICATED");
+      await assertSessionPolicy(
+        db,
+        {
+          sessionId: sessionHash(raw),
+          principalId: expected.principalId,
+          workspaceId: expected.workspaceId,
+        },
+        this.sessionPolicy,
+      );
       const result = await db.query(
-        `SELECT s.id FROM runtime_sessions s JOIN memberships m ON m.workspace_id=s.workspace_id AND m.principal_id=s.principal_id WHERE s.id=$1 AND s.workspace_id=$2 AND s.principal_id=$3 AND s.csrf=$4 AND s.expires_at>clock_timestamp() AND effective_membership(m.workspace_id,m.principal_id)=$5 FOR SHARE OF s,m`,
-        [
-          sessionHash(raw),
-          expected.workspaceId,
-          expected.principalId,
-          expected.csrfToken,
-          expected.role,
-        ],
+        `SELECT s.id FROM runtime_sessions s JOIN access_principals p ON p.id=s.principal_id AND p.active WHERE s.id=$1 AND s.principal_id=$2 AND s.csrf=$3 AND s.expires_at>clock_timestamp() FOR SHARE OF s,p`,
+        [sessionHash(raw), expected.principalId, expected.csrfToken],
       );
       if (!result.rowCount) throw Error("UNAUTHENTICATED");
+      try {
+        const access = await effectiveAccess(db, {
+          workspaceId: expected.workspaceId,
+          principalId: expected.principalId,
+        });
+        const role: Role = access.capabilities.includes("changeset.approve")
+          ? "reviewer"
+          : access.capabilities.includes("changeset.propose")
+            ? "editor"
+            : "reader";
+        if (role !== expected.role) throw Error("UNAUTHENTICATED");
+        const spaceRole = access.role
+          ? (
+              {
+                read: "Read",
+                triage: "Triage",
+                write: "Write",
+                maintain: "Maintain",
+                admin: "Admin",
+              } as const
+            )[access.role]
+          : null;
+        if (
+          expected.spaceRole !== undefined &&
+          spaceRole !== expected.spaceRole
+        )
+          throw Error("UNAUTHENTICATED");
+      } catch (e) {
+        // Authenticated roleless accounts can resolve a pinned share/emergency
+        // separately. This admits no workspace action or unknown source reader.
+        if (
+          !(e instanceof Error) ||
+          e.message !== "NOT_FOUND" ||
+          expected.role !== "reader" ||
+          expected.spaceRole != null
+        )
+          throw e;
+      }
     };
-    return {
+    const guard = {
       sessionId: raw ? sessionHash(raw) : undefined,
       assertSession: (db: PoolClient) => check(db),
       revalidate: async () => {
-        const fresh = await this.authenticate(req);
+        const fresh = await this.authenticate(req, false);
         if (
           !fresh ||
           fresh.workspaceId !== expected.workspaceId ||
           fresh.principalId !== expected.principalId ||
           fresh.role !== expected.role ||
+          fresh.identityRole !== expected.identityRole ||
+          (expected.spaceRole !== undefined &&
+            fresh.spaceRole !== expected.spaceRole) ||
           fresh.csrfToken !== expected.csrfToken
         )
           throw Error("UNAUTHENTICATED");
         await check(this.pool);
       },
     };
+    return this.identityOptions.emergency
+      ? registerEmergencyGuard(guard, this.identityOptions.emergency)
+      : guard;
+  }
+  private async executionSession(
+    db: Pick<PoolClient, "query">,
+    binding: InteractiveSessionBinding,
+    lock = false,
+  ) {
+    if (!/^[a-f0-9]{64}$/.test(binding.sessionId))
+      throw Error("UNAUTHENTICATED");
+    await assertSessionPolicy(db, binding, this.sessionPolicy);
+    const found = await db.query(
+      `SELECT s.* FROM runtime_sessions s JOIN access_principals p ON p.id=s.principal_id AND p.active AND p.kind='human' WHERE s.id=$1 AND s.principal_id=$2 AND s.expires_at>clock_timestamp()${lock ? " FOR SHARE OF s,p" : ""}`,
+      [binding.sessionId, binding.principalId],
+    );
+    const row = found.rows[0];
+    if (!row) throw Error("UNAUTHENTICATED");
+    const access = await effectiveAccess(db, {
+      workspaceId: binding.workspaceId,
+      principalId: binding.principalId,
+    });
+    if (!access.role) throw Error("UNAUTHENTICATED");
+    const role: Role = access.capabilities.includes("changeset.approve")
+      ? "reviewer"
+      : access.capabilities.includes("changeset.propose")
+        ? "editor"
+        : "reader";
+    return { row, role };
+  }
+  /** Hashed parent pointer only. Network identity proof remains outside write transactions. */
+  async revalidateInteractiveGrant(
+    binding: InteractiveSessionBinding,
+  ): Promise<InteractiveSessionSnapshot> {
+    try {
+      // Fetching UserInfo is not authority. Only the subsequent transactional
+      // policy assertion can restore a compatibility row or authorize a job.
+      const row = (
+        await this.pool.query(
+          `SELECT s.* FROM runtime_sessions s JOIN access_principals p ON p.id=s.principal_id AND p.active AND p.kind='human' WHERE s.id=$1 AND s.principal_id=$2 AND s.expires_at>clock_timestamp()`,
+          [binding.sessionId, binding.principalId],
+        )
+      ).rows[0];
+      if (!row) throw Error("UNAUTHENTICATED");
+      const info = await oidc.fetchUserInfo(
+          this.config,
+          row.access_token,
+          row.subject,
+        ),
+        identityRole = this.role(info);
+      const proof = await this.directoryProof(row.subject, info);
+      const current = await identityTransaction(this.pool, async (db) => {
+        await this.acceptVerifiedIdentity(db, binding, row.subject, proof);
+        return this.executionSession(db, binding, true);
+      });
+      const snapshot = {
+        role: current.role,
+        identityRole,
+        csrfHash: sessionHash(current.row.csrf),
+        subjectHash: sessionHash(current.row.subject),
+      };
+      if (
+        binding.snapshot &&
+        Object.keys(snapshot).some(
+          (key) =>
+            snapshot[key as keyof typeof snapshot] !==
+            binding.snapshot![key as keyof InteractiveSessionSnapshot],
+        )
+      )
+        throw Error("UNAUTHENTICATED");
+      return snapshot;
+    } catch {
+      await this.discardSession(binding.sessionId, binding.principalId);
+      throw Error("UNAUTHENTICATED");
+    }
+  }
+  /** DB-only final assertion; selecting a space never changes the origin session's authority. */
+  async assertInteractiveGrant(
+    db: PoolClient,
+    binding: InteractiveSessionBinding,
+  ): Promise<void> {
+    const { row, role } = await this.executionSession(db, binding, true),
+      expected = binding.snapshot;
+    if (
+      !expected ||
+      expected.role !== role ||
+      expected.csrfHash !== sessionHash(row.csrf) ||
+      expected.subjectHash !== sessionHash(row.subject)
+    )
+      throw Error("UNAUTHENTICATED");
   }
   constructor(
     readonly pool: Pool,
@@ -64,7 +298,27 @@ export class OidcAuth {
     readonly origin: string,
     readonly workspaceId: string,
     readonly roles: Record<string, Role>,
-  ) {}
+    readonly identityOptions: OidcIdentityOptions = {},
+  ) {
+    const input = identityOptions.sessionPolicy ?? defaultSessionPolicy;
+    this.sessionPolicy = sessionPolicyFromEnvironment({
+      SESSION_ABSOLUTE_SECONDS: String(input.absoluteSeconds),
+      SESSION_IDLE_SECONDS: String(input.idleSeconds),
+      SESSION_TOUCH_SECONDS: String(input.touchSeconds),
+    });
+    const issuer = new URL(config.serverMetadata().issuer);
+    const loopback =
+      process.env.NODE_ENV !== "production" &&
+      issuer.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(issuer.hostname);
+    if (issuer.protocol === "https:" || loopback)
+      this.defaultDirectoryProof = createVerifiedOidcDirectoryAdapter({
+        issuer: config.serverMetadata().issuer,
+        maxAgeSeconds: identityOptions.directoryFreshnessSeconds ?? 60,
+        groupClaim: identityOptions.directoryGroupClaim,
+        allowLoopbackHttp: loopback,
+      });
+  }
   async backgroundContext(input: {
     workspace_id: string;
     principal_id: string;
@@ -72,42 +326,28 @@ export class OidcAuth {
     grant_role: string;
     grant_expires_at: Date | string;
   }): Promise<Context> {
-    const check = async (db: Pick<PoolClient, "query">) => {
+    const binding: InteractiveSessionBinding = {
+      sessionId: input.session_id ?? "",
+      workspaceId: input.workspace_id,
+      principalId: input.principal_id,
+    };
+    const checkExpiry = () => {
       if (
         !input.session_id ||
         new Date(input.grant_expires_at).getTime() <= Date.now()
       )
         throw Error("AUTHORIZATION_REQUIRED");
-      const r = await db.query(
-        `SELECT s.subject,s.access_token FROM runtime_sessions s JOIN memberships m ON m.workspace_id=s.workspace_id AND m.principal_id=s.principal_id WHERE s.id=$1 AND s.workspace_id=$2 AND s.principal_id=$3 AND s.expires_at>clock_timestamp() AND effective_membership(m.workspace_id,m.principal_id)=$4 FOR SHARE OF s,m`,
-        [
-          input.session_id,
-          input.workspace_id,
-          input.principal_id,
-          input.grant_role,
-        ],
-      );
-      if (!r.rowCount) throw Error("AUTHORIZATION_REQUIRED");
-      return r.rows[0];
     };
     const revalidate = async () => {
-      const s = await check(this.pool);
+      checkExpiry();
       try {
-        const info = await oidc.fetchUserInfo(
-          this.config,
-          s.access_token,
-          s.subject,
-        );
-        const admission = this.role(info);
-        const managed = await this.pool.query(
-          "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
-          [input.workspace_id],
-        );
-        if (!managed.rowCount && admission !== input.grant_role) throw Error();
+        const snapshot = await this.revalidateInteractiveGrant(binding);
+        if (snapshot.role !== input.grant_role || snapshot.role === "reader")
+          throw Error("AUTHORIZATION_REQUIRED");
+        binding.snapshot = snapshot;
       } catch {
         throw Error("AUTHORIZATION_REQUIRED");
       }
-      await check(this.pool);
     };
     await revalidate();
     return {
@@ -117,12 +357,17 @@ export class OidcAuth {
         sessionId: input.session_id!,
         revalidate,
         assertSession: async (db) => {
-          await check(db);
+          checkExpiry();
+          try {
+            await this.assertInteractiveGrant(db, binding);
+          } catch {
+            throw Error("AUTHORIZATION_REQUIRED");
+          }
         },
       },
     };
   }
-  static async create(pool: Pool) {
+  static async create(pool: Pool, identityOptions: OidcIdentityOptions = {}) {
     const {
       APP_ORIGIN,
       OIDC_ISSUER,
@@ -183,7 +428,12 @@ export class OidcAuth {
       },
     );
     oidc.enableNonRepudiationChecks(config);
-    return new OidcAuth(pool, config, origin.origin, WORKSPACE_ID, roles);
+    return new OidcAuth(pool, config, origin.origin, WORKSPACE_ID, roles, {
+      ...identityOptions,
+      sessionPolicy:
+        identityOptions.sessionPolicy ??
+        sessionPolicyFromEnvironment(process.env),
+    });
   }
   setCookie(res: ServerResponse, name: string, value: string, maxAge: number) {
     res.setHeader(
@@ -248,44 +498,41 @@ export class OidcAuth {
       tokens.access_token,
       claims.sub,
     );
-    const admissionRole = this.role(info),
-      principalId = sessionHash(
-        this.config.serverMetadata().issuer + "\0" + claims.sub,
-      );
+    this.role(info); // Directory eligibility is not a product role binding.
+    const proof = await this.directoryProof(claims.sub, info);
+    const principalId = sessionHash(
+      this.config.serverMetadata().issuer + "\0" + claims.sub,
+    );
     const session = token(),
       csrf = token();
     const db = await this.pool.connect();
     try {
       await db.query("BEGIN");
+      await syncIdentity(db, {
+        issuer: this.config.serverMetadata().issuer,
+        subject: claims.sub,
+      });
       await registerPrincipal(
         db,
         principalId,
         typeof info.name === "string" ? info.name : principalId,
       );
-      let workspaceId = this.workspaceId,
-        role = admissionRole;
-      const managed = await db.query(
-        "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
-        [workspaceId],
-      );
-      if (managed.rowCount) {
-        const effective = await db.query(
-          "SELECT effective_membership($1,$2) AS role",
-          [workspaceId, principalId],
-        );
-        if (effective.rows[0]?.role) role = effective.rows[0].role;
-        else {
-          workspaceId = await personalSpace(db, principalId);
-          role = "reviewer";
-        }
+      if (proof) await syncDirectoryMemberships(db, proof);
+      let workspaceId = this.workspaceId;
+      try {
+        const a = await effectiveAccess(db, { workspaceId, principalId });
+        if (!a.role) workspaceId = await personalSpace(db, principalId);
+      } catch (e) {
+        if (!(e instanceof Error) || e.message !== "NOT_FOUND") throw e;
+        workspaceId = await personalSpace(db, principalId);
       }
       await db.query(
         "INSERT INTO workspaces VALUES($1) ON CONFLICT DO NOTHING",
         [workspaceId],
       );
       await db.query(
-        "INSERT INTO memberships VALUES($1,$2,$3) ON CONFLICT(workspace_id,principal_id) DO UPDATE SET role=excluded.role",
-        [workspaceId, principalId, role],
+        "INSERT INTO memberships VALUES($1,$2,'reader') ON CONFLICT(workspace_id,principal_id) DO NOTHING",
+        [workspaceId, principalId],
       );
       await db.query(
         "INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,expires_at,subject,access_token) VALUES($1,$2,$3,$4,$5,$6,$7)",
@@ -295,12 +542,22 @@ export class OidcAuth {
           principalId,
           csrf,
           new Date(
-            Date.now() + Math.min(tokens.expires_in || 300, 3600) * 1000,
+            Date.now() +
+              Math.min(
+                tokens.expires_in || 300,
+                this.sessionPolicy.absoluteSeconds,
+              ) *
+                1000,
           ),
           claims.sub,
           tokens.access_token,
         ],
       );
+      await initializeSessionPolicy(db, {
+        sessionId: sessionHash(session),
+        principalId,
+        workspaceId,
+      });
       await db.query("COMMIT");
     } catch (e) {
       await db.query("ROLLBACK");
@@ -312,12 +569,15 @@ export class OidcAuth {
       res,
       "akh_session",
       session,
-      Math.min(tokens.expires_in || 300, 3600),
+      Math.min(tokens.expires_in || 300, this.sessionPolicy.absoluteSeconds),
     );
     res.writeHead(302, { Location: workspaceHref });
     res.end();
   }
-  async authenticate(req: IncomingMessage): Promise<Session | null> {
+  async authenticate(
+    req: IncomingMessage,
+    interactive = true,
+  ): Promise<Session | null> {
     const raw = cookie(req, "akh_session");
     if (!raw) return null;
     const row = await this.pool.query(
@@ -333,73 +593,112 @@ export class OidcAuth {
         s.access_token,
         s.subject,
       );
-      const admissionRole = this.role(info);
-      await registerPrincipal(
-        this.pool,
-        s.principal_id,
-        typeof info.name === "string" ? info.name : s.principal_id,
-      );
-      const managed = await this.pool.query(
-        "SELECT access_role(workspace_id,$2) AS role FROM access_spaces WHERE workspace_id=$1",
-        [s.workspace_id, s.principal_id],
-      );
-      let role = admissionRole;
-      if (managed.rowCount) {
-        const effective = await this.pool.query(
-          "SELECT effective_membership($1,$2) AS role",
-          [s.workspace_id, s.principal_id],
-        );
-        role = effective.rows[0]?.role;
-        if (!role) throw Error("FORBIDDEN");
-      } else
-        await this.pool.query(
-          "UPDATE memberships SET role=$3 WHERE workspace_id=$1 AND principal_id=$2",
-          [s.workspace_id, s.principal_id, role],
-        );
-      return {
-        workspaceId: s.workspace_id,
+      const identityRole = this.role(info);
+      const proof = await this.directoryProof(s.subject, info);
+      const selected = req.headers["x-space-id"];
+      if (
+        selected !== undefined &&
+        (typeof selected !== "string" ||
+          !/^[a-zA-Z0-9_-]{1,100}$/.test(selected))
+      )
+        throw Error("UNAUTHENTICATED");
+      const workspaceId = selected ?? s.workspace_id;
+      const binding = {
+        sessionId: sessionHash(raw),
+        workspaceId,
         principalId: s.principal_id,
-        role,
-        csrfToken: s.csrf,
-        ...(managed.rowCount
-          ? {
-              spaceRole: managed.rows[0].role,
-              personalSpace:
-                (
-                  await this.pool.query(
-                    "SELECT 1 FROM access_spaces WHERE workspace_id=$1 AND owner_id=$2",
-                    [s.workspace_id, s.principal_id],
-                  )
-                ).rowCount === 1,
-              canReviewKnowledge:
-                role === "reviewer" &&
-                (
-                  await this.pool.query(
-                    "SELECT 1 FROM access_spaces s WHERE s.workspace_id=$1 AND (s.owner_id=$2 OR EXISTS(SELECT 1 FROM access_reviewers r WHERE r.workspace_id=s.workspace_id AND r.principal_id=$2))",
-                    [s.workspace_id, s.principal_id],
-                  )
-                ).rowCount === 1,
-            }
-          : {}),
       };
+      return await identityTransaction(this.pool, async (db) => {
+        await this.acceptVerifiedIdentity(db, binding, s.subject, proof);
+        let role: Role = "reader";
+        let spaceRole: SpaceRole | null = null,
+          personal = false,
+          canReviewKnowledge = false;
+        try {
+          const a = await effectiveAccess(db, {
+            workspaceId,
+            principalId: s.principal_id,
+          });
+          role = a.capabilities.includes("changeset.approve")
+            ? "reviewer"
+            : a.capabilities.includes("changeset.propose")
+              ? "editor"
+              : "reader";
+          spaceRole = a.role
+            ? (
+                {
+                  read: "Read",
+                  triage: "Triage",
+                  write: "Write",
+                  maintain: "Maintain",
+                  admin: "Admin",
+                } as const
+              )[a.role]
+            : null;
+          personal = a.space.namespaceKind === "personal";
+          canReviewKnowledge =
+            personal ||
+            (a.capabilities.includes("changeset.approve") &&
+              (
+                await db.query(
+                  "SELECT 1 FROM access_reviewers WHERE workspace_id=$1 AND principal_id=$2",
+                  [workspaceId, s.principal_id],
+                )
+              ).rowCount === 1);
+        } catch (e) {
+          if (!(e instanceof Error) || e.message !== "NOT_FOUND") throw e;
+        }
+        await registerPrincipal(
+          db,
+          s.principal_id,
+          typeof info.name === "string" ? info.name : s.principal_id,
+        );
+        const poll = /^\/api\/v1\/(?:jobs|notifications|events)(?:[/?]|$)/.test(
+          req.url ?? "",
+        );
+        if (interactive && !poll)
+          await touchSession(db, binding, this.sessionPolicy);
+        return {
+          workspaceId,
+          principalId: s.principal_id,
+          role,
+          identityRole,
+          csrfToken: s.csrf,
+          spaceRole,
+          personalSpace: personal,
+          canReviewKnowledge,
+        };
+      });
     } catch {
-      await this.pool.query("DELETE FROM runtime_sessions WHERE id=$1", [
-        sessionHash(raw),
-      ]);
+      await this.discardSession(sessionHash(raw), s.principal_id);
       return null;
     }
   }
   async switchSpace(req: IncomingMessage, session: Session, id: string) {
+    const guard = this.requestGuard(req, session);
+    await guard.revalidate();
     const db = await this.pool.connect();
     try {
       await db.query("BEGIN");
-      await this.requestGuard(req, session).assertSession(db);
-      const r = await db.query("SELECT access_role($1,$2) AS role", [
-        id,
-        session.principalId,
+      await db.query("SELECT id FROM runtime_sessions WHERE id=$1 FOR UPDATE", [
+        sessionHash(cookie(req, "akh_session")!),
       ]);
-      if (!r.rows[0]?.role) throw Error("NOT_FOUND");
+      await guard.assertSession(db);
+      const a = await effectiveAccess(db, {
+        workspaceId: id,
+        principalId: session.principalId,
+      });
+      if (!a.role) throw Error("NOT_FOUND");
       const csrf = token();
+      await touchSession(
+        db,
+        {
+          sessionId: guard.sessionId!,
+          workspaceId: session.workspaceId,
+          principalId: session.principalId,
+        },
+        this.sessionPolicy,
+      );
       await db.query(
         "UPDATE runtime_sessions SET workspace_id=$2,csrf=$3 WHERE id=$1",
         [sessionHash(cookie(req, "akh_session")!), id, csrf],
@@ -415,10 +714,7 @@ export class OidcAuth {
   }
   async logout(req: IncomingMessage, res: ServerResponse) {
     const raw = cookie(req, "akh_session");
-    if (raw)
-      await this.pool.query("DELETE FROM runtime_sessions WHERE id=$1", [
-        sessionHash(raw),
-      ]);
+    if (raw) await this.discardSession(sessionHash(raw));
     this.setCookie(res, "akh_session", "", 0);
   }
 }

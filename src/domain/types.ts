@@ -9,6 +9,23 @@ export interface Version {
   reason: string;
   at: string;
   sourceIds: string[];
+  /** Server attribution: generation, responsible proposal and publication are different events. */
+  batchId?: string;
+  proposedBy?: string | null;
+  publishedBy?: string;
+  responsibleUserId?: string | null;
+  producer?: {
+    kind:
+      | "unknown"
+      | "user-submission"
+      | "structural"
+      | "model"
+      | "api-submission"
+      | "import";
+    principalId?: string;
+    provider?: string | null;
+    model?: string | null;
+  };
 }
 export interface Page {
   id: string;

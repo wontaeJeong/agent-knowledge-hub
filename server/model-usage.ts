@@ -1,4 +1,5 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
+import { acquireSharedMutationGate } from "./operations/gate";
 export type Provider="openai"|"litellm"|"bedrock"|"systemone";
 export type Backend="unknown"|"onprem"|"bedrock"|"systemone"|"external";
 export type ModelOperation="ingest"|"query"|"organize"|"assess";
@@ -29,6 +30,11 @@ export function normalizeProviderUsage(provider:Provider,payload:unknown,headers
  const deploymentId=provider==="litellm"?(headers?.get("x-litellm-model-id")||null):null;
  return {inputTokens,outputTokens,cacheReadTokens,cacheWriteTokens,costUsd,deploymentId:deploymentId?.slice(0,128)||null};
 }
+/** Conservative until credential and usage lineage-aware erasure and recovery are implemented. */
+export async function assertAgentWritesNotErased(db: PoolClient, workspaceId: string) {
+ const result=await db.query("SELECT EXISTS(SELECT 1 FROM operations_tombstones WHERE workspace_id=$1 AND delete_content UNION ALL SELECT 1 FROM operations_erasure_receipts WHERE workspace_id=$1 AND scope='workspace' AND status IN ('completed','blocked')) AS fenced",[workspaceId]);
+ if(result.rows[0].fenced)throw Error("ERASURE_AGENT_WRITES_FENCED");
+}
 export async function recordModelUsage(attribution:Attribution,meter:Meter):Promise<void>{
  const values=[
   attribution.workspaceId,attribution.principalId,meter.operation,meter.provider,meter.backend,
@@ -37,8 +43,18 @@ export async function recordModelUsage(attribution:Attribution,meter:Meter):Prom
   meter.inputTokens,meter.outputTokens,meter.cacheReadTokens,meter.cacheWriteTokens,
   meter.costUsd,meter.errorCode,
  ];
- await attribution.pool.query(
+ const db=await attribution.pool.connect();
+ try {
+  await db.query("BEGIN");
+  await acquireSharedMutationGate(db);
+  await assertAgentWritesNotErased(db,attribution.workspaceId);
+  await db.query(
   "INSERT INTO model_usage_events(workspace_id,principal_id,operation,provider,backend,model,deployment_id,succeeded,latency_ms,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cost_usd,error_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
   values,
- );
+  );
+  await db.query("COMMIT");
+ } catch(error) {
+  await db.query("ROLLBACK");
+  throw error;
+ } finally { db.release(); }
 }

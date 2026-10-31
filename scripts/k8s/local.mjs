@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { fileURLToPath } from "node:url";
 import { parseAllDocuments } from "yaml";
-import { splitRelease } from "./release.mjs";
+import { splitRelease, migrationJob } from "./release.mjs";
+import { localOperationalSecrets,localModelPolicyRegistry } from "./local-secrets.mjs";
 
 process.chdir(fileURLToPath(new URL("../../", import.meta.url)));
 const cluster = "knowledge-hub-dev";
@@ -60,12 +61,26 @@ try {
       type: "Opaque",
       stringData: { password },
     });
+    let existingSecret = { data: {} };
+    try {
+      existingSecret = JSON.parse(
+        k(["get", "secret", "knowledge-secrets", "-o", "json"]),
+      );
+    } catch {
+      /* first install */
+    }
+    const existingData = { ...existingSecret.data };
     const env = {
-      DATABASE_URL: `postgres://knowledge:${password}@knowledge-db:5432/knowledge`,
+      ...localOperationalSecrets(existingData),
+      DATABASE_URL: `postgres://knowledge:${encodeURIComponent(password)}@knowledge-db:5432/knowledge`,
       OIDC_CLIENT_SECRET: "local-test-only",
     };
     const modelFile = process.argv.indexOf("--model-env");
     if (modelFile >= 0) {
+      // A new provider must never inherit another provider's credential or transmission consent.
+      for (const key of Object.keys(existingData))
+        if (key.startsWith("AGENT_KNOWLEDGE_HUB_LLM_"))
+          delete existingData[key];
       if (!process.argv[modelFile + 1]) throw Error("MODEL_ENV_PATH_REQUIRED");
       const parsed = parseEnv(
         readFileSync(process.argv[modelFile + 1], "utf8"),
@@ -81,7 +96,8 @@ try {
       if (parsed.AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION === "true")
         env.AGENT_KNOWLEDGE_HUB_LLM_ALLOW_TRANSMISSION = "true";
       if (parsed.AGENT_KNOWLEDGE_HUB_LLM_THINKING)
-        env.AGENT_KNOWLEDGE_HUB_LLM_THINKING = parsed.AGENT_KNOWLEDGE_HUB_LLM_THINKING;
+        env.AGENT_KNOWLEDGE_HUB_LLM_THINKING =
+          parsed.AGENT_KNOWLEDGE_HUB_LLM_THINKING;
       if (
         !env.AGENT_KNOWLEDGE_HUB_LLM_BASE_URL ||
         !env.AGENT_KNOWLEDGE_HUB_LLM_MODEL
@@ -90,9 +106,7 @@ try {
     } else {
       // Keep configured keys across image redeploys without printing/serializing them to disk.
       try {
-        const old = JSON.parse(
-          k(["get", "secret", "knowledge-secrets", "-o", "json"]),
-        );
+        const old = existingSecret;
         for (const [key, value] of Object.entries(old.data))
           if (key.startsWith("AGENT_KNOWLEDGE_HUB_LLM_"))
             env[key] = Buffer.from(value, "base64").toString();
@@ -105,14 +119,17 @@ try {
     const thinkingArg = process.argv.indexOf("--model-thinking");
     if (thinkingArg >= 0) {
       const thinking = process.argv[thinkingArg + 1];
-      if (!["enabled", "disabled"].includes(thinking)) throw Error("MODEL_THINKING_INVALID");
+      if (!["enabled", "disabled"].includes(thinking))
+        throw Error("MODEL_THINKING_INVALID");
       env.AGENT_KNOWLEDGE_HUB_LLM_THINKING = thinking;
     }
+    Object.assign(env,localModelPolicyRegistry(env));
     apply({
       apiVersion: "v1",
       kind: "Secret",
       metadata: { name: "knowledge-secrets" },
       type: "Opaque",
+      data: existingData,
       stringData: env,
     });
     console.log(
@@ -162,45 +179,15 @@ try {
       ]),
     );
     const jobName = `knowledge-migrate-${Date.now()}`;
-    apply({
-      apiVersion: "batch/v1",
-      kind: "Job",
-      metadata: { name: jobName },
-      spec: {
-        backoffLimit: 0,
-        ttlSecondsAfterFinished: 3600,
-        template: {
-          metadata: { labels: { app: "knowledge-app" } },
-          spec: {
-            restartPolicy: "Never",
-            automountServiceAccountToken: false,
-            securityContext: {
-              runAsNonRoot: true,
-              runAsUser: 1000,
-              runAsGroup: 1000,
-              seccompProfile: { type: "RuntimeDefault" },
-            },
-            containers: [
-              {
-                name: "migrate",
-                image: "knowledge-hub:dev",
-                imagePullPolicy: "IfNotPresent",
-                command: ["npm", "run", "db:migrate"],
-                envFrom: [{ secretRef: { name: "knowledge-secrets" } }],
-                securityContext: {
-                  allowPrivilegeEscalation: false,
-                  capabilities: { drop: ["ALL"] },
-                },
-                resources: {
-                  requests: { cpu: "100m", memory: "128Mi" },
-                  limits: { cpu: "1", memory: "256Mi" },
-                },
-              },
-            ],
-          },
-        },
-      },
-    });
+    apply(
+      migrationJob(
+        application.find(
+          (r) =>
+            r.kind === "Deployment" && r.metadata?.name === "knowledge-app",
+        ),
+        jobName,
+      ),
+    );
     console.log(
       k([
         "wait",
