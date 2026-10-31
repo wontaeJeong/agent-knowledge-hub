@@ -169,7 +169,17 @@ export function storageRoutes(
       return true;
     }
     if (method === "POST" && suffix === "sources") {
-      send(201, await service.ingestText(ctx, body));
+      const manual = z
+        .object({
+          title: z.string(),
+          content: z.string(),
+          project: z.string(),
+          tool: z.literal("manual"),
+          targetPageId: z.string().optional(),
+        })
+        .strict()
+        .parse(body);
+      send(201, await service.ingestText(ctx, manual));
       return true;
     }
     if (method === "GET" && suffix === "collectors") {
@@ -193,7 +203,23 @@ export function storageRoutes(
         })
         .strict()
         .parse(body);
-      const artifact = collectArtifact(d.artifact, d);
+      let artifact: ReturnType<typeof collectArtifact>;
+      try {
+        artifact = collectArtifact(d.artifact, d);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === "ARTIFACT_SESSION_UNVERIFIED"
+        ) {
+          send(409, {
+            code: "ARTIFACT_SESSION_UNVERIFIED",
+            message:
+              "원본과 세션의 신뢰 가능한 연결 및 제외 정책을 확인할 수 없어 자동 수집이 중단되었습니다.",
+          });
+          return true;
+        }
+        throw error;
+      }
       send(
         201,
         await service.ingestText(ctx, {
