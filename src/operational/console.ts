@@ -54,6 +54,7 @@ export const consoleGroups = [
       { id: "agents", label: "에이전트 · 토큰" },
       { id: "integrations", label: "연동 · 자동화" },
       { id: "users", label: "사용자 · 세션 목업" },
+      { id: "account", label: "사용자 설정" },
       { id: "access", label: "공간 · 접근" },
       { id: "policies", label: "검토 · 공유 정책" },
       { id: "lifecycle", label: "편집 · 수명주기" },

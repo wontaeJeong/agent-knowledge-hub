@@ -580,39 +580,12 @@ function OperationalWorkspace({
       preview={preview}
       tab={tab}
       navigate={navigate}
-      account={
-        identity && !preview ? (
-          <div className="op-account">
-            <Badge tone="plum">
-              {identity.effectiveRole
-                ? `${identity.space?.owner ? "Owner · " : ""}${identity.spaceRole ?? identity.effectiveRole}`
-                : identity.role === "reviewer"
-                  ? "검토자"
-                  : identity.role === "editor"
-                    ? "작성자"
-                    : "독자"}
-            </Badge>
-            <span
-              title={`사용자 ${identity.principalId} · 공간 ${identity.workspaceId}`}
-            >
-              {identity.space?.namespaceSlug && identity.space.slug
-                ? `@${identity.space.namespaceSlug}/${identity.space.slug}`
-                : identity.workspaceId}
-            </span>
-            <Button
-              disabled={busy}
-              onClick={() =>
-                perform(async () => {
-                  await api.logout();
-                  window.location.assign("/");
-                })
-              }
-            >
-              로그아웃
-            </Button>
-          </div>
-        ) : null
-      }
+      account={identity && !preview ? {
+        name: identity.principalId,
+        detail: identity.effectiveRole ? `${identity.space?.owner ? "Owner · " : ""}${identity.spaceRole ?? identity.effectiveRole}` : identity.role === "reviewer" ? "검토자" : identity.role === "editor" ? "작성자" : "독자",
+        busy,
+        onLogout: () => { void perform(async () => { await api.logout(); window.location.assign("/"); }); },
+      } : null}
     >
       <main id="op-main" className="op-main" tabIndex={-1}>
         <h1>{consoleLabel(tab)}</h1>
@@ -700,6 +673,7 @@ function OperationalWorkspace({
               "overview",
               "usage",
               "users",
+              "account",
               "access",
               "agents",
               "integrations",
@@ -769,8 +743,9 @@ function OperationalWorkspace({
               </section>
             )}
             <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
-              {(preview || !['policies','activity','lifecycle','agents','integrations','evaluation'].includes(tab)) && <Management section={tab} preview={preview} navigate={navigate} />}
+              {(tab !== 'account' && (preview || !['policies','activity','lifecycle','agents','integrations','evaluation'].includes(tab))) && <Management section={tab} preview={preview} navigate={navigate} />}
             </Suspense>
+            {tab === "account" && <section className="op-panel"><h2>사용자 설정</h2>{preview ? <p>미리보기에서는 실제 계정과 세션을 변경하지 않습니다.</p> : <><dl className="console-definition"><div><dt>사용자</dt><dd>{identity.principalId}</dd></div><div><dt>현재 공간</dt><dd>{identity.workspaceId}</dd></div><div><dt>역할</dt><dd>{identity.spaceRole ?? identity.effectiveRole ?? identity.role}</dd></div></dl><p>계정 정보 변경과 세션 관리는 아직 연결되지 않았습니다.</p></>}</section>}
             {(tab === "agents" || tab === "integrations") && !preview && (
               <Suspense fallback={<p role="status">에이전트 인증을 불러오는 중…</p>}>
                 <AgentCredentials key={identity.workspaceId+tab} api={api} identity={identity} onExpired={clearProtected} section={tab} />
