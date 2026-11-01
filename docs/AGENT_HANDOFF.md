@@ -308,4 +308,4 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - UI 일관성 요구: 로컬 데모와 서버 콘솔에서 사용자 클릭 메뉴로 테마와 사용자 설정에 접근한다. 서버 모드에서는 현재 사용자·공간·역할과 기존 로그아웃을 제공한다. 테마는 기존 브라우저 저장 키에 보존한다.
 - 변경: `src/ui/AccountMenu.tsx`, `src/ui/account-menu.css`, `src/App.tsx`, `src/operational/ConsoleShell.tsx`, `src/operational/App.tsx`, `src/operational/console.ts`, `src/operational/console.css`. 지식 순환이나 기존 권한·지식 데이터는 변경하지 않는다. 기존 UI 일관성 요구를 구체화한 변경이며 기존 요구사항 ID를 변경하지 않았다.
 - 한계: 공개 Gate main은 별도 테마 컨트롤을 사용하므로 사내 드롭다운 구현과 동일한 코드를 확인한 것은 아니다. 서버 계정·세션 관리 라우트는 실제 런타임에 연결되지 않아 사용자 설정에서는 현재 정보만 표시한다. 사내 SSO 및 실제 데이터로는 검증하지 않았다.
-- 검증: 사용자 메뉴 상호작용 테스트, 전체 `npm test`, `npm run check:requirements`, `npm run build`. 실제 브라우저 화면 확인은 실행 환경 제약으로 미실시.
+- 검증: Node 24에서 `npm ci`, `npm run check` 통과. 사용자 메뉴 상호작용 테스트 포함. 실제 브라우저 1440px/390px 화면 확인은 로컬 서버에 브라우저가 연결되지 않아 미실시. 최종 커밋 CI는 PR에서 별도 확인한다.
