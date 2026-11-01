@@ -69,11 +69,13 @@ export interface Identity {
 }
 export class OperationalApi {
   private csrf = "";
+  private meSequence = 0;
   private expiredHandler?: () => void;
   onExpired(handler: (() => void) | undefined) {
     this.expiredHandler = handler;
   }
   private sessionExpired() {
+    this.meSequence++;
     const authenticated = !!this.csrf;
     this.csrf = "";
     if (authenticated) this.expiredHandler?.();
@@ -211,8 +213,9 @@ export class OperationalApi {
     return data;
   }
   async me() {
+    const sequence = ++this.meSequence;
     const me = await this.request<Identity>("/me");
-    this.csrf = me.csrfToken;
+    if (sequence === this.meSequence) this.csrf = me.csrfToken;
     return me;
   }
   get<T>(path: string) {
