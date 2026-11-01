@@ -302,3 +302,10 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - `server/runtime/http.ts`: 기존 세션 인증·Origin/CSRF 이후 개인 스레드 생성·목록만 `QuestionsService`와 현재 ACL에 연결한다. 상세·제목은 위와 같이 비활성화했다. 다른 인증 종류는 보수적으로 거부한다. 새 질문/재개는 DB 저장 전 503, 검색·피드백은 404다.
 - `server/questions/runtime-http.test.ts`: 실제 HTTP·OIDC 세션·PostgreSQL에서 사용자/공간 격리, 권한 철회 후 내용 생략, CSRF 및 bearer 거부, 큐 미연결 시 미저장을 검사한다. 기존 도메인 테스트와 함께 격리 DB에서 11개 통과. Node 24에서 `npm run check` 통과.
 - Query 순환의 개인 대화 접근 경계를 개선하나 기존 지식을 변경하거나 새 모델 전송을 하지 않는다. 턴 수락→실제 큐→RuntimeService trusted context→모델/답변 영속화와 UI 연결, 검색/피드백 호스트 연결, erasure/export/backup 통합은 후속이다. 큐 미연결을 답변 완료로 표시하지 않는다. 지식 품질이나 에이전트 성능 효과는 대조 평가 전 목표다.
+
+### 2026-11-02 — 사이드바 사용자 메뉴
+
+- UI 일관성 요구: 로컬 데모와 서버 콘솔에서 사용자 클릭 메뉴로 테마와 사용자 설정에 접근한다. 서버 모드에서는 현재 사용자·공간·역할과 기존 로그아웃을 제공한다. 테마는 기존 브라우저 저장 키에 보존한다.
+- 변경: `src/ui/AccountMenu.tsx`, `src/ui/account-menu.css`, `src/App.tsx`, `src/operational/ConsoleShell.tsx`, `src/operational/App.tsx`, `src/operational/console.ts`, `src/operational/console.css`. 지식 순환이나 기존 권한·지식 데이터는 변경하지 않는다. 기존 UI 일관성 요구를 구체화한 변경이며 기존 요구사항 ID를 변경하지 않았다.
+- 한계: 공개 Gate main은 별도 테마 컨트롤을 사용하므로 사내 드롭다운 구현과 동일한 코드를 확인한 것은 아니다. 서버 계정·세션 관리 라우트는 실제 런타임에 연결되지 않아 사용자 설정에서는 현재 정보만 표시한다. 사내 SSO 및 실제 데이터로는 검증하지 않았다.
+- 검증: Node 24에서 `npm ci`, `npm run check` 통과. 사용자 메뉴 상호작용 테스트 포함. 실제 브라우저 1440px/390px 화면 확인은 로컬 서버에 브라우저가 연결되지 않아 미실시. 최종 커밋 CI는 PR에서 별도 확인한다.

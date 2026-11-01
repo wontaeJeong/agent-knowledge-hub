@@ -26,7 +26,6 @@ import {
   LockKeyhole,
   Menu,
   MessageSquare,
-  Moon,
   MoreHorizontal,
   Play,
   Plus,
@@ -44,6 +43,7 @@ import DOMPurify from "dompurify";
 import { Badge, Button, Empty, Modal } from "./ui/primitives";
 import { BrandIcon } from "./ui/BrandIcon";
 import { BrandMark } from "./ui/BrandMark";
+import { AccountMenu } from "./ui/AccountMenu";
 import { demoRepository, readStoredValue } from "./adapters/repository";
 import {
   canReview,
@@ -532,14 +532,16 @@ export default function App() {
             "연동 · 설정",
             <BrandIcon name="settings" size={16} />,
           )}
-          <button className="profile" onClick={() => setModal("help")}>
-            <span className="avatar">{profile.initial}</span>
-            <span>
-              {profile.name}
-              <small>플랫폼팀 · 데모 사용자</small>
-            </span>
-            <CircleHelp size={16} />
-          </button>
+          <AccountMenu
+            name={profile.name}
+            detail="플랫폼팀 · 데모 사용자"
+            dark={theme === "dark"}
+            onTheme={() => setTheme(theme === "light" ? "dark" : "light")}
+            onSettings={() => {
+              go("/settings");
+              setMobile(false);
+            }}
+          />
         </div>
       </aside>
       {mobile && (
@@ -574,20 +576,6 @@ export default function App() {
               <option value="editor">작성자 · 이도윤</option>
               <option value="reader">독자 · 박서연</option>
             </select>
-            <button
-              className="icon-button"
-              aria-label="테마 전환"
-              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-            >
-              {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
-            </button>
-            <button
-              className="avatar small"
-              aria-label="데모 안내"
-              onClick={() => setModal("help")}
-            >
-              {profile.initial}
-            </button>
           </div>
         </header>
         <main id="main-content">
