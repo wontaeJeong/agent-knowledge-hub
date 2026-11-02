@@ -16,12 +16,10 @@ import {
   ListChecks,
   Menu,
   MessageSquareText,
-  Moon,
   Plug,
   SearchCheck,
   Settings2,
   ShieldCheck,
-  Sun,
   Users,
   X,
 } from "lucide-react";
@@ -30,6 +28,7 @@ import type { ConsoleTab } from "./console";
 import { Button } from "../ui/primitives";
 import { BrandMark } from "../ui/BrandMark";
 import "./console.css";
+import { AccountMenu } from "../ui/AccountMenu";
 
 const icons = {
   overview: Gauge,
@@ -46,6 +45,7 @@ const icons = {
   agents: Bot,
   integrations: Plug,
   users: Users,
+  account: Settings2,
   access: FolderKey,
   policies: ShieldCheck,
   lifecycle: Settings2,
@@ -64,7 +64,12 @@ export function ConsoleShell({
   preview: boolean;
   tab: ConsoleTab;
   navigate: (tab: ConsoleTab) => void;
-  account: ReactNode;
+  account: {
+    name: string;
+    detail: string;
+    onLogout?: () => void;
+    busy?: boolean;
+  } | null;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -75,6 +80,14 @@ export function ConsoleShell({
   );
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
+    try {
+      localStorage.setItem(
+        "agent-knowledge-hub.theme",
+        dark ? "dark" : "light",
+      );
+    } catch {
+      /* Storage can be unavailable. */
+    }
   }, [dark]);
   return (
     <div className="operational-app console-app">
@@ -125,25 +138,27 @@ export function ConsoleShell({
           {consoleGroups.map((group) => (
             <div className="console-nav-group" key={group.label}>
               <p>{group.label}</p>
-              {group.items.map((item) => {
-                const Icon = icons[item.id];
-                return (
-                  <a
-                    key={item.id}
-                    href={`#${item.id}`}
-                    aria-current={item.id === tab ? "page" : undefined}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      navigate(item.id);
-                      setOpen(false);
-                    }}
-                  >
-                    <Icon size={18} />
-                    <span>{item.label}</span>
-                    {item.id === tab && <ChevronRight size={15} />}
-                  </a>
-                );
-              })}
+              {group.items
+                .filter((item) => item.id !== "account")
+                .map((item) => {
+                  const Icon = icons[item.id];
+                  return (
+                    <a
+                      key={item.id}
+                      href={`#${item.id}`}
+                      aria-current={item.id === tab ? "page" : undefined}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigate(item.id);
+                        setOpen(false);
+                      }}
+                    >
+                      <Icon size={18} />
+                      <span>{item.label}</span>
+                      {item.id === tab && <ChevronRight size={15} />}
+                    </a>
+                  );
+                })}
             </div>
           ))}
         </nav>
@@ -155,6 +170,18 @@ export function ConsoleShell({
             검토한 변경만 발행합니다.
           </span>
         </div>
+        <AccountMenu
+          name={account?.name ?? (preview ? "미리보기 사용자" : "사용자")}
+          detail={account?.detail ?? (preview ? "합성 예시" : "연결 중")}
+          dark={dark}
+          onTheme={() => setDark(!dark)}
+          onSettings={() => {
+            navigate("account");
+            setOpen(false);
+          }}
+          onLogout={account?.onLogout}
+          busy={account?.busy}
+        />
       </aside>
       <div className="console-workspace">
         <header className="console-topbar">
@@ -169,14 +196,6 @@ export function ConsoleShell({
             >
               {preview ? "합성 UI 목업" : "서버 연결 모드"}
             </span>
-            <Button
-              variant="ghost"
-              aria-label={dark ? "라이트 테마" : "다크 테마"}
-              onClick={() => setDark(!dark)}
-            >
-              {dark ? <Sun size={18} /> : <Moon size={18} />}
-            </Button>
-            {account}
           </div>
         </header>
         {preview && (
