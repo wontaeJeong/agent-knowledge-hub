@@ -131,6 +131,11 @@ export function Overview({
         <section className="op-panel">
           <h2>지금 확인할 항목</h2>
           <div className="console-action-list">
+            <button onClick={() => navigate("discovery")}>
+              <Layers3 size={20} />
+              <span><strong>지식 탐색 · 트렌드</strong><small>연결과 질문 인용 통계</small></span>
+              <ArrowRight size={17} />
+            </button>
             <button onClick={() => navigate("review")}>
               <GitPullRequest size={20} />
               <span>
