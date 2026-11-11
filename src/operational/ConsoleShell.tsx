@@ -20,6 +20,7 @@ import {
   SearchCheck,
   Settings2,
   ShieldCheck,
+  TrendingUp,
   Users,
   X,
 } from "lucide-react";
@@ -34,6 +35,7 @@ const icons = {
   overview: Gauge,
   usage: Activity,
   jobs: ListChecks,
+  discovery: TrendingUp,
   knowledge: BookOpen,
   workflows: Settings2,
   refinement: FlaskConical,

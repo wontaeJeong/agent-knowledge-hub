@@ -3,6 +3,7 @@ import { OperationalApi, ApiError } from "./api";
 import { seed } from "../domain/seed";
 import type { Source, State } from "../domain/types";
 import type { UsageSummary } from "../domain/usage";
+import { discoveryMetrics } from "../domain/discovery";
 import {
   answerOffline,
   compileOffline,
@@ -94,6 +95,20 @@ export class PreviewApi extends OperationalApi {
             },
           ],
         };
+      else if (/^\/discovery\?days=(7|14|30|90)$/.test(path)) {
+        const days = Number(path.split("=")[1]) as 7 | 14 | 30 | 90;
+        const now = new Date();
+        const pages = this.state.pages.filter((p) => p.scope !== "private").map((p, i, all) => ({
+          id: p.id, title: p.title, summary: p.summary, version: current(p).number,
+          links: p.links?.length ? p.links : (i > 0 ? [all[0].id] : []),
+          updatedAt: new Date(+now - i * 86400000).toISOString(),
+        }));
+        const citations = Array.from({length: 18}, (_, i) => ({
+          at: new Date(+now - (i % 7) * 86400000).toISOString(),
+          pageIds: pages.length ? [pages[i % Math.min(pages.length, 3)].id] : [],
+        }));
+        result = { ...discoveryMetrics(pages, citations, now, days), scope: "workspace" };
+      }
       else if (/^\/usage\?days=(7|14|30|90)$/.test(path))
         result = previewUsage(Number(path.split("=")[1]));
       else {

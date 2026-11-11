@@ -135,6 +135,9 @@ describe("operational client boundary", () => {
     expect(
       resumeWorkspaceLink("/?app=1&space=team-one&document=topic#comment-c1"),
     ).toBe("/?app=1&space=team-one&document=topic#comment-c1");
+    expect(resumeWorkspaceLink("/?app=1&space=team-one&document=topic#workflows"))
+      .toBe("/?app=1&space=team-one&document=topic#workflows");
+    expect(resumeWorkspaceLink("/?app=1&space=team-one#workflows")).toBeNull();
     for (const value of [
       "https://attacker.test/?app=1",
       "//attacker.test/?app=1",

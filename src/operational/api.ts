@@ -24,7 +24,7 @@ export function resumeWorkspaceLink(value: string): string | null {
     if (
       (space && !/^[a-zA-Z0-9_-]{1,100}$/.test(space)) ||
       (document && !/^[a-zA-Z0-9_-]{1,100}$/.test(document)) ||
-      (url.hash && !/^#(?:comment|share)-[a-zA-Z0-9_-]{1,100}$/.test(url.hash))
+      (url.hash && !/^#(?:comment|share)-[a-zA-Z0-9_-]{1,100}$/.test(url.hash) && !(url.hash === "#workflows" && document))
     )
       return null;
     if ((document || url.hash) && !space) return null;
@@ -195,6 +195,8 @@ export class OperationalApi {
         APPROVAL_STALE: "승인 기준이 변경되었습니다. 다시 검토하세요.",
         STALE_VERSION:
           "다른 변경이 반영되었습니다. 최신 버전에서 다시 제안하세요.",
+        DISCOVERY_CAPACITY:
+          "집계 처리 한도를 초과했습니다. 기간을 줄여 다시 조회하거나 관리자에게 문의하세요.",
         RATE_LIMITED:
           "요청 또는 실행 예산을 초과했습니다. 잠시 뒤 다시 시도하세요.",
       };

@@ -24,6 +24,7 @@ import type { Answer, Draft, Issue } from "../domain/wiki";
 import { Button, Badge } from "../ui/primitives";
 import { ConsoleShell } from "./ConsoleShell";
 import { Overview } from "./Overview";
+import { DiscoveryDashboard } from "./DiscoveryDashboard";
 import { consoleLabel, readConsoleTab, summarizeConsole } from "./console";
 import type { ConsoleTab } from "./console";
 import { PreviewApi } from "./preview";
@@ -671,6 +672,7 @@ function OperationalWorkspace({
             </div>}
             {![
               "overview",
+              "discovery",
               "usage",
               "users",
               "account",
@@ -732,6 +734,7 @@ function OperationalWorkspace({
                 preview={preview}
               />
             )}
+            {tab === "discovery" && dataReady && <DiscoveryDashboard api={api} spaceId={identity.workspaceId} preview={preview} />}
             {tab === "overview" && !dataReady && (
               <section className="op-panel" role="status">
                 <h2>운영 현황을 아직 집계할 수 없습니다</h2>

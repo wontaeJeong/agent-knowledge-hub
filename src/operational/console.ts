@@ -38,6 +38,7 @@ export const consoleGroups = [
   {
     label: "지식 순환",
     items: [
+      { id: "discovery", label: "지식 탐색 · 트렌드" },
       { id: "knowledge", label: "발행 지식" },
       { id: "workflows", label: "편집 · 협업" },
       { id: "imports", label: "자료 넣기 · 자동 정리" },

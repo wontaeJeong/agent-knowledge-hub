@@ -68,6 +68,7 @@ export const extensionErrorStatuses: Readonly<Record<string, number>> =
       REDIRECT_FORBIDDEN: 403,
       COLLECTION_TIMEOUT: 504,
       INPUT_SCOPE_MISMATCH: 409,
+      DISCOVERY_CAPACITY: 503,
       QUEUE_BUSY: 503,
       JOB_TIMEOUT: 408,
       JOB_NOT_READY: 409,
