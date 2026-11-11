@@ -47,7 +47,7 @@ function Ranking({
                 href={
                   preview
                     ? "?preview=1#knowledge"
-                    : documentHref(spaceId, item.id)
+                    : `${documentHref(spaceId, item.id)}#workflows`
                 }
               >
                 <strong>{item.title}</strong>
@@ -143,6 +143,9 @@ export function DiscoveryReportView({
           <span>{report.daily[0]?.day}</span>
           <span>{report.daily.at(-1)?.day}</span>
         </div>
+        <p className="discovery-cutoff">
+          UTC {report.to.replace("T", " ").slice(0, 16)} 기준 · 오늘은 집계 중
+        </p>
         <details className="discovery-table-details">
           <summary>일별 데이터 보기</summary>
           <table>

@@ -40,3 +40,37 @@ test("discovery explains the scope and links ranked visible documents to their w
   expect(html).toContain("space=space-1&amp;document=b");
   expect(html).toContain("인용 횟수가 정확성");
 });
+
+test("rank links return to the document workflow even when the current URL already names the same document", () => {
+  const now = new Date("2026-11-11T12:00:00Z");
+  const report = {
+    ...discoveryMetrics(
+      [
+        {
+          id: "source",
+          title: "source",
+          summary: "",
+          version: 1,
+          links: ["target"],
+          updatedAt: now.toISOString(),
+        },
+        {
+          id: "target",
+          title: "target",
+          summary: "",
+          version: 1,
+          links: [],
+          updatedAt: now.toISOString(),
+        },
+      ],
+      [],
+      now,
+      7,
+    ),
+    scope: "self" as const,
+  };
+  const html = renderToStaticMarkup(
+    <DiscoveryReportView report={report} spaceId="space" />,
+  );
+  expect(html).toContain("document=target#workflows");
+});

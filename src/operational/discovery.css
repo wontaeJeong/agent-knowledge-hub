@@ -245,3 +245,9 @@
     gap: 1px;
   }
 }
+
+.discovery-cutoff {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 6px 0 0;
+}
