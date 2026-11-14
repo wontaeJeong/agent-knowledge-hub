@@ -3,6 +3,7 @@
 ## 2026-11-14 미이관 공간 3역할 호환 — P5
 
 - 관련 IAM-001/002/004/005/006/009, ACL-001~005/007 및 CORE-008의 권한·원본 상한 불변식. `server/database.ts` 전환 직전 증거와 `server/migrations/113-legacy-roles.sql`, `server/access/legacy-compat.ts`, OIDC·공통 권한·발행·작업 큐 경로 및 운영 앱의 기존 reader 원본 조회를 연결했다. reviewer는 Maintain/Admin/Owner가 아니며 current source ACL, 독립 승인·발행 직전 권한 검사는 유지한다. 실제 지식 품질·에이전트 성능은 측정하지 않았다.
+- 독립 권한 리뷰 수정: 이관 전 공간의 query 전용 내부 자격은 변경 제안·원본 등록·편입을 허용하지 않는다. 과거 작성자의 현재 원본·문서·의존·전체 입력 권한을 재인증 강제 없이 승인·발행에 재검사한다.
 - 기존 인증 세션과 membership의 전환 직전 증거가 없는 이미 업그레이드된 DB는 자동 복원하지 않는다. [운영자 백업 manifest 계약](LEGACY_ACCESS_RECOVERY.md)은 신뢰키·설치·만료·기존 기록과 회수 상태를 검증한다. 서명은 백업 진위를 대신하지 않는다. 현재 호출자는 fresh UserInfo로 그룹 역할을 좁히며 과거 작성자/검토자는 현재 DB membership·활성·철회와 원본 권한으로 비동기 검증한다. 회사의 실제 디렉터리 및 백업 확인은 수행하지 않았다.
 - 검증: 격리 PostgreSQL에서 이전 스키마→최신 migration, 실제 합성 서명 OIDC code flow/UserInfo·세션, 역할별 read/write/queue, 독립 검토·발행·원본 철회, 재로그인·회수·이관과 서명 manifest 합성 검사를 실행했다. Node 24 `npm run check` 통과(프런트 143, Node 48, import 16, 요구사항 251, 서버 타입·빌드·smoke). 파일별 신규 DB 9개에서 권한·OIDC·큐·발행·정책 등 113건 통과. UI 변경은 합성 브라우저 화면 증거와 독립 권한 리뷰가 필요하다.
 
@@ -340,3 +341,5 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 변경: `src/ui/AccountMenu.tsx`, `src/ui/account-menu.css`, `src/App.tsx`, `src/operational/ConsoleShell.tsx`, `src/operational/App.tsx`, `src/operational/console.ts`, `src/operational/console.css`. 지식 순환이나 기존 권한·지식 데이터는 변경하지 않는다. 기존 UI 일관성 요구를 구체화한 변경이며 기존 요구사항 ID를 변경하지 않았다.
 - 한계: 공개 Gate main은 별도 테마 컨트롤을 사용하므로 사내 드롭다운 구현과 동일한 코드를 확인한 것은 아니다. 서버 계정·세션 관리 라우트는 실제 런타임에 연결되지 않아 사용자 설정에서는 현재 정보만 표시한다. 사내 SSO 및 실제 데이터로는 검증하지 않았다.
 - 검증: Node 24에서 `npm ci`, `npm run check` 통과. 사용자 메뉴 상호작용 테스트 포함. 실제 브라우저 1440px/390px 화면 확인은 로컬 서버에 브라우저가 연결되지 않아 미실시. 최종 커밋 CI는 PR에서 별도 확인한다.
+
+- P5 독립 리뷰 수정 검증: 실제 격리 DB RED→GREEN 및 PostgreSQL 17의 UUID별 DB에서 전체 서버 테스트 95개 파일 통과. Node 24 `npm run check` 통과. 외부 IdP·실제 백업 및 외부 롤백 앵커는 별도 검증이 필요하다.

@@ -11,7 +11,12 @@ import {
   current,
 } from "../src/domain/wiki";
 import { transaction } from "./database";
-import { authorizeActionDb, effectiveAccess } from "./access/index";
+import {
+  authorizeActionDb,
+  authorizeManaged,
+  assertResourceUpperBound,
+  effectiveAccess,
+} from "./access/index";
 import { legacyStoredRole } from "./access/legacy-compat";
 import { assertReleasedImportContext } from "./operations/released-imports";
 import {
@@ -264,8 +269,7 @@ export async function propose(
         "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
         [ctx.workspaceId],
       );
-      if (accessSpace.rowCount)
-        await authorizeActionDb(db, ctx, "changeset.propose");
+      await authorizeManaged(db, ctx, "changeset.propose");
       await ctx.authorization?.assertSession(db);
       if (options?.importRunId) {
         const run = await db.query(
@@ -429,6 +433,18 @@ async function checkedBatch(
     if (!ctx.authorization.verifiedIssuer || actor?.issuer !== ctx.authorization.verifiedIssuer) throw Error("FORBIDDEN");
     const authorRole = await legacyStoredRole(db, ctx.workspaceId, authorId, ctx.authorization.verifiedIssuer);
     if (!authorRole || authorRole === "reader") throw Error("FORBIDDEN");
+    const author = { workspaceId: ctx.workspaceId, principalId: authorId };
+    await permissions(
+      db, author, batch.updates, batch.snapshots.map((s) => s.id),
+      (batch as RuntimeBatch).contextDependencyIds,
+    );
+    const envelope = (batch as RuntimeBatch).inputEnvelope;
+    if (envelope) {
+      for (const pageId of envelope.pageIds)
+        await assertResourceUpperBound(db, author, "knowledge.read", { kind: "page", id: pageId });
+      for (const sourceId of envelope.sourceIds)
+        await assertResourceUpperBound(db, author, "knowledge.read", { kind: "source", id: sourceId });
+    }
   }
   if (managed.rowCount && !personal) {
     if (

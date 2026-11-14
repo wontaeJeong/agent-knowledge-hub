@@ -2,7 +2,9 @@ import { test, expect } from "vitest";
 import { Pool } from "pg";
 import { randomUUID, createHash, generateKeyPairSync, sign } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
-import { migrate } from "../database";
+import { migrate, transaction } from "../database";
+import { captureEnvelope } from "../provenance";
+import { loadState } from "../repository";
 import { createServer } from "node:http";
 import * as oidc from "openid-client";
 import { OidcAuth, sessionHash } from "../runtime/auth";
@@ -371,6 +373,161 @@ test("pre-010 migration captures only proven session membership and leaves unver
           baseVersion: 1,
         },
       ];
+      const queryGrant = (
+        await pool.query(
+          "SELECT credential_id FROM runtime_execution_grants WHERE job_id=$1",
+          [receipt.id],
+        )
+      ).rows[0];
+      expect(queryGrant).toBeTruthy();
+      const queryOnly = {
+        workspaceId: "legacy",
+        principalId: pid("edit"),
+        credentialId: queryGrant.credential_id,
+      };
+      await expect(
+        core.propose(
+          queryOnly,
+          [{ ...draft[0], id: "query-only-page", baseVersion: 0 }],
+          [source.id],
+        ),
+      ).rejects.toThrow("FORBIDDEN");
+      await expect(
+        core.registerSource(queryOnly, { ...source, id: "query-only-source" }, [
+          pid("edit"),
+        ]),
+      ).rejects.toThrow("FORBIDDEN");
+      await expect(
+        runtime.ingest(queryOnly, [source.id], "offline"),
+      ).rejects.toThrow("FORBIDDEN");
+      const approvalCandidate = await core.propose(
+        editor,
+        [{ ...draft[0], id: "author-acl-approval", baseVersion: 0 }],
+        [source.id],
+      );
+      await pool.query(
+        "DELETE FROM resource_readers WHERE workspace_id='legacy' AND kind='source' AND resource_id=$1 AND principal_id=$2",
+        [source.id, pid("edit")],
+      );
+      const approvalError = await core
+        .approve(reviewer, approvalCandidate.id, approvalCandidate.hash)
+        .then(
+          () => "SUCCESS",
+          (e) => (e as Error).message,
+        );
+      expect.soft(approvalError).toBe("NOT_FOUND");
+      if (approvalError !== "SUCCESS") {
+        await pool.query(
+          "INSERT INTO resource_readers VALUES('legacy','source',$1,$2)",
+          [source.id, pid("edit")],
+        );
+        await core.approve(
+          reviewer,
+          approvalCandidate.id,
+          approvalCandidate.hash,
+        );
+        await pool.query(
+          "DELETE FROM resource_readers WHERE workspace_id='legacy' AND kind='source' AND resource_id=$1 AND principal_id=$2",
+          [source.id, pid("edit")],
+        );
+      }
+      const publicationError = await core
+        .publish(
+          reviewer,
+          approvalCandidate.id,
+          approvalCandidate.hash,
+          "author-acl-test",
+        )
+        .then(
+          () => "SUCCESS",
+          (e) => (e as Error).message,
+        );
+      expect.soft(publicationError).toBe("NOT_FOUND");
+      await pool.query(
+        "INSERT INTO resource_readers VALUES('legacy','source',$1,$2)",
+        [source.id, pid("edit")],
+      );
+      await pool.query(
+        "DELETE FROM requests WHERE workspace_id='legacy' AND key='author-acl-test'",
+      );
+      await pool.query(
+        "DELETE FROM publications WHERE workspace_id='legacy' AND batch_id=$1",
+        [approvalCandidate.id],
+      );
+      await pool.query(
+        "DELETE FROM approvals WHERE workspace_id='legacy' AND batch_id=$1",
+        [approvalCandidate.id],
+      );
+      await pool.query(
+        "DELETE FROM batches WHERE workspace_id='legacy' AND id=$1",
+        [approvalCandidate.id],
+      );
+      const dependencyCandidate = await core.propose(
+        editor,
+        [
+          {
+            ...draft[0],
+            id: "author-dependency-acl",
+            baseVersion: 0,
+            links: ["topic"],
+          },
+        ],
+        [source.id],
+      );
+      await pool.query(
+        "DELETE FROM resource_readers WHERE workspace_id='legacy' AND kind='page' AND resource_id='topic' AND principal_id=$1",
+        [pid("edit")],
+      );
+      await expect(
+        core.approve(
+          reviewer,
+          dependencyCandidate.id,
+          dependencyCandidate.hash,
+        ),
+      ).rejects.toThrow("NOT_FOUND");
+      await pool.query(
+        "INSERT INTO resource_readers VALUES('legacy','page','topic',$1)",
+        [pid("edit")],
+      );
+      await pool.query(
+        "DELETE FROM batches WHERE workspace_id='legacy' AND id=$1",
+        [dependencyCandidate.id],
+      );
+      const contextOnlySource = { ...source, id: "context-only-source" };
+      await core.registerSource(editor, contextOnlySource, [
+        pid("edit"),
+        pid("review"),
+      ]);
+      const fullInput = await transaction(pool, "legacy", async (db) =>
+        captureEnvelope(
+          db,
+          editor,
+          await loadState(db, "legacy"),
+          [],
+          [contextOnlySource.id],
+        ),
+      );
+      const contextCandidate = await core.propose(
+        editor,
+        [{ ...draft[0], id: "author-context-acl", baseVersion: 0 }],
+        [source.id],
+        { inputEnvelope: fullInput },
+      );
+      await pool.query(
+        "DELETE FROM resource_readers WHERE workspace_id='legacy' AND kind='source' AND resource_id=$1 AND principal_id=$2",
+        [contextOnlySource.id, pid("edit")],
+      );
+      await expect(
+        core.approve(reviewer, contextCandidate.id, contextCandidate.hash),
+      ).rejects.toThrow("NOT_FOUND");
+      await pool.query(
+        "INSERT INTO resource_readers VALUES('legacy','source',$1,$2)",
+        [contextOnlySource.id, pid("edit")],
+      );
+      await pool.query(
+        "DELETE FROM batches WHERE workspace_id='legacy' AND id=$1",
+        [contextCandidate.id],
+      );
       const own = await core.propose(reviewer, draft, [source.id]);
       await expect(core.approve(reviewer, own.id, own.hash)).rejects.toThrow(
         "FORBIDDEN",
@@ -548,7 +705,7 @@ test("pre-010 migration captures only proven session membership and leaves unver
     await root.query(`DROP SCHEMA ${schema} CASCADE`);
     await root.end();
   }
-});
+}, 20000);
 
 test("a database already past 010 never reconstructs historical membership from its mutable current rows", async () => {
   const root = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
