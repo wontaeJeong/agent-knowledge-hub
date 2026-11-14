@@ -9,7 +9,7 @@ import {OidcAuth, sessionHash} from "../runtime/auth";
 import {OperationsService} from "./service";
 import {operationsRoutes} from "./routes";
 
-test("authenticated erasure preview and execute expose version workflow conflict", async () => {
+test("authenticated erasure preview and execute redact version workflow metadata", async () => {
   const f=await fixture(); await adoptFixture(f.pool,f.workspaceId);
   await f.pool.query("INSERT INTO version_metadata_events(workspace_id,page_id,actor_id,reason,before_snapshot,after_snapshot) VALUES($1,'topic','editor','reason','{}','{}')",[f.workspaceId]);
   const provider=createServer((_req,res)=>{res.setHeader("content-type","application/json");res.end(JSON.stringify({sub:"fixture-owner",groups:["owners"]}));});
@@ -25,9 +25,10 @@ test("authenticated erasure preview and execute expose version workflow conflict
     const preview=await fetch(base+"/api/v1/operations/erasure/preview",{method:"POST",headers,body:JSON.stringify({scope:"workspace"})});
     expect(preview.status,await preview.clone().text()).toBe(200);
     const data=await preview.json() as {previewHash:string;versionWorkflowDataUnsupported:boolean};
-    expect(data.versionWorkflowDataUnsupported).toBe(true);
+    expect(data.versionWorkflowDataUnsupported).toBe(false);
     const execute=await fetch(base+"/api/v1/operations/erasure/execute",{method:"POST",headers,body:JSON.stringify({scope:"workspace",previewHash:data.previewHash,confirm:"ERASE_ENTIRE_WORKSPACE"})});
-    expect(execute.status).toBe(409);
-    expect(await execute.json()).toMatchObject({code:"ERASURE_VERSION_METADATA_UNSUPPORTED"});
+    expect(execute.status).toBe(200);
+    expect(await execute.json()).toMatchObject({status:"completed"});
+    expect((await f.pool.query("SELECT reason FROM version_metadata_events WHERE workspace_id=$1",[f.workspaceId])).rows[0].reason).toBe("[법정 삭제]");
   } finally {await new Promise<void>(resolve=>server.close(()=>resolve()));await new Promise<void>(resolve=>provider.close(()=>resolve()));await f.pool.end();}
 });

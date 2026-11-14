@@ -130,3 +130,16 @@ Docker 빌드·실행, 실제 GitHub Actions 실행, 실제 모바일 기기·�
 사용자 결정에 따라 최초 Folio Wiki의 육각형·펼친 책 심볼을 복원했다. 원본 SVG의 두 path·viewBox·색·선 두께·끝/이음 속성을 대조했고, 심볼 PNG 6종과 favicon PNG 10종은 원본 커밋 afa472f의 파일과 바이트까지 일치한다.
 
 최신 main을 반영한 상태에서 Vitest 32개와 모델 중계 5개, 총 37개 테스트 및 요구사항 251개 연결 검사·TypeScript·Vite 빌드가 통과했다. 에셋 74개 파일의 manifest SHA-256과 SVG 파싱을 확인하고 전체 미리보기를 시각 점검했다. 새 배너·워드마크·공유 이미지의 이름은 agent-knowledge-hub이다. 이번 변경은 지식 처리나 모델 성능의 개선을 주장하지 않는다.
+
+## 2026-11-14 P10 실제 유지 순환 합성 회귀
+
+- Node 24 `npm run check`: src 142개, Node 기존 48개, imports 16개, 평가기 34개, 요구사항 251개 연결 검사·서버 타입·빌드·정적 HTTP smoke 통과.
+- 격리 PostgreSQL의 `scripts/test-server.mjs` 관련 5파일: P10 실제 HTTP/DB/loopback 모델 1개, 모델 정책 14개, P6 답변 진화 20개, 런타임 계보 12개, 런타임 11개 통과. P10 fixture는 3회 발행 및 9개 평가, 동일 원본/고정 정적 위키, 반증·환경 내용 보존, 비용 분리, 평가 답변 미저장과 현재 ACL/정책 거부를 검사한다.
+- 현재 pg가 발행 권한 검사에서 동시 `client.query` deprecation 경고를 출력했다. 원인·기존 경로·미해결 상태는 `MISTAKE_LOG.md`에 기록했다. 기존 pg에서는 테스트가 통과했으나 pg9 호환은 확인하지 않았다.
+- 이 결과는 합성 모델 fixture의 실행·안전 회귀다. 실제 모델의 의미적 정답, 독립적 증거 지지, 사내 운영 승인 및 후속 에이전트 성능 개선이나 100답변/95% 기준 통과가 아니다.
+
+### P10 독립 리뷰 수정 검증
+
+- 최종 `npm run check`: src 142개, 기존 Node 48개, imports 16개, evaluation 41개, 요구사항 251개 연결·서버 타입·빌드·정적 smoke 통과.
+- PostgreSQL 16 대상 전체 서버 suite는 96파일 중 94파일 통과, 2파일의 4개 복원 테스트가 PostgreSQL 17 `pg_restore`의 `transaction_timeout` 설정을 서버 16이 인식하지 못해 실패했다. 실패한 테스트는 `recovery-release.test.ts` 1개와 `released-imports.test.ts` 3개다. 동일 최종 코드를 PostgreSQL 17 전용 무볼륨 합성 컨테이너로 재실행해 96파일·696개 모두 통과했고 해당 컨테이너만 종료했다.
+- 실제 입력 메타데이터·규칙 봉인, stage별 원본 계보, 실패/timeout의 측정 비용 소계와 보류 판정은 합성 회귀다. 모델 의미 품질이나 실제 업무 성과를 입증하지 않는다.
