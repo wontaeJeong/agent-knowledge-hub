@@ -148,6 +148,7 @@ export class OperationalApi {
           ? data.code
           : "REQUEST_FAILED";
       const messages: Record<string, string> = {
+        RESTORE_PATH_CONFLICT: "같은 위치에 같은 제목의 문서가 있습니다. 다른 복구 위치를 선택하세요.",
         LAST_OWNER:
           "마지막 Organization Owner를 제거하거나 강등할 수 없습니다. 다른 멤버가 Owner 초대를 수락한 뒤 변경하세요.",
         INVITATION_REQUIRED:

@@ -843,6 +843,7 @@ export function createRuntimeHandler(options: {
         INPUT_TOO_LARGE: 413,
         ALREADY_EXISTS: 409,
         STALE_VERSION: 409,
+        RESTORE_PATH_CONFLICT: 409,
         COLLECTOR_NOT_CONFIGURED: 503,
         COLLECTOR_CONNECTION_REVOKED: 409,
         COLLECTOR_FETCH_FAILED: 502,

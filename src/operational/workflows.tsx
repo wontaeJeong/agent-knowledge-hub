@@ -60,6 +60,8 @@ interface TrashItem {
   id: string;
   title: string;
   revision: number;
+  trashedAt?: string | null;
+  purgeAfter?: string | null;
 }
 interface Template {
   id: string;
@@ -332,6 +334,8 @@ export function WorkflowPanel({
   const [drafts, setDrafts] = useState<PrivateDraft[]>([]);
   const [notifications, setNotifications] = useState<Notice[]>([]);
   const [trash, setTrash] = useState<TrashItem[]>([]);
+  const [restoreParents, setRestoreParents] = useState<Record<string,string>>({});
+  const [restoreTitles, setRestoreTitles] = useState<Record<string,string>>({});
   const [templates, setTemplates] = useState<Template[]>([]);
   const [draft, setDraft] = useState<PrivateDraft | null>(null);
   const [content, setContent] = useState("");
@@ -1568,11 +1572,21 @@ export function WorkflowPanel({
           <summary>휴지통 ({trash.length})</summary>
           <p>
             현재 원본·상위 문서 권한을 만족하는 문서만 표시합니다. 복구로 과거
-            권한은 복원하지 않습니다.
+            권한은 복원하지 않습니다. 유예 시각 경과만으로 삭제하지 않으며,
+            실제 정리는 별도 보존 정책과 실행 결과를 따릅니다.
           </p>
           {pageItems(trash, trashPage).map((t) => (
             <article key={t.id}>
               <strong>{t.title}</strong>
+              <p>휴지통 이동: {t.trashedAt ? new Date(t.trashedAt).toLocaleString("ko-KR") : "시각 미확인"} · 유예 만료: {t.purgeAfter ? new Date(t.purgeAfter).toLocaleString("ko-KR") : "미설정"}</p>
+              <label>복구 위치
+                <select value={restoreParents[t.id] ?? "original"} onChange={(e) => setRestoreParents({ ...restoreParents, [t.id]: e.target.value })}>
+                  <option value="original">원래 위치</option>
+                  <option value="root">최상위</option>
+                  {pages.filter((p) => p.id !== t.id).map((p) => <option key={p.id} value={`page:${p.id}`}>{p.title}</option>)}
+                </select>
+              </label>
+              <label>새 제목 (변경할 때만 입력)<input value={restoreTitles[t.id] ?? ""} maxLength={300} onChange={(e) => setRestoreTitles({...restoreTitles,[t.id]:e.target.value})} /></label>
               <Button
                 disabled={busy}
                 onClick={() =>
@@ -1588,6 +1602,8 @@ export function WorkflowPanel({
                       {
                         expectedRevision: t.revision,
                         state: "active",
+                        ...(restoreTitles[t.id]?.trim() ? {restoreTitle:restoreTitles[t.id].trim()} : {}),
+                        ...(restoreParents[t.id] === "root" ? {restoreParentId:null} : restoreParents[t.id]?.startsWith("page:") ? {restoreParentId:restoreParents[t.id].slice(5)} : {}),
                         reason: "사용자 확인 후 휴지통 복구",
                       },
                     );
@@ -1618,6 +1634,7 @@ interface RetentionPolicy {
   publishedVersions: number | null;
   sourceVersions: number | null;
   runtimeResults: number | null;
+  trashGraceDays?: number | null;
 }
 interface RetentionPreview {
   hash: string;
@@ -1758,6 +1775,9 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
               }
             />
             명시적 자동 정리 허용
+          </label>
+          <label>휴지통 유예 일수 (빈 값은 미설정)
+            <input type="number" min={1} max={36500} disabled={busy} value={settings.policy.trashGraceDays ?? ""} onChange={(e) => setSettings({ ...settings, policy: { ...settings.policy, trashGraceDays: e.target.value === "" ? null : Number(e.target.value) } })} />
           </label>
           {(Object.keys(retentionLabels) as RetentionClass[]).map((kind) => (
             <label key={kind}>
