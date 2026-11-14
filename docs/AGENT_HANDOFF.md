@@ -341,3 +341,8 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 집중 합성 PostgreSQL 시험에서 실 HTTP, 소스/질문 계보, 별도 공간 격리, nonce 중복, signed 복구 재생, stale preview·보류·현재 ACL과 gate 경합을 검증했다. 정확한 명령과 결과는 작업 보고서와 PR에 기재한다. PostgreSQL 17 복구 도구를 PostgreSQL 16 합성 서버에 사용한 release 시험은 `transaction_timeout` 미지원으로 실패했으며 PG17 CI에서 별도 확인해야 한다.
 - Task 2 사용자 휴지통·복원과 주기 보존 실행은 후속 독립 PR 범위다. 사내 보존/법적 정책, 외부 백업 삭제와 운영 수용·실제 업무 품질 개선은 검증하지 않았다.
 - 독립 리뷰 후속: 복구 미리보기의 복합 기본키 `hash`를 보존하고 payload만 삭제한다. 전체 삭제와 복구 재생에서 각각 두 미리보기의 충돌을 RED→GREEN으로 확인했고 특권 SQL 함수도 해당 키 변경을 거부한다.
+
+### 2026-11-14 — P8 native local connector (CORE-009, KI-01~07 partial)
+
+- `server/agents/{service,http}.ts` and `scripts/wiki-connector/{client,cli,mcp,service}.mjs` submit 1–20 selected synchronized personal revisions as one pending common proposal. The exact-input receipt commits atomically with that proposal; replay rechecks current access, copy policy and selected revisions. Existing PAT scopes are unchanged.
+- Synthetic PostgreSQL and native HTTP with scoped credentials, two clients and two workspaces exercise synchronization, conflict preservation, forged source rejection, policy revocation, retry, and changed-baseline rejection. Real SSO, installation, production policy acceptance, and knowledge quality remain unverified. ADR 004 remains proposed.

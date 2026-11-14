@@ -402,6 +402,29 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
         return request("propose", { ...input, personalVersion });
       });
     },
+    proposeBatch(input) {
+      return run(async () => {
+        if (!input || !Array.isArray(input.selections) || input.selections.length < 1 || input.selections.length > 20) throw Error("VALIDATION_FAILED");
+        requireId(input.id); requireId(input.targetSpaceId);
+        const selections = input.selections.map((s) => {
+          requireId(s.pageId);
+          const personalVersion = revision(s.personalVersion), baseVersion = revision(s.baseVersion);
+          if (!personalVersion || !baseVersion) throw Error("VALIDATION_FAILED");
+          const selected = state.personal[s.pageId];
+          if (!selected || selected.dirty || selected.incoming) throw Error("SYNC_REQUIRED");
+          if (selected.base.version !== personalVersion) throw Error("STALE_PERSONAL_VERSION");
+          return {pageId:s.pageId,baseVersion,personalVersion};
+        });
+        if (new Set(selections.map(s=>s.pageId)).size !== selections.length) throw Error("VALIDATION_FAILED");
+        await authorize();
+        for (const s of selections) {
+          const selected = state.personal[s.pageId];
+          if (!selected || selected.dirty || selected.incoming) throw Error("SYNC_REQUIRED");
+          if (selected.base.version !== s.personalVersion) throw Error("STALE_PERSONAL_VERSION");
+        }
+        return request("propose-batch",{id:input.id,targetSpaceId:input.targetSpaceId,selections});
+      });
+    },
     async start() {
       if (running || closed) return;
       running = true;

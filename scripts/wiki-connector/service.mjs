@@ -233,7 +233,8 @@ export async function createService({ file, identities, pages = [] }) {
             p.status = "published";
           }
           result = p;
-        } else throw Error("NOT_FOUND");
+        } else if (action === "propose-batch") throw Error("FEATURE_UNAVAILABLE");
+        else throw Error("NOT_FOUND");
         await store.write(next);
         state = next;
         return structuredClone(result);

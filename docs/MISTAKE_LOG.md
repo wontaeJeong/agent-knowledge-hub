@@ -228,3 +228,8 @@
 - 환경: recovery-release 시험은 PG17 Docker 도구의 `transaction_timeout` 명령을 PG16 합성 서버가 거부해 실패했다. 제품 결함으로 단정하거나 복구 통과로 표시하지 않는다. 동일 버전 PG17 CI에서 재확인한다.
 - 상태/후속: Task 1 독립 리뷰 대기. Task 2 보존/복원과 실제 운영 검증은 별도다.
 - 독립 리뷰 후속: 같은 사용자의 복구 미리보기 두 건을 삭제하면 기본키의 `hash`를 같은 표식으로 바꾸어 unique 위반으로 전체 삭제와 복구 재생이 롤백됐다. 리뷰어가 실제 DB에서 발견했고, 미리보기별 고유 해시를 유지하면서 payload만 지우도록 애플리케이션과 특권 SQL 양쪽을 수정했다. 실행·재생 각각 수정 전 실패 후 통과했고 SQL의 해시 수정 거부와 전체 검사를 확인했다.
+
+### 2026-11-14 — Native connector authorization and proposal verification
+
+- Earlier single-page connector tests used a mock authorizer and did not establish native scoped-credential or source-copy-policy behavior; the batch action did not exist. Native HTTP and synthetic PostgreSQL reproduced the missing action as a 400 before implementation.
+- During regression work, changing the shared baseline before checking the selected personal revision caused the shared stale condition to appear first. The tests now isolate each cause. Atomic proposal/receipt, replay permissions, current copy policy, source forgery and two-client conflicts are checked. No production data was used.

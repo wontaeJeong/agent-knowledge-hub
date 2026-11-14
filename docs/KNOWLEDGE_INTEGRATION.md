@@ -84,3 +84,5 @@ K8s 초기 운영 경계와 실제 자료/보안 게이트는 [배포 계획](K8
 ## 웹 편입 · 조직 접근 관리 구현 (2026-10-30)
 
 [실제 실행 계약·설정·검증과 남은 범위](IMPLEMENTATION_GUIDE.md), [웹 자료 편입 설계](DATA_INGESTION.md), [대화 기록](CONVERSATION_IMPORT.md)를 참조한다. 웹/REST/MCP의 개인 원본 접수·서버 영속 정리·선택 원본 공개 승인·독립 지식 검토/발행을 연결했다. Organization/Team/공간별 역할·초대·Owner·현재 권한 철회를 구현하며 기존 공간의 역할 유지 요구와 현재 소유권 미확인 공간 격리의 차이는 [현재 현황](CURRENT_STATUS.md)의 미충족 조건을 따른다. 원본 제한은 관리자에게도 적용한다. 새 기능의 구현은 전체 251개 요구사항이나 실제 LLM 의미 품질/운영 인수 통과를 뜻하지 않는다.
+
+2026-11-14 P8: authenticated native HTTP now connects selected personal revisions to the common dependent proposal path, with current scoped credentials and source copy policy checks. Synthetic PostgreSQL and two clients provide bounded integration evidence. Synchronization is transport and editing, not synthesis or independent execution proof; KI operational acceptance and ADR 004 adoption remain separate. See [local connector](LOCAL_WIKI.md).

@@ -1,6 +1,6 @@
 # 로컬 위키 커넥터 — 첫 수직 구현
 
-**합성 자료로만 사용한다.** 실제 파일 저장·HTTP 통신·STDIO MCP를 제공하지만 운영 서버/SSO/DB, Windows 설치형 배포, 실제 Codex/OpenCode/Cowork 앱 호환 검증은 아직 없다. 기존 웹 데모의 localStorage와 이 커넥터는 별도이며 서로 자동 이전하지 않는다.
+**Developer integration stage.** The connector supports synthetic and native authenticated HTTP/DB services. Real company SSO, Windows packaging and Codex/OpenCode/Cowork host compatibility remain unverified. The local connector and web demo storage are separate.
 
 ## 사용자 경험과 현재 범위
 
@@ -15,13 +15,13 @@
 - 여러 PC는 별도 디렉토리를 쓴다. 같은 디렉토리를 두 프로세스가 동시에 열면 `WORKSPACE_LOCKED`다.
 - 충돌은 기준/로컬/원격을 보존한다. 첫 구현은 같은 문서의 비중첩 수정도 보수적으로 충돌 처리한다.
 - MCP는 병합안을 준비할 수 있지만 병합 확정과 공유 승인/발행은 CLI로 분리했다. CLI 플래그 자체가 사람이 실제 검토했다는 보안 증거는 아니며 호스트의 shell 권한 정책도 필요하다.
-- 첫 공유 제안은 **한 페이지 단위**다. 기존 지식 엔진의 여러 페이지 원자 발행과 결합한 것으로 표시하지 않는다. 운영 연결 전 의존 변경 집합으로 확장해야 한다.
+- The native server accepts 1–20 selected revisions as one dependent proposal; the synthetic development service explicitly rejects this optional action.
 
 ## LLM Wiki North Star와의 통합 위치
 
-이 커넥터의 **개인 저장·동기화·공유 제안**은 지식의 원본 편입이나 Ingest → Query → Lint가 아니다. `wiki_write`는 개인 작업본만 수정하고 `wiki_propose_change`는 한 페이지의 선택 revision을 제안한다. 기존 웹 데모의 복수 페이지 지식 컴파일/검증/발행 경로와 **서로 다른 정본**인 현재 상태를 유지하고 있으며, 완료된 통합으로 표시하지 않는다.
+Personal storage, synchronization and proposal submission are not source ingestion or the Ingest → Query → Lint cycle. The native server uses the common proposal, review and publication path; synchronization does not itself synthesize knowledge.
 
-향후 공통 서버 서비스에서 원본·권한·근거 계보·의존 변경 집합을 검증하면서 개인 작업본을 활용하는 방안은 [지식 누적 통합 계획](KNOWLEDGE_INTEGRATION.md)과 [ADR 004 제안](adr/004-unified-knowledge-service.md)을 참고한다. ADR은 아직 채택되지 않았고, KI-01~08은 미실행 수용 설계다.
+See [knowledge integration](KNOWLEDGE_INTEGRATION.md) and [ADR 004](adr/004-unified-knowledge-service.md). ADR 004 remains proposed; KI operational acceptance is separate.
 
 [설계](superpowers/specs/2026-10-29-local-personal-wiki-design.md) · [구현 계획](superpowers/plans/2026-10-29-local-personal-wiki.md)
 
@@ -95,9 +95,9 @@ Windows JSON 경로에서는 역슬래시를 이스케이프해야 한다. 위 �
 
 ## 동기화·충돌·공유
 
-**후속 권한 설계:** [권한 모델](ACCESS_CONTROL.md)과 [ADR 005](adr/005-github-style-access-control.md)는 로컬을 저장 위치로, 개인/팀을 소유권으로 구분한다. 공간별 5역할과 자료 반출 정책을 공통 서버에서 판단하고 개인→팀은 고정 revision의 명시적 제안으로 연결하는 **미구현 계약**이다. 아래 합성 `personal`/`team-demo`·reviewer 토큰이 그 역할/소유권을 구현한 것은 아니다. 연결 중 동기화 수명주기와 보호 조회 전 현재 권한 확인은 유지한다.
+The native server enforces adopted space roles, current source copy policy and explicit revision selection. The synthetic `personal`/`team-demo` examples do not implement the complete access model; see [access control](ACCESS_CONTROL.md) and [ADR 005](adr/005-github-style-access-control.md).
 
-도구: `wiki_status`, `wiki_search`, `wiki_read`, `wiki_write`, `wiki_sync`, `wiki_conflicts`, `wiki_prepare_merge`, `wiki_propose_change`.
+도구: `wiki_status`, `wiki_search`, `wiki_read`, `wiki_write`, `wiki_sync`, `wiki_conflicts`, `wiki_prepare_merge`, `wiki_propose_change`. `wiki_propose_batch`.
 
 `wiki_write` 입력은 `{page: {id,title,content,spaceId,version,localCopyAllowed:true,links:[],sourceRefs:[]}}`다. 기존 공유본은 `wiki_read` 결과의 메타데이터·출처를 유지한 채 수정한다. 개인본은 `spaceId: personal`, 같은 ID로 저장된다. `wiki_read`의 기본은 개인본 우선이며 공유본은 `spaceId`를 명시한다. 검색은 두 종류를 별도 결과로 반환한다. 개인본 버전과 공유본 버전을 혼동하지 않는다.
 
@@ -144,3 +144,15 @@ npm run build
 ## 웹 편입 · 조직 접근 관리 구현 (2026-10-30)
 
 [실제 실행 계약·설정·검증과 남은 범위](IMPLEMENTATION_GUIDE.md), [웹 자료 편입 설계](DATA_INGESTION.md), [대화 기록](CONVERSATION_IMPORT.md)를 참조한다. 웹/REST/MCP의 개인 원본 접수·서버 영속 정리·선택 원본 공개 승인·독립 지식 검토/발행을 연결했다. Organization/Team/공간별 역할·초대·Owner·현재 권한 철회를 구현하며 기존 공간은 명시적 이관 전까지 기존 OIDC 역할을 유지한다. 원본 제한은 관리자에게도 적용한다. 새 기능의 구현은 전체 251개 요구사항이나 실제 LLM 의미 품질/운영 인수 통과를 뜻하지 않는다.
+
+## Authenticated server and dependent proposals (2026-11-14)
+
+The earlier synthetic-only and single-page statements above describe the original implementation. The connector now also supports the native authenticated server endpoint `/api/v1/connector` over HTTPS (or loopback HTTP for local tests). Use an `akh_` credential bound to the actual principal and workspace with `knowledge.read`, `local.copy`, `personal.sync`, and `changeset.propose`. An ordinary `akh_sk_` PAT does not acquire copy permission. The current source local-copy policy, resource ACLs, and credential are checked on access, sync, proposal, and retry. `personal` is a display namespace; server authority comes from the credential. Use separate directories for separate credentials.
+
+The additive MCP tool `wiki_propose_batch` and CLI `propose-batch <file.json>` accept the following. Every selected personal revision must be current and synchronized; a concurrent edit requires a new selection.
+
+```json
+{"id":"review-1","targetSpaceId":"team-id","selections":[{"pageId":"page-a","baseVersion":1,"personalVersion":1},{"pageId":"page-b","baseVersion":2,"personalVersion":3}]}
+```
+
+The server validates provenance and dependencies and creates one pending proposal through the common review/publication path. It never publishes automatically. A changed publication baseline blocks the entire batch. Repeating the same ID and exact input returns the existing result only after checking current permissions and selected revisions; different input conflicts. The synthetic development service explicitly declines this optional action. Native HTTP, scoped credentials, two clients and workspaces were exercised against synthetic PostgreSQL; real company SSO, installation, endpoint deployment and policy acceptance remain unverified. ADR 004 remains proposed. Synchronization and editing are not knowledge synthesis or independent execution evidence.
