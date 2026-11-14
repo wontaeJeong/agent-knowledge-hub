@@ -1,4 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import {
+  proposalCandidateInput,
+  type ProposalCandidate,
+} from "../refinement/logic";
 import type { Pool, PoolClient } from "pg";
 import type { State, Source, Page, Version } from "../../src/domain/types";
 import {
@@ -269,6 +274,10 @@ export class RuntimeService {
         updates: r.data.updates,
         triage: r.triage ?? "untriaged",
         proposedBy: r.data.importAuthorId ?? r.data.proposedBy,
+        ...(r.data.candidates ? { candidates: r.data.candidates } : {}),
+        ...(r.data.evolutionReason
+          ? { evolutionReason: r.data.evolutionReason }
+          : {}),
         ...(Array.isArray(r.data.reviewWarnings) && r.data.reviewWarnings.length
           ? { reviewWarnings: r.data.reviewWarnings }
           : {}),
@@ -815,12 +824,20 @@ export class RuntimeService {
   }
   async file(ctx: Context, id: string) {
     const { state, fingerprint } = await this.snapshot(ctx);
+    const rejectDuplicate = async (db: PoolClient) => {
+      const found = await db.query(
+        "SELECT 1 FROM batches WHERE workspace_id=$1 AND data->>'answerId'=$2 AND data->>'status' NOT IN ('rejected','conflict') LIMIT 1",
+        [ctx.workspaceId, id],
+      );
+      if (found.rowCount) throw Error("ALREADY_PROPOSED");
+    };
     const row = await this.pool.query(
       "SELECT data FROM runtime_answers WHERE workspace_id=$1 AND id=$2 AND principal_id=$3",
       [ctx.workspaceId, id, ctx.principalId],
     );
     if (!row.rowCount) throw Error("NOT_FOUND");
     if (row.rows[0].data.requestAuthorizationPending) throw Error("NOT_FOUND");
+    await transaction(this.pool, ctx.workspaceId, rejectDuplicate);
     const answer = row.rows[0].data as Answer & {
       inputEnvelope?: InputEnvelope;
       producer?: NonNullable<Version["producer"]>;
@@ -835,6 +852,171 @@ export class RuntimeService {
     state.knowledge!.answers = [answer];
     const next = fileAnswer(state, id);
     const batch = memory(next).batches[0];
+    if (answer.mode === "model") {
+      const envelope = answer.inputEnvelope!;
+      const checkRecommendations = async (db: PoolClient) => {
+        for (const id of envelope.pageIds)
+          if (!(await currentRecommendation(db, ctx, id)))
+            throw Error("STALE_VERSION");
+      };
+      await transaction(this.pool, ctx.workspaceId, checkRecommendations);
+      const contextPages = state.pages.filter((p) =>
+        envelope.pageIds.includes(p.id),
+      );
+      const sources = state.sources.filter((s) =>
+        envelope.sourceIds.includes(s.id),
+      );
+      const binding = await bindModelTransmission(
+        this.pool,
+        ctx,
+        "ingest",
+        envelope,
+        {
+          pool: this.pool,
+          workspaceId: ctx.workspaceId,
+          principalId: ctx.principalId,
+          beforeTransmission: async () =>
+            transaction(this.pool, ctx.workspaceId, checkRecommendations),
+          privatePersonalSpace:
+            Boolean(
+              (state as State & { serverPersonalSpace?: boolean })
+                .serverPersonalSpace,
+            ) && sources.every((s) => s.scope === "private"),
+        },
+      );
+      const data = await this.model(
+        "ingest",
+        {
+          task: "Reintegrate the derived answer. It is not independent evidence. Compare the cited versions and sources, preserve conflicts and applicability, and propose changes only when useful.",
+          answer: {
+            id: answer.id,
+            question: answer.question,
+            content: answer.content,
+            citations: answer.citations,
+            mode: answer.mode,
+          },
+          sources,
+          pages: contextPages.map((p) => ({
+            ...p,
+            versions: undefined,
+            content: current(p).content,
+            baseVersion: current(p).number,
+          })),
+        },
+        binding.options,
+      );
+      const proposed = (data as { updates: unknown }).updates;
+      let updates =
+        Array.isArray(proposed) && proposed.length === 0
+          ? []
+          : drafts.parse(proposed);
+      updates = updates.map((d) => ({
+        ...d,
+        sourceIds: [...new Set([...d.sourceIds, ...envelope.sourceIds])],
+      }));
+      updates = updates.filter((d) => {
+        const p = state.pages.find((p) => p.id === d.id);
+        if (!p) return true;
+        if (!envelope.pageIds.includes(p.id)) throw Error("MODEL_INVALID");
+        if (d.baseVersion !== current(p).number) throw Error("STALE_VERSION");
+        return contentFingerprint(d) !== contentFingerprint(draftOf(p));
+      });
+      const rawCandidates = z
+        .array(proposalCandidateInput)
+        .max(100)
+        .parse((data as { candidates?: unknown }).candidates ?? []);
+      const candidates: ProposalCandidate[] = rawCandidates.map((candidate) => {
+        const source = sources.find((s) => s.id === candidate.sourceId);
+        const update = updates.find((d) => d.id === candidate.pageId);
+        const start = source?.content.indexOf(candidate.quote) ?? -1;
+        if (
+          !source ||
+          !update ||
+          !update.sourceIds.includes(source.id) ||
+          start < 0
+        )
+          throw Error("MODEL_INVALID");
+        return {
+          ...candidate,
+          sourceVersion: digest(source),
+          location: {
+            start,
+            end: start + candidate.quote.length,
+            quote: candidate.quote,
+          },
+          verifiedAt: null,
+        };
+      });
+      await ctx.authorization?.revalidate();
+      if (!updates.length) {
+        await transaction(this.pool, ctx.workspaceId, async (db) => {
+          await binding.recheck(db);
+          await ctx.authorization?.assertSession(db);
+          await checkRecommendations(db);
+          const fresh = await loadState(db, ctx.workspaceId);
+          await assertEnvelope(db, ctx, fresh, envelope);
+          if (digest(fresh) !== fingerprint) throw Error("STALE_VERSION");
+        });
+        const reason = (data as { reason?: unknown }).reason;
+        return {
+          outcome: "no-changes" as const,
+          reason:
+            typeof reason === "string" && reason.trim()
+              ? reason.trim().slice(0, 1000)
+              : "모델이 기존 지식에 추가할 변경을 제안하지 않았습니다.",
+        };
+      }
+      const result = await propose(
+        this.pool,
+        ctx,
+        drafts.parse(updates),
+        envelope.sourceIds,
+        {
+          expectedStateHash: fingerprint,
+          mode: "model",
+          producer: { kind: "model", provider: null, model: null },
+          dependencyIds: envelope.pageIds,
+          inputEnvelope: envelope,
+          answerId: answer.id,
+          candidates,
+          evolutionReason:
+            typeof (data as { reason?: unknown }).reason === "string"
+              ? (data as { reason: string }).reason.trim().slice(0, 1000) ||
+                "모델이 변경 이유를 제공하지 않았습니다."
+              : "모델이 변경 이유를 제공하지 않았습니다.",
+          onBeforeCreate: rejectDuplicate,
+          requestAuthorizationPending: Boolean(ctx.authorization),
+          onCreated: async (db) => {
+            await binding.recheck(db);
+            const protectedPages = await db.query(
+              "SELECT 1 FROM workflow_document_state WHERE workspace_id=$1 AND page_id=ANY($2::text[]) AND data->>'protected'='true' LIMIT 1",
+              [ctx.workspaceId, updates.map((update) => update.id)],
+            );
+            if (protectedPages.rowCount) throw Error("FORBIDDEN");
+            if (ctx.authorization || ctx.credentialId)
+              await assertFeature(
+                db,
+                ctx,
+                "ingest",
+                undefined,
+                "changeset.propose",
+              );
+            await checkRecommendations(db);
+          },
+        },
+      );
+      if (ctx.authorization)
+        await this.releaseAuthorizedResult(
+          ctx,
+          "batch",
+          result.id,
+          async (db) => {
+            await binding.recheck(db);
+            await checkRecommendations(db);
+          },
+        );
+      return result;
+    }
     return propose(
       this.pool,
       ctx,
@@ -864,6 +1046,7 @@ export class RuntimeService {
           answer.citations.map((c) => c.pageId),
         inputEnvelope: answer.inputEnvelope,
         answerId: answer.id,
+        onBeforeCreate: rejectDuplicate,
       },
     );
   }

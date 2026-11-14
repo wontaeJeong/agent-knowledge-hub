@@ -3,6 +3,9 @@ import type { Pool, PoolClient } from "pg";
 import type { Context } from "./service";
 import type { Source } from "../src/domain/types";
 import type { Batch, Draft } from "../src/domain/wiki";
+import { RefinementService } from "./refinement/service";
+import type { ProposalCandidate } from "./refinement/logic";
+import { authorizeManaged } from "./access/index";
 import {
   createBatch,
   decideBatch,
@@ -237,6 +240,8 @@ export async function propose(
     mode?: "offline" | "model";
     dependencyIds?: string[];
     answerId?: string;
+    candidates?: ProposalCandidate[];
+    evolutionReason?: string;
     inputEnvelope?: InputEnvelope;
     requestAuthorizationPending?: boolean;
     producer?: NonNullable<import("../src/domain/types").Version["producer"]>;
@@ -338,6 +343,10 @@ export async function propose(
           ]);
         }
         if (options?.answerId) batch.answerId = options.answerId;
+        if (options?.candidates?.length)
+          Object.assign(batch, { candidates: options.candidates });
+        if (options?.evolutionReason)
+          Object.assign(batch, { evolutionReason: options.evolutionReason });
         (batch as RuntimeBatch).producer =
           options?.producer ??
           (options?.mode === "model"
@@ -842,6 +851,18 @@ export async function publish(
             v,
           ]);
           versions[d.id] = v.number;
+        }
+        const candidates =
+          (batch as Batch & { candidates?: ProposalCandidate[] }).candidates ?? [];
+        if (candidates.length) {
+          const refinement = new RefinementService(
+            pool,
+            async (client, actor, action, resource) => {
+              if (action !== "knowledge.read") throw Error("FORBIDDEN");
+              await authorizeManaged(client, actor, "knowledge.read", resource);
+            },
+          );
+          await refinement.publishCandidatesDb(db, ctx, id, candidates, versions);
         }
         // Source bodies remain unchanged; processing state is separate from the immutable input.
         await db.query(
