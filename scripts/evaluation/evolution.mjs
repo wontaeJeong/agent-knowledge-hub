@@ -12,29 +12,32 @@ export function validateIsolation(stages, heldout, expected) {
     !expected?.withheldMarker
   )
     throw Error("EVALUATION_DATASET_INVALID");
-  const text = JSON.stringify(stages);
-  const containsLabels = (value) =>
-    Array.isArray(value)
-      ? value.some(containsLabels)
-      : !!value &&
-        typeof value === "object" &&
-        Object.entries(value).some(
-          ([key, item]) =>
-            /^(expectedAnswer|alternatives|withheldMarker|solution)$/i.test(
-              key,
-            ) || containsLabels(item),
-        );
+  if (typeof expected.withheldMarker !== "string")
+    throw Error("EVALUATION_DATASET_INVALID");
+  const prompts = heldout.map((task) => {
+    if (typeof task.prompt !== "string" || !task.prompt.trim())
+      throw Error("HELDOUT_LEAKAGE");
+    return task.prompt;
+  });
+  const contains = (value, needles, inspectLabels = true) => {
+    if (typeof value === "string")
+      return needles.some((needle) => value.includes(needle));
+    if (Array.isArray(value))
+      return value.some((item) => contains(item, needles, inspectLabels));
+    if (!value || typeof value !== "object") return false;
+    return Object.entries(value).some(
+      ([key, item]) =>
+        (inspectLabels &&
+          /^(answer|answers|label|labels|groundTruth|correctAnswer|expectedAnswer|expectedAbstained|alternatives|withheldMarker|solution)$/i.test(
+            key,
+          )) ||
+        needles.some((needle) => key.includes(needle)) ||
+        contains(item, needles, inspectLabels),
+    );
+  };
   if (
-    containsLabels(stages) ||
-    containsLabels(heldout) ||
-    JSON.stringify(heldout).includes(expected.withheldMarker) ||
-    text.includes(expected.withheldMarker) ||
-    heldout.some(
-      (t) =>
-        typeof t.prompt !== "string" ||
-        !t.prompt.trim() ||
-        text.includes(t.prompt),
-    )
+    contains(stages, [expected.withheldMarker, ...prompts]) ||
+    contains(heldout, [expected.withheldMarker])
   )
     throw Error("HELDOUT_LEAKAGE");
 }
@@ -120,7 +123,8 @@ export function validatePlan(snapshots, heldout, expected, config) {
         typeof a.expectedAnswer !== "string" ||
         !Array.isArray(a.alternatives) ||
         a.alternatives.some((v) => typeof v !== "string") ||
-        typeof a.requiresCitation !== "boolean",
+        typeof a.requiresCitation !== "boolean" ||
+        typeof a.expectedAbstained !== "boolean",
     ) ||
     new Set(heldout.map((t) => t.id)).size !== heldout.length ||
     expected.answers.length !== heldout.length ||
@@ -149,6 +153,7 @@ export async function evaluateEvolution({
   for (let repeat = 0; repeat < config.repeats; repeat++)
     for (const [index, task] of heldout.entries()) {
       const snap = snapshots.find((s) => s.stage === task.stage);
+      const label = expected.answers.find((a) => a.taskId === task.id);
       const offset = (((config.seed + repeat + index) % 3) + 3) % 3;
       for (let i = 0; i < 3; i++) {
         const condition = EVOLUTION_CONDITIONS[(i + offset) % 3];
@@ -158,6 +163,7 @@ export async function evaluateEvolution({
           stage: task.stage,
           repeat,
           condition,
+          expectedAbstained: label.expectedAbstained,
           success: false,
           cost: null,
           tokens: null,
@@ -195,6 +201,26 @@ export async function evaluateEvolution({
           sources: sources.map((s) => ({ id: s.id, version: s.version })),
           pages: wiki.map((w) => ({ id: w.id, version: w.version })),
         };
+        let partialUsage = {
+          knownCost: 0,
+          knownTokens: 0,
+          pricedCalls: 0,
+          tokenCalls: 0,
+        };
+        const onUsage = (usage) => {
+          if (
+            usage &&
+            Number.isFinite(usage.knownCost) &&
+            usage.knownCost >= 0 &&
+            Number.isSafeInteger(usage.knownTokens) &&
+            usage.knownTokens >= 0 &&
+            Number.isSafeInteger(usage.pricedCalls) &&
+            usage.pricedCalls >= 0 &&
+            Number.isSafeInteger(usage.tokenCalls) &&
+            usage.tokenCalls >= 0
+          )
+            partialUsage = { ...usage };
+        };
         const controller = new AbortController();
         const onAbort = () => controller.abort();
         signal?.addEventListener("abort", onAbort, { once: true });
@@ -222,6 +248,7 @@ export async function evaluateEvolution({
                 },
               },
               controller.signal,
+              onUsage,
             ),
             aborted,
           ]);
@@ -256,9 +283,9 @@ export async function evaluateEvolution({
           };
           const safetyFailure =
             citationIntegrity.total !== citationIntegrity.valid;
-          const label = expected.answers.find((a) => a.taskId === task.id);
           const success =
             !safetyFailure &&
+            output.abstained === label.expectedAbstained &&
             [label.expectedAnswer, ...(label.alternatives ?? [])]
               .map(normalize)
               .includes(normalize(output.answer)) &&
@@ -282,11 +309,32 @@ export async function evaluateEvolution({
             ...base,
             status: "completed",
             answer: output.answer,
+            abstained: output.abstained,
+            expectedAbstained: label.expectedAbstained,
+            abstentionCorrect: output.abstained === label.expectedAbstained,
             citations: output.citations,
             safetyFailure,
             citationIntegrity,
             citedSourceRoots: roots.size,
             independentSupport: null,
+            knownCost: partialUsage.pricedCalls
+              ? partialUsage.knownCost
+              : costOf(output.usage?.cost),
+            knownTokens: partialUsage.tokenCalls
+              ? partialUsage.knownTokens
+              : Number.isSafeInteger(output.usage?.tokens) &&
+                  output.usage.tokens >= 0
+                ? output.usage.tokens
+                : null,
+            pricedCalls:
+              partialUsage.pricedCalls ||
+              (costOf(output.usage?.cost) !== null ? 1 : 0),
+            tokenCalls:
+              partialUsage.tokenCalls ||
+              (Number.isSafeInteger(output.usage?.tokens) &&
+              output.usage.tokens >= 0
+                ? 1
+                : 0),
             inputVersions,
             durationMs: performance.now() - started,
             success,
@@ -304,6 +352,12 @@ export async function evaluateEvolution({
               : "EXECUTION_FAILED";
           results.push({
             ...base,
+            knownCost: partialUsage.pricedCalls ? partialUsage.knownCost : null,
+            knownTokens: partialUsage.tokenCalls
+              ? partialUsage.knownTokens
+              : null,
+            pricedCalls: partialUsage.pricedCalls,
+            tokenCalls: partialUsage.tokenCalls,
             inputVersions,
             durationMs: performance.now() - started,
             status: timedOut
@@ -358,6 +412,12 @@ export async function evaluateEvolution({
           assigned: rows.length,
           completed: rows.filter((r) => r.status === "completed").length,
           succeeded: rows.filter((r) => r.success).length,
+          abstained: rows.filter((r) => r.abstained === true).length,
+          expectedAbstentions: rows.filter((r) => r.expectedAbstained === true)
+            .length,
+          abstentionMismatches: rows.filter(
+            (r) => r.abstentionCorrect === false,
+          ).length,
           safetyFailures: rows.filter((r) => r.safetyFailure).length,
           regressionDenominator,
           regressions,
@@ -423,7 +483,21 @@ export async function evaluateEvolution({
     successRate: succeeded / assigned,
     completedSuccessRate: completed ? succeeded / completed : null,
     safetyFailures: results.filter((r) => r.safetyFailure).length,
-    knownEvaluationCost: results.reduce((n, r) => n + (r.cost ?? 0), 0),
+    abstained: results.filter((r) => r.abstained === true).length,
+    expectedAbstentions: results.filter((r) => r.expectedAbstained === true)
+      .length,
+    abstentionMismatches: results.filter((r) => r.abstentionCorrect === false)
+      .length,
+    knownEvaluationCost: results.reduce((n, r) => n + (r.knownCost ?? 0), 0),
+    knownEvaluationTokens: results.reduce(
+      (n, r) => n + (r.knownTokens ?? 0),
+      0,
+    ),
+    pricedEvaluationCalls: results.reduce(
+      (n, r) => n + (r.pricedCalls ?? 0),
+      0,
+    ),
+    measuredTokenCalls: results.reduce((n, r) => n + (r.tokenCalls ?? 0), 0),
     pricedEvaluationCases: results.filter((r) => r.cost !== null).length,
     evaluationCost,
     maintenanceCost,

@@ -2,7 +2,11 @@ import type { PoolClient } from "pg";
 import { transaction } from "../database";
 import { loadState } from "../repository";
 import { authorizeManaged } from "../access/index";
-import { captureEnvelope, assertEnvelope } from "../provenance";
+import {
+  captureEnvelope,
+  assertEnvelope,
+  versionProvenance,
+} from "../provenance";
 import { bindModelTransmission } from "../policy/binding";
 import { digest } from "../publication";
 import {
@@ -59,6 +63,21 @@ async function sealProjection(
         !(await currentRecommendation(db, ctx, item.id))
       )
         throw Error("STALE_VERSION");
+      const allowedSources = new Set(sources.map((source) => source.id));
+      const provenance = versionProvenance(version);
+      if (
+        [...version.sourceIds, ...provenance.sourceIds].some(
+          (id) => !allowedSources.has(id),
+        )
+      )
+        throw Error("EVALUATION_SOURCE_CLOSURE");
+      // A legacy linked version lacks pinned transitive lineage, so it cannot
+      // establish equal source access for this comparison.
+      if (
+        !(version as typeof version & { provenance?: unknown }).provenance &&
+        (page?.links ?? []).length
+      )
+        throw Error("EVALUATION_SOURCE_CLOSURE");
     }
     return state;
   };
@@ -130,6 +149,12 @@ export function createPolicyEvaluationAgent({
     input: Input,
     tools: { raw_lookup: (id: string) => Promise<unknown> },
     signal?: AbortSignal,
+    onUsage?: (usage: {
+      knownCost: number;
+      knownTokens: number;
+      pricedCalls: number;
+      tokenCalls: number;
+    }) => void,
   ) => {
     const model = process.env.AGENT_KNOWLEDGE_HUB_LLM_MODEL;
     if (
@@ -207,7 +232,7 @@ export function createPolicyEvaluationAgent({
       },
     };
     void tools;
-    const result = await provider(safeInput, safeTools, signal);
+    const result = await provider(safeInput, safeTools, signal, onUsage);
     await ctx.authorization?.revalidate();
     await transaction(runtime.pool, ctx.workspaceId, async (db) => {
       await binding.recheck(db);

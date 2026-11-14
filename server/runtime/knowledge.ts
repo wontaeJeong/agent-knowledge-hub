@@ -38,6 +38,28 @@ import {
   type InputEnvelope,
 } from "../provenance";
 
+/** Server-owned capability; never accepted from an HTTP/MCP request. */
+export type TrustedEvaluationIngest = {
+  validate: (
+    input: { sources: (Source | undefined)[]; pages: unknown[] },
+    envelope: InputEnvelope,
+    rules: string,
+  ) => Promise<void> | void;
+  rules: string;
+  signal?: AbortSignal;
+};
+export type TrustedEvaluationQuery = {
+  validate: (
+    input: {
+      question: string;
+      pages: { id: string; title: string; version: number; content: string }[];
+    },
+    envelope: InputEnvelope,
+    rules: string,
+  ) => Promise<void> | void;
+  rules: string;
+  signal?: AbortSignal;
+};
 export type ProposalReference = { id: string; hash: string };
 export type NoChanges = {
   noChanges: true;
@@ -366,6 +388,23 @@ export class RuntimeService {
     mode: Mode,
     execution?: RuntimeExecution,
   ) {
+    return this.runIngest(ctx, sourceIds, mode, execution);
+  }
+  /** Trusted evaluation only: the guard is constructed in the server host. */
+  async ingestForEvaluation(
+    ctx: Context,
+    sourceIds: string[],
+    guard: TrustedEvaluationIngest,
+  ) {
+    return this.runIngest(ctx, sourceIds, "model", undefined, guard);
+  }
+  private async runIngest(
+    ctx: Context,
+    sourceIds: string[],
+    mode: Mode,
+    execution?: RuntimeExecution,
+    evaluationGuard?: TrustedEvaluationIngest,
+  ) {
     return this.job(
       ctx,
       "ingest",
@@ -432,8 +471,30 @@ export class RuntimeService {
               baseVersion: current(p).number,
             })),
           };
+          if (evaluationGuard)
+            await evaluationGuard.validate(
+              modelInput,
+              inputEnvelope,
+              evaluationGuard.rules,
+            );
           const modelOptions = {
             ...execution?.modelOptions,
+            ...(evaluationGuard
+              ? {
+                  signal: evaluationGuard.signal,
+                  rules: evaluationGuard.rules,
+                  beforeTransmission: async (endpoint: string) => {
+                    await execution?.modelOptions.beforeTransmission?.(
+                      endpoint,
+                    );
+                    await evaluationGuard.validate(
+                      modelInput,
+                      inputEnvelope!,
+                      evaluationGuard.rules,
+                    );
+                  },
+                }
+              : {}),
             pool: this.pool,
             workspaceId: ctx.workspaceId,
             principalId: ctx.principalId,
@@ -612,6 +673,24 @@ export class RuntimeService {
     execution?: RuntimeExecution,
     queryContext?: TrustedQueryContext,
   ) {
+    return this.runQuery(ctx, question, mode, execution, queryContext);
+  }
+  /** Server-owned evaluation capability; never parsed from a request. */
+  async queryForEvaluation(
+    ctx: Context,
+    question: string,
+    guard: TrustedEvaluationQuery,
+  ) {
+    return this.runQuery(ctx, question, "model", undefined, undefined, guard);
+  }
+  private async runQuery(
+    ctx: Context,
+    question: string,
+    mode: Mode,
+    execution?: RuntimeExecution,
+    queryContext?: TrustedQueryContext,
+    evaluationGuard?: TrustedEvaluationQuery,
+  ) {
     return this.job(
       ctx,
       "query",
@@ -706,20 +785,36 @@ export class RuntimeService {
               content: current(p).content,
             })),
           };
+          if (evaluationGuard)
+            await evaluationGuard.validate(
+              modelInput,
+              envelope,
+              evaluationGuard.rules,
+            );
           const options: ModelOptions = {
             ...execution?.modelOptions,
+            ...(evaluationGuard
+              ? { signal: evaluationGuard.signal, rules: evaluationGuard.rules }
+              : {}),
             pool: this.pool,
             workspaceId: ctx.workspaceId,
             principalId: ctx.principalId,
-            ...(queryContext
+            ...(queryContext || evaluationGuard
               ? {
                   beforeTransmission: async (endpoint: string) => {
                     await execution?.modelOptions.beforeTransmission?.(
                       endpoint,
                     );
-                    await transaction(this.pool, ctx.workspaceId, (db) =>
-                      queryContext.recheck(db),
-                    );
+                    if (queryContext)
+                      await transaction(this.pool, ctx.workspaceId, (db) =>
+                        queryContext.recheck(db),
+                      );
+                    if (evaluationGuard)
+                      await evaluationGuard.validate(
+                        modelInput,
+                        envelope,
+                        evaluationGuard.rules,
+                      );
                   },
                 }
               : {}),

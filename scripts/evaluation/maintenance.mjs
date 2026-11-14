@@ -125,6 +125,8 @@ export async function runMaintenance({
     };
     let mark;
     try {
+      const inputSeal = await driver.beforeStage?.(stage, [...available]);
+      if (inputSeal) cycle.inputSeal = structuredClone(inputSeal);
       mark = await driver.usageMark();
       let published;
       for (let i = 0; i < maxReviewAttempts; i++) {
@@ -187,12 +189,17 @@ export async function runMaintenance({
         throw Error("REVIEW_LIMIT");
       cycle.versions = published.versions;
       cycle.changes = Object.keys(published.versions).length;
+      // The subsequent runtime query reads the newly published page metadata.
+      const queryInputSeal = await driver.afterStage?.(stage, [...available]);
+      if (queryInputSeal)
+        cycle.queryInputSeal = structuredClone(queryInputSeal);
       cycle.operationalAnswerId = (
         await modelCall((signal) =>
           driver.query(stage.operationalQuestion, signal),
         )
       ).id;
       cycle.lint = await driver.lint();
+      await driver.afterStage?.(stage, [...available]);
       const wiki = await driver.pages();
       validateIsolation([wiki], heldout, expected);
       const work = cycle.attempts.map((a) => a.reviewWorkMs);

@@ -27,13 +27,16 @@ test("three actual HTTP model maintenance cycles create maintained snapshots and
   const f = await fixture();
   await adoptFixture(f.pool, f.workspaceId);
   const sent: any[] = [];
+  const systemPrompts: string[] = [];
   let revokeDuring = false;
+  let truncateEvaluation = false;
   const model = createServer(async (req, res) => {
     let raw = "";
     for await (const c of req) raw += c;
     const body = JSON.parse(raw);
     const input = JSON.parse(body.messages[1].content);
     sent.push(input);
+    systemPrompts.push(body.messages[0].content);
     let out;
     if (revokeDuring && input.task?.prompt)
       await f.pool.query(
@@ -89,7 +92,11 @@ test("three actual HTTP model maintenance cycles create maintained snapshots and
           cost: 0.01,
         },
         choices: [
-          { finish_reason: "stop", message: { content: JSON.stringify(out) } },
+          {
+            finish_reason:
+              truncateEvaluation && input.task?.prompt ? "length" : "stop",
+            message: { content: JSON.stringify(out) },
+          },
         ],
       }),
     );
@@ -121,6 +128,7 @@ test("three actual HTTP model maintenance cycles create maintained snapshots and
   for (const [id, content] of [
     ["source-b", "Linux 1.0 반증: 실패"],
     ["source-c", "Windows 1.0: 실패"],
+    ["source-x", "비평가 별도 원본"],
   ])
     await runtime.core.registerSource(f.editor, { ...source, id, content }, [
       "editor",
@@ -201,6 +209,7 @@ test("three actual HTTP model maintenance cycles create maintained snapshots and
         expectedAnswer: "yes",
         alternatives: [],
         requiresCitation: false,
+        expectedAbstained: false,
       })),
     };
     const configEval = {
@@ -250,6 +259,208 @@ test("three actual HTTP model maintenance cycles create maintained snapshots and
       "UPDATE model_source_policies SET grants=$2 WHERE workspace_id=$1 AND source_id='source-c'",
       [f.workspaceId, JSON.stringify(oldPolicy)],
     );
+    const trustedCtx = {
+      ...f.editor,
+      authorization: {
+        revalidate: async () => {},
+        assertSession: async () => {},
+      },
+    };
+    const experimentArgs = {
+      runtime,
+      ctx: trustedCtx,
+      driver,
+      stages,
+      heldout,
+      expected,
+      config: configEval,
+    };
+    const originalSource = (
+      await f.pool.query(
+        "SELECT data FROM sources WHERE workspace_id=$1 AND id='source-a'",
+        [f.workspaceId],
+      )
+    ).rows[0].data;
+    await f.pool.query(
+      "UPDATE sources SET data=$3 WHERE workspace_id=$1 AND id=$2",
+      [
+        f.workspaceId,
+        "source-a",
+        { ...originalSource, title: expected.withheldMarker },
+      ],
+    );
+    await expect(runPolicyBoundExperiment(experimentArgs)).rejects.toThrow(
+      "HELDOUT_LEAKAGE",
+    );
+    expect(sent).toHaveLength(0);
+    await f.pool.query(
+      "UPDATE sources SET data=$3 WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, "source-a", originalSource],
+    );
+    const originalPage = (
+      await f.pool.query(
+        "SELECT data FROM pages WHERE workspace_id=$1 AND id='topic'",
+        [f.workspaceId],
+      )
+    ).rows[0].data;
+    await f.pool.query(
+      "UPDATE pages SET data=$3 WHERE workspace_id=$1 AND id=$2",
+      [
+        f.workspaceId,
+        "topic",
+        { ...originalPage, facts: [{ key: heldout[0].prompt, value: "x" }] },
+      ],
+    );
+    await expect(runPolicyBoundExperiment(experimentArgs)).rejects.toThrow(
+      "HELDOUT_LEAKAGE",
+    );
+    expect(sent).toHaveLength(0);
+    await f.pool.query(
+      "UPDATE pages SET data=$3 WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, "topic", originalPage],
+    );
+    const originalVersion = (
+      await f.pool.query(
+        "SELECT data FROM versions WHERE workspace_id=$1 AND page_id='topic' AND number=1",
+        [f.workspaceId],
+      )
+    ).rows[0].data;
+    for (const excluded of ["source-c", "source-x"]) {
+      await f.pool.query(
+        "UPDATE versions SET data=$3 WHERE workspace_id=$1 AND page_id=$2 AND number=1",
+        [f.workspaceId, "topic", { ...originalVersion, sourceIds: [excluded] }],
+      );
+      await expect(runPolicyBoundExperiment(experimentArgs)).rejects.toThrow(
+        "EVALUATION_SOURCE_CLOSURE",
+      );
+      expect(sent).toHaveLength(0);
+    }
+    await f.pool.query(
+      "UPDATE versions SET data=$3 WHERE workspace_id=$1 AND page_id=$2 AND number=1",
+      [f.workspaceId, "topic", originalVersion],
+    );
+    await expect(
+      runtime.ingestForEvaluation(trustedCtx, ["source-a"], {
+        rules: expected.withheldMarker,
+        validate: (_input: any, _envelope: any, rules: any) => {
+          if (rules !== expected.withheldMarker)
+            throw Error("RULE_SEAL_MISMATCH");
+          throw Error("HELDOUT_LEAKAGE");
+        },
+      } as any),
+    ).rejects.toThrow("HELDOUT_LEAKAGE");
+    expect(sent).toHaveLength(0);
+    await f.pool.query(
+      "UPDATE pages SET data=$3 WHERE workspace_id=$1 AND id=$2",
+      [
+        f.workspaceId,
+        "topic",
+        { ...originalPage, title: expected.withheldMarker },
+      ],
+    );
+    const queryRules = await (
+      await import("node:fs/promises")
+    ).readFile(new URL("../../wiki/SCHEMA.md", import.meta.url), "utf8");
+    await expect(
+      (runtime as any).queryForEvaluation(trustedCtx, "기존", {
+        rules: queryRules,
+        validate: (input: any) => {
+          if (
+            input.pages.some((p: any) =>
+              p.title.includes(expected.withheldMarker),
+            )
+          )
+            throw Error("HELDOUT_LEAKAGE");
+        },
+      }),
+    ).rejects.toThrow("HELDOUT_LEAKAGE");
+    expect(sent).toHaveLength(0);
+    await f.pool.query(
+      "UPDATE pages SET data=$3 WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, "topic", originalPage],
+    );
+    const beforeQueryModel = runtime.model;
+    let queryChangedAfterCapture = false;
+    (runtime as any).model = async (...args: any[]) => {
+      if (args[0] === "query" && !queryChangedAfterCapture) {
+        queryChangedAfterCapture = true;
+        await f.pool.query(
+          "UPDATE pages SET data=$3 WHERE workspace_id=$1 AND id=$2",
+          [
+            f.workspaceId,
+            "topic",
+            { ...originalPage, title: expected.withheldMarker },
+          ],
+        );
+      }
+      return (beforeQueryModel as any)(...args);
+    };
+    await expect(
+      runtime.queryForEvaluation(trustedCtx, "기존", {
+        rules: queryRules,
+        validate: () => {},
+      }),
+    ).rejects.toThrow("STALE_VERSION");
+    expect(queryChangedAfterCapture).toBe(true);
+    expect(sent).toHaveLength(0);
+    (runtime as any).model = beforeQueryModel;
+    await f.pool.query(
+      "UPDATE pages SET data=$3 WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, "topic", originalPage],
+    );
+    let injected = false;
+    const racedDriver = {
+      ...driver,
+      usageMark: async () => {
+        if (!injected) {
+          injected = true;
+          await f.pool.query(
+            "UPDATE sources SET data=$3 WHERE workspace_id=$1 AND id=$2",
+            [
+              f.workspaceId,
+              "source-a",
+              { ...originalSource, title: expected.withheldMarker },
+            ],
+          );
+        }
+        return usage.mark();
+      },
+    };
+    await expect(
+      runPolicyBoundExperiment({ ...experimentArgs, driver: racedDriver }),
+    ).rejects.toThrow();
+    expect(injected).toBe(true);
+    expect(sent).toHaveLength(0);
+    await f.pool.query(
+      "UPDATE sources SET data=$3 WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, "source-a", originalSource],
+    );
+    const originalModel = runtime.model;
+    let changedAfterCapture = false;
+    (runtime as any).model = async (...args: any[]) => {
+      if (args[0] === "ingest" && !changedAfterCapture) {
+        changedAfterCapture = true;
+        await f.pool.query(
+          "UPDATE pages SET data=$3 WHERE workspace_id=$1 AND id=$2",
+          [
+            f.workspaceId,
+            "topic",
+            { ...originalPage, summary: expected.withheldMarker },
+          ],
+        );
+      }
+      return (originalModel as any)(...args);
+    };
+    const afterCapture = await runPolicyBoundExperiment(experimentArgs);
+    expect(afterCapture.maintenance.cycles[0].status).toBe("failed");
+    expect(afterCapture.maintenance.cycles[0].errorCode).toBe("STALE_VERSION");
+    expect(changedAfterCapture).toBe(true);
+    expect(sent).toHaveLength(0);
+    (runtime as any).model = originalModel;
+    await f.pool.query(
+      "UPDATE pages SET data=$3 WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, "topic", originalPage],
+    );
     const experiment = await runPolicyBoundExperiment({
       runtime,
       ctx: {
@@ -268,6 +479,11 @@ test("three actual HTTP model maintenance cycles create maintained snapshots and
     const maintained = experiment.maintenance;
     const report = experiment.evaluation;
     expect(maintained.status).toBe("completed");
+    const schemaText = await (
+      await import("node:fs/promises")
+    ).readFile(new URL("../../wiki/SCHEMA.md", import.meta.url), "utf8");
+    expect(systemPrompts[0].startsWith(schemaText)).toBe(true);
+    expect(maintained.cycles[0].inputSeal.rulesHash).toMatch(/^[a-f0-9]{64}$/);
     expect(maintained.snapshots.map((s: any) => s.wiki[0].version)).toEqual([
       2, 3, 4,
     ]);
@@ -358,6 +574,19 @@ test("three actual HTTP model maintenance cycles create maintained snapshots and
         )
       ).rows[0].count,
     ).toBe("4");
+    truncateEvaluation = true;
+    const partialReport = await evaluateEvolution({
+      snapshots: maintained.snapshots,
+      heldout: [heldout[0]],
+      expected: { ...expected, answers: [expected.answers[0]] },
+      config: configEval,
+      agent,
+    });
+    expect(partialReport.failed).toBe(3);
+    expect(partialReport.evaluationCost).toBeNull();
+    expect(partialReport.knownEvaluationCost).toBeCloseTo(0.03);
+    expect(partialReport.knownEvaluationTokens).toBe(45);
+    truncateEvaluation = false;
     const guardedInput = {
       task: heldout[0],
       condition: "raw",
@@ -369,6 +598,16 @@ test("three actual HTTP model maintenance cycles create maintained snapshots and
       promptVersion: "eval/1",
       rulesVersion: "rules/1",
     };
+    const unseenSourceInput = {
+      ...guardedInput,
+      condition: "maintained",
+      wiki: maintained.snapshots[2].wiki,
+    };
+    const beforeClosure = sent.length;
+    await expect(
+      agent(unseenSourceInput, { raw_lookup: async () => null }),
+    ).rejects.toThrow("EVALUATION_SOURCE_CLOSURE");
+    expect(sent.length).toBe(beforeClosure);
     await f.pool.query(
       "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id='source-a' AND principal_id='editor'",
       [f.workspaceId],

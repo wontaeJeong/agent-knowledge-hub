@@ -28,6 +28,7 @@ const expected = {
     expectedAnswer: "yes",
     alternatives: [],
     requiresCitation: false,
+    expectedAbstained: false,
   })),
 };
 const config = {
@@ -167,6 +168,7 @@ test("repeated citations from one raw origin count as one evidence root and pres
       expectedAnswer: "yes",
       alternatives: [],
       requiresCitation: true,
+      expectedAbstained: false,
     })),
   };
   const r = await evaluateEvolution({
@@ -311,4 +313,102 @@ test("duplicate or out-of-order stage assignments are rejected", async () => {
       ),
     /EVALUATION_DATASET_INVALID/,
   );
+});
+test("decoded quoted, backslash and newline heldout prompts cannot hide in nested metadata", () => {
+  const task = [
+    { id: "special", stage: 0, prompt: '비공개 "인용" \\경로\n두 번째 줄' },
+  ];
+  for (const field of ["title", "project", "summary", "facts"])
+    assert.throws(
+      () =>
+        validateIsolation(
+          [{ nested: { [field]: task[0].prompt } }],
+          task,
+          expected,
+        ),
+      /HELDOUT_LEAKAGE/,
+    );
+});
+test("abstention is scored against an explicit disposition and retained", async () => {
+  const labels = {
+    ...expected,
+    answers: expected.answers.map((a, i) => ({
+      ...a,
+      expectedAbstained: i === 1,
+    })),
+  };
+  const r = await evaluateEvolution({
+    snapshots,
+    heldout,
+    expected: labels,
+    config,
+    agent: async (input) => ({
+      answer: "yes",
+      abstained: input.task.id === "h0",
+      citations: [],
+      usage: { cost: 0, tokens: 1 },
+    }),
+  });
+  assert.equal(
+    r.results.filter((x) => x.taskId === "h0" && x.success).length,
+    0,
+  );
+  assert.equal(
+    r.results.filter((x) => x.taskId === "h1" && x.success).length,
+    0,
+  );
+  assert.equal(
+    r.results.filter((x) => x.taskId === "h2" && x.success).length,
+    3,
+  );
+  assert.equal(r.results.filter((x) => x.abstained === true).length, 3);
+  assert.equal(r.conditions.raw.abstained, 1);
+});
+test("the expected abstention disposition is mandatory before any evaluation", async () => {
+  const { validatePlan } = await import("./evolution.mjs");
+  const labels = {
+    ...expected,
+    answers: expected.answers.map(({ expectedAbstained, ...rest }) => rest),
+  };
+  assert.throws(
+    () => validatePlan(snapshots, heldout, labels, config),
+    /EVALUATION_LABELS_INVALID/,
+  );
+});
+test("unexecuted abstention tasks remain in the expected disposition denominator", async () => {
+  const labels = {
+    ...expected,
+    answers: expected.answers.map((a, i) => ({
+      ...a,
+      expectedAbstained: i === 0,
+    })),
+  };
+  const r = await evaluateEvolution({
+    snapshots,
+    heldout,
+    expected: labels,
+    config,
+    agent: async () => {
+      throw Error("unexpected");
+    },
+    signal: AbortSignal.abort(),
+  });
+  assert.equal(r.unexecuted, 9);
+  assert.equal(r.expectedAbstentions, 3);
+  assert.equal(r.conditions.raw.expectedAbstentions, 1);
+});
+test("ground-truth label objects hidden in nested metadata are rejected", () => {
+  for (const key of [
+    "answer",
+    "answers",
+    "label",
+    "labels",
+    "groundTruth",
+    "correctAnswer",
+  ])
+    assert.throws(
+      () =>
+        validateIsolation([{ nested: { [key]: "secret" } }], heldout, expected),
+      /HELDOUT_LEAKAGE/,
+    );
 });

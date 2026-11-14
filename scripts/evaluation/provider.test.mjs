@@ -162,3 +162,143 @@ test("records actual LiteLLM response cost without inferring a value", async () 
     await new Promise((r) => server.close(r));
   }
 });
+test("failed truncated outputs retain measured cost and tokens without claiming completion", async () => {
+  const { evaluateEvolution } = await import("./evolution.mjs");
+  const server = createServer(async (req, res) => {
+    for await (const _ of req) {
+    }
+    res.setHeader("x-litellm-response-cost", "0.125");
+    res.end(
+      JSON.stringify({
+        usage: { total_tokens: 8 },
+        choices: [
+          { finish_reason: "length", message: { content: "truncated" } },
+        ],
+      }),
+    );
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const agent = createEvaluationAgent({
+      baseUrl: `http://127.0.0.1:${server.address().port}/v1`,
+      model: "fixture",
+      allowTransmission: true,
+    });
+    const snapshots = [0, 1, 2].map((stage) => ({
+      stage,
+      sources: [{ id: "s", version: "v1", content: "source" }],
+      wiki: [],
+      maintenance: { cost: 0, queryCost: 0 },
+    }));
+    const heldout = [{ id: "h", stage: 0, prompt: "heldout" }],
+      expected = {
+        withheldMarker: "MARKER",
+        answers: [
+          {
+            taskId: "h",
+            expectedAnswer: "yes",
+            alternatives: [],
+            requiresCitation: false,
+            expectedAbstained: false,
+          },
+        ],
+      };
+    const r = await evaluateEvolution({
+      snapshots,
+      heldout,
+      expected,
+      config: {
+        model: "fixture",
+        provider: "fixture",
+        seed: 1,
+        repeats: 1,
+        budget: { calls: 1, maxTokens: 100, timeoutMs: 1000 },
+      },
+      agent,
+    });
+    assert.equal(r.failed, 3);
+    assert.equal(r.completed, 0);
+    assert.equal(r.evaluationCost, null);
+    assert.equal(r.knownEvaluationCost, 0.375);
+    assert.equal(r.knownEvaluationTokens, 24);
+    assert.equal(r.pricedEvaluationCalls, 3);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+test("timed-out later tool call preserves known earlier usage and unknown final total", async () => {
+  const { evaluateEvolution } = await import("./evolution.mjs");
+  const server = createServer(async (req, res) => {
+    let body = "";
+    for await (const c of req) body += c;
+    const data = JSON.parse(body);
+    if (data.messages.length > 2) return;
+    res.setHeader("x-litellm-response-cost", "0.125");
+    res.end(
+      JSON.stringify({
+        usage: { total_tokens: 8 },
+        choices: [
+          {
+            finish_reason: "tool_calls",
+            message: {
+              tool_calls: [
+                {
+                  id: "call",
+                  function: { name: "raw_lookup", arguments: '{"id":"s"}' },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const agent = createEvaluationAgent({
+      baseUrl: `http://127.0.0.1:${server.address().port}/v1`,
+      model: "fixture",
+      allowTransmission: true,
+    });
+    const snapshots = [0, 1, 2].map((stage) => ({
+      stage,
+      sources: [{ id: "s", version: "v1", content: "source" }],
+      wiki: [],
+      maintenance: { cost: 0, queryCost: 0 },
+    }));
+    const heldout = [{ id: "h", stage: 0, prompt: "heldout" }],
+      expected = {
+        withheldMarker: "MARKER",
+        answers: [
+          {
+            taskId: "h",
+            expectedAnswer: "yes",
+            alternatives: [],
+            requiresCitation: false,
+            expectedAbstained: false,
+          },
+        ],
+      };
+    const r = await evaluateEvolution({
+      snapshots,
+      heldout,
+      expected,
+      config: {
+        model: "fixture",
+        provider: "fixture",
+        seed: 1,
+        repeats: 1,
+        budget: { calls: 2, maxTokens: 100, timeoutMs: 100 },
+      },
+      agent,
+    });
+    assert.equal(r.timedOut, 3);
+    assert.equal(r.evaluationCost, null);
+    assert.equal(r.knownEvaluationCost, 0.375);
+    assert.equal(r.knownEvaluationTokens, 24);
+    assert.equal(r.pricedEvaluationCalls, 3);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((r) => server.close(r));
+  }
+});
