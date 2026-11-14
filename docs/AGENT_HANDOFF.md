@@ -360,3 +360,7 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - 실회사 보존 기간·서비스 배치·TLS/IdP, 외부 백업, CAS 물리 purge와 운영 수용은 미검증이다. UI 실제 브라우저 1440/390 증거 및 독립 보안 리뷰는 코디네이터가 수행한다.
 - 잠금 순서 제한: version/snapshot DB trigger는 잘못된 늦은 삽입을 차단하지만 raw SQL이 다른 테이블 lock을 먼저 잡으면 trigger의 gate 대기와 교착할 수 있다. 지원되는 제품 호출은 transaction 시작 시 gate를 먼저 잡는 계약을 지켜야 한다. 기존 metadata helper의 무잠금 거부와 별도 trigger 대기 시험을 유지한다.
 - 최종 합성 검증: Node24 `npm run check` 종료 코드 0, 별도 PostgreSQL DB 12개 파일 216개 시험과 인증 HTTP→지속 worker 경로 종료 코드 0. 비공개 본문/제목은 주요 저장 형식을 SQL에서 해시·구조화된 계보로 투영하고 나머지 미분류 형식은 차단하는 보수적 정책이다. 이는 모든 환경의 보안 감사나 실제 보존 의무 인수가 아니다.
+
+- P9 독립 리뷰 수정 (LIF-007, VER-012, ACL-008): 복구 replay는 보류된 원본의 발행 이력과 현재 초안이 없는 과거 복사본, 비공개 질문/에이전트 참조, 마지막 스냅샷을 보수적으로 보호한다. 초안 정리 실행자는 현재·이력 페이지와 원본 전체의 읽기 상한을 충족해야 하며 본문은 인벤토리·권한 조회에서 SQL 투영으로 제외한다. 누락된 신원이나 참조는 실패로 처리한다. 실제 CAS 파일 purge·외부 백업·회사 정책·운영 수용은 미검증이다.
+- 실제 React 화면의 합성 fixture에서 1440/390 크기와 키보드 Enter 일정 생성, retention 작업 설정과 물리 purge 대기 영수증을 확인했다. 캡처와 환경은 [보존 화면 증거](pr-assets/product-retention/README.md)에 기록한다. 실제 업무 자료나 실제 작업 실행의 증거는 아니다.
+- 최종 합성 검증: Node 24 `npm run check` exit 0 및 PostgreSQL 17 전체 98개 파일·727개 시험 exit 0. 리뷰 회귀의 실패와 환경 제약은 MISTAKE_LOG와 작업 보고서를 따른다.

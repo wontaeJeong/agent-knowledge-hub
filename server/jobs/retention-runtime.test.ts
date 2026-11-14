@@ -16,6 +16,7 @@ test('explicit service schedule runs guarded durable retention and records the a
  const account=await access.createServicePrincipal(owner,{name:'retention',expiresAt:new Date(Date.now()+3600000).toISOString()});
  const credential=await access.issueServiceCredential(owner,account.id,{actions:['knowledge.read'],expiresAt:new Date(Date.now()+1800000).toISOString()});
  const identity={workspaceId:f.workspaceId,principalId:account.id,credentialId:credential.id};
+ await f.pool.query("INSERT INTO resource_readers(workspace_id,kind,resource_id,principal_id) VALUES($1,'page','topic',$2),($1,'source','source-a',$2)",[f.workspaceId,account.id]);
  const workflow=new WorkflowService(f.pool,new RuntimeService(f.pool),authorizeInTransaction);
  await workflow.saveDraft(f.editor,{id:'expired-draft',expectedRevision:0,title:'draft',content:'private',pageId:'topic',baseVersion:1});
  await f.pool.query("UPDATE workflow_drafts SET updated_at=now()-interval '3 days' WHERE workspace_id=$1",[f.workspaceId]);

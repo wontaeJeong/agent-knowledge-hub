@@ -8,13 +8,13 @@
 - `DraftRecoveryService.permission(ctx, metadata)` / `validate(ctx,{binding})`: 반드시 정본 `authorizeInTransaction`의 `local.copy`와 전체 페이지/원본 이력, 명시적 원본 플래그를 확인한다. `data.export`는 로컬 작업 복구에 추가 요구하지 않는다. 사용자/공간은 서버 Context에서 확인한다. 역할·권한을 담은 JWT가 아닌 해시 nonce 기반 복구 바인딩만 발급한다. 5분 만료이며 재수화는 현재 신원·ACL·정책·계보와 서버 revision을 재확인한다.
 - `RecoveryCache`: 허용된 본문만 개인 평문 캐시로 보관. 항목 128KiB, 총 512KiB, 10건, 최대 5분. 로그인 토큰/CSRF/키/역할은 기록하지 않는다. 캐시의 내용·라벨은 서버 권한이 아니다. 온라인 재검사 실패/만료 시 삭제하고 화면에 반환하지 않는다. 만료된 허용으로 새 로컬 쓰기를 하지 않는다.
 - `DraftAutosave`: 한 번에 한 CAS, 입력 후 최대 1초 내 시도, blur/online 시 재시도, 명시적 충돌 해결 후 새 CAS. 저장 대기/진행/확인/오프라인/충돌/실패를 구분한다. 닫기 전 전송은 최선의 시도일 뿐 보장하지 않는다. 연결 해제 후 daemon/OS 서비스는 없다.
-- `ContentRetentionService`: 유형별 기간(빈 값은 영구), 기본 자동 삭제 비활성. `previewRetention`, `executeRetention`, `retentionTick`, `setPolicy`, `setHold`, `receipts`. 실제 제품/가져오기/질문/버전/협업/정련 참조와 공통 CAS 저장 그래프를 읽고 오류 시 닫힌다. 미리보기 해시+정책 revision을 다시 검사한다. 현재 실제 삭제 대상은 **참조되지 않는 만료 개인 초안과 해당 초안의 복구/중복방지/이력 복사본**이다. 삭제·원장 tombstone·완료 영수증은 같은 트랜잭션이며 실패는 롤백 후 실패 영수증으로 남긴다.
+- `ContentRetentionService`: 유형별 기간(빈 값은 영구), 기본 자동 삭제 비활성. `previewRetention`, `executeRetention`, `setPolicy`, `setHold`, `receipts`. 실제 제품/가져오기/질문/버전/협업/정련 참조와 공통 CAS 저장 그래프를 읽고 오류 시 닫힌다. 미리보기 해시+정책 revision을 다시 검사한다. 대상은 참조·법적 보류가 없는 만료 개인 초안과 비최신 발행 버전 및 원본 스냅샷이다. 원본 스냅샷의 CAS 물리 파일은 정리 대기 상태다. 삭제·원장 tombstone·완료 영수증은 같은 트랜잭션이며 실패는 롤백 후 실패 영수증으로 남긴다.
 - `operations_erased_artifacts`의 비본문 `draft` retirement 기록은 기존 독립 서명 복구 원장에 자동 포함된다. 복원된 오래된 행도 일반 초안 읽기/쓰기/복구 경로에서 차단된다. `replayRetentionTombstones`는 복원 격리 해제 전에 오래된 평문 복사본을 제거하기 위한 호스트 연결점이다.
 - 평문을 가진 새 테이블은 `workflow_` 접두사를 사용하여 기존 별도 승인 법정 삭제 그래프/권한 있는 삭제 함수의 실제 대상에 포함된다. 일반 보존 서비스는 법정 삭제나 전체 공간 삭제를 호출하지 않는다. 정련의 append-only 기록도 일반 보존에서 삭제하지 않는다.
 
 ## 호스트가 연결해야 하는 정확한 지점
 
-`handleRetentionRoute(input,{recovery,retention})`를 인증·현재 신원·CSRF·선택 공간·본문 크기 검증 **후** 기존 라우트 체인에 연결한다. 실제 런타임 HTTP 테스트는 `createRuntimeHandler({operations: input => handleRetentionRoute(...)})` 확장점으로 연결하여 실행한다. 운영 `main.ts`/HTTP 디스패처는 이 작업의 소유 범위 밖이라 수정하지 않았다.
+기존 runtime HTTP 라우터는 인증·현재 신원·CSRF·선택 공간 검사 후 `handleRetentionRoute`를 연결한다. 실제 환경의 신원·디렉터리와 운영 설정은 별도로 검증한다.
 
 | Method     | `/api/v1` 이후 경로              | 함수                             |
 | ---------- | -------------------------------- | -------------------------------- |
@@ -28,12 +28,12 @@
 
 기존 `/workflows/drafts` 저장 경로는 그대로 사용하며 `mutationId`만 선택적으로 추가한다. `WorkflowPanel`의 기존 `api`, `principalId`, `spaceId`, `capabilities` props가 실제 인증 신원/공간을 전달해야 한다. 정상 편집 폼에 자동 저장/복구/충돌 UI를 연결했다. `space.admin`일 때 같은 패널 안에 `RetentionPanel`을 표시한다. 대상·참조·영수증은 각각 25건씩 탐색한다.
 
-기존 서버 coordinator가 `retentionTick(workspaceId)`를 호출해야 한다. 생성자의 `workerGuard(db,workspaceId)`는 현재 디렉터리/서비스 담당·호스트 정책을 확인해야 하며 `serviceName`은 인증된 사용자 대신 가장한 관리자 계정이 아닌 명시적 서버 서비스 이름이다. 두 설정이 없으면 실행을 거부한다. 정책이 비활성이면 자동 삭제하지 않는다. 새 daemon/OS 서비스는 추가하지 않는다.
+운영 자동 실행은 `AKH_RETENTION_SERVICES_JSON`에 지정된 서비스 자격증명과 승인된 durable 일정·worker를 사용한다. 정책은 기본 비활성이며 현재 정책 revision, 서비스 신원·디렉터리, 승인자 및 대상의 현재·과거 페이지/원본 접근을 재검사한다. 자격증명이 없는 `retentionTick`을 운영 coordinator에 연결하지 않는다. 자동 실행 설정 자체가 삭제 승인이나 물리 purge 완료를 뜻하지 않는다.
 
 ## 남은 소프트웨어·검증 조건
 
-1. 발행 버전/원본 버전/실행 결과의 기간·실제 개수·보존 참조는 표시하지만 불변 이력의 의존성 안전 가지치기는 미구현이다. `IMMUTABLE_HISTORY_REQUIRES_REVIEWED_PRUNING`으로 차단하며 설정만으로 삭제됐다고 표시하지 않는다. VER-012 전체 미완료다. 원본별 독립 보존 기간 필드도 추가하지 않았다.
-2. 운영 라우트·현재 서비스/디렉터리 guard가 있는 주기 coordinator·복원 승격 전 replay 연결은 통합 담당자의 작업이다. 격리 해제 전 replay 없이 물리적 평문 제거 완료를 주장할 수 없다.
+1. 참조 없는 비최신 발행 버전·원본 스냅샷만 제한적으로 가지치기한다. 실행 결과 등 지원하지 않는 불변 이력은 차단한다. CAS 물리 purge와 외부 백업 삭제는 별도이며 VER-012 전체는 미완료다. 원본별 독립 기간은 없다.
+2. 운영 환경의 서비스/디렉터리·복구 격리·durable worker 설정과 실제 회사 정책 인수는 별도 검증한다. 복구 원장 replay는 충돌 시 격리 해제를 차단한다.
 3. 유형별 법적 보존은 기존 서명 원장에 workspace hold mirror로도 남긴다. 일반 보존은 유형을 구분하지만 기존 법정 삭제/CAS 보호는 이를 더 보수적으로 공간 전체 보존으로 취급할 수 있다. 별도 해제 근거 없이 이를 우회하지 않는다.
 4. 실제 Chromium 390px/1440px·한국어 IME/키보드·브라우저 프로세스 재시작 인수는 아직 실행하지 않았다. 브라우저 캐시 인스턴스 재생성과 실제 OIDC/HTTP/DB 재접속 시험을 실제 브라우저 인수로 올리지 않는다.
 5. 한 preview의 제품 행은 최대 10,000건, 공통 CAS 그래프는 기존 100,000건 한도이며 초과/SQL 오류 시 실패한다. 더 큰 공간의 점진적 그래프 처리와 정책별 작업 분할은 남아 있다.

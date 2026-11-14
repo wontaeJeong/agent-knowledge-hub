@@ -296,7 +296,37 @@ export class ContentRetentionService {
     return this.run(ctx, (db) => this.preview(db, ctx.workspaceId));
   }
   private async assertCandidateAccess(db: PoolClient, ctx: Context | undefined, preview: Awaited<ReturnType<ContentRetentionService["preview"]>>) {
-    for (const r of preview.records.filter(r=>r.eligible)) {
+    const eligible = preview.records.filter(r=>r.eligible);
+    if (!ctx && eligible.length) throw Error("RETENTION_RESOURCE_IDENTITY_REQUIRED");
+    const rows = eligible.some(r=>r.kind === "drafts") ? await inventory(db, ctx!.workspaceId) : [];
+    for (const r of eligible) {
+      if (r.kind === "drafts") {
+        if (!ctx) throw Error("RETENTION_RESOURCE_IDENTITY_REQUIRED");
+        const copies = rows.filter(x => x.data.owner_id === r.ownerId && ((x.table === "workflow_drafts" && x.data.id === r.id) || (["workflow_draft_revision_history", "workflow_draft_save_mutations"].includes(x.table) && x.data.draft_id === r.id) || (x.table === "workflow_draft_recovery_grants" && (x.data.binding as {id?:string})?.id === r.id)));
+        const pending: string[] = [], sources = new Set<string>();
+        for (const copy of copies) {
+          const data = (copy.data.data ?? copy.data.result ?? copy.data.binding) as {pageId?:string;sourceIds?:string[];dependencyVersions?:Record<string,number>};
+          if (data?.pageId) pending.push(data.pageId);
+          for (const id of data?.sourceIds ?? []) sources.add(id);
+          pending.push(...Object.keys(data?.dependencyVersions ?? {}));
+        }
+        const seen = new Set<string>();
+        while (pending.length) {
+          const id = pending.pop()!;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          await authorizeActionDb(db,ctx,"knowledge.read",{kind:"page",id});
+          const versions=rows.filter(x=>x.table==="versions" && x.data.page_id===id);
+          if (!versions.length) throw Error("NOT_FOUND");
+          for (const version of versions) {
+            await authorizeActionDb(db,ctx,"knowledge.read",{kind:"page",id,version:Number(version.data.number)});
+            const data=version.data.data as {sourceIds?:string[];pageIds?:string[];provenance?:{sourceIds?:string[];pageIds?:string[]};dependencyVersions?:Record<string,number>};
+            for (const source of [...(data.sourceIds ?? []),...(data.provenance?.sourceIds ?? [])]) sources.add(source);
+            pending.push(...(data.pageIds ?? []),...(data.provenance?.pageIds ?? []),...Object.keys(data.dependencyVersions ?? {}));
+          }
+        }
+        for (const id of sources) await authorizeActionDb(db,ctx,"knowledge.read",{kind:"source",id});
+      }
       if (r.kind === "publishedVersions" && r.pageId && r.version) {
         if (!ctx) throw Error("RETENTION_RESOURCE_IDENTITY_REQUIRED");
         await authorizeActionDb(db,ctx,"knowledge.read",{kind:"page",id:r.pageId,version:r.version});

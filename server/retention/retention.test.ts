@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, expect, test } from "vitest";
 import { fixture, adoptFixture } from "../test-support";
-import { authorizeInTransaction } from "../access";
+import { AccessService, authorizeInTransaction, authorizeActionDb } from "../access/index";
+import { createRuntimeJobs } from "../jobs/runtime";
 import { WorkflowService } from "../workflows/service";
 import { RuntimeService } from "../runtime/knowledge";
 import { ContentRetentionService } from "./service";
@@ -39,6 +40,7 @@ beforeEach(async () => {
     "INSERT INTO memberships VALUES($1,'fixture-owner','editor') ON CONFLICT DO NOTHING",
     [f.workspaceId],
   );
+  await f.pool.query("INSERT INTO resource_readers(workspace_id,kind,resource_id,principal_id) VALUES($1,'page','topic','fixture-owner'),($1,'source','source-a','fixture-owner') ON CONFLICT DO NOTHING",[f.workspaceId]);
   workflows = new WorkflowService(
     f.pool,
     new RuntimeService(f.pool),
@@ -194,7 +196,8 @@ test("signed operational artifact ledger prevents an old restored draft from res
     ])
   ).rows[0];
   await service.setPolicy(admin(), { expectedRevision: 0, policy });
-  await service.retentionTick(f.workspaceId);
+  const preview = await service.previewRetention(admin());
+  await service.executeRetention(admin(), {previewHash:preview.hash,policyRevision:1});
   const encryption = "fixture-retention-encryption".repeat(3), signing = "fixture-independent-signing".repeat(3);
   const ledger = readRecoveryLedger(await captureRecoveryLedger(f.pool, encryption, signing), encryption, signing);
   expect(ledger.erasedArtifacts?.some(a => a.workspace_id === f.workspaceId && a.artifact_kind === "draft" && a.artifact_id === draftRetirementId("editor", input.id))).toBe(true);
@@ -465,4 +468,88 @@ test("unclassified global content tables also fail closed",async()=>{
  await f.pool.query('CREATE TABLE workflow_unknown_global(note text)');
  try {await f.pool.query("INSERT INTO workflow_unknown_global VALUES('private reference')");await service.setPolicy(admin(),{expectedRevision:0,policy});await expect(service.previewRetention(admin())).rejects.toThrow('RETENTION_GRAPH_UNSUPPORTED');}
  finally {await f.pool.query('DROP TABLE workflow_unknown_global');}
+});
+
+test('replay blocks a source hold on a retired publication', async () => {
+ const db=await f.pool.connect(); try {
+  await db.query('BEGIN'); await db.query('SELECT pg_advisory_xact_lock(822025)');
+  await db.query("INSERT INTO resources(workspace_id,kind,id) VALUES($1,'page','held-page')",[f.workspaceId]);
+  await db.query("INSERT INTO pages(workspace_id,id,data) VALUES($1,'held-page',$2)",[f.workspaceId,{id:'held-page'}]);
+  await db.query("INSERT INTO versions VALUES($1,'held-page',1,$2),($1,'held-page',2,$3)",[f.workspaceId,pageVersion(),{...pageVersion(),number:2}]);
+  await db.query("INSERT INTO operations_legal_holds(workspace_id,id,resource_kind,resource_id,placed_by) VALUES($1,'source-hold','source','source-a','fixture-owner')",[f.workspaceId]);
+  await db.query("INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,'published-version','held-page/1','[]',$2,'fixture-owner')",[f.workspaceId,'b'.repeat(64)]);
+  await expect(replayRetentionTombstones(db,f.workspaceId)).rejects.toThrow('RETENTION_REPLAY_REFERENCE_CONFLICT');
+  expect((await db.query("SELECT 1 FROM versions WHERE workspace_id=$1 AND page_id='held-page' AND number=1",[f.workspaceId])).rowCount).toBe(1);
+ } finally {await db.query('ROLLBACK');db.release();}
+});
+
+test('replay blocks a pending question whose sealed envelope pins a retired version', async () => {
+ const db=await f.pool.connect(); try {
+  await db.query('BEGIN'); await db.query('SELECT pg_advisory_xact_lock(822025)');
+  await db.query("INSERT INTO resources(workspace_id,kind,id) VALUES($1,'page','private-pin')",[f.workspaceId]);
+  await db.query("INSERT INTO pages(workspace_id,id,data) VALUES($1,'private-pin',$2)",[f.workspaceId,{id:'private-pin'}]);
+  await db.query("INSERT INTO versions VALUES($1,'private-pin',1,$2),($1,'private-pin',2,$3)",[f.workspaceId,{...pageVersion(),sourceIds:[]},{...pageVersion(),number:2,sourceIds:[]}]);
+  await db.query("INSERT INTO question_threads(workspace_id,id,principal_id,revision) VALUES($1,'thread','editor',1)",[f.workspaceId]);
+  await db.query("INSERT INTO question_turns(workspace_id,thread_id,id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed) VALUES($1,'thread','turn','editor',1,'nonce','hash','Question','offline','pending',$2)",[f.workspaceId,{envelope:{pageIds:['private-pin'],pages:{'private-pin':1}}}]);
+  await db.query("INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,'published-version','private-pin/1','[]',$2,'fixture-owner')",[f.workspaceId,'b'.repeat(64)]);
+  await expect(replayRetentionTombstones(db,f.workspaceId)).rejects.toThrow('RETENTION_REPLAY_REFERENCE_CONFLICT');
+  expect((await db.query("SELECT 1 FROM versions WHERE workspace_id=$1 AND page_id='private-pin' AND number=1",[f.workspaceId])).rowCount).toBe(1);
+ } finally {await db.query('ROLLBACK');db.release();}
+});
+
+test('replay cannot remove the only retained source snapshot', async () => {
+ const db=await f.pool.connect(); try {
+  await db.query('BEGIN'); await db.query('SELECT pg_advisory_xact_lock(822025)');
+  await db.query("INSERT INTO resources(workspace_id,kind,id) VALUES($1,'source','replay-source')",[f.workspaceId]);
+  await db.query("INSERT INTO sources(workspace_id,id,data) VALUES($1,'replay-source',$2)",[f.workspaceId,{id:'replay-source'}]);
+  await db.query("INSERT INTO storage_blobs(workspace_id,id,parent_kind,parent_id,sha256,size,mime,filename,scan_state,created_by) VALUES($1,'replay-blob','source','replay-source',$2,5,'text/plain','x','clean','editor')",[f.workspaceId,'a'.repeat(64)]);
+  await db.query("INSERT INTO storage_snapshots(workspace_id,id,source_id,blob_id,content_hash) VALUES($1,'replay-snapshot','replay-source','replay-blob',$2)",[f.workspaceId,'a'.repeat(64)]);
+  await db.query("INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,'source-snapshot',$2,$3,$4,'fixture-owner')",[f.workspaceId,'replay-source/'+'a'.repeat(64),JSON.stringify(['a'.repeat(64)]),'b'.repeat(64)]);
+  await expect(replayRetentionTombstones(db,f.workspaceId)).rejects.toThrow('RETENTION_REPLAY_REFERENCE_CONFLICT');
+  expect((await db.query("SELECT 1 FROM storage_snapshots WHERE workspace_id=$1 AND id='replay-snapshot'",[f.workspaceId])).rowCount).toBe(1);
+ } finally {await db.query('ROLLBACK');db.release();}
+});
+
+test('scheduled retention checks the service credential against private draft lineage before deletion', async () => {
+ const access=new AccessService(f.pool);
+ const account=await access.createServicePrincipal(admin(),{name:'retention',expiresAt:new Date(Date.now()+3600000).toISOString()});
+ const credential=await access.issueServiceCredential(admin(),account.id,{actions:['knowledge.read'],expiresAt:new Date(Date.now()+1800000).toISOString()});
+ const identity={workspaceId:f.workspaceId,principalId:account.id,credentialId:credential.id};
+ await oldDraft(); await service.setPolicy(admin(),{expectedRevision:0,policy:{...policy,draftOwners:['editor']}});
+ const db=await f.pool.connect(); try {await expect(authorizeActionDb(db,identity,'knowledge.read',{kind:'page',id:'topic'})).rejects.toThrow('NOT_FOUND');} finally {db.release();}
+ const bridge=createRuntimeJobs(f.pool,new RuntimeService(f.pool),{workerCount:1,directoryProviderId:'fixture',directoryStatus:async subject=>({...subject,active:true,verifiedAt:new Date().toISOString(),validUntil:new Date(Date.now()+10000).toISOString()}),retentionServices:[identity]});
+ try {
+  const schedule=await bridge.jobs.saveSchedule(admin(),{key:'retention',cadence:'daily',time:'09:00',timezone:'UTC',holidays:[],catchup:'latest',identity,job:{kind:'retention',payload:{policyRevision:1},pageIds:[],sourceIds:[],reservation:{tokens:0,costMicros:0},timeoutMs:60000,maxAttempts:3},approvedPageIds:[],approvedSourceIds:[]});
+  const job=await bridge.jobs.runSchedule(admin(),schedule.id,'once'); await bridge.workers[0].tick();
+  expect((await f.pool.query('SELECT status FROM durable_jobs WHERE id=$1',[job.id])).rows[0].status).not.toBe('succeeded');
+  expect((await f.pool.query("SELECT 1 FROM workflow_drafts WHERE workspace_id=$1 AND id=$2",[f.workspaceId,input.id])).rowCount).toBe(1);
+  expect((await f.pool.query("SELECT 1 FROM operations_erased_artifacts WHERE workspace_id=$1 AND artifact_kind='draft'",[f.workspaceId])).rowCount).toBe(0);
+ } finally {await bridge.stop();}
+});
+
+test('replay preserves held historical draft copies when the current draft is absent', async () => {
+ const db=await f.pool.connect(); try {
+  await db.query('BEGIN'); await db.query('SELECT pg_advisory_xact_lock(822025)');
+  await db.query("INSERT INTO workflow_draft_revision_history(workspace_id,owner_id,draft_id,revision,data) VALUES($1,'editor','history-only',1,$2)",[f.workspaceId,{sourceIds:['source-a']}]);
+  await db.query("INSERT INTO operations_legal_holds(workspace_id,id,resource_kind,resource_id,placed_by) VALUES($1,'source-hold','source','source-a','fixture-owner')",[f.workspaceId]);
+  await db.query("INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,'draft',$2,'[]',$3,'fixture-owner')",[f.workspaceId,draftRetirementId('editor','history-only'),'b'.repeat(64)]);
+  await expect(replayRetentionTombstones(db,f.workspaceId)).rejects.toThrow('RETENTION_REPLAY_REFERENCE_CONFLICT');
+  expect((await db.query("SELECT 1 FROM workflow_draft_revision_history WHERE workspace_id=$1 AND draft_id='history-only'",[f.workspaceId])).rowCount).toBe(1);
+ } finally {await db.query('ROLLBACK');db.release();}
+});
+
+test.each(['source','page'] as const)('retention checks historical draft %s lineage even when removed from the current revision', async (kind) => {
+ await oldDraft();
+ const id=`historical-${kind}`;
+ await f.pool.query('INSERT INTO resources(workspace_id,kind,id) VALUES($1,$2,$3)',[f.workspaceId,kind,id]);
+ if(kind==='source') await f.pool.query('INSERT INTO sources(workspace_id,id,data) VALUES($1,$2,$3)',[f.workspaceId,id,{id}]);
+ else {
+  await f.pool.query('INSERT INTO pages(workspace_id,id,data) VALUES($1,$2,$3)',[f.workspaceId,id,{id}]);
+  await f.pool.query('INSERT INTO versions(workspace_id,page_id,number,data) VALUES($1,$2,1,$3)',[f.workspaceId,id,{...pageVersion(),sourceIds:[]}]);
+ }
+ await f.pool.query("INSERT INTO workflow_draft_revision_history(workspace_id,owner_id,draft_id,revision,data) VALUES($1,'editor',$2,99,$3)",[f.workspaceId,input.id,kind==='source'?{sourceIds:[id]}:{pageId:id}]);
+ await service.setPolicy(admin(),{expectedRevision:0,policy});
+ const preview=await service.previewRetention(admin());
+ await expect(service.executeRetention(admin(),{previewHash:preview.hash,policyRevision:1})).rejects.toThrow('NOT_FOUND');
+ expect((await f.pool.query('SELECT 1 FROM workflow_drafts WHERE workspace_id=$1 AND id=$2',[f.workspaceId,input.id])).rowCount).toBe(1);
 });
