@@ -509,7 +509,7 @@ export async function replayProductErasure(
     }
     const replacements: Record<string, unknown> = {};
     for (const c of all.columns.get(row.table) ?? []) {
-      if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result")) continue;
+      if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result") || (row.table === "version_restore_previews" && c.name === "hash")) continue;
       const value = row.data[c.name];
       if (c.type === "jsonb" || c.type === "json")
         replacements[c.name] = scrubProductValue(value);
@@ -718,7 +718,7 @@ export async function executeErasure(
           if (await redactReleasedImportRow(db, row)) continue;
           const replacements: Record<string, unknown> = {};
           for (const c of p.all.columns.get(row.table) ?? []) {
-            if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result")) continue;
+            if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result") || (row.table === "version_restore_previews" && c.name === "hash")) continue;
             const value = row.data[c.name];
             if (c.type === "jsonb" || c.type === "json")
               replacements[c.name] = scrubProductValue(value);

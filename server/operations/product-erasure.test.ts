@@ -207,3 +207,20 @@ test("unlineaged agent outcome text blocks a resource erasure completion", async
   expect(result).toMatchObject({status:'blocked',errorCode:'UNLINEAGED_CONTENT_REQUIRES_SEPARATE_PREVIEW'});
   expect(JSON.stringify((await f.pool.query('SELECT data FROM agent_outcomes WHERE workspace_id=$1',[f.workspaceId])).rows)).toContain('unmapped-agent-text');
 });
+
+test.each(['execute','replay'] as const)("%s preserves distinct restore preview keys while redacting payloads", async (method) => {
+  const f=await setup();
+  for (const hash of ['preview-one','preview-two']) await f.pool.query("INSERT INTO version_restore_previews(workspace_id,principal_id,hash,payload,expires_at) VALUES($1,'editor',$2,$3,now()+interval '1 hour')",[f.workspaceId,hash,{content:`private-${hash}`}]);
+  if (method==='execute') {
+    const input={scope:'workspace' as const},preview=await previewErasure(f.service,f.owner,input);
+    expect((await executeErasure(f.service,f.owner,{...input,previewHash:preview.previewHash,confirm:'ERASE_ENTIRE_WORKSPACE'})).status).toBe('completed');
+  } else {
+    const db=await f.pool.connect();
+    try {await db.query('BEGIN');await replayProductErasure(db,f.workspaceId,[],true);await db.query('COMMIT');}
+    finally {await db.query('ROLLBACK');db.release();}
+  }
+  const rows=(await f.pool.query('SELECT hash,payload FROM version_restore_previews WHERE workspace_id=$1 ORDER BY hash',[f.workspaceId])).rows;
+  expect(rows).toEqual([{hash:'preview-one',payload:{content:'[법정 삭제]'}},{hash:'preview-two',payload:{content:'[법정 삭제]'}}]);
+  const locator=(await f.pool.query("SELECT ctid::text AS locator FROM version_restore_previews WHERE workspace_id=$1 AND hash='preview-one'",[f.workspaceId])).rows[0].locator;
+  await expect(f.pool.query("SELECT operations_privileged_product_redaction('version_restore_previews',$1::tid,$2::jsonb)",[locator,JSON.stringify({hash:'changed'})])).rejects.toThrow('ERASURE_IDENTITY_COLUMN_FORBIDDEN');
+});
