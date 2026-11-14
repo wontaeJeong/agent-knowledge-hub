@@ -240,3 +240,7 @@
 - Added replay guards on both batch and existing single-page inner cached/recovery paths, complete linked-page/source checks and receipt bindings, and metadata-only current dependency checks before protected local display or body sync. Pending denied edits are preserved and become accessible again only after permission is restored. An additional single-page cache race also reproduced RED before its fix. Compatibility cost: older servers without `check-local` fail closed until upgraded.
 - The first broad PostgreSQL 17 run was deliberately interrupted (exit 130) after discovering the additional single-page race; it is not counted as a pass. Final validation results are recorded in the task report.
 - Final validation: focused PostgreSQL 17 native/security tests passed after a test-only timeout adjustment for shared cluster load; `npm run check` and the complete isolated PostgreSQL 17 suite (97 files / 697 tests, zero skips) exited 0. The earlier timeout and interrupted run remain recorded in the task report.
+
+### 2026-11-14 — 삭제 복구 후 기존 역할 권한 재노출
+- P5/P7 통합에서 전체 공간 삭제·서명 원장 재생이 기존 역할 증거와 수집기 연결을 철회하지 않았다. 행 상태만으로 결함을 단정하지 않고, 오래된 미이관 공간의 실제 검증 세션·canonical 권한과 원본 생성 경로로 복구 재생 뒤 새 원본이 작성됨을 합성 DB에서 재현했다. 초기 검사에서 임시 경로 realpath 누락으로 저장소 오류가 발생해 정정했다.
+- 두 선택 테이블이 존재할 때만 정확한 제어 스키마를 확인하고 기존 역할을 revoked, 수집기 연결을 inactive로 변경한다. 같은 gate/트랜잭션의 삭제와 복구 재생에 적용하며 법적 보류·미지원 스키마 오류는 전체 롤백한다. 제품 기능 미설치 환경, 타 공간, 실제 삭제·복구 및 재생 후 권한을 시험한다. 실제 운영 자료는 사용하지 않았다.
