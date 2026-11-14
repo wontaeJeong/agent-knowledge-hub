@@ -553,3 +553,17 @@ test.each(['source','page'] as const)('retention checks historical draft %s line
  await expect(service.executeRetention(admin(),{previewHash:preview.hash,policyRevision:1})).rejects.toThrow('NOT_FOUND');
  expect((await f.pool.query('SELECT 1 FROM workflow_drafts WHERE workspace_id=$1 AND id=$2',[f.workspaceId,input.id])).rowCount).toBe(1);
 });
+
+test('retention accepts legacy authorization and collector control tables without exposing or deleting their records', async () => {
+ await f.pool.query("INSERT INTO legacy_compat_memberships(workspace_id,principal_id,role,subject) VALUES($1,'editor','editor','PRIVATE_SUBJECT')",[f.workspaceId]);
+ await f.pool.query("INSERT INTO legacy_compat_manifest_imports(manifest_hash,backup_hash,key_fingerprint,captured_at,issued_at) VALUES('manifest-fixture','backup-fixture','key-fixture',now(),now()) ON CONFLICT DO NOTHING");
+ await f.pool.query("INSERT INTO storage_collector_connections(workspace_id,id,principal_id,configuration_hash) VALUES($1,'control-fixture','editor',$2)",[f.workspaceId,'a'.repeat(64)]);
+ await oldDraft(); await service.setPolicy(admin(),{expectedRevision:0,policy});
+ const preview=await service.previewRetention(admin());
+ expect(JSON.stringify(preview)).not.toContain('PRIVATE_SUBJECT');
+ expect(preview.records.find(r=>r.kind==='drafts'&&r.id===input.id)?.eligible).toBe(true);
+ const receipt=await service.executeRetention(admin(),{previewHash:preview.hash,policyRevision:1});
+ expect(receipt.deleted).toBe(1);
+ expect((await f.pool.query("SELECT 1 FROM legacy_compat_memberships WHERE workspace_id=$1 AND principal_id='editor'",[f.workspaceId])).rowCount).toBe(1);
+ expect((await f.pool.query("SELECT 1 FROM storage_collector_connections WHERE workspace_id=$1 AND id='control-fixture'",[f.workspaceId])).rowCount).toBe(1);
+});

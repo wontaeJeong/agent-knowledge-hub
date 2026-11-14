@@ -483,3 +483,43 @@ test("legal hold and stale preview block writes; separate explicit workspace Own
     ).status,
   ).toBe("completed");
 });
+
+test('workspace erasure and signed replay retire legacy and collector authority', async () => {
+ const f=await setup();
+ await f.pool.query("INSERT INTO legacy_compat_memberships(workspace_id,principal_id,role,subject) VALUES($1,'editor','editor','synthetic-editor')",[f.workspaceId]);
+ await f.pool.query("INSERT INTO storage_collector_connections(workspace_id,id,principal_id,configuration_hash) VALUES($1,'host','editor',$2)",[f.workspaceId,'a'.repeat(64)]);
+ const input={scope:'workspace' as const},preview=await previewErasure(f.s,f.ctx,input);
+ expect((await executeErasure(f.s,f.ctx,{...input,previewHash:preview.previewHash,confirm:'ERASE_ENTIRE_WORKSPACE'})).status).toBe('completed');
+ expect((await f.pool.query("SELECT revoked FROM legacy_compat_memberships WHERE workspace_id=$1",[f.workspaceId])).rows[0].revoked).toBe(true);
+ expect((await f.pool.query("SELECT active FROM storage_collector_connections WHERE workspace_id=$1",[f.workspaceId])).rows[0].active).toBe(false);
+ const db=await f.pool.connect(); try {
+  await db.query('BEGIN');
+  await db.query("UPDATE legacy_compat_memberships SET revoked=false WHERE workspace_id=$1",[f.workspaceId]);
+  await db.query("UPDATE storage_collector_connections SET active=true WHERE workspace_id=$1",[f.workspaceId]);
+  await replayProductErasure(db,f.workspaceId,[],true);
+  expect((await db.query("SELECT revoked FROM legacy_compat_memberships WHERE workspace_id=$1",[f.workspaceId])).rows[0].revoked).toBe(true);
+  expect((await db.query("SELECT active FROM storage_collector_connections WHERE workspace_id=$1",[f.workspaceId])).rows[0].active).toBe(false);
+ } finally {await db.query('ROLLBACK');db.release();}
+});
+
+test('restored pre-adoption legacy identity cannot regain source-write authority after workspace erasure replay', async () => {
+ const f=await fixture();pools.push(f.pool);
+ const issuer='https://legacy.example.test', subject='recovered-editor', principalId=createHash('sha256').update(issuer+'\0'+subject).digest('hex'), session='a'.repeat(64);
+ await f.pool.query("INSERT INTO access_principals(id,issuer,subject) VALUES($1,$2,$3) ON CONFLICT(id) DO NOTHING",[principalId,issuer,subject]);
+ await f.pool.query("INSERT INTO memberships VALUES($1,$2,'editor')",[f.workspaceId,principalId]);
+ await f.pool.query("INSERT INTO legacy_compat_memberships(workspace_id,principal_id,role,subject) VALUES($1,$2,'editor',$3)",[f.workspaceId,principalId,subject]);
+ await f.pool.query("INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,subject,access_token,expires_at,legacy_role_ceiling,legacy_verified_at) VALUES($1,$2,$3,'csrf',$4,'token',now()+interval '1 hour','editor',now())",[session,f.workspaceId,principalId,subject]);
+ await f.pool.query('INSERT INTO identity_session_activity(session_id) VALUES($1) ON CONFLICT DO NOTHING',[session]);
+ const ctx={workspaceId:f.workspaceId,principalId,authorization:{sessionId:session,revalidate:async()=>{},assertSession:async()=>{}}};
+ const {effectiveAccess}=await import('../access/index');
+ expect((await effectiveAccess(f.pool,ctx)).capabilities).toContain('source.create');
+ const db=await f.pool.connect();try{await db.query('BEGIN');await replayProductErasure(db,f.workspaceId,[],true);await db.query('COMMIT');}finally{db.release();}
+ const {mkdtemp,rm,realpath}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path');
+ const {StorageService}=await import('../storage/service'),{FileBlobStore}=await import('../storage/content');
+ const root=await realpath(await mkdtemp(join(tmpdir(),'erasure-legacy-')));
+ try {
+  const storage=new StorageService(f.pool,new FileBlobStore(root),authorizeInTransaction);
+  let observed='success'; try {await storage.ingestText(ctx,{title:'new',content:'new',project:'test',tool:'manual'});} catch(e) {observed=e instanceof Error ? e.message : String(e);}
+  expect(observed).toBe('NOT_FOUND');
+ } finally {await rm(root,{recursive:true,force:true});}
+});

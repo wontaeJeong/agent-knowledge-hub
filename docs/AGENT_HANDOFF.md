@@ -6,6 +6,7 @@
 - `server/runtime/auth.ts`에서 세션별 트랜잭션 advisory lock으로 인증 증명 갱신을 직렬화한다. 권한·만료·원본 상한 검사는 유지하며 지식 내용과 평가 주장을 바꾸지 않는다. `server/identity/native-integration.test.ts`의 interactive/poll 동시 요청 두 회귀는 수정 전 실패, 수정 후 통과했다.
 - `server/collaboration/review-race.test.ts`는 증명 시작과 만료를 한 시각에서 계산해 30초 상한을 1ms 초과하는 테스트 데이터 경합을 제거했다. Node 24 전체 `npm run check`와 PostgreSQL 17의 인증·기존 역할·질문·협업 9파일 회귀가 통과했다. 최종 원격 CI는 새 커밋에서 다시 확인한다.
 - 한계: 이 수정은 동일 세션의 증명 갱신 간 교착을 다룬다. 리뷰에서 지적한 기존 final guard와 directory gate 사이의 다른 잠금 순서 가능성은 별도 재현 대상이며 전체 교착 부재나 실서비스 인수를 주장하지 않는다.
+- 최종 제품 조합 확인: 인증 수정 포함 전체 `npm run check`와 PostgreSQL 17 서버 111파일·823시험 통과. 앞서 검증한 통합 트리와의 제품 코드 차이는 인증 수정·동시 요청 회귀·증명 시각 fixture뿐이다. 임시 무볼륨 테스트 컨테이너는 종료했다. 각 PR 최종 커밋의 원격 CI와 실제 병합 결과는 별도로 확인한다.
 
 ## 2026-11-14 미이관 공간 3역할 호환 — P5
 
@@ -412,6 +413,16 @@ P5 root 확인:독립 권한 리뷰의 조회 전용 grant 제안 우회와 과�
 - Task 2 사용자 휴지통·복원과 주기 보존 실행은 후속 독립 PR 범위다. 사내 보존/법적 정책, 외부 백업 삭제와 운영 수용·실제 업무 품질 개선은 검증하지 않았다.
 - 독립 리뷰 후속: 복구 미리보기의 복합 기본키 `hash`를 보존하고 payload만 삭제한다. 전체 삭제와 복구 재생에서 각각 두 미리보기의 충돌을 RED→GREEN으로 확인했고 특권 SQL 함수도 해당 키 변경을 거부한다.
 
+### P1 개인 후속 대화 — 2026-11-14
+- 요구사항 QNA-005/008/009, SRH-002/004, CORE-005: `server/questions`, `server/runtime`, `server/jobs`, `src/operational/questions.tsx`와 앱 질문 화면을 연결했다. 서버 소유 이력·원본 범위를 승인 시점과 전송·저장 직전에 검사하고, 큐의 fenced 쓰기에서 답변과 턴 완료를 함께 기록한다. 기존 P9 삭제 fence를 유지한다.
+- 검증: Node 24 `npm run check`; 실제 격리 PostgreSQL/HTTP/durable queue와 합성 loopback 모델의 두 턴·동일 nonce·영수증 소실·권한 철회 전후·취소·worker 재시작·근거 부족, 삭제·원복 회귀. 상세 실행 결과와 미실행 항목은 `.superpowers/p1-report.md` 참조. 브라우저 캡처·독립 리뷰·최종 CI는 별도다. 실제 사내 모델 품질이나 지식 성과를 주장하지 않는다.
+- 에이전트 기존 검색은 점수순/정수 offset 계약이고 질문 scoped search는 시간순/서명 cursor다. 각 경로의 현재 ACL/원본 범위는 별도 검사하며 기존 agent DTO 호환 어댑터는 PR30 discovery와 함께 후속 검토한다.
+
+- P1 독립 리뷰 수정: 숨겨진 이력의 revision은 소유자·공간·스레드·현재 revision·보이는 입력에 묶인 비복호화 MAC으로 대체한다. 오래된 토큰은 재조회하며 이미 수락된 nonce는 복구한다. 대화는 읽기 페이지별 고유 근거와 바이트 예산을 적용하고 모델 이력은 최근 서버 봉인 윈도로 별도 선택한다. terminal 취소·실패 뒤 재조회와 새 nonce, 현재 공간을 사용하는 인용·피드백·검색 버전 뷰어를 연결했다.
+- 합성 화면 검증: [1440px](pr-assets/product-conversations/review-desktop-1440.png), [390px](pr-assets/product-conversations/review-mobile-390.png). 실제 앱에서 다른 공간으로 전환한 뒤 인용 요청의 `X-Space-Id`와 해당 공간 본문, 가로 폭 및 이전 대화 병합을 확인했다. 기존 키보드 취소·403 기록도 [캡처 설명](pr-assets/product-conversations/README.md)에 보존한다. 실제 사내 자료·모델 검증은 아니다.
+
+- P1 리뷰 수정 최종 검증: Node 24 `npm run check`와 PostgreSQL 17 격리 DB 전체 서버 테스트 95개 파일 통과. 회사 IdP·운영 모델·최종 CI는 별도다.
+
 ### 2026-11-14 — P8 native local connector (CORE-009, KI-01~07 partial)
 
 - `server/agents/{service,http}.ts` and `scripts/wiki-connector/{client,cli,mcp,service}.mjs` submit 1–20 selected synchronized personal revisions as one pending common proposal. The exact-input receipt commits atomically with that proposal; replay rechecks current access, copy policy and selected revisions. Existing PAT scopes are unchanged.
@@ -469,3 +480,7 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 
 
 - 교차 기능 삭제 후속: P5 기존 역할 증거와 P7 수집기 연결이 존재하면 workspace 삭제 및 서명 복구 재생의 같은 트랜잭션에서 각각 철회한다. 기능 미설치 DB도 지원하며 미확인 제어 스키마는 차단한다. 법적 보류·오류는 전체 롤백하고 다른 공간은 유지한다. 합성 복구 상태에서 기존 editor가 다시 원본을 작성하던 RED와 수정 후 현재 권한 거부를 확인했다.
+
+### 2026-11-14 — P1~P10 사용자 승인 병합
+- 후속 “머지” 요청에 따라 기능 PR #32~43을 squash 순서로 통합한다. 요구사항 범위는 변경하지 않으며 기존 PR #30은 별도다.
+- 각 기능의 격리 worktree에서 현재 main 및 선행 기능을 보존하고 최종 head의 필수 CI를 확인한다. 절차·검증과 제약은 [병합 기록](superpowers/plans/2026-11-14-product-merge.md)을 참조한다.

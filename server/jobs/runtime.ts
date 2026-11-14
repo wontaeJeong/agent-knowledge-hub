@@ -637,7 +637,9 @@ export function createRuntimeJobs(
         const replayPayload =
           payload.semantic === true
             ? { ...payload, prepared: existing.input.payload.prepared }
-            : payload;
+            : kind === "query" && typeof payload.threadId === "string"
+              ? { ...payload, mode: existing.input.payload.mode, prepared: existing.input.payload.prepared }
+              : payload;
         if (
           grantPayloadHash(existing.input) !==
           grantPayloadHash(settings(kind, replayPayload, key, requested))

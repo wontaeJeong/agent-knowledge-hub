@@ -50,21 +50,36 @@ import type { ShutdownController } from "../operations/monitoring";
 import { runtimeCapabilities, type RuntimeJobsBridge } from "../jobs/runtime";
 import { handleJobRoute } from "../jobs/http";
 import { readStoredAnswer } from "../workflows/answers";
-import {handlePolicyRequest} from '../policy/http';
-import {recordJobTrace,readJobTrace} from './traces';
-import {GovernanceService} from '../workflows/governance/service';
-import {handleGovernanceRoute} from '../workflows/governance/http';
+import { handlePolicyRequest } from "../policy/http";
+import { recordJobTrace, readJobTrace } from "./traces";
+import { GovernanceService } from "../workflows/governance/service";
+import { handleGovernanceRoute } from "../workflows/governance/http";
 import { handleImportRequest } from "../imports/http";
 import { AccessService as LegacyAccessService } from "../access";
 import { handleAccessRequest } from "../access-http";
 import { handleBoardRequest } from "../boards";
-import { authenticateAgentKey, recordAgentRequest, permittedAgentRoute, handleCredentialRequest, startDevice, pollDevice, verifyDevice, decideDevice } from "../agent-credentials";
+import {
+  authenticateAgentKey,
+  recordAgentRequest,
+  permittedAgentRoute,
+  handleCredentialRequest,
+  startDevice,
+  pollDevice,
+  verifyDevice,
+  decideDevice,
+} from "../agent-credentials";
 import { QuestionsService } from "../questions/service";
 import { handleQuestionRoute } from "../questions/http";
+import {
+  handleIdentityRequest,
+  type IdentityHttpServices,
+} from "../identity/http";
+import {
+  handleCollaborationRoute,
+  type CollaborationService,
+} from "../collaboration";
 import { VersionService } from "../workflows/versions/service";
 import { handleVersionRoute } from "../workflows/versions/http";
-import { handleCollaborationRoute, type CollaborationService } from "../collaboration";
-import { handleIdentityRequest, type IdentityHttpServices } from "../identity/http";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
@@ -82,6 +97,7 @@ export function createRuntimeHandler(options: {
   operations?: (input: OperationsRouteInput) => Promise<boolean>;
   jobs?: RuntimeJobsBridge;
   collaboration?: CollaborationService;
+  questions?: QuestionsService;
   platformOperatorIds?: readonly string[];
   probe?: (req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
   shutdown?: ShutdownController;
@@ -91,14 +107,25 @@ export function createRuntimeHandler(options: {
     : undefined;
   const legacyAccess = new LegacyAccessService(options.pool);
   const versions = new VersionService(options.pool, authorizeInTransaction);
-  const questions = new QuestionsService(options.pool, {
-    runtime: options.service,
-    authorize: authorizeInTransaction,
-    runQuery: async () => { throw Error("QUESTION_QUEUE_NOT_CONFIGURED"); },
-  });
+  const questions =
+    options.questions ??
+    new QuestionsService(options.pool, {
+      runtime: options.service,
+      authorize: authorizeInTransaction,
+      runQuery: async () => {
+        throw Error("QUESTION_QUEUE_NOT_CONFIGURED");
+      },
+    });
+  if (options.jobs && options.questions)
+    questions.setSubmit((ctx, payload, key) =>
+      options.jobs!.submitInteractive(ctx, "query", payload, key),
+    );
   const retention = {
     recovery: new DraftRecoveryService(options.pool),
-    retention: new ContentRetentionService(options.pool, authorizeInTransaction),
+    retention: new ContentRetentionService(
+      options.pool,
+      authorizeInTransaction,
+    ),
   };
   if (options.auth)
     options.service.imports.authorizer = (row) =>
@@ -184,20 +211,31 @@ export function createRuntimeHandler(options: {
       )
         return send(404, { code: "NOT_FOUND" });
       await assertSchemaCurrent(options.pool);
-      if ((path === "/api/v1/device/authorize" || path === "/api/v1/device/token") && req.method === "POST") {
-        if (!req.headers["content-type"]?.startsWith("application/json")) return send(415, { code: "JSON_REQUIRED" });
+      if (
+        (path === "/api/v1/device/authorize" ||
+          path === "/api/v1/device/token") &&
+        req.method === "POST"
+      ) {
+        if (!req.headers["content-type"]?.startsWith("application/json"))
+          return send(415, { code: "JSON_REQUIRED" });
         const payload = await readJsonBody(req, 8192);
-        const result = path.endsWith("authorize") ? await startDevice(options.pool, payload, options.origin) : await pollDevice(options.pool, payload);
+        const result = path.endsWith("authorize")
+          ? await startDevice(options.pool, payload, options.origin)
+          : await pollDevice(options.pool, payload);
         return send(result.status, result.body);
       }
       const access = new AccessService(options.pool);
       const authHeader = req.headers.authorization;
-      const agentToken = authHeader?.match(/^Bearer (akh_sk_[A-Za-z0-9_-]{43})$/)?.[1];
+      const agentToken = authHeader?.match(
+        /^Bearer (akh_sk_[A-Za-z0-9_-]{43})$/,
+      )?.[1];
       const bearer = req.headers.authorization?.match(
         /^Bearer (akh_[a-zA-Z0-9_-]{43})$/,
       )?.[1];
       if (authHeader && !bearer && !agentToken) throw Error("UNAUTHENTICATED");
-      const agent = agentToken ? await authenticateAgentKey(options.pool, agentToken) : null;
+      const agent = agentToken
+        ? await authenticateAgentKey(options.pool, agentToken)
+        : null;
       if (agentToken && !agent) throw Error("UNAUTHENTICATED");
       const credential = bearer
         ? await access.authenticateCredential(
@@ -221,8 +259,11 @@ export function createRuntimeHandler(options: {
       }
       const session = credential
         ? { ...credential, role: "reader" as const, csrfToken: "" }
-        : agent ? null : await (options.auth?.authenticate(req) ?? Promise.resolve(null));
-      if (!session && !agent) return send(401, { code: "UNAUTHENTICATED", requestId });
+        : agent
+          ? null
+          : await (options.auth?.authenticate(req) ?? Promise.resolve(null));
+      if (!session && !agent)
+        return send(401, { code: "UNAUTHENTICATED", requestId });
       const actor = agent ?? session!;
       const ctx: Context = {
         requestId,
@@ -230,13 +271,30 @@ export function createRuntimeHandler(options: {
         principalId: actor.principalId,
         credentialId: credential?.credentialId,
         agent: agent?.agent,
-        authorization: agent ? agent.authorization : credential
-          ? undefined
-          : options.auth!.requestGuard(req, session!),
+        authorization: agent
+          ? agent.authorization
+          : credential
+            ? undefined
+            : options.auth!.requestGuard(req, session!),
       };
-      if (actor.workspaceId !== options.workspaceId && !(await options.pool.query("SELECT 1 FROM access_spaces WHERE workspace_id=$1",[actor.workspaceId])).rowCount) {
-        if (!ctx.authorization || !await legacySessionRole(options.pool,ctx,ctx.authorization.sessionId))
-          return send(403,{code:"FORBIDDEN"});
+      if (
+        actor.workspaceId !== options.workspaceId &&
+        !(
+          await options.pool.query(
+            "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
+            [actor.workspaceId],
+          )
+        ).rowCount
+      ) {
+        if (
+          !ctx.authorization ||
+          !(await legacySessionRole(
+            options.pool,
+            ctx,
+            ctx.authorization.sessionId,
+          ))
+        )
+          return send(403, { code: "FORBIDDEN" });
       }
       ticket?.identify(
         ctx.workspaceId,
@@ -251,9 +309,10 @@ export function createRuntimeHandler(options: {
         req.method === "PUT"
       ) {
         if (
-          !credential && !agent &&
+          !credential &&
+          !agent &&
           (req.headers.origin !== options.origin ||
-          req.headers["x-csrf-token"] !== session!.csrfToken)
+            req.headers["x-csrf-token"] !== session!.csrfToken)
         )
           return send(403, { code: "CSRF_FAILED" });
         if (req.method === "PUT" && path === "/api/v1/storage/blobs") {
@@ -283,39 +342,68 @@ export function createRuntimeHandler(options: {
       if (path.startsWith("/api/v1/identity/")) {
         if (credential || agent) throw Error("FORBIDDEN");
         if (!options.identityServices) throw Error("NOT_FOUND");
-        const result = await handleIdentityRequest(options.identityServices, ctx, req.method || "GET", path + url.search, body);
+        const result = await handleIdentityRequest(
+          options.identityServices,
+          ctx,
+          req.method || "GET",
+          path + url.search,
+          body,
+        );
         if (!result) throw Error("NOT_FOUND");
-        if ((path === "/api/v1/identity/logout-all" && req.method === "POST") ||
-            (req.method === "DELETE" && "current" in result.body && result.body.current === true))
+        if (
+          (path === "/api/v1/identity/logout-all" && req.method === "POST") ||
+          (req.method === "DELETE" &&
+            "current" in result.body &&
+            result.body.current === true)
+        )
           options.auth!.setCookie(res, "akh_session", "", 0);
         return send(result.status, result.body);
       }
       if (agent) {
-        if (!permittedAgentRoute(req.method || "GET",path,agent.agent.scope,body))
-          return send(403,{code:"FORBIDDEN",requestId});
-        await recordAgentRequest(options.pool,agent,path);
+        if (
+          !permittedAgentRoute(
+            req.method || "GET",
+            path,
+            agent.agent.scope,
+            body,
+          )
+        )
+          return send(403, { code: "FORBIDDEN", requestId });
+        await recordAgentRequest(options.pool, agent, path);
       }
-      if (/^\/api\/v1\/credentials\/(?:keys|clients|admin\/keys)(?:\/|$)/.test(path)) {
-        if (agent) return send(403,{code:"FORBIDDEN",requestId});
-        const result=await handleCredentialRequest(options.pool,ctx,req.method || "GET",path,body,options.origin);
-        if(result) return send(result.status,result.body);
+      if (
+        /^\/api\/v1\/credentials\/(?:keys|clients|admin\/keys)(?:\/|$)/.test(
+          path,
+        )
+      ) {
+        if (agent) return send(403, { code: "FORBIDDEN", requestId });
+        const result = await handleCredentialRequest(
+          options.pool,
+          ctx,
+          req.method || "GET",
+          path,
+          body,
+          options.origin,
+        );
+        if (result) return send(result.status, result.body);
       }
-      if (path.startsWith("/api/v1/device/verify/") && req.method==="GET") {
-        const code=path.slice("/api/v1/device/verify/".length);
-        const result=await verifyDevice(options.pool,ctx,code);
-        return send(result.status,result.body);
+      if (path.startsWith("/api/v1/device/verify/") && req.method === "GET") {
+        const code = path.slice("/api/v1/device/verify/".length);
+        const result = await verifyDevice(options.pool, ctx, code);
+        return send(result.status, result.body);
       }
-      if (path==="/api/v1/device/decision" && req.method==="POST") {
-        const result=await decideDevice(options.pool,ctx,body);
-        return send(result.status,result.body);
+      if (path === "/api/v1/device/decision" && req.method === "POST") {
+        const result = await decideDevice(options.pool, ctx, body);
+        return send(result.status, result.body);
       }
       if (path === "/api/v1/usage/model-export" && req.method === "GET") {
         const days = Number(url.searchParams.get("days") || "30");
-        const output = await exportModelUsageCsv(options.pool,ctx,days);
-        res.writeHead(200,{
-          "Content-Type":"text/csv; charset=utf-8",
-          "Content-Disposition":'attachment; filename="agent-knowledge-hub-model-usage.csv"',
-          "X-Request-Id":requestId,
+        const output = await exportModelUsageCsv(options.pool, ctx, days);
+        res.writeHead(200, {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition":
+            'attachment; filename="agent-knowledge-hub-model-usage.csv"',
+          "X-Request-Id": requestId,
         });
         return res.end(output);
       }
@@ -324,7 +412,8 @@ export function createRuntimeHandler(options: {
         const output = await exportUsageCsv(options.pool, ctx, days);
         res.writeHead(200, {
           "Content-Type": "text/csv; charset=utf-8",
-          "Content-Disposition": "attachment; filename=\"agent-knowledge-hub-usage.csv\"",
+          "Content-Disposition":
+            'attachment; filename="agent-knowledge-hub-usage.csv"',
           "X-Request-Id": requestId,
         });
         return res.end(output);
@@ -332,41 +421,109 @@ export function createRuntimeHandler(options: {
       const service = options.service;
       if (path.startsWith("/api/v1/versions/")) {
         if (credential || agent) throw Error("FORBIDDEN");
-        if (await handleVersionRoute({method:req.method??"GET",path,body,ctx,send,query:url.searchParams},versions)) return;
-        return send(404,{code:"NOT_FOUND",requestId});
+        if (
+          await handleVersionRoute(
+            {
+              method: req.method ?? "GET",
+              path,
+              body,
+              ctx,
+              send,
+              query: url.searchParams,
+            },
+            versions,
+          )
+        )
+          return;
+        return send(404, { code: "NOT_FOUND", requestId });
       }
       if (path.startsWith("/api/v1/questions/")) {
         // Neither credential type has a verified ceiling for private threads yet.
         if (credential || agent) throw Error("FORBIDDEN");
-        if (req.method === "GET" && path.startsWith("/api/v1/questions/threads/")) {
-          await ctx.authorization!.revalidate();
-          return send(503, { code: "QUESTION_HISTORY_NOT_CONFIGURED" });
-        }
-        const threadRoute = path === "/api/v1/questions/threads";
-        if (!threadRoute) {
-          if (req.method === "POST" && /^\/api\/v1\/questions\/threads\/[a-zA-Z0-9_-]{1,100}\/turns(?:\/[a-zA-Z0-9_-]{1,100}\/resume)?$/.test(path))
-            return send(503, { code: "QUESTION_QUEUE_NOT_CONFIGURED", requestId });
-          return send(404, { code: "NOT_FOUND", requestId });
-        }
-        if (await handleQuestionRoute({ method: req.method ?? "GET", path: path + url.search, body, ctx, send }, questions)) return;
+        if (
+          await handleQuestionRoute(
+            {
+              method: req.method ?? "GET",
+              path: path + url.search,
+              body,
+              ctx,
+              send,
+            },
+            questions,
+          )
+        )
+          return;
         return send(404, { code: "NOT_FOUND", requestId });
       }
       if (path.startsWith("/api/v1/collaboration/")) {
         if (!options.collaboration) throw Error("COLLABORATION_NOT_CONFIGURED");
         if (agent || credential) throw Error("FORBIDDEN");
-        if (await handleCollaborationRoute({method:req.method ?? "GET",path:path + url.search,body,ctx,send},options.collaboration)) return;
-        return send(404,{code:"NOT_FOUND",requestId});
+        if (
+          await handleCollaborationRoute(
+            {
+              method: req.method ?? "GET",
+              path: path + url.search,
+              body,
+              ctx,
+              send,
+            },
+            options.collaboration,
+          )
+        )
+          return;
+        return send(404, { code: "NOT_FOUND", requestId });
       }
-      if (await handleRetentionRoute({ method: req.method ?? "GET", path, body, ctx, send }, retention)) return;
-      if(await handleGovernanceRoute({method:req.method??'GET',path,body,ctx,send},new GovernanceService(options.pool,authorizeInTransaction)))return;
-      const submitInteractive=async(actor:Context,kind:'query'|'ingest'|'lint',payload:unknown,key:string)=>{
-        if(!options.jobs)throw Error('EXECUTION_NOT_CONFIGURED');
-        const receipt=await options.jobs.submitInteractive(actor,kind,payload,key);
-        await recordJobTrace(options.pool,actor,requestId,kind==='lint'&&payload&&typeof payload==='object'&&'semantic' in payload&&payload.semantic===true?'semantic-lint':kind,receipt.id);
-        return {...receipt,requestId};
+      if (
+        await handleRetentionRoute(
+          { method: req.method ?? "GET", path, body, ctx, send },
+          retention,
+        )
+      )
+        return;
+      if (
+        await handleGovernanceRoute(
+          { method: req.method ?? "GET", path, body, ctx, send },
+          new GovernanceService(options.pool, authorizeInTransaction),
+        )
+      )
+        return;
+      const submitInteractive = async (
+        actor: Context,
+        kind: "query" | "ingest" | "lint",
+        payload: unknown,
+        key: string,
+      ) => {
+        if (!options.jobs) throw Error("EXECUTION_NOT_CONFIGURED");
+        const receipt = await options.jobs.submitInteractive(
+          actor,
+          kind,
+          payload,
+          key,
+        );
+        await recordJobTrace(
+          options.pool,
+          actor,
+          requestId,
+          kind === "lint" &&
+            payload &&
+            typeof payload === "object" &&
+            "semantic" in payload &&
+            payload.semantic === true
+            ? "semantic-lint"
+            : kind,
+          receipt.id,
+        );
+        return { ...receipt, requestId };
       };
-      const policyResponse=await handlePolicyRequest(options.pool,ctx,req.method??'GET',path,body);
-      if(policyResponse)return send(policyResponse.status,policyResponse.body);
+      const policyResponse = await handlePolicyRequest(
+        options.pool,
+        ctx,
+        req.method ?? "GET",
+        path,
+        body,
+      );
+      if (policyResponse)
+        return send(policyResponse.status, policyResponse.body);
       if (
         options.jobs &&
         req.method === "POST" &&
@@ -422,14 +579,16 @@ export function createRuntimeHandler(options: {
         ))
       )
         return;
-      const accessResult = path.startsWith('/api/v1/access')?undefined:await accessRoute(
-        access,
-        ctx,
-        req.method,
-        path,
-        body,
-        url.searchParams,
-      );
+      const accessResult = path.startsWith("/api/v1/access")
+        ? undefined
+        : await accessRoute(
+            access,
+            ctx,
+            req.method,
+            path,
+            body,
+            url.searchParams,
+          );
       if (accessResult) return send(accessResult.status, accessResult.body);
       if (path === "/api/v1/access/switch" && req.method === "POST") {
         const b = z.object({ spaceId: id }).strict().parse(body);
@@ -450,7 +609,14 @@ export function createRuntimeHandler(options: {
         if (result) return send(result.status, result.body);
       }
       if (path.startsWith("/api/v1/board/")) {
-        const result = await handleBoardRequest(options.pool, ctx, req.method || "GET", path, body, url.searchParams);
+        const result = await handleBoardRequest(
+          options.pool,
+          ctx,
+          req.method || "GET",
+          path,
+          body,
+          url.searchParams,
+        );
         if (result) return send(result.status, result.body);
       }
       if (path.startsWith("/api/v1/import")) {
@@ -471,7 +637,13 @@ export function createRuntimeHandler(options: {
         return send(200, { ok: true });
       }
       if (path === "/api/v1/me" && req.method === "GET") {
-        if (agent) return send(200, {principalId:ctx.principalId,workspaceId:ctx.workspaceId,role:agent.agent.scope === "read" ? "reader" : "editor",agent:true});
+        if (agent)
+          return send(200, {
+            principalId: ctx.principalId,
+            workspaceId: ctx.workspaceId,
+            role: agent.agent.scope === "read" ? "reader" : "editor",
+            agent: true,
+          });
         if (!session) throw Error("UNAUTHENTICATED");
         try {
           const a = await access.effective(ctx);
@@ -486,7 +658,10 @@ export function createRuntimeHandler(options: {
             principalId: ctx.principalId,
             role,
             csrfToken: session.csrfToken,
-            identityFeatures: { emergency: !!options.identityServices?.emergency, directory: !!options.identityServices?.directory },
+            identityFeatures: {
+              emergency: !!options.identityServices?.emergency,
+              directory: !!options.identityServices?.directory,
+            },
             capabilities: options.jobs
               ? runtimeCapabilities(
                   a.capabilities,
@@ -496,13 +671,15 @@ export function createRuntimeHandler(options: {
               : a.capabilities,
             legacyAccess: !!a.legacyRole,
             effectiveRole: a.legacyRole ? null : a.role,
-            spaceRole: a.legacyRole ? null : {
-              read: "Read",
-              triage: "Triage",
-              write: "Write",
-              maintain: "Maintain",
-              admin: "Admin",
-            }[a.role],
+            spaceRole: a.legacyRole
+              ? null
+              : {
+                  read: "Read",
+                  triage: "Triage",
+                  write: "Write",
+                  maintain: "Maintain",
+                  admin: "Admin",
+                }[a.role],
             canReviewKnowledge:
               !ctx.credentialId && a.capabilities.includes("changeset.approve"),
             personalSpace: a.space.namespaceKind === "personal",
@@ -525,7 +702,10 @@ export function createRuntimeHandler(options: {
             principalId: ctx.principalId,
             role: "reader",
             csrfToken: session.csrfToken,
-            identityFeatures: { emergency: !!options.identityServices?.emergency, directory: !!options.identityServices?.directory },
+            identityFeatures: {
+              emergency: !!options.identityServices?.emergency,
+              directory: !!options.identityServices?.directory,
+            },
             capabilities: [
               "space.create",
               ...(p.rows[0].team_create ? ["team.create"] : []),
@@ -535,8 +715,12 @@ export function createRuntimeHandler(options: {
         }
       }
       if (options.jobs) {
-        const trace=path.match(/^\/api\/v1\/traces\/([a-zA-Z0-9_-]{1,100})$/);
-        if(req.method==='GET'&&trace)return send(200,await readJobTrace(options.pool,options.jobs,ctx,trace[1]));
+        const trace = path.match(/^\/api\/v1\/traces\/([a-zA-Z0-9_-]{1,100})$/);
+        if (req.method === "GET" && trace)
+          return send(
+            200,
+            await readJobTrace(options.pool, options.jobs, ctx, trace[1]),
+          );
         if (req.method === "GET" && path === "/api/v1/execution-identities") {
           const accessState = await authorizeAction(
             options.pool,
@@ -578,10 +762,16 @@ export function createRuntimeHandler(options: {
           }
           return send(200, { items, directoryConfigured: true });
         }
-        if (req.method === "POST" && path === "/api/v1/jobs-v2"){
-          const receipt=await options.jobs.submitDelegated(ctx,body);
-          await recordJobTrace(options.pool,ctx,requestId,receipt.kind,receipt.id);
-          return send(202,{...receipt,requestId});
+        if (req.method === "POST" && path === "/api/v1/jobs-v2") {
+          const receipt = await options.jobs.submitDelegated(ctx, body);
+          await recordJobTrace(
+            options.pool,
+            ctx,
+            requestId,
+            receipt.kind,
+            receipt.id,
+          );
+          return send(202, { ...receipt, requestId });
         }
         if (
           await handleJobRoute(
@@ -618,8 +808,15 @@ export function createRuntimeHandler(options: {
       if (path === "/mcp" && !(await access.effective(ctx)).role)
         throw Error("NOT_FOUND");
       if (path !== "/mcp") {
-        const legacySourceRead = path === "/api/v1/sources" && req.method === "GET" && (await access.effective(ctx)).legacyRole;
-        await authorizeAction(options.pool, ctx, legacySourceRead ? "knowledge.read" : routeAction(path, req.method));
+        const legacySourceRead =
+          path === "/api/v1/sources" &&
+          req.method === "GET" &&
+          (await access.effective(ctx)).legacyRole;
+        await authorizeAction(
+          options.pool,
+          ctx,
+          legacySourceRead ? "knowledge.read" : routeAction(path, req.method),
+        );
       }
       if (
         await handleWorkflowRoute(
@@ -642,7 +839,16 @@ export function createRuntimeHandler(options: {
               id.parse(storedAnswer[1]),
             ),
           );
-        if (path === "/api/v1/me") return send(200, session ?? {principalId:ctx.principalId,workspaceId:ctx.workspaceId,role:agent?.agent.scope==="read"?"reader":"editor",agent:true});
+        if (path === "/api/v1/me")
+          return send(
+            200,
+            session ?? {
+              principalId: ctx.principalId,
+              workspaceId: ctx.workspaceId,
+              role: agent?.agent.scope === "read" ? "reader" : "editor",
+              agent: true,
+            },
+          );
         if (path === "/api/v1/pages")
           return send(200, { items: await service.pages(ctx) });
         if (path === "/api/v1/sources")
@@ -651,10 +857,12 @@ export function createRuntimeHandler(options: {
           return send(200, { items: await service.changesets(ctx) });
         if (path === "/api/v1/jobs")
           return send(200, { items: await service.jobs(ctx) });
-        if (path === "/api/v1/model") return send(200, {...modelConfig(),systemone:systemOneConfig()});
+        if (path === "/api/v1/model")
+          return send(200, { ...modelConfig(), systemone: systemOneConfig() });
         if (path === "/api/v1/usage") {
           const days = url.searchParams.get("days") || "7";
-          if (!["7", "14", "30", "90"].includes(days)) throw Error("VALIDATION_FAILED");
+          if (!["7", "14", "30", "90"].includes(days))
+            throw Error("VALIDATION_FAILED");
           return send(200, await usageSummary(options.pool, ctx, Number(days)));
         }
         if (path === "/api/v1/members")
@@ -676,11 +884,18 @@ export function createRuntimeHandler(options: {
         }
       }
       if (req.method === "POST") {
-        if(path==="/api/v1/evaluations/systemone") {
-          if(!session || session.role!=="reviewer" || session.canReviewKnowledge===false)
-            return send(403,{code:"FORBIDDEN",requestId});
-          const b=z.object({pageId:id}).strict().parse(body);
-          return send(200,await assessPage(options.pool,service,ctx,b.pageId));
+        if (path === "/api/v1/evaluations/systemone") {
+          if (
+            !session ||
+            session.role !== "reviewer" ||
+            session.canReviewKnowledge === false
+          )
+            return send(403, { code: "FORBIDDEN", requestId });
+          const b = z.object({ pageId: id }).strict().parse(body);
+          return send(
+            200,
+            await assessPage(options.pool, service, ctx, b.pageId),
+          );
         }
         if (path === "/api/v1/sources") {
           const wrapped = z
@@ -814,8 +1029,14 @@ export function createRuntimeHandler(options: {
           }
           if (action[2] === "reject")
             return send(200, await service.reject(ctx, batchId, hash));
-          const approved=await service.core.approve(ctx, batchId, hash);
-          return send(200, { id: batchId, hash,...(approved?.warnings?.length?{warnings:approved.warnings}:{}) });
+          const approved = await service.core.approve(ctx, batchId, hash);
+          return send(200, {
+            id: batchId,
+            hash,
+            ...(approved?.warnings?.length
+              ? { warnings: approved.warnings }
+              : {}),
+          });
         }
       }
       return send(404, { code: "NOT_FOUND", requestId });
@@ -851,7 +1072,6 @@ export function createRuntimeHandler(options: {
         INPUT_TOO_LARGE: 413,
         ALREADY_EXISTS: 409,
         STALE_VERSION: 409,
-        RESTORE_PATH_CONFLICT: 409,
         COLLECTOR_NOT_CONFIGURED: 503,
         COLLECTOR_CONNECTION_REVOKED: 409,
         COLLECTOR_FETCH_FAILED: 502,
@@ -862,6 +1082,8 @@ export function createRuntimeHandler(options: {
         SELECTED_ARTIFACT_NOT_FOUND: 404,
         NO_SELECTED_TEXT: 400,
         ERASURE_WRITES_FENCED: 409,
+        RESTORE_PATH_CONFLICT: 409,
+        STALE_CURSOR: 409,
         APPROVAL_STALE: 409,
         IDEMPOTENCY_CONFLICT: 409,
         SOURCE_SCOPE_CONFLICT: 409,

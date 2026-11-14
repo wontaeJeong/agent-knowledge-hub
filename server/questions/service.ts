@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import type { Context } from "../service";
@@ -23,7 +23,7 @@ import { assertQuestionWritesNotErased } from "./erasure-fence";
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const turnInput = z
   .object({
-    expectedRevision: z.number().int().nonnegative(),
+    expectedRevision: z.union([z.number().int().nonnegative(), z.string().regex(/^[a-f0-9]{64}$/)]),
     nonce: id,
     question: z.string().trim().min(1).max(20000),
     mode: z.enum(["offline", "model"]),
@@ -103,6 +103,44 @@ const denied = (error: unknown) => {
     throw error;
 };
 export class QuestionsService {
+  private readonly continuationKey = randomBytes(32);
+  private readonly cursors = new Map<
+    string,
+    {
+      workspace: string;
+      principal: string;
+      thread: string;
+      revision: number;
+      before: number;
+      expires: number;
+    }
+  >();
+  private async continuation(
+    db: PoolClient,
+    ctx: Context,
+    thread: { id: string; revision: number },
+  ) {
+    const rows = await db.query(
+      `SELECT count(*)::int AS count, encode(sha256(convert_to(COALESCE(string_agg(part, '|' ORDER BY part), ''), 'UTF8')), 'hex') AS digest FROM (
+      SELECT 'p:' || p.id || ':' || encode(sha256(convert_to(p.data::text,'UTF8')),'hex') || ':' || COALESCE((SELECT string_agg(r.principal_id,',' ORDER BY r.principal_id) FROM resource_readers r WHERE r.workspace_id=p.workspace_id AND r.kind='page' AND r.resource_id=p.id),'') AS part FROM pages p WHERE p.workspace_id=$1 AND EXISTS (SELECT 1 FROM resource_readers r WHERE r.workspace_id=p.workspace_id AND r.kind='page' AND r.resource_id=p.id AND r.principal_id=$2)
+      UNION ALL SELECT 's:' || s.id || ':' || encode(sha256(convert_to(s.data::text,'UTF8')),'hex') || ':' || COALESCE((SELECT string_agg(r.principal_id,',' ORDER BY r.principal_id) FROM resource_readers r WHERE r.workspace_id=s.workspace_id AND r.kind='source' AND r.resource_id=s.id),'') FROM sources s WHERE s.workspace_id=$1 AND EXISTS (SELECT 1 FROM resource_readers r WHERE r.workspace_id=s.workspace_id AND r.kind='source' AND r.resource_id=s.id AND r.principal_id=$2)
+      UNION ALL SELECT 'v:' || v.page_id || ':' || v.number || ':' || encode(sha256(convert_to(v.data::text,'UTF8')),'hex') FROM versions v WHERE v.workspace_id=$1 AND EXISTS (SELECT 1 FROM resource_readers r WHERE r.workspace_id=v.workspace_id AND r.kind='page' AND r.resource_id=v.page_id AND r.principal_id=$2)
+    LIMIT 10001) AS visible`,
+      [ctx.workspaceId, ctx.principalId],
+    );
+    if (rows.rows[0].count > 10000) throw Error("QUESTION_HISTORY_LIMIT");
+    return createHmac("sha256", this.continuationKey)
+      .update(
+        fingerprint({
+          workspace: ctx.workspaceId,
+          principal: ctx.principalId,
+          thread: thread.id,
+          revision: thread.revision,
+          visible: rows.rows[0].digest,
+        }),
+      )
+      .digest("hex");
+  }
   private submit?: (
     ctx: Context,
     payload: { threadId: string; turnId: string },
@@ -260,73 +298,137 @@ export class QuestionsService {
       };
     });
   }
-  async readThread(ctx: Context, threadId: string) {
+  async readThread(ctx: Context, threadId: string, cursor?: string) {
     return this.run(ctx, (db) =>
-      this.readThreadInTransaction(db, ctx, threadId),
+      this.readThreadInTransaction(db, ctx, threadId, cursor),
     );
+  }
+  private async assertScopeBudget(
+    db: PoolClient,
+    ctx: Context,
+    scope: { pageIds: string[]; sourceIds: string[] },
+  ) {
+    if (scope.pageIds.length + scope.sourceIds.length > 64)
+      throw Error("QUESTION_HISTORY_LIMIT");
+    const sizes = (
+      await db.query(
+        `SELECT octet_length(data::text) AS bytes FROM pages WHERE workspace_id=$1 AND id=ANY($2::text[]) UNION ALL SELECT octet_length(data::text) FROM versions WHERE workspace_id=$1 AND page_id=ANY($2::text[]) UNION ALL SELECT octet_length(data::text) FROM sources WHERE workspace_id=$1 AND id=ANY($3::text[]) LIMIT 129`,
+        [ctx.workspaceId, scope.pageIds, scope.sourceIds],
+      )
+    ).rows as { bytes: number }[];
+    if (
+      sizes.length > 128 ||
+      sizes.some((r) => r.bytes > 262144) ||
+      sizes.reduce((sum, r) => sum + r.bytes, 0) > 2097152
+    )
+      throw Error("QUESTION_HISTORY_LIMIT");
   }
   private async readThreadInTransaction(
     db: PoolClient,
     ctx: Context,
     threadId: string,
+    cursor?: string,
   ) {
     const thread = await this.thread(db, ctx, threadId);
-    // Check at most 21 rows and their uncompressed JSON size in PostgreSQL before
-    // materializing protected history or answers in the application process.
+    let before = 2147483647;
+    if (cursor) {
+      const item = this.cursors.get(cursor);
+      if (
+        !item ||
+        item.expires < Date.now() ||
+        item.workspace !== ctx.workspaceId ||
+        item.principal !== ctx.principalId ||
+        item.thread !== threadId ||
+        item.revision !== thread.revision
+      )
+        throw Error("STALE_CURSOR");
+      before = item.before;
+    }
     const sizes = (
       await db.query(
-        `SELECT octet_length(q.question) + octet_length(q.sealed::text) + COALESCE(octet_length(a.data::text), 0) AS bytes
-       FROM (SELECT question,sealed,answer_id FROM question_turns
-             WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 ORDER BY ordinal LIMIT 21) q
-       LEFT JOIN runtime_answers a ON a.workspace_id=$1 AND a.principal_id=$3 AND a.id=q.answer_id`,
-        [ctx.workspaceId, threadId, ctx.principalId],
+        `SELECT q.id,q.ordinal,octet_length(q.question)+octet_length(q.sealed::text)+COALESCE(octet_length(a.data::text),0) AS bytes FROM (SELECT id,ordinal,question,sealed,answer_id FROM question_turns WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 AND ordinal<$4 ORDER BY ordinal DESC LIMIT 21) q LEFT JOIN runtime_answers a ON a.workspace_id=$1 AND a.principal_id=$3 AND a.id=q.answer_id ORDER BY q.ordinal DESC`,
+        [ctx.workspaceId, threadId, ctx.principalId, before],
       )
-    ).rows as { bytes: number }[];
-    if (
-      sizes.length > 20 ||
-      sizes.some((row) => row.bytes > 65536) ||
-      sizes.reduce((total, row) => total + row.bytes, 0) > 262144
-    )
-      throw Error("QUESTION_HISTORY_LIMIT");
-    if (sizes.length) {
-      // RuntimeService.view loads the complete workspace. Bound that input too,
-      // before requesting its rows or reconstructing their ACL graph.
-      const workspaceSizes = (
-        await db.query(
-          `
-        SELECT 'page' AS kind, octet_length(data::text) AS bytes FROM (SELECT data FROM pages WHERE workspace_id=$1 LIMIT 129) p
-        UNION ALL SELECT 'version', octet_length(data::text) FROM (SELECT data FROM versions WHERE workspace_id=$1 LIMIT 129) v
-        UNION ALL SELECT 'source', octet_length(data::text) FROM (SELECT data FROM sources WHERE workspace_id=$1 LIMIT 129) s
-        UNION ALL SELECT 'batch', octet_length(data::text) FROM (SELECT data FROM batches WHERE workspace_id=$1 LIMIT 129) b`,
-          [ctx.workspaceId],
-        )
-      ).rows as { kind: string; bytes: number }[];
-      const counts = new Map<string, number>();
-      let bytes = 0;
-      for (const row of workspaceSizes) {
-        counts.set(row.kind, (counts.get(row.kind) ?? 0) + 1);
-        bytes += row.bytes;
-      }
-      if (
-        [...counts.values()].some((count) => count > 128) ||
-        workspaceSizes.some((row) => row.bytes > 262144) ||
-        bytes > 2097152
-      )
-        throw Error("QUESTION_HISTORY_LIMIT");
+    ).rows as { id: string; ordinal: number; bytes: number }[];
+    let hasMore = sizes.length > 20;
+    const page = sizes.slice(0, 20);
+    if (page[0]?.bytes > 65536) throw Error("QUESTION_HISTORY_LIMIT");
+    let bytes = 0;
+    let count = 0;
+    for (const row of page) {
+      if (row.bytes > 65536 || bytes + row.bytes > 262144) break;
+      bytes += row.bytes;
+      count++;
+    }
+    if (count < page.length) {
+      page.splice(count);
+      hasMore = true;
     }
     const rows = (
       await db.query(
-        "SELECT id,thread_id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed,answer_id,job_id FROM question_turns WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 ORDER BY ordinal LIMIT 20",
-        [ctx.workspaceId, threadId, ctx.principalId],
+        "SELECT id,thread_id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed,answer_id,job_id FROM question_turns WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 AND id=ANY($4::text[]) ORDER BY ordinal",
+        [ctx.workspaceId, threadId, ctx.principalId, page.map((row) => row.id)],
       )
     ).rows as Turn[];
-    return this.renderThread(
+    const pages = new Set<string>(),
+      sources = new Set<string>();
+    let processed = 0;
+    for (const turn of [...rows].reverse()) {
+      const envelopes = [turn.sealed.envelope];
+      if (turn.answer_id)
+        envelopes.push(
+          (await this.answer(db, ctx, turn.answer_id)).inputEnvelope,
+        );
+      const nextPages = new Set(pages),
+        nextSources = new Set(sources);
+      for (const env of envelopes) {
+        if (
+          !env ||
+          !Array.isArray(env.pageIds) ||
+          !Array.isArray(env.sourceIds)
+        )
+          throw Error("QUESTION_HISTORY_LIMIT");
+        for (const id of env.pageIds) nextPages.add(id);
+        for (const id of env.sourceIds) nextSources.add(id);
+      }
+      if (nextPages.size + nextSources.size > 64) {
+        if (!processed) throw Error("QUESTION_HISTORY_LIMIT");
+        const index = rows.indexOf(turn);
+        rows.splice(0, index + 1);
+        page.splice(rows.length);
+        hasMore = true;
+        break;
+      }
+      for (const id of nextPages) pages.add(id);
+      for (const id of nextSources) sources.add(id);
+      processed++;
+    }
+    const scope = { pageIds: [...pages], sourceIds: [...sources] };
+    await this.assertScopeBudget(db, ctx, scope);
+    const result = await this.renderThread(
       db,
       ctx,
       thread,
       rows,
-      async () => (await this.options.runtime.view(db, ctx)).state,
+      async () =>
+        (await this.options.runtime.view(db, ctx, undefined, scope)).state,
+      !!cursor || hasMore,
     );
+    let nextCursor: string | null = null;
+    if (hasMore) {
+      if (this.cursors.size >= 1000)
+        this.cursors.delete(this.cursors.keys().next().value!);
+      nextCursor = randomUUID();
+      this.cursors.set(nextCursor, {
+        workspace: ctx.workspaceId,
+        principal: ctx.principalId,
+        thread: threadId,
+        revision: thread.revision,
+        before: page[page.length - 1].ordinal,
+        expires: Date.now() + 900000,
+      });
+    }
+    return { ...result, nextCursor };
   }
   private async renderThread(
     db: PoolClient,
@@ -334,10 +436,11 @@ export class QuestionsService {
     thread: { id: string; revision: number },
     rows: Turn[],
     loadState: () => Promise<State>,
+    paginated = false,
   ) {
     const turns = [];
     let contextOmitted = false;
-    let roots = 0;
+    const roots = new Set<string>();
     const consume = (envelope: InputEnvelope) => {
       if (
         !envelope ||
@@ -345,8 +448,9 @@ export class QuestionsService {
         !Array.isArray(envelope.sourceIds)
       )
         throw Error("QUESTION_HISTORY_LIMIT");
-      roots += envelope.pageIds.length + envelope.sourceIds.length;
-      if (roots > 64) throw Error("QUESTION_HISTORY_LIMIT");
+      for (const id of envelope.pageIds) roots.add("page:" + id);
+      for (const id of envelope.sourceIds) roots.add("source:" + id);
+      if (roots.size > 64) throw Error("QUESTION_HISTORY_LIMIT");
     };
     const state = rows.length ? await loadState() : undefined;
     for (const turn of rows) {
@@ -384,11 +488,15 @@ export class QuestionsService {
     }
     return {
       id: thread.id,
-      revision: contextOmitted ? null : thread.revision,
+      revision: contextOmitted || paginated ? null : thread.revision,
+      ...(contextOmitted || paginated
+        ? { continuation: await this.continuation(db, ctx, thread) }
+        : {}),
       title: turns[0]?.question.slice(0, 80) ?? "접근 가능한 대화 없음",
-      turns: contextOmitted
-        ? turns.map((turn) => ({ ...turn, ordinal: null }))
-        : turns,
+      turns:
+        contextOmitted || paginated
+          ? turns.map((turn) => ({ ...turn, ordinal: null }))
+          : turns,
       contextOmitted,
     };
   }
@@ -409,7 +517,15 @@ export class QuestionsService {
           throw Error("IDEMPOTENCY_CONFLICT");
         return this.acceptance(previous);
       }
-      if (thread.revision !== input.expectedRevision)
+      const state = (await this.options.runtime.view(db, ctx)).state;
+      if (
+        typeof input.expectedRevision === "number"
+          ? thread.revision !== input.expectedRevision
+          : !timingSafeEqual(
+              Buffer.from(input.expectedRevision, "hex"),
+              Buffer.from(await this.continuation(db, ctx, thread), "hex"),
+            )
+      )
         throw Error("STALE_VERSION");
       if (
         (
@@ -420,7 +536,6 @@ export class QuestionsService {
         ).rowCount
       )
         throw Error("TURN_PENDING");
-      const state = (await this.options.runtime.view(db, ctx)).state;
       for (const sourceId of input.sourceRefs) {
         await authorizeActionDb(db, ctx, "knowledge.read", {
           kind: "source",
@@ -443,14 +558,22 @@ export class QuestionsService {
         state.sources.map((s) => s.id),
       );
       await this.qualified(db, ctx, envelope);
+      const admittedScope = {
+        pageIds: envelope.pageIds,
+        sourceIds: envelope.sourceIds,
+      };
+      await this.assertScopeBudget(db, ctx, admittedScope);
+      await this.options.runtime.view(db, ctx, undefined, admittedScope);
       const history: History[] = [];
       let contextOmitted = false;
-      const prior = (
+      const recent = (
         await db.query(
-          "SELECT * FROM question_turns WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 ORDER BY ordinal",
+          "SELECT * FROM question_turns WHERE workspace_id=$1 AND thread_id=$2 AND principal_id=$3 ORDER BY ordinal DESC LIMIT 21",
           [ctx.workspaceId, threadId, ctx.principalId],
         )
       ).rows as Turn[];
+      if (recent.length > 20) contextOmitted = true;
+      const prior = recent.slice(0, 20).reverse();
       for (const turn of prior) {
         try {
           await this.valid(db, ctx, state, turn);
@@ -470,6 +593,8 @@ export class QuestionsService {
         }
       }
       if (history.length > 100) throw Error("CONTEXT_LIMIT");
+      if (contextOmitted && typeof input.expectedRevision === "number")
+        throw Error("STALE_VERSION");
       const seal: Seal = {
         revision: thread.revision + 1,
         envelope,
@@ -477,6 +602,12 @@ export class QuestionsService {
         contextOmitted,
         policyHash: await this.policy(db, ctx, envelope),
       };
+      if (
+        Buffer.byteLength(JSON.stringify(seal)) +
+          Buffer.byteLength(input.question) >
+        30000
+      )
+        throw Error("QUESTION_HISTORY_LIMIT");
       const turnId = randomUUID();
       const row = (
         await db.query(
@@ -497,7 +628,7 @@ export class QuestionsService {
       ).rows[0] as Turn;
       const changed = await db.query(
         "UPDATE question_threads SET revision=revision+1 WHERE workspace_id=$1 AND id=$2 AND principal_id=$3 AND revision=$4",
-        [ctx.workspaceId, threadId, ctx.principalId, input.expectedRevision],
+        [ctx.workspaceId, threadId, ctx.principalId, thread.revision],
       );
       if (changed.rowCount !== 1) throw Error("STALE_VERSION");
       await audit(db, ctx, "question.accept", turnId);
@@ -514,6 +645,7 @@ export class QuestionsService {
     };
   }
   async submitTurn(ctx: Context, threadId: string, raw: unknown) {
+    if (!this.submit) throw Error("QUESTION_QUEUE_NOT_CONFIGURED");
     const accepted = await this.acceptTurn(ctx, threadId, raw);
     return this.resumeTurn(ctx, threadId, accepted.turnId);
   }
@@ -522,8 +654,6 @@ export class QuestionsService {
     await this.run(ctx, async (db) => {
       await assertQuestionWritesNotErased(db, ctx.workspaceId);
       const turn = await this.turn(db, ctx, threadId, turnId);
-      if (turn.status !== "pending" && !turn.job_id)
-        throw Error("STALE_VERSION");
       await this.valid(
         db,
         ctx,
@@ -552,13 +682,17 @@ export class QuestionsService {
     return {
       prepare: async (db: PoolClient, ctx: Context, raw: unknown) => {
         await this.guard(db, ctx);
+        await assertQuestionWritesNotErased(db, ctx.workspaceId);
         const input = preparedInput.safeParse(raw);
         const ref = input.success ? input.data : ids.parse(raw);
         const turn = await this.turn(db, ctx, ref.threadId, ref.turnId);
         if (!input.success && turn.status !== "pending")
           throw Error("TURN_ALREADY_COMPLETED");
         const thread = await this.thread(db, ctx, ref.threadId);
-        if (thread.revision !== turn.sealed.revision)
+        if (
+          turn.status === "pending" &&
+          thread.revision !== turn.sealed.revision
+        )
           throw Error("STALE_VERSION");
         const state = (await this.options.runtime.view(db, ctx)).state;
         await this.resolve(db, ctx, state, turn);
@@ -597,6 +731,7 @@ export class QuestionsService {
         return this.options.runQuery(ctx, turn.question, turn.mode, execution, {
           resolve: async (db, state) => {
             await this.guard(db, ctx);
+            await assertQuestionWritesNotErased(db, ctx.workspaceId);
             const fresh = await this.turn(
               db,
               ctx,
@@ -624,6 +759,13 @@ export class QuestionsService {
             );
             if (fresh.status !== "pending") throw Error("STALE_VERSION");
             const stored = await this.answer(db, ctx, answer.id);
+            if (
+              Buffer.byteLength(JSON.stringify(fresh.sealed)) +
+                Buffer.byteLength(fresh.question) +
+                Buffer.byteLength(JSON.stringify(stored)) >
+              55000
+            )
+              throw Error("QUESTION_HISTORY_LIMIT");
             if (stored.id !== answer.id || stored.question !== turn.question)
               throw Error("ANSWER_SCOPE_CONFLICT");
             if (
@@ -666,7 +808,8 @@ export class QuestionsService {
     turn: Turn,
   ) {
     const thread = await this.thread(db, ctx, turn.thread_id);
-    if (thread.revision !== turn.sealed.revision) throw Error("STALE_VERSION");
+    if (turn.status === "pending" && thread.revision !== turn.sealed.revision)
+      throw Error("STALE_VERSION");
     await this.valid(db, ctx, state, turn);
     const messages: Message[] = [];
     for (const h of turn.sealed.history) {
