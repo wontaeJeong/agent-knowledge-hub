@@ -55,6 +55,8 @@ interface PublishedPage {
   replacementId?: string | null;
 }
 interface ChangeSet {
+  evolutionReason?: string;
+  candidates?: { pageId: string; key: string; value: string; kind: string; conditions: Record<string, string>; validFrom: string | null; validTo: string | null; uncertainty: string; sourceId: string; sourceVersion: string; location: { start: number; end: number; quote: string } }[];
   reviewWarnings?:{pageId:string;key:string;code:'PROPERTY_REQUIRED';mode:'warn'|'block'}[];
   id: string;
   hash: string;
@@ -1192,6 +1194,9 @@ function OperationalWorkspace({
                     <small className="op-id">
                       {c.id} · 내용 해시 {c.hash}
                     </small>
+                    {c.evolutionReason && <p>모델의 변경 이유: {c.evolutionReason}</p>}
+                    {c.evolutionReason && <ul>{c.updates.map(update => <li key={update.id}>{update.title} · {update.baseVersion ? `기존 페이지 v${update.baseVersion} 갱신` : "새 분석 페이지"}</li>)}</ul>}
+                    {!!c.candidates?.length && <details><summary>미검증 주장 후보 {c.candidates.length}개</summary><p>발행 후 재검토 후보가 되며 승인 자체는 실행 검증이 아닙니다.</p><ul>{c.candidates.map((candidate, index) => <li key={index}>{candidate.pageId} · {candidate.key}: {candidate.value} · {candidate.kind} · 조건 {JSON.stringify(candidate.conditions)} · 유효 {candidate.validFrom ?? "미상"} ~ {candidate.validTo ?? "미상"} · {candidate.uncertainty}<br />원본 {candidate.sourceId} · 버전 {candidate.sourceVersion} · 위치 {candidate.location.start}–{candidate.location.end} · {candidate.location.quote}</li>)}</ul></details>}
                     {identity.spaceRole && identity.spaceRole !== "Read" && (
                       <label>
                         검토 큐 분류
@@ -1392,14 +1397,16 @@ function OperationalWorkspace({
                       }
                       onClick={() =>
                         perform(async () => {
-                          await api.post(
+                          const result = await api.post<{ outcome?: string; reason?: string }>(
                             `/answers/${encodeURIComponent(answer.id)}/file`,
                             {},
                           );
-                          setNotice(
-                            "답변을 검토 가능한 변경 제안으로 등록했습니다.",
-                          );
-                          navigate("review");
+                          if (result.outcome === "no-changes") {
+                            setNotice(`모델의 변경 없음 사유: ${result.reason || "추가할 변경이 없습니다."}`);
+                          } else {
+                            setNotice("답변을 검토 가능한 변경 제안으로 등록했습니다.");
+                            navigate("review");
+                          }
                         })
                       }
                     >

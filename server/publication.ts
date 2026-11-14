@@ -3,6 +3,9 @@ import type { Pool, PoolClient } from "pg";
 import type { Context } from "./service";
 import type { Source } from "../src/domain/types";
 import type { Batch, Draft } from "../src/domain/wiki";
+import { RefinementService } from "./refinement/service";
+import type { ProposalCandidate } from "./refinement/logic";
+import { authorizeManaged } from "./access/index";
 import {
   createBatch,
   decideBatch,
@@ -66,6 +69,19 @@ type RuntimeBatch = Batch & {
   contextDependencyIds?: string[];
   inputEnvelope?: InputEnvelope;
 };
+
+/** Model answer reintegration must never modify a page currently marked protected. */
+export async function assertUnprotectedModelTargets(
+  db: PoolClient,
+  workspaceId: string,
+  updates: Draft[],
+) {
+  const protectedPages = await db.query(
+    "SELECT 1 FROM workflow_document_state WHERE workspace_id=$1 AND page_id=ANY($2::text[]) AND data->>'protected'='true' LIMIT 1",
+    [workspaceId, updates.map((update) => update.id)],
+  );
+  if (protectedPages.rowCount) throw Error("FORBIDDEN");
+}
 
 async function permissions(
   db: PoolClient,
@@ -237,6 +253,8 @@ export async function propose(
     mode?: "offline" | "model";
     dependencyIds?: string[];
     answerId?: string;
+    candidates?: ProposalCandidate[];
+    evolutionReason?: string;
     inputEnvelope?: InputEnvelope;
     requestAuthorizationPending?: boolean;
     producer?: NonNullable<import("../src/domain/types").Version["producer"]>;
@@ -338,6 +356,10 @@ export async function propose(
           ]);
         }
         if (options?.answerId) batch.answerId = options.answerId;
+        if (options?.candidates?.length)
+          Object.assign(batch, { candidates: options.candidates });
+        if (options?.evolutionReason)
+          Object.assign(batch, { evolutionReason: options.evolutionReason });
         (batch as RuntimeBatch).producer =
           options?.producer ??
           (options?.mode === "model"
@@ -505,6 +527,15 @@ async function checkedBatch(
       await loadState(db, ctx.workspaceId),
       (batch as RuntimeBatch).inputEnvelope!,
     );
+  // Only new model-answer evolution batches have this hash-pinned marker.
+  // Existing human edits, structural answer filing and ordinary ingest retain their policy.
+  if (
+    batch.status !== "published" &&
+    batch.mode === "model" &&
+    batch.answerId &&
+    typeof (batch as Batch & { evolutionReason?: unknown }).evolutionReason === "string"
+  )
+    await assertUnprotectedModelTargets(db, ctx.workspaceId, batch.updates);
   await permissions(
     db,
     ctx,
@@ -842,6 +873,18 @@ export async function publish(
             v,
           ]);
           versions[d.id] = v.number;
+        }
+        const candidates =
+          (batch as Batch & { candidates?: ProposalCandidate[] }).candidates ?? [];
+        if (candidates.length) {
+          const refinement = new RefinementService(
+            pool,
+            async (client, actor, action, resource) => {
+              if (action !== "knowledge.read") throw Error("FORBIDDEN");
+              await authorizeManaged(client, actor, "knowledge.read", resource);
+            },
+          );
+          await refinement.publishCandidatesDb(db, ctx, id, candidates, versions);
         }
         // Source bodies remain unchanged; processing state is separate from the immutable input.
         await db.query(
