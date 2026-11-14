@@ -342,3 +342,7 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 
 P7 독립 검토 후 선택한 미완료/실패/빈 도구 출력이 다른 본문에 가려져 성공하지 않도록 저장 전 거부하며, 새로고침·수집 후에도 유효한 연결/세션 선택을 유지한다. 연결 문맥이 달라지면 메시지·도구·제목은 비운다. 실제 설치 인수·원격 소유권 독립 발견은 검증하지 않았다. fixture README의 마지막 기존 문단은 호출자 payload 경로에 대한 설명이며 별도 승인 host 경로의 구현 상태는 문서 첫 문단을 따른다.
 최종 P7 검증: Node24에서 `npm run check` 통과(프런트145, Node48, import16, 요구사항251, 서버 타입/빌드/HTTP smoke); trusted collector 실제 DB/TLS/UserInfo13개 및 React3개 통과. 첫 전체 실행은 sandbox loopback listen EPERM으로 기존9개 시험이 실패했고 권한을 허용한 동일 시험 재실행은 통과했다. 실제 사내 host/model 전송 및 운영 인수는 하지 않았다.
+
+### 2026-11-14 — P7/P9 workspace erasure integration
+- `server/storage/trusted-collector.ts` now fences a workspace with a completed erasure or a blocked receipt whose error is absent, `PHYSICAL_BLOB_PURGE_REQUIRED`, or `SHARED_LIVE_BLOB_RETAINED`. A legal-hold or failed preflight receipt alone does not indicate applied deletion. The check remains both before outbound requests and before committing the source/snapshot; other identity, session, version, and permission guards remain in place.
+- PostgreSQL 17.6 isolated collector, storage, erasure and signed-recovery regressions: 6 files / 65 tests passed; native HTTP + verified TLS tests verify zero remote requests for fenced states, while legal-hold and failed controls collect normally. An in-flight receipt blocks commit. Node 24 `npm run check` passed. Actual company host operation and external physical purge remain separate.

@@ -42,3 +42,5 @@
 기존 `implementation-status.json`, `src/data/roadmap.json`의 `demoCoverage`는 초기 로컬 시연 정보다. `operational-backlog.json`은 2026-10-30의 작업 분석 스냅샷이다. 현재 코드 연결이나 완료율로 사용하지 않는다. `check:requirements`는 251개 매핑·원래 수용 기준·미검증 상태를 확인하며 기능의 동작을 증명하지 않는다.
 
 기능 변경 PR은 해당 행과 [인계](AGENT_HANDOFF.md)에 요구사항 ID, 코드/route/UI, 실제 실행한 검사와 커밋, 남은 조건을 남긴다. 소스가 변경되면 이 문서의 기준 커밋 이후 차이를 재검토한다. 현재까지의 테스트 이력은 [TESTING](TESTING.md), 효과 측정의 계약은 [EVALUATION](EVALUATION.md)을 따른다.
+
+- P7/P9 integration: applied workspace erasure receipts, including physical-purge-pending states, fence trusted collection before outbound requests and at final commit. Legal-hold and failed preflight alone are not treated as completed erasure. Verified with synthetic PostgreSQL 17, native HTTP and local TLS; external physical deletion and production operation remain separate.

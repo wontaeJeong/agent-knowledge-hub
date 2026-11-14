@@ -529,3 +529,58 @@ test.each(["running", "error", "empty"])(
     ).toBe(before);
   },
 );
+
+test.each([
+  {status:"completed", code:null, fenced:true},
+  {status:"blocked", code:null, fenced:true},
+  {status:"blocked", code:"PHYSICAL_BLOB_PURGE_REQUIRED", fenced:true},
+  {status:"blocked", code:"SHARED_LIVE_BLOB_RETAINED", fenced:true},
+  {status:"blocked", code:"LEGAL_HOLD", fenced:false},
+  {status:"failed", code:"PHYSICAL_BLOB_PURGE_REQUIRED", fenced:false},
+])("workspace receipt $status/$code fences real HTTP and TLS before transmission: $fenced", async ({status,code,fenced}) => {
+  const f = await setup();
+  const {cert,key} = testTlsCertificate();
+  let remoteRequests = 0;
+  const remote = createHttpsServer({cert,key}, (req,res) => {
+    remoteRequests++;
+    res.setHeader("content-type","application/json");
+    res.end(JSON.stringify(req.url === "/version" ? {version:"2.2.2"} : f.artifact));
+  });
+  await new Promise<void>(resolve=>remote.listen(0,"127.0.0.1",resolve));
+  cleanup.push(()=>new Promise<void>(resolve=>{remote.closeAllConnections();remote.close(()=>resolve());}));
+  const remoteAddress=remote.address(); if (!remoteAddress || typeof remoteAddress === "string") throw Error("LISTEN");
+  const collector=new TrustedArtifactCollector(f.storage,[{...f.config,id:"tls-receipt",baseUrl:`https://127.0.0.1:${remoteAddress.port}`}],createCollectorJsonReader({ca:cert}));
+  await collector.initialize();
+  const provider=createServer((_req,res)=>{res.setHeader("content-type","application/json");res.end(JSON.stringify({sub:"synthetic-editor",groups:["editor"]}));});
+  await new Promise<void>(resolve=>provider.listen(0,"127.0.0.1",resolve));
+  cleanup.push(()=>new Promise<void>(resolve=>{provider.closeAllConnections();provider.close(()=>resolve());}));
+  const providerAddress=provider.address(); if (!providerAddress || typeof providerAddress === "string") throw Error("LISTEN");
+  const config=new oidc.Configuration({issuer:f.config.issuer,userinfo_endpoint:`http://127.0.0.1:${providerAddress.port}/userinfo`},"synthetic","synthetic"); oidc.allowInsecureRequests(config);
+  const auth=new OidcAuth(f.pool,config,"http://localhost",f.workspaceId,{editor:"editor"});
+  const session = `receipt-${f.workspaceId}`;
+  await f.pool.query("INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,expires_at,subject,access_token) VALUES($1,$2,'editor','csrf',now()+interval '1 hour','synthetic-editor','token')",[sessionHash(session),f.workspaceId]);
+  const app=createServer(createRuntimeHandler({pool:f.pool,service:new RuntimeService(f.pool),auth,origin:"http://localhost",workspaceId:f.workspaceId,storage:f.storage,artifacts:collector}));
+  await new Promise<void>(resolve=>app.listen(0,"127.0.0.1",resolve));
+  cleanup.push(()=>new Promise<void>(resolve=>{app.closeAllConnections();app.close(()=>resolve());}));
+  const address=app.address(); if (!address || typeof address === "string") throw Error("LISTEN");
+  await f.pool.query("INSERT INTO operations_erasure_receipts(workspace_id,id,preview_hash,scope,approved_by,status,counts,error_code) VALUES($1,'receipt',$2,'workspace','editor',$3,'{}',$4)",[f.workspaceId,"a".repeat(64),status,code]);
+  const before=(await f.pool.query("SELECT (SELECT count(*) FROM sources WHERE workspace_id=$1)::int AS sources,(SELECT count(*) FROM storage_snapshots WHERE workspace_id=$1)::int AS snapshots",[f.workspaceId])).rows[0];
+  const response=await fetch(`http://127.0.0.1:${address.port}/api/v1/storage/collector-connections/tls-receipt/collect`,{method:"POST",headers:{Cookie:`akh_session=${session}`,Origin:"http://localhost","X-CSRF-Token":"csrf","Content-Type":"application/json"},body:JSON.stringify(f.input)});
+  const data=await response.json();
+  if (fenced) {
+    expect(response.status).toBe(409); expect(data).toMatchObject({code:"ERASURE_WRITES_FENCED"});
+    expect(remoteRequests).toBe(0);
+    expect((await f.pool.query("SELECT (SELECT count(*) FROM sources WHERE workspace_id=$1)::int AS sources,(SELECT count(*) FROM storage_snapshots WHERE workspace_id=$1)::int AS snapshots",[f.workspaceId])).rows[0]).toEqual(before);
+  } else {
+    expect(response.status,JSON.stringify(data)).toBe(201); expect(data).toMatchObject({duplicate:false}); expect(remoteRequests).toBe(3);
+  }
+});
+
+test("erasure applied during remote fetch is rechecked before source and snapshot commit", async () => {
+  const f=await setup();
+  const before=(await f.pool.query("SELECT (SELECT count(*) FROM sources WHERE workspace_id=$1)::int AS sources,(SELECT count(*) FROM storage_snapshots WHERE workspace_id=$1)::int AS snapshots",[f.workspaceId])).rows[0];
+  f.setHook(()=>f.pool.query("INSERT INTO operations_erasure_receipts(workspace_id,id,preview_hash,scope,approved_by,status,counts,error_code) VALUES($1,'during-fetch',$2,'workspace','editor','blocked','{}','PHYSICAL_BLOB_PURGE_REQUIRED')",[f.workspaceId,"b".repeat(64)]));
+  await expect(f.collector.collect(f.editor,"personal-host",f.input)).rejects.toThrow("ERASURE_WRITES_FENCED");
+  expect(f.requests).toHaveLength(3);
+  expect((await f.pool.query("SELECT (SELECT count(*) FROM sources WHERE workspace_id=$1)::int AS sources,(SELECT count(*) FROM storage_snapshots WHERE workspace_id=$1)::int AS snapshots",[f.workspaceId])).rows[0]).toEqual(before);
+});

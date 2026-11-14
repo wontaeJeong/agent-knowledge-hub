@@ -190,9 +190,10 @@ export class TrustedArtifactCollector {
       r.principal_id !== c.principalId
     )
       throw Error("STALE_VERSION");
-    // A completed workspace erasure retires this ingestion path too; legal-hold denials do not.
+    // A logically applied workspace erasure remains fenced while physical purge
+    // is pending. A legal-hold or failed preflight did not erase the workspace.
     const erased = await db.query(
-      "SELECT 1 FROM operations_erasure_receipts WHERE workspace_id=$1 AND status='completed' AND scope='workspace' LIMIT 1",
+      "SELECT 1 FROM operations_erasure_receipts WHERE workspace_id=$1 AND scope='workspace' AND (status='completed' OR (status='blocked' AND (error_code IS NULL OR error_code IN ('PHYSICAL_BLOB_PURGE_REQUIRED','SHARED_LIVE_BLOB_RETAINED')))) LIMIT 1",
       [c.workspaceId],
     );
     if (erased.rowCount) throw Error("ERASURE_WRITES_FENCED");

@@ -233,3 +233,8 @@
 - 영향: 불완전한 선택을 성공으로 표시하거나 같은 메시지 ID를 다른 연결에 제출할 수 있었다. 합성 시험에서 재현했으며 실제 사용자 자료 수집은 실행하지 않았다.
 - 조치: 미완료 또는 텍스트 없는 선택 출력은 저장 전 거부한다. 유효한 연결/세션 선택을 유지하고 변경되면 메시지·도구·제목을 비운다.
 - 검증: 실제 DB running/error/empty 세 경우와 React 연결 갱신을 수정 전 실패로 확인했다. 최초 UI 시험은 실제 버튼 문구와 다른 selector 때문에 실패해 고친 뒤 실제 선택 재설정 실패를 재현했다. 최종 전체 검사 결과는 인계 기록 참조.
+
+### 2026-11-14 — P7/P9 erasure receipt fence integration
+- Integration testing found that the trusted collector checked only completed workspace erasures. A logically applied workspace erasure awaiting physical blob purge could therefore trigger remote requests and create a source and snapshot. No real host or production data was involved.
+- Root cause: the collector did not include the signed-recovery contract's blocked-but-applied receipt states. The fix also distinguishes legal-hold and failed preflight receipts, which did not erase data, and reuses the existing pre-fetch and commit-time guard.
+- Actual native HTTP, verified TLS and PostgreSQL tests reproduced three blocked states returning 201 before the fix; after it they return 409 without remote requests or writes. Completed, legal-hold and failed controls and an in-flight erasure race were tested. The first test fixture used a globally duplicated session identifier and failed for that fixture issue; unique session IDs exposed the intended RED. Final `npm run check` and 6 isolated PostgreSQL 17 files / 65 tests exited 0.
