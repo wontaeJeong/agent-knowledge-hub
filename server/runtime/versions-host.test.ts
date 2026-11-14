@@ -284,3 +284,115 @@ test("native partial decisions expose dependency conflicts and preserve independ
     await h.close();
   }
 });
+
+test("native restore rechecks source access after preview and rejects protected page mutation", async () => {
+  const h = await host();
+  try {
+    await h.pool.query(
+      "INSERT INTO batches VALUES($1,'original-publication','{\"status\":\"published\"}','fixture')",
+      [h.workspaceId],
+    );
+    await h.pool.query(
+      "INSERT INTO publications VALUES($1,'original-publication',$2)",
+      [
+        h.workspaceId,
+        { batchId: "original-publication", versions: { topic: 1 } },
+      ],
+    );
+    const selection = {
+      batchId: "original-publication",
+      pages: [{ pageId: "topic", fields: ["content"] }],
+    };
+    const preview = await h.request("/restore/preview", "editor", selection);
+    expect(preview.status).toBe(200);
+    await h.pool.query(
+      "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='editor'",
+      [h.workspaceId],
+    );
+    expect(
+      (
+        await h.request("/restore/propose", "editor", {
+          previewHash: preview.body.previewHash,
+          reason: "권한 변경 후 시도",
+        })
+      ).status,
+    ).toBe(404);
+    await h.pool.query(
+      "INSERT INTO resource_readers(workspace_id,kind,resource_id,principal_id) VALUES($1,'source','source-a','editor')",
+      [h.workspaceId],
+    );
+    await h.pool.query(
+      "INSERT INTO workflow_document_state(workspace_id,page_id,data) VALUES($1,'topic','{\"protected\":true}')",
+      [h.workspaceId],
+    );
+    const protectedPreview = await h.request(
+      "/restore/preview",
+      "editor",
+      selection,
+    );
+    expect(protectedPreview.status).toBe(200);
+    expect(
+      (
+        await h.request("/restore/propose", "editor", {
+          previewHash: protectedPreview.body.previewHash,
+          reason: "보호 문서 시도",
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await h.pool.query(
+          "SELECT 1 FROM batches WHERE workspace_id=$1 AND data->>'status'='pending'",
+          [h.workspaceId],
+        )
+      ).rowCount,
+    ).toBe(0);
+  } finally {
+    await h.close();
+  }
+});
+
+test("native comment anchor comparison retains the original version and never rewrites the comment", async () => {
+  const h = await host();
+  try {
+    await transaction(h.pool, h.workspaceId, async (db) => {
+      await db.query("INSERT INTO versions VALUES($1,'topic',2,$2)", [
+        h.workspaceId,
+        { ...page.versions[0], number: 2 },
+      ]);
+      await capturePublishedVersionMetadata(db, h.editor, "topic", 2);
+      await db.query("INSERT INTO versions VALUES($1,'topic',3,$2)", [
+        h.workspaceId,
+        { ...page.versions[0], number: 3, content: "새 단락\n\n기존 내용" },
+      ]);
+      await capturePublishedVersionMetadata(db, h.editor, "topic", 3);
+    });
+    await h.pool.query(
+      "INSERT INTO workflow_comments(workspace_id,id,page_id,principal_id,revision,version,anchor,data) VALUES($1,'comment-anchor','topic','reviewer',1,2,'기존 내용','{\"body\":\"검토 의견\"}')",
+      [h.workspaceId],
+    );
+    const result = await h.request(
+      "/comments/comment-anchor/anchor",
+      "reader",
+      { targetVersion: 3 },
+    );
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({
+      originalVersion: 2,
+      targetVersion: 3,
+      status: "moved",
+      resolved: true,
+      target: { startLine: 3, endLine: 3 },
+    });
+    expect(
+      (
+        await h.pool.query(
+          "SELECT version,anchor FROM workflow_comments WHERE workspace_id=$1 AND id='comment-anchor'",
+          [h.workspaceId],
+        )
+      ).rows[0],
+    ).toEqual({ version: 2, anchor: "기존 내용" });
+  } finally {
+    await h.close();
+  }
+});

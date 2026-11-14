@@ -341,3 +341,16 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 집중 합성 PostgreSQL 시험에서 실 HTTP, 소스/질문 계보, 별도 공간 격리, nonce 중복, signed 복구 재생, stale preview·보류·현재 ACL과 gate 경합을 검증했다. 정확한 명령과 결과는 작업 보고서와 PR에 기재한다. PostgreSQL 17 복구 도구를 PostgreSQL 16 합성 서버에 사용한 release 시험은 `transaction_timeout` 미지원으로 실패했으며 PG17 CI에서 별도 확인해야 한다.
 - Task 2 사용자 휴지통·복원과 주기 보존 실행은 후속 독립 PR 범위다. 사내 보존/법적 정책, 외부 백업 삭제와 운영 수용·실제 업무 품질 개선은 검증하지 않았다.
 - 독립 리뷰 후속: 복구 미리보기의 복합 기본키 `hash`를 보존하고 payload만 삭제한다. 전체 삭제와 복구 재생에서 각각 두 미리보기의 충돌을 RED→GREEN으로 확인했고 특권 SQL 함수도 해당 키 변경을 거부한다.
+
+## 2026-11-14 P2 버전 비교·선택 검토·복원 연결
+
+관련 VER-004~010, REV-004~007, KNO-014. 기존 VersionService/handleVersionRoute를 실제 cookie 인증·선택 공간·CSRF·현재 권한 검사 뒤 native HTTP에 연결하고 #versions 콘솔에 VersionsPanel을 제공한다. 인증된 사람의 비교/복원/선택 검토이며 credential 경로는 열지 않는다. 복원·부분 판단은 새 pending 묶음이고 독립 검토·발행이 필요하다. 현재 ACL·보호 내용·의존성과 원본 철회를 다시 확인하며 과거 메타데이터를 현재 값으로 채우지 않는다.
+
+변경 파일:server/runtime/http.ts/errors.ts/versions-host.test.ts,src/operational/versions.tsx/versions-interaction.test.tsx/App.tsx/console.ts/ConsoleShell.tsx,index.html. 서비스/기존 migration은 유지한다. P9 삭제·복구 보호 PR 위에 쌓인다.
+
+검증:원래 미연결 경로404→실제 HTTP 성공과 권한/CSRF 거부, stale preview409 및 의존성 분리 차단을 RED→GREEN으로 확인했다. 기존 versions5와 erasure15 회귀 통과. UI deferred 응답·서버25줄 및 발행 묶음 pagination 회귀3건이 RED→GREEN(기존2 포함5개)이다. Node24 npm run check145frontend/48Node/16import/251requirements/types/build/smoke 통과. 추가 원본 철회/보호 문서와 저장된 댓글 위치 회귀의 최종 결과는 후속 기록한다.
+
+현재 한계:배포·실제 조직 SSO·실제 모델/효과 인수는 미실행. 본문은 정확한 줄 비교이며 의미 판단이 아니다. 메타데이터/anchor 없는 과거 버전은 미확인/위치 미확정으로 남는다. UI 캡처는 docs/pr-assets/product-versions의 합성1440/390환경이다. 장기 목표의 검토 가능한 발전·현재 권한 불변식을 연결하는 기능이며 지식 품질 효과는 별도 평가 대상이다.
+
+최신 웹 문구 선호에 따라 공통 콘솔 장식 설명과 슬로건을 제거하고 문서 title/meta description을 기능 설명으로 바꿨다. 원본 브랜드 심볼은 보존한다.
+P2 최종 추가 회귀: native HTTP5개 통과(원본 접근 철회 후 복원 거부, 보호 페이지 제안403, 보존된 v2→v3 댓글 위치 이동과 원래 댓글 버전 유지 포함). 마지막 문구 변경까지 포함한 전체 npm run check도 다시 통과했다. 새 migration/권한 확대/자동 발행은 없다.

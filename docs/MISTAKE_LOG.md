@@ -228,3 +228,10 @@
 - 환경: recovery-release 시험은 PG17 Docker 도구의 `transaction_timeout` 명령을 PG16 합성 서버가 거부해 실패했다. 제품 결함으로 단정하거나 복구 통과로 표시하지 않는다. 동일 버전 PG17 CI에서 재확인한다.
 - 상태/후속: Task 1 독립 리뷰 대기. Task 2 보존/복원과 실제 운영 검증은 별도다.
 - 독립 리뷰 후속: 같은 사용자의 복구 미리보기 두 건을 삭제하면 기본키의 `hash`를 같은 표식으로 바꾸어 unique 위반으로 전체 삭제와 복구 재생이 롤백됐다. 리뷰어가 실제 DB에서 발견했고, 미리보기별 고유 해시를 유지하면서 payload만 지우도록 애플리케이션과 특권 SQL 양쪽을 수정했다. 실행·재생 각각 수정 전 실패 후 통과했고 SQL의 해시 수정 거부와 전체 검사를 확인했다.
+
+### 2026-11-14 P2 연결 전 발견한 UI 누락과 검증 절차
+- 원인/영향:기존 unmounted VersionsPanel이 서버가 이미25줄로 자른 비교를 다시 client slice하여 뒷부분을 볼 수 없었고, 과거 사용자 요청의 늦은 응답이 상태를 되살릴 수 있었다. 발행 묶음도 첫25개만 접근 가능했다.
+- 조치/검증:request generation fence, 변경/권한 거부 시 입력 초기화, 실제 서버 페이지 이동을 구현했다. 실제 React3건 RED→GREEN. native HTTP와 기존 서비스 회귀를 별도로 실행했다.
+- 실행 실패:첫 npm test는 sandbox loopback listen EPERM으로 기존9개 시험이 실패했다. 이를 읽고도 native 검증 커밋을 먼저 만들어 절차를 어겼다. 완료라고 보고하지 않고 허용된 loopback에서 전체142+48 시험을 다시 실행해 통과한 뒤 task1 완료 기록을 확인했다. 이후 전체check도 통과했다.
+- 추가 시험 구성 오류:과거 메타데이터 없는 버전의 anchor를 확정 moved로 기대했으나 실제는 ambiguous였다. 서비스의 정직한 미확정 계약을 유지하고, 안정적 이동 시험은 실제 보존된 연속 버전 metadata fixture로 수정했다.
+- UI증거:최초 exact label selector timeout 및 권한 거부 click 직후 아직 남은 DOM을 완료로 취급하지 않았다. 실제 hidden 상태를 기다려 확인 후 캡처했다. 실자료 영향 없음.
