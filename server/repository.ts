@@ -159,23 +159,58 @@ export async function audit(
 export async function loadState(
   db: PoolClient,
   workspace: string,
+  scope?: { pageIds: string[]; sourceIds: string[] },
 ): Promise<State> {
   const pages = await db.query(
-    "SELECT data FROM pages WHERE workspace_id=$1 ORDER BY id",
-    [workspace],
+    scope
+      ? "SELECT data FROM pages WHERE workspace_id=$1 AND id=ANY($2::text[]) ORDER BY id"
+      : "SELECT data FROM pages WHERE workspace_id=$1 ORDER BY id",
+    scope ? [workspace, scope.pageIds] : [workspace],
   );
   const versions = await db.query(
-    "SELECT page_id,data FROM versions WHERE workspace_id=$1 ORDER BY number",
-    [workspace],
+    scope
+      ? "SELECT page_id,data FROM versions WHERE workspace_id=$1 AND page_id=ANY($2::text[]) ORDER BY number"
+      : "SELECT page_id,data FROM versions WHERE workspace_id=$1 ORDER BY number",
+    scope ? [workspace, scope.pageIds] : [workspace],
   );
+  const scopedSourceIds = scope
+    ? [
+        ...new Set([
+          ...scope.sourceIds,
+          ...versions.rows.flatMap((v) =>
+            Array.isArray(v.data.sourceIds) ? v.data.sourceIds : [],
+          ),
+        ]),
+      ]
+    : undefined;
+  if (scopedSourceIds && scopedSourceIds.length > 128)
+    throw Error("QUESTION_HISTORY_LIMIT");
+  if (scopedSourceIds) {
+    const sizes = (
+      await db.query(
+        "SELECT octet_length(data::text) AS bytes FROM sources WHERE workspace_id=$1 AND id=ANY($2::text[]) LIMIT 129",
+        [workspace, scopedSourceIds],
+      )
+    ).rows as { bytes: number }[];
+    if (
+      sizes.length > 128 ||
+      sizes.some((row) => row.bytes > 262144) ||
+      sizes.reduce((sum, row) => sum + row.bytes, 0) > 2097152
+    )
+      throw Error("QUESTION_HISTORY_LIMIT");
+  }
   const sources = await db.query(
-    "SELECT data FROM sources WHERE workspace_id=$1 ORDER BY id",
-    [workspace],
+    scope
+      ? "SELECT data FROM sources WHERE workspace_id=$1 AND id=ANY($2::text[]) ORDER BY id"
+      : "SELECT data FROM sources WHERE workspace_id=$1 ORDER BY id",
+    scope ? [workspace, scopedSourceIds] : [workspace],
   );
-  const batches = await db.query(
-    "SELECT data FROM batches WHERE workspace_id=$1 ORDER BY id",
-    [workspace],
-  );
+  const batches = scope
+    ? { rows: [] }
+    : await db.query(
+        "SELECT data FROM batches WHERE workspace_id=$1 ORDER BY id",
+        [workspace],
+      );
   const space = await db.query(
     "SELECT n.kind FROM access_spaces s JOIN access_namespaces n ON n.id=s.namespace_id WHERE s.workspace_id=$1",
     [workspace],

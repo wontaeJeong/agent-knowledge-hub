@@ -37,7 +37,7 @@ export async function handleQuestionRoute(
       /^\/threads\/([a-zA-Z0-9_-]{1,100})(?:\/(title))?$/,
     );
     if (thread) {
-      const result = await service.readThread(ctx, thread[1]);
+      const result = await service.readThread(ctx, thread[1], url.searchParams.get("cursor") ?? undefined);
       return reply(
         thread[2]
           ? { id: result.id, title: result.title, revision: result.revision }

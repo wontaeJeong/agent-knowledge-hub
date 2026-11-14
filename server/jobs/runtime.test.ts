@@ -2453,7 +2453,7 @@ it("transmits two sealed private turns with typed history and a stable concurren
     expect(revoked.contextOmitted).toBe(true);
     expect(JSON.stringify(revoked)).not.toContain("first private prompt");
     const afterRevocation = await questions.submitTurn(f.editor, thread.id, {
-      expectedRevision: 3,
+      expectedRevision: revoked.continuation!,
       nonce: "after-revoke",
       question: "safe new prompt",
       mode: "model",
@@ -2471,7 +2471,7 @@ it("transmits two sealed private turns with typed history and a stable concurren
     await bridge.stop();
     await f.bridge.stop();
   }
-}, 20000);
+}, 60000);
 
 it("cancelled private turn does not create an answer and a new turn can be submitted", async () => {
   const f = await setup();

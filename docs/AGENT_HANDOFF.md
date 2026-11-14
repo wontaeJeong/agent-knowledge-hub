@@ -346,3 +346,8 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 요구사항 QNA-005/008/009, SRH-002/004, CORE-005: `server/questions`, `server/runtime`, `server/jobs`, `src/operational/questions.tsx`와 앱 질문 화면을 연결했다. 서버 소유 이력·원본 범위를 승인 시점과 전송·저장 직전에 검사하고, 큐의 fenced 쓰기에서 답변과 턴 완료를 함께 기록한다. 기존 P9 삭제 fence를 유지한다.
 - 검증: Node 24 `npm run check`; 실제 격리 PostgreSQL/HTTP/durable queue와 합성 loopback 모델의 두 턴·동일 nonce·영수증 소실·권한 철회 전후·취소·worker 재시작·근거 부족, 삭제·원복 회귀. 상세 실행 결과와 미실행 항목은 `.superpowers/p1-report.md` 참조. 브라우저 캡처·독립 리뷰·최종 CI는 별도다. 실제 사내 모델 품질이나 지식 성과를 주장하지 않는다.
 - 에이전트 기존 검색은 점수순/정수 offset 계약이고 질문 scoped search는 시간순/서명 cursor다. 각 경로의 현재 ACL/원본 범위는 별도 검사하며 기존 agent DTO 호환 어댑터는 PR30 discovery와 함께 후속 검토한다.
+
+- P1 독립 리뷰 수정: 숨겨진 이력의 revision은 소유자·공간·스레드·현재 revision·보이는 입력에 묶인 비복호화 MAC으로 대체한다. 오래된 토큰은 재조회하며 이미 수락된 nonce는 복구한다. 대화는 읽기 페이지별 고유 근거와 바이트 예산을 적용하고 모델 이력은 최근 서버 봉인 윈도로 별도 선택한다. terminal 취소·실패 뒤 재조회와 새 nonce, 현재 공간을 사용하는 인용·피드백·검색 버전 뷰어를 연결했다.
+- 합성 화면 검증: [1440px](pr-assets/product-conversations/review-desktop-1440.png), [390px](pr-assets/product-conversations/review-mobile-390.png). 실제 앱에서 다른 공간으로 전환한 뒤 인용 요청의 `X-Space-Id`와 해당 공간 본문, 가로 폭 및 이전 대화 병합을 확인했다. 기존 키보드 취소·403 기록도 [캡처 설명](pr-assets/product-conversations/README.md)에 보존한다. 실제 사내 자료·모델 검증은 아니다.
+
+- P1 리뷰 수정 최종 검증: Node 24 `npm run check`와 PostgreSQL 17 격리 DB 전체 서버 테스트 95개 파일 통과. 회사 IdP·운영 모델·최종 CI는 별도다.

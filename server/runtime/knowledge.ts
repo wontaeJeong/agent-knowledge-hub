@@ -135,9 +135,9 @@ export class RuntimeService {
     this.core = new KnowledgeService(pool);
     this.imports = new ImportService(pool, this);
   }
-  async view(db: PoolClient, ctx: Context, execution?: RuntimeExecution) {
+  async view(db: PoolClient, ctx: Context, execution?: RuntimeExecution, scope?: { pageIds: string[]; sourceIds: string[] }) {
     await membership(db, ctx);
-    const state = await loadState(db, ctx.workspaceId);
+    const state = await loadState(db, ctx.workspaceId, scope);
     const fingerprint = digest(state);
     const allowed = async (kind: string, id: string) =>
       (await readers(db, ctx.workspaceId, kind, id)).includes(ctx.principalId);

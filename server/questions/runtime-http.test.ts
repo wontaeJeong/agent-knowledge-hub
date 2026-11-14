@@ -87,11 +87,32 @@ test("HTTP turn returns a durable receipt and completes through the shared runti
     ).json()) as { turns: { status: string }[] };
     expect(history.turns).toHaveLength(1);
     expect(history.turns[0].status).toBe("completed");
+    await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id='source-a' AND principal_id='editor'", [f.workspaceId]);
+    const revoked = await (await fetch(`${url}/${thread.id}`, {headers:headers("editor")})).json() as {revision:null;continuation:string;contextOmitted:boolean;turns:unknown[]};
+    expect(revoked.revision).toBeNull(); expect(revoked.contextOmitted).toBe(true); expect(revoked.turns).toHaveLength(0);
+    const follow = await fetch(`${url}/${thread.id}/turns`, {method:"POST",headers:headers("editor"),body:JSON.stringify({expectedRevision:revoked.continuation,nonce:"http-after-revoke",question:"follow-up",mode:"offline"})});
+    expect(follow.status).toBe(202);
+    const followReceipt = await follow.json() as {id:string}; await jobs.workers[0].tick();
+    const result = await f.pool.query("SELECT status FROM durable_jobs WHERE id=$1", [followReceipt.id]); expect(result.rows[0].status).toBe("succeeded");
   } finally {
+    await f.pool.query("INSERT INTO resource_readers VALUES($1,'source','source-a','editor') ON CONFLICT DO NOTHING", [f.workspaceId]);
     await jobs.stop();
     await new Promise<void>((resolve) => host.close(() => resolve()));
   }
 }, 20000);
+
+test("same page version resolves using the authenticated selected workspace", async () => {
+  const other = await fixture();
+  try {
+    await adoptFixture(other.pool,other.workspaceId);
+    await other.pool.query("UPDATE versions SET data=jsonb_set(data,'{content}',to_jsonb('second workspace evidence'::text)) WHERE workspace_id=$1 AND page_id='topic' AND number=1", [other.workspaceId]);
+    const get=(workspace:string)=>fetch(base+"/api/v1/pages/topic/versions/1",{headers:{...headers("editor"),"X-Space-Id":workspace}});
+    const first=await get(f.workspaceId), second=await get(other.workspaceId);
+    expect(first.status).toBe(200); expect(second.status).toBe(200);
+    expect(JSON.stringify(await first.json())).toContain("기존 내용");
+    expect(JSON.stringify(await second.json())).toContain("second workspace evidence");
+  } finally {await other.pool.end();}
+}, 30000);
 
 test("authenticated owner can reopen a private thread through the runtime host", async () => {
   const path = "/api/v1/questions/threads";
