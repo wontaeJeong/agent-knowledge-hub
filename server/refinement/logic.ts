@@ -134,3 +134,30 @@ export function selectContext(
     unknownTime: eligible.filter((c) => !c.validFrom).map((c) => c.id),
   };
 }
+
+/** Unverified interpretation held in a proposal, never an execution attestation. */
+export const proposalCandidateInput = z
+  .object({
+    pageId: id,
+    key: z.string().min(1).max(300),
+    value: z.string().min(1).max(10000),
+    kind: z.enum(["claim", "inference", "hypothesis"]),
+    conditions,
+    exceptions: z.array(z.string().min(1).max(2000)).max(50),
+    validFrom: time.nullable(),
+    validTo: time.nullable(),
+    uncertainty: z.string().min(1).max(2000),
+    sourceId: id,
+    quote: z.string().min(1).max(20000),
+  })
+  .strict()
+  .refine(
+    (c) =>
+      !c.validTo ||
+      (!!c.validFrom && Date.parse(c.validFrom) < Date.parse(c.validTo)),
+  );
+export type ProposalCandidate = z.infer<typeof proposalCandidateInput> & {
+  sourceVersion: string;
+  location: { start: number; end: number; quote: string };
+  verifiedAt: null;
+};

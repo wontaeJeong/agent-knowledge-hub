@@ -30,6 +30,8 @@ export const extensionErrorStatuses: Readonly<Record<string, number>> =
       VERSION_QUERY_LIMIT: 413,
       AUTHOR_UNKNOWN: 409,
       TRANSACTION_INCOMPLETE: 503,
+      ARTIFACT_INCOMPLETE: 409,
+      NO_SELECTED_TOOL_TEXT: 415,
       EVIDENCE_INVALID: 400,
       EVIDENCE_MISSING: 409,
       CIRCULAR_EVIDENCE: 400,

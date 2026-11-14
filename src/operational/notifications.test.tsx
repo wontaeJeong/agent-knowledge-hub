@@ -20,3 +20,13 @@ test("delivery states keep unknown/accepted/retry distinct from delivered", () =
   expect(deliveryStateLabel("unconfigured")).toContain("미설정");
   expect(deliveryStateLabel("delivered")).toBe("전달 확인");
 });
+test("personal panel distinguishes in-app read state from email delivery", () => {
+  const html = renderToStaticMarkup(
+    <NotificationPanel
+      api={new OperationalApi()}
+      capabilities={["knowledge.read"]}
+    />,
+  );
+  expect(html).toContain("인앱 알림");
+  expect(html).toContain("이메일 전달");
+});
