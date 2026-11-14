@@ -14,6 +14,7 @@ export async function membership(db: PoolClient, ctx: Context): Promise<Role> {
     await ctx.authorization?.assertSession(db);
     const a = await effectiveAccess(db, ctx);
     if (!a.role) throw Error("NOT_FOUND");
+    if (a.legacyRole) return a.legacyRole;
     // Compatibility FK rows are not authority. Only the modern engine above can admit this principal.
     await db.query(
       "INSERT INTO memberships VALUES($1,$2,'reader') ON CONFLICT DO NOTHING",

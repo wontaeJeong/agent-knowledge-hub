@@ -55,7 +55,9 @@ export interface Identity {
   spaceRole?: import("../domain/access").SpaceRole | null;
   canReviewKnowledge?: boolean;
   personalSpace?: boolean;
+  legacyAccess?: boolean;
   csrfToken: string;
+  identityFeatures?: { emergency: boolean; directory: boolean };
   capabilities?: string[];
   effectiveRole?: "read" | "triage" | "write" | "maintain" | "admin";
   space?: {
@@ -70,15 +72,20 @@ export interface Identity {
 export class OperationalApi {
   private csrf = "";
   private meSequence = 0;
+  private sessionGeneration = 0;
   private expiredHandler?: () => void;
   onExpired(handler: (() => void) | undefined) {
     this.expiredHandler = handler;
   }
   private sessionExpired() {
     this.meSequence++;
+    this.sessionGeneration++;
     const authenticated = !!this.csrf;
     this.csrf = "";
     if (authenticated) this.expiredHandler?.();
+  }
+  clearSession() {
+    this.sessionExpired();
   }
   constructor(
     private readonly origin = "",
@@ -215,7 +222,9 @@ export class OperationalApi {
   }
   async me() {
     const sequence = ++this.meSequence;
+    const generation = this.sessionGeneration;
     const me = await this.request<Identity>("/me");
+    if (generation !== this.sessionGeneration) throw new ApiError("세션이 만료되었습니다. 다시 로그인하세요.", 401, "UNAUTHENTICATED");
     if (sequence === this.meSequence) this.csrf = me.csrfToken;
     return me;
   }
@@ -272,5 +281,6 @@ export class OperationalApi {
       redirect: "error",
     });
     if (!res.ok) throw new ApiError("로그아웃에 실패했습니다.", res.status);
+    this.clearSession();
   }
 }

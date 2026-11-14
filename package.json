@@ -19,7 +19,7 @@
     "test:watch": "vitest src",
     "typecheck": "tsc -b --pretty",
     "doctor": "node scripts/doctor.mjs",
-    "check": "npm run doctor && npm test && npm run test:imports && npm run check:requirements && npm run check:server && npm run build && npm run test:smoke",
+    "check": "npm run doctor && npm test && npm run test:imports && npm run test:evaluation && npm run check:requirements && npm run check:server && npm run build && npm run test:smoke",
     "test:imports": "vitest run server/imports/parser.test.ts server/imports/organizer.test.ts",
     "test:smoke": "node scripts/smoke.mjs",
     "test:server": "node --test scripts/test-server.test.mjs && node scripts/test-server.mjs",
@@ -30,7 +30,8 @@
     "check:requirements": "node scripts/check-requirements.mjs",
     "demo": "node scripts/serve-demo.mjs",
     "brand": "node scripts/generate-brand.mjs",
-    "format": "prettier --write src vite.config.ts scripts"
+    "format": "prettier --write src vite.config.ts scripts",
+    "test:evaluation": "node --test scripts/evaluation/*.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

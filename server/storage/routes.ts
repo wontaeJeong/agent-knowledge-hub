@@ -4,6 +4,7 @@ import { StorageService } from "./service";
 import { UrlCollector } from "./collection";
 import { z } from "zod";
 import { collectArtifact, collectorSupport } from "./collectors";
+import type { TrustedArtifactCollector } from "./trusted-collector";
 const parent = z
   .object({
     kind: z.enum(["source", "page"]),
@@ -26,6 +27,7 @@ export interface StorageRouteInput {
 export function storageRoutes(
   service: StorageService,
   collector?: UrlCollector,
+  artifacts?: TrustedArtifactCollector,
 ) {
   return async function handleStorageRoute({
     method,
@@ -38,6 +40,20 @@ export function storageRoutes(
   }: StorageRouteInput): Promise<boolean> {
     if (!path.startsWith("/api/v1/storage/")) return false;
     const suffix = path.slice("/api/v1/storage/".length);
+    if (method === "GET" && suffix === "collector-connections") {
+      send(200, artifacts ? await artifacts.list(ctx) : { items: [] });
+      return true;
+    }
+    const connection = /^collector-connections\/([a-zA-Z0-9_-]+)\/(collect|revoke)$/.exec(suffix);
+    if (method === "POST" && connection) {
+      if (!artifacts) throw Error("COLLECTOR_NOT_CONFIGURED");
+      if (connection[2] === "collect") send(201, await artifacts.collect(ctx, connection[1], body));
+      else {
+        const d = z.object({ expectedRevision: z.number().int().positive() }).strict().parse(body);
+        send(200, await artifacts.revoke(ctx, connection[1], d.expectedRevision));
+      }
+      return true;
+    }
     if (method === "PUT" && suffix === "blobs") {
       if (!req) throw Error("RAW_STREAM_REQUIRED");
       const header = z.string().max(1000).parse(req.headers["x-filename"]);
