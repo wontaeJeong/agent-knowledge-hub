@@ -333,3 +333,9 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 변경: `src/ui/AccountMenu.tsx`, `src/ui/account-menu.css`, `src/App.tsx`, `src/operational/ConsoleShell.tsx`, `src/operational/App.tsx`, `src/operational/console.ts`, `src/operational/console.css`. 지식 순환이나 기존 권한·지식 데이터는 변경하지 않는다. 기존 UI 일관성 요구를 구체화한 변경이며 기존 요구사항 ID를 변경하지 않았다.
 - 한계: 공개 Gate main은 별도 테마 컨트롤을 사용하므로 사내 드롭다운 구현과 동일한 코드를 확인한 것은 아니다. 서버 계정·세션 관리 라우트는 실제 런타임에 연결되지 않아 사용자 설정에서는 현재 정보만 표시한다. 사내 SSO 및 실제 데이터로는 검증하지 않았다.
 - 검증: Node 24에서 `npm ci`, `npm run check` 통과. 사용자 메뉴 상호작용 테스트 포함. 실제 브라우저 1440px/390px 화면 확인은 로컬 서버에 브라우저가 연결되지 않아 미실시. 최종 커밋 CI는 PR에서 별도 확인한다.
+
+### 2026-11-14 — P4 계정·세션 호스트 연결 (IAM/ACL)
+
+- 변경: `server/runtime/main.ts`, `server/runtime/http.ts`가 identity runtime을 실제 OIDC 및 인증·CSRF 뒤의 HTTP 경로에 연결한다. `src/operational/App.tsx` 계정 화면은 본인 세션 조회·철회와 전체 로그아웃을 표시하고 현재 세션 종료 시 보호 상태를 비운다. 선택 긴급 접근·디렉터리 기능은 명시적 서버 구성일 때만 제공한다. 원본 권한 상한과 canonical authorizer는 그대로 적용된다.
+- 증거: 실제 HTTP·PostgreSQL 테스트에서 타인 세션 철회 거부, CSRF, 현재 세션 쿠키 제거, 전체 로그아웃, 비활성 신원과 기본 선택 기능 비활성을 확인했다. `npm run check` 및 identity DB 테스트 통과. 브라우저 1440/390 화면과 실제 운영 IdP는 미검증이다.
+- 한계: 소유권 없는 기존 공간의 3역할 호환(P5)은 이 작업에 포함하지 않는다. 외부 IdP 로그아웃 브리지는 미구성으로 보고한다. 지식 품질·업무 성과의 개선은 평가하지 않았다.

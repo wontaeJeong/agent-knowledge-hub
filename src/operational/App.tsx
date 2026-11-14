@@ -37,6 +37,7 @@ import {GovernanceWorkbench} from './governance';
 import { StoragePanel } from "./storage";
 import { RefinementPanel } from "./refinement";
 import { JobsPanel } from "./jobs";
+import { IdentityManager, identityApiAdapter } from "./identity";
 import { resolveJob, isJobReceipt } from "./jobs-client";
 
 interface PublishedPage {
@@ -584,7 +585,7 @@ function OperationalWorkspace({
         name: identity.principalId,
         detail: identity.effectiveRole ? `${identity.space?.owner ? "Owner · " : ""}${identity.spaceRole ?? identity.effectiveRole}` : identity.role === "reviewer" ? "검토자" : identity.role === "editor" ? "작성자" : "독자",
         busy,
-        onLogout: () => { void perform(async () => { await api.logout(); window.location.assign("/"); }); },
+        onLogout: () => { void perform(async () => { await api.logout(); clearProtected(); window.location.assign("/"); }); },
       } : null}
     >
       <main id="op-main" className="op-main" tabIndex={-1}>
@@ -745,7 +746,7 @@ function OperationalWorkspace({
             <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
               {(tab !== 'account' && (preview || !['policies','activity','lifecycle','agents','integrations','evaluation'].includes(tab))) && <Management section={tab} preview={preview} navigate={navigate} />}
             </Suspense>
-            {tab === "account" && <section className="op-panel"><h2>사용자 설정</h2>{preview ? <p>미리보기에서는 실제 계정과 세션을 변경하지 않습니다.</p> : <><dl className="console-definition"><div><dt>사용자</dt><dd>{identity.principalId}</dd></div><div><dt>현재 공간</dt><dd>{identity.workspaceId}</dd></div><div><dt>역할</dt><dd>{identity.spaceRole ?? identity.effectiveRole ?? identity.role}</dd></div></dl><p>계정 정보 변경과 세션 관리는 아직 연결되지 않았습니다.</p></>}</section>}
+            {tab === "account" && <section className="op-panel"><h2>사용자 설정</h2>{preview ? <p>미리보기에서는 실제 계정과 세션을 변경하지 않습니다.</p> : <><dl className="console-definition"><div><dt>사용자</dt><dd>{identity.principalId}</dd></div><div><dt>현재 공간</dt><dd>{identity.workspaceId}</dd></div><div><dt>역할</dt><dd>{identity.spaceRole ?? identity.effectiveRole ?? identity.role}</dd></div></dl><IdentityManager api={identityApiAdapter(api)} onExpired={() => { api.clearSession(); clearProtected(); }} emergencyEnabled={identity.identityFeatures?.emergency} directoryEnabled={identity.identityFeatures?.directory} pageOptions={pages.map(({ id, title }) => ({ id, title }))} /></>}</section>}
             {(tab === "agents" || tab === "integrations") && !preview && (
               <Suspense fallback={<p role="status">에이전트 인증을 불러오는 중…</p>}>
                 <AgentCredentials key={identity.workspaceId+tab} api={api} identity={identity} onExpired={clearProtected} section={tab} />

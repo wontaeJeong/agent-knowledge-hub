@@ -56,6 +56,7 @@ export interface Identity {
   canReviewKnowledge?: boolean;
   personalSpace?: boolean;
   csrfToken: string;
+  identityFeatures?: { emergency: boolean; directory: boolean };
   capabilities?: string[];
   effectiveRole?: "read" | "triage" | "write" | "maintain" | "admin";
   space?: {
@@ -79,6 +80,9 @@ export class OperationalApi {
     const authenticated = !!this.csrf;
     this.csrf = "";
     if (authenticated) this.expiredHandler?.();
+  }
+  clearSession() {
+    this.sessionExpired();
   }
   constructor(
     private readonly origin = "",
@@ -271,5 +275,6 @@ export class OperationalApi {
       redirect: "error",
     });
     if (!res.ok) throw new ApiError("로그아웃에 실패했습니다.", res.status);
+    this.clearSession();
   }
 }

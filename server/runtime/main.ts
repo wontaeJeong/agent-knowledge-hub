@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { Pool } from "pg";
 import { migrate, assertSchemaCurrent } from "../database";
 import { OidcAuth } from "./auth";
+import { createIdentityRuntime } from "../identity/runtime";
 import { RuntimeService } from "./knowledge";
 import { createRuntimeHandler } from "./http";
 import { bootstrapAccess, validateAccessBootstrap } from "../access/index";
@@ -51,7 +52,13 @@ if (process.argv.includes("--migrate")) {
   await assertSchemaCurrent(pool);
   await assertOperationalStartup(pool);
   try{await registerTrustedDestinations(pool,JSON.parse(process.env.AKH_MODEL_DESTINATIONS_JSON??'[]'));}catch{throw Error('POLICY_CONFIGURATION');}
-  const auth = await OidcAuth.create(pool);
+  const approvers = z.array(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)).max(100).parse(JSON.parse(process.env.AKH_EMERGENCY_APPROVER_IDS ?? "[]"));
+  const bindings = z.array(z.object({ key: z.string().min(1).max(100), issuer: z.string().url(), externalGroupId: z.string().min(1).max(500), groupId: z.string().min(1).max(100), label: z.string().min(1).max(200) }).strict()).max(100).parse(JSON.parse(process.env.AKH_IDENTITY_DIRECTORY_BINDINGS ?? "[]"));
+  const identity = createIdentityRuntime(pool, {
+    platformEmergencyApproverIds: approvers,
+    ...(bindings.length ? { directoryBindings: bindings } : {}),
+  });
+  const auth = await OidcAuth.create(pool, identity.authOptions);
   // Accepted in-flight jobs are visible after restart as interrupted, never silently successful.
   await pool.query(
     `UPDATE runtime_jobs SET status='failed',error_code='PROCESS_INTERRUPTED',finished_at=now() WHERE status='running';
@@ -134,6 +141,7 @@ if (process.argv.includes("--migrate")) {
       pool,
       service,
       auth,
+      identityServices: identity.httpServices,
       origin: auth.origin,
       workspaceId: auth.workspaceId,
       storage,
