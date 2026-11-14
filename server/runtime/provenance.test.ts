@@ -286,7 +286,7 @@ test("filing keeps full uncited query context intersection and dependency envelo
       "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id=$2 AND principal_id='reader'",
       [f.workspaceId, source.id],
     );
-    const runtime = new RuntimeService(f.pool, async () => ({
+    const runtime = new RuntimeService(f.pool, async (op) => op === "ingest" ? ({ updates: [draft("answer-analysis", "broad-source")] }) : ({
       content: "restricted synthesis",
       insufficient: false,
       citations: [
@@ -300,6 +300,7 @@ test("filing keeps full uncited query context intersection and dependency envelo
     }));
     const answer = await runtime.query(f.editor, "shared-token", "model");
     const b = await runtime.file(f.editor, answer.id);
+    if ("outcome" in b) throw Error("expected proposal");
     expect(
       (await runtime.changesets(f.ctx)).find((x) => x.id === b.id)!.updates[0]
         .sourceIds,

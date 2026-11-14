@@ -11,6 +11,27 @@ import {
 } from "./api";
 
 describe("operational client boundary", () => {
+  it("explicit session clearance fences an in-flight identity response", async () => {
+    let finish!: (response: import("node:http").ServerResponse) => void;
+    const pending = new Promise<import("node:http").ServerResponse>((resolve) => { finish = resolve; });
+    let sent = "unset";
+    const server = createServer((req, res) => {
+      res.setHeader("Content-Type", "application/json");
+      if (req.url?.endsWith("/me")) { finish(res); return; }
+      sent = String(req.headers["x-csrf-token"]); res.end("{}");
+    }).listen(0, "127.0.0.1");
+    await once(server, "listening");
+    try {
+      const api = new OperationalApi(`http://127.0.0.1:${(server.address() as { port: number }).port}`);
+      const me = api.me();
+      const response = await pending;
+      api.clearSession();
+      response.end(JSON.stringify({ csrfToken: "stale" }));
+      await expect(me).rejects.toMatchObject({ status: 401 });
+      await api.post("/sources", {});
+      expect(sent).toBe("");
+    } finally { await new Promise<void>((resolve) => server.close(() => resolve())); }
+  });
   it("a late identity response cannot overwrite the newer session CSRF token", async () => {
     let resolveFirst!: (res: import("node:http").ServerResponse) => void;
     const first = new Promise<import("node:http").ServerResponse>((resolve) => {

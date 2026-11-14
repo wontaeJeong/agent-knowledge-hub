@@ -24,7 +24,7 @@ export function identityApiAdapter(
 }
 export interface IdentityProps {
   api: IdentityApi;
-  onExpired: () => void;
+  onExpired: (reason?: string) => void;
   emergencyEnabled?: boolean;
   directoryEnabled?: boolean;
   pageOptions?: readonly { id: string; title: string }[];
@@ -198,14 +198,15 @@ export function IdentityManager({
         setSessions(undefined);
         setEmergencies(undefined);
         setBindings(undefined);
-        setStatus(
-          result.idpLogout === "completed"
-            ? "제품 세션과 외부 인증 세션을 종료했습니다."
-            : result.idpLogout === "failed"
-              ? "제품 세션은 모두 종료했습니다. 외부 인증 종료는 실패했습니다."
-              : "제품 세션을 종료했습니다. 외부 인증 서비스 로그아웃은 구성되지 않았습니다.",
-        );
-        onExpired();
+        const message = result.idpLogout === "completed"
+          ? "제품 세션과 외부 인증 세션을 종료했습니다."
+          : result.idpLogout === "failed"
+            ? "제품 세션은 모두 종료했습니다. 외부 인증 종료는 실패했습니다."
+            : result.idpLogout === "not_configured"
+              ? "제품 세션을 종료했습니다. 외부 인증 서비스 로그아웃은 구성되지 않았습니다."
+              : "현재 제품 세션을 종료했습니다. 다시 로그인하세요.";
+        setStatus(message);
+        onExpired(message);
       } else {
         setStatus("서버에서 변경을 확인했습니다.");
         setReason("");
