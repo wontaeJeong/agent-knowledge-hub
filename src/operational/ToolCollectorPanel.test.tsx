@@ -81,3 +81,71 @@ test("unconfigured collector is explicit and does not offer a fabricated success
   await act(async () => root.unmount());
   vi.unstubAllGlobals();
 });
+
+test("refresh and collection preserve an active connection/session; changed context clears artifact fields", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const items = [
+    {
+      id: "a",
+      label: "A",
+      active: true,
+      revision: 1,
+      version: "2.2.2",
+      allowedSessionIds: ["ses_A"],
+    },
+    {
+      id: "b",
+      label: "B",
+      active: true,
+      revision: 1,
+      version: "2.2.2",
+      allowedSessionIds: ["ses_B1", "ses_B2"],
+    },
+  ];
+  const api = {
+    get: async () => ({ items }),
+    post: async () => ({ id: "created", duplicate: false }),
+  } as unknown as OperationalApi;
+  const el = document.createElement("div"),
+    root = createRoot(el);
+  await act(async () => root.render(<ToolCollectorPanel api={api} />));
+  const selects = () => el.querySelectorAll("select");
+  await act(async () => {
+    selects()[0].value = "b";
+    selects()[0].dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await act(async () => {
+    selects()[1].value = "ses_B2";
+    selects()[1].dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  const input = el.querySelector(
+    '[aria-label="메시지 ID"]',
+  ) as HTMLInputElement;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!.call(input, "msg_retained");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const refresh = () =>
+    Array.from(el.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("새로 고침"),
+    )!;
+  await act(async () => refresh().click());
+  expect(selects()[0].value).toBe("b");
+  expect(selects()[1].value).toBe("ses_B2");
+  expect(input.value).toBe("msg_retained");
+  await act(async () =>
+    el
+      .querySelector("form")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+  );
+  expect(selects()[1].value).toBe("ses_B2");
+  items[1].active = false;
+  await act(async () => refresh().click());
+  expect(selects()[0].value).toBe("a");
+  expect(input.value).toBe("");
+  await act(async () => root.unmount());
+  vi.unstubAllGlobals();
+});

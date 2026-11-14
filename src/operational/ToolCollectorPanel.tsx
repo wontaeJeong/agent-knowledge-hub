@@ -48,7 +48,7 @@ export function ToolCollectorPanel({
     setError(e instanceof Error ? e.message : "자료를 가져오지 못했습니다.");
     if (e instanceof ApiError && e.status === 401) expired.current?.();
   }
-  async function load() {
+  async function load(preserveSelection = true) {
     const n = ++generation.current;
     try {
       const result = await api.get<{ items: Connection[] }>(
@@ -57,9 +57,23 @@ export function ToolCollectorPanel({
       if (n !== generation.current) return;
       setConnections(result.items);
       setLoaded(true);
-      const first = result.items.find((c) => c.active);
-      setConnectionId(first?.id ?? "");
-      setSessionId(first?.allowedSessionIds[0] ?? "");
+      const next =
+        (preserveSelection &&
+          result.items.find((c) => c.active && c.id === connectionId)) ||
+        result.items.find((c) => c.active);
+      const nextSession =
+        preserveSelection &&
+        next?.id === connectionId &&
+        next.allowedSessionIds.includes(sessionId)
+          ? sessionId
+          : (next?.allowedSessionIds[0] ?? "");
+      if (next?.id !== connectionId || nextSession !== sessionId) {
+        setArtifactId("");
+        setToolIds("");
+        setTitle("");
+      }
+      setConnectionId(next?.id ?? "");
+      setSessionId(nextSession);
     } catch (e) {
       if (n === generation.current) {
         setLoaded(true);
@@ -72,7 +86,7 @@ export function ToolCollectorPanel({
     setBusy(false);
     setLoaded(false);
     setError("");
-    void load();
+    void load(false);
     return () => {
       generation.current++;
     };

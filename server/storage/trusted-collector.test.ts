@@ -481,3 +481,51 @@ test("real bounded TLS transport fetches configured host bytes and refuses redir
   );
   expect(artifactRequests).toBe(1);
 });
+
+test.each(["running", "error", "empty"])(
+  "selected %s tool cannot be omitted while assistant text yields a successful source",
+  async (status) => {
+    const f = await setup();
+    const assistant = JSON.parse(
+      await readFile(
+        new URL("./fixtures/opencode-2.2.2-assistant.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    const tool = assistant.data.content.find(
+      (p: { type: string }) => p.type === "tool",
+    );
+    if (status === "empty") tool.state.content = [];
+    else tool.state.status = status;
+    assistant.data.content.push({
+      type: "text",
+      text: "Completed summary must not hide an omitted selected output",
+    });
+    f.artifact.data = assistant.data;
+    const input = {
+      ...f.input,
+      format: "api.assistant-message",
+      artifactId: assistant.data.id,
+      selectedToolIds: [tool.id],
+    };
+    const before = (
+      await f.pool.query(
+        "SELECT count(*) n FROM sources WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows[0].n;
+    await expect(
+      f.collector.collect(f.editor, "personal-host", input),
+    ).rejects.toThrow(
+      status === "empty" ? "NO_SELECTED_TOOL_TEXT" : "ARTIFACT_INCOMPLETE",
+    );
+    expect(
+      (
+        await f.pool.query(
+          "SELECT count(*) n FROM sources WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(before);
+  },
+);

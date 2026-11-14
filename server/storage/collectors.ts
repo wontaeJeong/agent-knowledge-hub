@@ -142,9 +142,12 @@ export function collectArtifact(
     throw Error("PAYLOAD_TOO_LARGE");
   // Neither caller-provided artifact/session identifiers nor caller-provided
   // exclusions prove provenance or enforce a trusted exclusion policy.
-  if (!verifiedBinding || options.selectedIds.length !== 1 ||
-      options.selectedIds[0] !== verifiedBinding.artifactId ||
-      options.sessionId !== verifiedBinding.sessionId)
+  if (
+    !verifiedBinding ||
+    options.selectedIds.length !== 1 ||
+    options.selectedIds[0] !== verifiedBinding.artifactId ||
+    options.sessionId !== verifiedBinding.sessionId
+  )
     throw Error("ARTIFACT_SESSION_UNVERIFIED");
   if (options.format === "api.assistant-message") {
     const { data: d } = assistantEvent.parse(input);
@@ -195,8 +198,7 @@ export function collectArtifact(
         continue;
       }
       if (part.state.status !== "completed") {
-        omitted.pendingToolOutputs++;
-        continue;
+        throw Error("ARTIFACT_INCOMPLETE");
       }
       const output: string[] = [];
       for (const raw of part.state.content ?? []) {
@@ -204,6 +206,8 @@ export function collectArtifact(
         if (text.success) output.push(text.data.text);
         else omitted.nonText++;
       }
+      if (!output.some((text) => text.trim()))
+        throw Error("NO_SELECTED_TOOL_TEXT");
       if (output.length) {
         texts.push(
           `## Tool output (unverified): ${part.name}\n${output.join("\n")}`,
@@ -244,7 +248,8 @@ export function collectArtifact(
     };
   }
   const { data: d } = event.parse(input);
-  if (d.sessionID !== verifiedBinding.sessionId) throw Error("ARTIFACT_SESSION_UNVERIFIED");
+  if (d.sessionID !== verifiedBinding.sessionId)
+    throw Error("ARTIFACT_SESSION_UNVERIFIED");
   if (
     !options.selectedIds.includes(d.id) ||
     options.excludedSessionIds.includes(d.sessionID)
