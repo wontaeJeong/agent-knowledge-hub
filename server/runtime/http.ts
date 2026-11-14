@@ -820,6 +820,7 @@ export function createRuntimeHandler(options: {
         INPUT_TOO_LARGE: 413,
         ALREADY_EXISTS: 409,
         STALE_VERSION: 409,
+        RESTORE_PATH_CONFLICT: 409,
         APPROVAL_STALE: 409,
         IDEMPOTENCY_CONFLICT: 409,
         SOURCE_SCOPE_CONFLICT: 409,

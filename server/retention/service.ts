@@ -23,10 +23,11 @@ const policySchema = z
     publishedVersions: period,
     sourceVersions: period,
     runtimeResults: period,
+    trashGraceDays: period.optional().default(null),
   })
   .strict();
 export type RetentionPolicy = z.infer<typeof policySchema>;
-type Kind = Exclude<keyof RetentionPolicy, "enabled">;
+type Kind = Exclude<keyof RetentionPolicy, "enabled" | "trashGraceDays">;
 interface RecordPreview {
   kind: Kind;
   id: string;
@@ -42,6 +43,7 @@ const defaultPolicy: RetentionPolicy = {
   publishedVersions: null,
   sourceVersions: null,
   runtimeResults: null,
+  trashGraceDays: null,
 };
 // The same storage/product graph classes as operations erasure, including immutable
 // histories and released private imports. Unknown/new classes are never deleted.
