@@ -37,6 +37,7 @@ import {GovernanceWorkbench} from './governance';
 import { StoragePanel } from "./storage";
 import { RefinementPanel } from "./refinement";
 import { JobsPanel } from "./jobs";
+import { ToolCollectorPanel } from "./ToolCollectorPanel";
 import { resolveJob, isJobReceipt } from "./jobs-client";
 
 interface PublishedPage {
@@ -751,6 +752,7 @@ function OperationalWorkspace({
                 <AgentCredentials key={identity.workspaceId+tab} api={api} identity={identity} onExpired={clearProtected} section={tab} />
               </Suspense>
             )}
+            {tab === "integrations" && !preview && identity.capabilities?.includes("source.create") && <ToolCollectorPanel api={api} onExpired={clearProtected} />}
             {tab === "evaluation" && !preview && dataReady && (
               <Suspense fallback={<p role="status">평가 도구를 불러오는 중…</p>}>
                 <ModelAssessment api={api} identity={identity} pages={pages} onExpired={clearProtected} />

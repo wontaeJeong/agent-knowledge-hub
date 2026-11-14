@@ -333,3 +333,9 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 변경: `src/ui/AccountMenu.tsx`, `src/ui/account-menu.css`, `src/App.tsx`, `src/operational/ConsoleShell.tsx`, `src/operational/App.tsx`, `src/operational/console.ts`, `src/operational/console.css`. 지식 순환이나 기존 권한·지식 데이터는 변경하지 않는다. 기존 UI 일관성 요구를 구체화한 변경이며 기존 요구사항 ID를 변경하지 않았다.
 - 한계: 공개 Gate main은 별도 테마 컨트롤을 사용하므로 사내 드롭다운 구현과 동일한 코드를 확인한 것은 아니다. 서버 계정·세션 관리 라우트는 실제 런타임에 연결되지 않아 사용자 설정에서는 현재 정보만 표시한다. 사내 SSO 및 실제 데이터로는 검증하지 않았다.
 - 검증: Node 24에서 `npm ci`, `npm run check` 통과. 사용자 메뉴 상호작용 테스트 포함. 실제 브라우저 1440px/390px 화면 확인은 로컬 서버에 브라우저가 연결되지 않아 미실시. 최종 커밋 CI는 PR에서 별도 확인한다.
+
+### 2026-11-14 — P7 승인된 개인 도구 자료 수집
+- 관련 COL-003/005/008~011·INT-005/007. `storage/trusted-collector`, migration116, native routes/host 및 앱 선택 화면을 연결했다. 기존 raw artifact 제출은 계속 차단한다.
+- 서버가 승인한 개인 host/canonical 주체/세션만 직접 조회한다. 전후 version probe, 본문/시간/TLS 경계, 서버 제외 정책, 현재 source.create와 연결 revision 재검사, 재시작 후 철회 유지 및 안정적인 이벤트 중복 처리를 구현했다.
+- 실제 DB·인증 HTTP·합성 TLS10건과 기존 storage 회귀, UI2건 및 `npm run check`가 통과했다.1440/390 및 키보드 제출/권한 철회 화면은 `docs/pr-assets/product-collector/`에 기록했다. 최종 독립 리뷰와 CI는 대기 중이다.
+- 운영자가 승인한 전용 host/session 소유권 선언과 호환 version endpoint가 필요하다. 현재 로컬1.15.0은 미지원이며2.2.2 실제 설치 인수를 완료했다고 주장하지 않는다. 사용자 세션 열람/실제 외부 수집/daemon/배포는 수행하지 않았다.
