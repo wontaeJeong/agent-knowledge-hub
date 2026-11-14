@@ -3,7 +3,7 @@ import { Pool } from "pg";
 import { createHash, randomUUID } from "node:crypto";
 import { fixture, adoptFixture, page } from "../test-support";
 import { transaction } from "../database";
-import { capturePublishedVersionMetadata } from "../workflows/versions/metadata";
+import { capturePublishedVersionMetadata, beginVersionMetadataChange } from "../workflows/versions/metadata";
 import { authorizeInTransaction } from "../access/index";
 import { OperationsService } from "./service";
 import { previewErasure, executeErasure, replayProductErasure, hasVersionWorkflowData } from "./erasure";
@@ -169,12 +169,12 @@ test("each version workflow EXISTS independently detects its own real row", asyn
     }
   } finally {db.release();}
 });
-test("trusted version capture rejects callers without the mutation gate", async () => {
+test("trusted metadata change rejects callers without the mutation gate", async () => {
   const f=await setup(), db=await f.pool.connect();
   try {
     await db.query("BEGIN");
-    await db.query("INSERT INTO versions VALUES($1,'topic',2,$2)",[f.workspaceId,{...page.versions[0],number:2}]);
-    await expect(capturePublishedVersionMetadata(db,f.editor,'topic',2)).rejects.toThrow("ERASURE_MUTATION_GATE_REQUIRED");
+    await expect(beginVersionMetadataChange(db,f.editor,'topic')).rejects.toThrow("ERASURE_MUTATION_GATE_REQUIRED");
+    await expect(capturePublishedVersionMetadata(db,f.editor,'topic',1)).rejects.toThrow("ERASURE_MUTATION_GATE_REQUIRED");
   } finally {await db.query("ROLLBACK");db.release();}
 });
 test("question copies follow resource lineage and preserve enum and identity", async () => {

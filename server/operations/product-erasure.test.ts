@@ -127,13 +127,13 @@ test("resource preview reports an unlineaged private turn rather than silently d
   expect((await f.pool.query('SELECT question FROM question_turns WHERE id=$1',[turn])).rows[0].question).toBe('short private text');
 });
 
-test("version capture rejects a trusted caller that omitted the gate before writes", async () => {
+test("metadata change rejects a trusted caller that omitted the gate", async () => {
   const f=await setup(), db=await f.pool.connect();
-  const { capturePublishedVersionMetadata }=await import('../workflows/versions/metadata');
+  const { beginVersionMetadataChange, capturePublishedVersionMetadata }=await import('../workflows/versions/metadata');
   try {
     await db.query('BEGIN');
-    await db.query("INSERT INTO versions(workspace_id,page_id,number,data) VALUES($1,'topic',2,$2)",[f.workspaceId,{number:2,content:'late'}]);
-    await expect(capturePublishedVersionMetadata(db,f.editor,'topic',2)).rejects.toThrow('ERASURE_MUTATION_GATE_REQUIRED');
+    await expect(beginVersionMetadataChange(db,f.editor,'topic')).rejects.toThrow('ERASURE_MUTATION_GATE_REQUIRED');
+    await expect(capturePublishedVersionMetadata(db,f.editor,'topic',1)).rejects.toThrow('ERASURE_MUTATION_GATE_REQUIRED');
   } finally {await db.query('ROLLBACK');db.release();}
 });
 

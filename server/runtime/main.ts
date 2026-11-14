@@ -97,9 +97,17 @@ if (process.argv.includes("--migrate")) {
   } catch {
     throw Error("PLATFORM_OPERATOR_CONFIGURATION_REQUIRED");
   }
+  // Only explicitly provisioned service/credential bindings may run scheduled
+  // retention. These do not grant policy editing or ordinary administrative APIs.
+  const retentionServices = z.array(z.object({
+    workspaceId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+    principalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+    credentialId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+  }).strict()).max(100).parse(JSON.parse(process.env.AKH_RETENTION_SERVICES_JSON ?? "[]"));
   const jobs = createRuntimeJobs(pool, service, {
     ...directoryFromEnvironment(),
     platformOperatorIds,
+    retentionServices,
     semanticLint: refinement.semanticJobAdapter(),
     revalidateInteractiveGrant: (binding) =>
       auth.revalidateInteractiveGrant(binding),

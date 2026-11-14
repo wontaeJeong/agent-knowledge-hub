@@ -18,6 +18,7 @@ import { modelConfig, MODEL_CONTRACT_VERSION } from "../runtime/model";
 import { ingestInput, queryInput } from "../runtime/schema";
 import { JobService, parseJobInput, type JobOptions } from "./service";
 import { JobWorker } from "./worker";
+import { ContentRetentionService } from "../retention/service";
 import type { JobInput, JobHooks, JobRun, ExecutionIdentity } from "./types";
 import {
   RuntimeIdentityAuthority,
@@ -58,6 +59,8 @@ export interface RuntimeJobsOptions extends RuntimeIdentityOptions {
       execution: RuntimeExecution,
     ) => Promise<unknown>;
   };
+  /** Exact server-approved service credential bindings for bounded retention only. */
+  retentionServices?: readonly ExecutionIdentity[];
   workerCount?: number;
   queue?: JobOptions;
   timeoutMs?: number;
@@ -82,7 +85,7 @@ export function runtimeCapabilities(
   return [...result];
 }
 const actionFor = (kind: string): Action =>
-  kind === "query"
+  kind === "retention" ? "knowledge.read" : kind === "query"
     ? "knowledge.read"
     : kind === "lint"
       ? "lint.run"
@@ -150,6 +153,9 @@ function payloadFor(
       .strict()
       .parse(payload);
   if (kind === "lint") return z.object({}).strict().parse(payload);
+  if (kind === "retention") return (internal
+    ? z.object({policyRevision:z.number().int().positive(),manager:z.unknown().optional()}).strict()
+    : z.object({policyRevision:z.number().int().positive()}).strict()).parse(payload);
   if (kind === "daily" || kind === "weekly")
     return z
       .object({
@@ -197,6 +203,15 @@ export function createRuntimeJobs(
     throw Error("INVALID_JOB_OPTIONS");
   const operators = new Set(options.platformOperatorIds ?? []);
   const authority = new RuntimeIdentityAuthority(pool, options);
+  const retentionGuard = async (db:PoolClient, workspaceId:string, ctx?:Context) => {
+    if (!ctx?.credentialId || !options.retentionServices?.some(i => i.workspaceId===workspaceId && i.principalId===ctx.principalId && i.credentialId===ctx.credentialId)) return false;
+    await authority.service(db,{workspaceId,principalId:ctx.principalId,credentialId:ctx.credentialId});
+    const row=(await db.query(`SELECT sa.sponsor_id,p.approved_by FROM access_service_accounts sa JOIN content_retention_policies p ON p.workspace_id=$1 JOIN access_principals h ON h.id=sa.sponsor_id AND h.kind='human' AND h.active WHERE sa.principal_id=$2`,[workspaceId,ctx.principalId])).rows[0];
+    if (!row || row.sponsor_id!==row.approved_by) return false;
+    await authorizeActionDb(db,{workspaceId,principalId:row.approved_by},"space.admin");
+    return true;
+  };
+  const retention = new ContentRetentionService(pool,authorizeInTransaction,{workerGuard:retentionGuard});
   const runtimeRules = readFileSync(
     new URL("../../wiki/SCHEMA.md", import.meta.url),
     "utf8",
@@ -314,7 +329,14 @@ export function createRuntimeJobs(
       )
         throw Error("SEMANTIC_SCHEDULE_NOT_SUPPORTED");
       const payload = payloadFor(input.kind, input.payload, true);
-      if (purpose !== "read") await assertJobFeatures(db, ctx, input.kind);
+      if (purpose !== "read" && input.kind !== "retention") await assertJobFeatures(db, ctx, input.kind);
+      if (input.kind === "retention") {
+        if (!await retentionGuard(db,ctx.workspaceId,ctx)) throw Error("RETENTION_WORKER_NOT_AUTHORIZED");
+        const policy=(await db.query("SELECT revision,policy FROM content_retention_policies WHERE workspace_id=$1",[ctx.workspaceId])).rows[0];
+        if (!policy?.policy?.enabled || policy.revision!==payload.policyRevision) throw Error("RETENTION_POLICY_CHANGED");
+        if (input.pageIds.length || input.sourceIds.length || input.reservation.tokens || input.reservation.costMicros || input.model) throw Error("EXECUTION_SCOPE_CONFLICT");
+        if (purpose !== "schedule" && !payload.manager) throw Error("EXECUTION_SCOPE_CONFLICT");
+      }
       await authorizeActionDb(db, ctx, actionFor(input.kind));
       if (input.kind === "query" && typeof payload.threadId === "string") {
         if (!options.questions) throw Error("QUESTION_JOBS_NOT_CONFIGURED");
@@ -397,6 +419,11 @@ export function createRuntimeJobs(
             !input.key.startsWith(`manual:${manager.scheduleId}:`))
         )
           throw Error("EXECUTION_SCOPE_CONFLICT");
+        if (input.kind === "retention") {
+          const approved=(await db.query("SELECT 1 FROM access_principals WHERE id=$1 AND kind='human' AND active",[manager.approvedBy])).rowCount;
+          if (!approved) throw Error("UNAUTHENTICATED");
+          await authorizeActionDb(db,{workspaceId:ctx.workspaceId,principalId:manager.approvedBy},"space.admin");
+        }
         if (
           actor?.kind === "service" &&
           (version.identity.principalId !== ctx.principalId ||
@@ -411,7 +438,7 @@ export function createRuntimeJobs(
           throw Error("EXECUTION_SCOPE_CONFLICT");
       } else if (
         actor?.kind === "service" &&
-        purpose === "execute" &&
+        purpose === "execute" && input.kind !== "retention" &&
         payload.semantic !== true &&
         typeof payload.threadId !== "string"
       ) {
@@ -448,6 +475,11 @@ export function createRuntimeJobs(
           kind: "source",
           id,
         });
+    },
+    authorizeRetentionSchedule: async (db,ctx) => {
+      const human=(await db.query("SELECT 1 FROM access_principals WHERE id=$1 AND kind='human' AND active",[ctx.principalId])).rowCount;
+      if (!human || ctx.credentialId) throw Error("FORBIDDEN");
+      await authorizeActionDb(db,ctx,"space.admin");
     },
     validateScheduleIdentity: serviceIdentity,
   };
@@ -869,6 +901,13 @@ export function createRuntimeJobs(
     };
   };
   const handler = async (run: JobRun) => {
+    if (run.lease.input.kind === "retention") {
+      const payload=payloadFor("retention",run.lease.input.payload,true);
+      const result:Record<string,unknown>={};
+      return {value:result,noModelCalls:true,commit:async(db:PoolClient,ctx:Context) => {
+        Object.assign(result,await retention.executeDurable(db,ctx,payload.policyRevision as number));
+      }};
+    }
     const e = execution(run),
       ctx: Context = Object.freeze({
         ...run.ctx,
@@ -1051,6 +1090,7 @@ export function createRuntimeJobs(
           lint: handler,
           daily: handler,
           weekly: handler,
+          retention: handler,
         },
         {
           workerId: `runtime-${randomUUID()}`,
@@ -1083,6 +1123,7 @@ export function createRuntimeJobs(
           input.key,
           input,
         );
+      if (input.kind === "retention") throw Error("EXECUTION_SCOPE_CONFLICT");
       if (!ctx.credentialId) throw Error("SCOPED_SERVICE_IDENTITY_REQUIRED");
       await authority.refresh({
         workspaceId: ctx.workspaceId,

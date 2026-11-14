@@ -352,3 +352,11 @@ P9 휴지통 분리 PR의 root 재검증:잘못 삽입된 template JSX를 제거
 P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화면 확인은 합성 성공 응답이며 이 실제 DB 결과와 구분한다.
 
 - 독립 리뷰 수정: 휴지통의 이름/부모 변경 복구에서 현재 문서·원본 경계는 기존 lifecycle 검사로 확인하고 `knowledge.protect` 능력을 별도 확인한다. 대상 부모의 보호 권한은 계속 개별 확인한다. 실제 adopted maintainer와 HTTP/OIDC 세션의 RED→GREEN 및 현재 원본·부모 ACL, 보호 권한, 기존 독자 ACL/버전 보존을 합성 PostgreSQL에서 확인했다. 전체 검사와 집중 DB 회귀 exit 0. UI의 충돌 안내가 위치만 제안하고 제목 변경을 언급하지 않는 문구는 후속 개선이다.
+### 2026-11-14 — P9 보존 실행·지속 작업 (LIF-005/007, VER-009/012, ACL-008)
+
+- 정책에 지정된 기간이 지난 미참조 개인 초안과 비최신 발행 버전, 원본의 오래된 스냅샷을 각각 분리해 검사한다. 버전·스냅샷은 보존된 참조와 법적 보류·미확인 스키마·현재 항목이면 차단한다. 명시 초안 소유자 범위 밖과 다른 공간은 변경하지 않는다. migration 112는 서명 원장에 포함되는 retirement와 재삽입 차단을 추가하며, 복구 격리에서 현재 원장을 재생하고 충돌 참조가 있으면 해제를 중단한다.
+- `AKH_RETENTION_SERVICES_JSON`의 정확한 서비스/credential만 실제 durable 일정과 worker의 단일 DB effect에서 실행할 수 있다. 현재 policy revision, human 승인자·스폰서 권한, service 상태와 directory, 원본/페이지의 서비스 자격 범위를 다시 검사한다. 정책 변경 권한과 원본 접근을 이 서비스에 자동 부여하지 않는다. DB gate→queue 순서와 현재 lease가 효과를 보호한다. 개인 초안 본문·제목은 결과/감사에 반환하지 않는다.
+- source snapshot의 DB 기록과 blob metadata 정리는 실제 수행하지만, CAS 파일은 별도 물리 purge 전까지 남는다. 해당 영수증은 `blocked`와 `physicalPurgePending`으로 표시하며 외부 백업·전체 복사본 삭제를 주장하지 않는다. 실행 결과의 상세 검증과 기존 PG17 복구 릴리스 환경 제한은 작업 보고서를 따른다.
+- 실회사 보존 기간·서비스 배치·TLS/IdP, 외부 백업, CAS 물리 purge와 운영 수용은 미검증이다. UI 실제 브라우저 1440/390 증거 및 독립 보안 리뷰는 코디네이터가 수행한다.
+- 잠금 순서 제한: version/snapshot DB trigger는 잘못된 늦은 삽입을 차단하지만 raw SQL이 다른 테이블 lock을 먼저 잡으면 trigger의 gate 대기와 교착할 수 있다. 지원되는 제품 호출은 transaction 시작 시 gate를 먼저 잡는 계약을 지켜야 한다. 기존 metadata helper의 무잠금 거부와 별도 trigger 대기 시험을 유지한다.
+- 최종 합성 검증: Node24 `npm run check` 종료 코드 0, 별도 PostgreSQL DB 12개 파일 216개 시험과 인증 HTTP→지속 worker 경로 종료 코드 0. 비공개 본문/제목은 주요 저장 형식을 SQL에서 해시·구조화된 계보로 투영하고 나머지 미분류 형식은 차단하는 보수적 정책이다. 이는 모든 환경의 보안 감사나 실제 보존 의무 인수가 아니다.
