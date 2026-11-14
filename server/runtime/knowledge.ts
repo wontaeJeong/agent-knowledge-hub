@@ -186,9 +186,16 @@ export class RuntimeService {
     return transaction(this.pool, ctx.workspaceId, (db) => this.view(db, ctx));
   }
   async sources(ctx: Context) {
-    await transaction(this.pool, ctx.workspaceId, (db) =>
-      authorizeManaged(db, ctx, "changeset.propose"),
-    );
+    await transaction(this.pool, ctx.workspaceId, async (db) => {
+      const legacy = ctx.authorization
+        ? (await effectiveAccess(db, ctx)).legacyRole
+        : undefined;
+      await authorizeManaged(
+        db,
+        ctx,
+        legacy ? "knowledge.read" : "changeset.propose",
+      );
+    });
     return (await this.snapshot(ctx)).state.sources;
   }
   async pages(ctx: Context) {
@@ -935,7 +942,14 @@ export class RuntimeService {
   async reject(ctx: Context, id: string, hash: string) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
       if ((await membership(db, ctx)) !== "reviewer") throw Error("FORBIDDEN");
-      await authorizeManaged(db, ctx, "triage.manage");
+      const legacy = ctx.authorization
+        ? (await effectiveAccess(db, ctx)).legacyRole
+        : undefined;
+      await authorizeManaged(
+        db,
+        ctx,
+        legacy ? "changeset.approve" : "triage.manage",
+      );
       const managed = await db.query(
         "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
         [ctx.workspaceId],

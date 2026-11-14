@@ -1,5 +1,12 @@
 # 에이전트 인계
 
+## 2026-11-14 미이관 공간 3역할 호환 — P5
+
+- 관련 IAM-001/002/004/005/006/009, ACL-001~005/007 및 CORE-008의 권한·원본 상한 불변식. `server/database.ts` 전환 직전 증거와 `server/migrations/113-legacy-roles.sql`, `server/access/legacy-compat.ts`, OIDC·공통 권한·발행·작업 큐 경로 및 운영 앱의 기존 reader 원본 조회를 연결했다. reviewer는 Maintain/Admin/Owner가 아니며 current source ACL, 독립 승인·발행 직전 권한 검사는 유지한다. 실제 지식 품질·에이전트 성능은 측정하지 않았다.
+- 기존 인증 세션과 membership의 전환 직전 증거가 없는 이미 업그레이드된 DB는 자동 복원하지 않는다. [운영자 백업 manifest 계약](LEGACY_ACCESS_RECOVERY.md)은 신뢰키·설치·만료·기존 기록과 회수 상태를 검증한다. 서명은 백업 진위를 대신하지 않는다. 현재 호출자는 fresh UserInfo로 그룹 역할을 좁히며 과거 작성자/검토자는 현재 DB membership·활성·철회와 원본 권한으로 비동기 검증한다. 회사의 실제 디렉터리 및 백업 확인은 수행하지 않았다.
+- 검증: 격리 PostgreSQL에서 이전 스키마→최신 migration, 실제 합성 서명 OIDC code flow/UserInfo·세션, 역할별 read/write/queue, 독립 검토·발행·원본 철회, 재로그인·회수·이관과 서명 manifest 합성 검사를 실행했다. Node 24 `npm run check` 통과(프런트 143, Node 48, import 16, 요구사항 251, 서버 타입·빌드·smoke). 파일별 신규 DB 9개에서 권한·OIDC·큐·발행·정책 등 113건 통과. UI 변경은 합성 브라우저 화면 증거와 독립 권한 리뷰가 필요하다.
+
+
 ## 2026-11-14 운영 고도화 제외 추가 기능 — 설계 검토 대기
 
 - 사용자 요청: 추가 기능을 구현해 기능별 PR을 열어두기. 이번 요청에서 머지는 수행하지 않는다.

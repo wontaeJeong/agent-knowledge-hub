@@ -34,6 +34,7 @@ import { handleAgentRoute } from "../agents/http";
 import { handleAgentMcp } from "../agents/mcp";
 import { accessRoute, routeAction } from "../access/http";
 import type { Context } from "../service";
+import { legacySessionRole } from "../access/legacy-compat";
 import {
   storageRoutes,
   type StorageService,
@@ -215,16 +216,6 @@ export function createRuntimeHandler(options: {
         : agent ? null : await (options.auth?.authenticate(req) ?? Promise.resolve(null));
       if (!session && !agent) return send(401, { code: "UNAUTHENTICATED", requestId });
       const actor = agent ?? session!;
-      if (
-        actor.workspaceId !== options.workspaceId &&
-        !(
-          await options.pool.query(
-            "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
-            [actor.workspaceId],
-          )
-        ).rowCount
-      )
-        return send(403, { code: "FORBIDDEN" });
       const ctx: Context = {
         requestId,
         workspaceId: actor.workspaceId,
@@ -235,6 +226,10 @@ export function createRuntimeHandler(options: {
           ? undefined
           : options.auth!.requestGuard(req, session!),
       };
+      if (actor.workspaceId !== options.workspaceId && !(await options.pool.query("SELECT 1 FROM access_spaces WHERE workspace_id=$1",[actor.workspaceId])).rowCount) {
+        if (!ctx.authorization || !await legacySessionRole(options.pool,ctx,ctx.authorization.sessionId))
+          return send(403,{code:"FORBIDDEN"});
+      }
       ticket?.identify(
         ctx.workspaceId,
         ctx.principalId,
@@ -469,8 +464,9 @@ export function createRuntimeHandler(options: {
                   options.platformOperatorIds,
                 )
               : a.capabilities,
-            effectiveRole: a.role,
-            spaceRole: {
+            legacyAccess: !!a.legacyRole,
+            effectiveRole: a.legacyRole ? null : a.role,
+            spaceRole: a.legacyRole ? null : {
               read: "Read",
               triage: "Triage",
               write: "Write",
@@ -480,7 +476,7 @@ export function createRuntimeHandler(options: {
             canReviewKnowledge:
               !ctx.credentialId && a.capabilities.includes("changeset.approve"),
             personalSpace: a.space.namespaceKind === "personal",
-            space: a.space,
+            space: a.legacyRole ? null : a.space,
           });
         } catch (e) {
           if (
@@ -590,8 +586,10 @@ export function createRuntimeHandler(options: {
         return;
       if (path === "/mcp" && !(await access.effective(ctx)).role)
         throw Error("NOT_FOUND");
-      if (path !== "/mcp")
-        await authorizeAction(options.pool, ctx, routeAction(path, req.method));
+      if (path !== "/mcp") {
+        const legacySourceRead = path === "/api/v1/sources" && req.method === "GET" && (await access.effective(ctx)).legacyRole;
+        await authorizeAction(options.pool, ctx, legacySourceRead ? "knowledge.read" : routeAction(path, req.method));
+      }
       if (
         await handleWorkflowRoute(
           { method: req.method ?? "GET", path, body, ctx, send },

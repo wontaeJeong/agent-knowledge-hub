@@ -188,7 +188,7 @@ function OperationalWorkspace({
   const waitAbort = useMemo(() => new AbortController(), [api]);
   useEffect(() => () => waitAbort.abort(), [waitAbort]);
   const [spaces, setSpaces] = useState<
-    { id: string; namespaceSlug: string; slug: string; role: string }[]
+    { id: string; namespaceSlug: string; slug: string; role: string; legacyAccess?: boolean }[]
   >([]);
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -350,7 +350,7 @@ function OperationalWorkspace({
       const [p, s, c, m, j, config, availableSpaces, executors] =
         await Promise.all([
           api.get<{ items: PublishedPage[] }>("/pages"),
-          (preview || !current.capabilities || capabilities.includes("changeset.propose"))
+          (preview || !current.capabilities || capabilities.includes("changeset.propose") || (current.legacyAccess && capabilities.includes("knowledge.read")))
             ? api.get<{ items: Source[] }>("/sources")
             : Promise.resolve({ items: [] }),
           (preview || !current.capabilities || capabilities.includes("queue.triage"))
@@ -663,7 +663,7 @@ function OperationalWorkspace({
                 >
                   {spaces.map((s) => (
                     <option key={s.id} value={s.id}>
-                      @{s.namespaceSlug}/{s.slug} · {s.role}
+                      {s.legacyAccess ? `기존 공간 ${s.id}` : `@${s.namespaceSlug}/${s.slug}`} · {s.role}
                     </option>
                   ))}
                 </select>

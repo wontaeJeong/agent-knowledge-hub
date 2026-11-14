@@ -24,7 +24,7 @@
 | 주장·조건·시간·상충 / KNO-002~006·013, CORE-007 | [정련 서비스](../server/refinement/service.ts), [주장/계보 로직](../server/refinement/logic.ts), semantic job adapter와 runtime/App 정련 경로가 있다. | 자연어 상충 탐지/해소의 정확도, 편입 결과와 주장 계보의 전체 연결, 정정 후 회귀와 업무 효과. 모델 제안을 검증 사실로 승격하지 않는다. |
 | 지속 작업·일정 / JOB, MGR, CORE-011 | [runtime jobs](../server/jobs/runtime.ts), [worker](../server/jobs/worker.ts)의 `scheduleTick`, [main](../server/runtime/main.ts)의 `jobs.start()` 및 편입 worker가 있다. | 서비스 주체·실제 정책·일정별 장애 복구와 예산 인수. 개인 로컬 커넥터의 상시 daemon은 범위에서 제외한다. |
 | 사람의 편집·협업 / EDT, CLB, VER | [workflow HTTP](../server/workflows/http.ts)와 [화면](../src/operational/workflows.tsx), [governance](../server/workflows/governance/service.ts), 초안 복구 route가 runtime에 연결된다. | 별도 [versions HTTP](../server/workflows/versions/http.ts), [collaboration HTTP](../server/collaboration/http.ts)의 전체 호스트 연결과 전용 화면은 미완료다. 기존 댓글·알림 기능까지 모두 미구현으로 표시하지 않는다. |
-| 신원·접근 관리 / IAM, ACL | OIDC 세션·현재 권한, 공간·팀·Owner, 범위 자격증명 경로가 있다. | 계정 설정은 현재 정보 표시이며 별도 identity 관리 HTTP/UI는 미연결이다. 소유권이 확인되지 않은 기존 공간의 3역할 호환 격차는 아래에 남긴다. |
+| 신원·접근 관리 / IAM, ACL | OIDC 세션·현재 권한, 공간·팀·Owner, 범위 자격증명 경로가 있다. | 계정 설정은 현재 정보 표시이며 별도 identity 관리 HTTP/UI는 미연결이다. 기존 3역할 호환은 이관 전 증거와 fresh OIDC가 있는 미이관 공간에 한정하며 [복구 경계](LEGACY_ACCESS_RECOVERY.md)를 따른다. |
 | 실제 도구 수집 / COL-003·005·008 | [collectors](../server/storage/collectors.ts)에 OpenCode 2.2.2 fixture와 파서가 있다. 두 자동 형식은 `available:false`다. 수동 입력 경로는 별도다. | 검증된 artifact↔세션 결합, 서버 제외 정책, 현재 권한 및 실제 호스트 검증 전까지 자동 수집 지원으로 표시하지 않는다. |
 | 보존·삭제·복구 / LIF-005~007, VER-012, OPS-008~009 | [보존 서비스](../server/retention/service.ts)와 [삭제 경계](../server/operations/erasure.ts), 운영 도구가 있다. | 일반 보존은 제한된 미참조 개인 초안 범위다. 질문·에이전트·버전 기록의 미지원 삭제/복구 차단, 주기 보존 실행과 불변 이력 정리·복원 연결이 남는다. 차단 성공은 삭제 완료가 아니다. |
 | 개인 작업본 통합 / CORE-009, KI-01~08 | [로컬 커넥터](../scripts/wiki-connector/service.mjs)는 합성 개발 서비스 경로이고 [서버 agent 서비스](../server/agents/service.ts)에는 개인 작업본 관련 로직이 있다. | 현재 로컬 커넥터와 운영 서버의 실제 종단 통합·KI 인수는 별도다. [ADR 004](adr/004-unified-knowledge-service.md)는 제안 상태다. |
@@ -33,7 +33,7 @@
 
 ## 먼저 해소할 제품·운영 결정
 
-1. **기존 공간 업그레이드:** AGENTS의 “미이관 공간은 기존 3역할/인증 유지” 요구는 유지한다. 현재 migration/권한 계층은 소유권이 확인되지 않은 기존 공간을 격리한다. [실제 호환성 시험](../server/identity/legacy-compatibility.test.ts)과 [격차 설명](../server/identity/NATIVE_INTEGRATION.md)을 따른다. 제한된 기존 역할 호환 구현 또는 명시적 운영자 이관 선행 조건의 별도 제품 승인이 필요하며, 이 문서는 후자를 승인하지 않는다.
+1. **기존 공간 업그레이드:** 미이관 공간은 검증된 전환 직전 membership·세션 증거와 fresh OIDC에 근거해 제한된 3역할을 유지한다. 이미 010이 적용되어 증거가 없는 DB는 현재 membership을 소급 신뢰하지 않으며 [서명된 운영자 백업 진술](LEGACY_ACCESS_RECOVERY.md) 없이는 격리한다. 실제 백업 진위·운영 인수는 별도다.
 2. **첫 실제 업무 사례:** 장애 해결 등은 평가 시나리오 제안이다. 제품 사용팀의 확정된 첫 업무로 간주하지 않는다. 사례가 정해지면 성공·실패·적용 조건·독립 실행 증거와 담당 검토자를 고정한다.
 3. **부하 등급:** 동시접속 10명 이하의 초기 배포 가정, NFR-001의 동시 활성 100명 등 제안 부하, 전사 확대 가정을 각각 표시한다. 작은 부하 통과로 원래 NFR을 충족했다고 판정하지 않는다. 운영 부하/목표 변경은 근거와 승인 기록을 요구한다.
 
