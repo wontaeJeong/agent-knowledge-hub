@@ -20,6 +20,23 @@ export async function retireErasedCredentials(db: PoolClient, workspaceId: strin
   await db.query("UPDATE agent_api_keys SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE workspace_id=$1", [workspaceId]);
   await db.query("UPDATE agent_device_clients SET active=false WHERE workspace_id=$1", [workspaceId]);
   await db.query("UPDATE agent_device_grants SET status='denied' WHERE workspace_id=$1 AND status IN ('pending','approved')", [workspaceId]);
+  // Optional feature migrations may not exist in an older installation. When
+  // present, erase only the inspected authority schemas; unknown shape fails
+  // the same transaction rather than silently retaining a new authority form.
+  const schemas: Record<string, string[]> = {
+    legacy_compat_memberships: ["workspace_id:text:NO","principal_id:text:NO","role:text:NO","subject:text:NO","revoked:boolean:NO","captured_at:timestamp with time zone:NO"],
+    storage_collector_connections: ["workspace_id:text:NO","id:text:NO","principal_id:text:NO","configuration_hash:text:NO","active:boolean:NO","revision:integer:NO","created_at:timestamp with time zone:NO"],
+  };
+  for (const [table, expected] of Object.entries(schemas)) {
+    const cols=(await db.query("SELECT column_name,data_type,is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name=$1",[table])).rows;
+    if (!cols.length) continue;
+    const actual=cols.map(c=>`${c.column_name}:${c.data_type}:${c.is_nullable}`).sort();
+    if (JSON.stringify(actual)!==JSON.stringify([...expected].sort())) throw Error("ERASURE_AUTHORITY_SCHEMA_UNSUPPORTED");
+    if (table === "legacy_compat_memberships")
+      await db.query("UPDATE legacy_compat_memberships SET revoked=true WHERE workspace_id=$1 AND NOT revoked",[workspaceId]);
+    else
+      await db.query("UPDATE storage_collector_connections SET active=false,revision=revision+1 WHERE workspace_id=$1 AND active",[workspaceId]);
+  }
 }
 
 /** Trusted writes use the same transaction/gate as publication, before recording
