@@ -59,21 +59,38 @@ export async function inventory(
 ): Promise<ProductRow[]> {
   const columns = (
     await db.query(
-      "SELECT table_name,column_name,data_type FROM information_schema.columns WHERE table_schema='public' ORDER BY table_name,column_name",
+      "SELECT table_name,column_name,data_type,is_nullable FROM information_schema.columns WHERE table_schema='public' ORDER BY table_name,column_name",
     )
   ).rows;
+  // These independently introduced control tables contain authority or host
+  // configuration metadata, never product content or resource lineage. Freeze
+  // the exact SQL-visible schema: a future content column must fail closed.
+  const compatibleControls: Record<string, string[]> = {
+    legacy_compat_memberships: ["workspace_id:text:NO","principal_id:text:NO","role:text:NO","subject:text:NO","revoked:boolean:NO","captured_at:timestamp with time zone:NO"],
+    legacy_compat_installation: ["singleton:boolean:NO","installation_id:uuid:NO","import_key_fingerprint:text:YES"],
+    legacy_compat_manifest_imports: ["manifest_hash:text:NO","backup_hash:text:NO","key_fingerprint:text:NO","captured_at:timestamp with time zone:NO","issued_at:timestamp with time zone:NO","imported_at:timestamp with time zone:NO"],
+    storage_collector_connections: ["workspace_id:text:NO","id:text:NO","principal_id:text:NO","configuration_hash:text:NO","active:boolean:NO","revision:integer:NO","created_at:timestamp with time zone:NO"],
+  };
+  for (const [name, expected] of Object.entries(compatibleControls)) {
+    const actual = columns.filter(c => c.table_name === name).map(c => `${c.column_name}:${c.data_type}:${c.is_nullable}`).sort();
+    if (actual.length && JSON.stringify(actual) !== JSON.stringify([...expected].sort())) throw Error("RETENTION_GRAPH_UNSUPPORTED");
+  }
   const tables = [...new Set<string>(columns.map((c) => c.table_name))].filter(
     (t) => productTables.has(t) || releasedImportTables.has(t),
   );
   // Every workspace table must be explicitly classified, including plain
   // text tables: unknown schemas may contain untracked references.
   const controls = new Set(["access_audit","access_batch_authors","access_credentials","access_grants","access_review_rules","access_reviewers","access_shares","access_source_policy","access_spaces","access_triage","audit","content_retention_holds","content_retention_policies","content_retention_receipts","durable_budget_days","durable_budget_limits","feature_policies","legacy_v1_access_grants","legacy_v1_access_invitations","legacy_v1_access_reviewers","legacy_v1_access_spaces","legacy_v1_access_triage","memberships","operations_audit_archives","operations_audit_chain","operations_erased_artifacts","operations_erasure_receipts","operations_legal_holds","operations_policy","operations_recovery_acl","operations_tombstones","resource_readers","resources","runtime_sessions","storage_tickets","usage_events"]);
+  controls.add("legacy_compat_memberships");
+  controls.add("storage_collector_connections");
   const unknown = [...new Set<string>(columns.filter(c => c.column_name === "workspace_id").map(c => c.table_name))].filter(t => !tables.includes(t) && !controls.has(t));
   const globalControls = new Set(["access_group_members","access_groups","access_invitations","access_namespaces","access_principals","access_service_accounts","access_team_members","durable_job_fairness","durable_job_stops","identity_directory_bindings","identity_directory_edges","identity_directory_proofs","identity_events","identity_group_denies","identity_manual_group_members","identity_session_activity","legacy_v1_access_audit","legacy_v1_access_function_definitions","legacy_v1_access_org_members","legacy_v1_access_orgs","legacy_v1_access_principals","legacy_v1_access_team_members","legacy_v1_access_teams","legacy_v1_identity_subjects","model_destinations","oidc_logins","operations_alert_outbox","operations_backups","operations_recovery_releases","runtime_directory_status","schema_migrations","workspaces"]);
+  globalControls.add("legacy_compat_installation");
+  globalControls.add("legacy_compat_manifest_imports");
   const baseTables=(await db.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'")).rows;
   if (baseTables.some(r=>!tables.includes(r.table_name) && !controls.has(r.table_name) && !globalControls.has(r.table_name))) throw Error("RETENTION_GRAPH_UNSUPPORTED");
   const foreignRefs=(await db.query(`SELECT DISTINCT src.relname AS name FROM pg_constraint c JOIN pg_class src ON src.oid=c.conrelid JOIN pg_namespace ns ON ns.oid=src.relnamespace JOIN pg_class target ON target.oid=c.confrelid WHERE c.contype='f' AND ns.nspname='public' AND target.relname=ANY($1::text[])`,[["versions","sources","pages","storage_snapshots","storage_blobs","workflow_drafts"]])).rows;
-  if (unknown.length || foreignRefs.some(r=>!tables.includes(r.name) && !controls.has(r.name))) throw Error("RETENTION_GRAPH_UNSUPPORTED");
+  if (unknown.length || foreignRefs.some(r=>Object.hasOwn(compatibleControls,r.name) || (!tables.includes(r.name) && !controls.has(r.name)))) throw Error("RETENTION_GRAPH_UNSUPPORTED");
   const rows: ProductRow[] = [];
   for (const table of tables) {
     const scoped = columns.some(
