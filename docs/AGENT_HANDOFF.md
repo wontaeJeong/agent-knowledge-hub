@@ -350,3 +350,5 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 
 P9 휴지통 분리 PR의 root 재검증:잘못 삽입된 template JSX를 제거한2f4933e에서 npm run check 전체가 실제 exit0으로 통과했다. Chromium1440/390 실제 화면과 키보드 복구 흐름을 합성 API로 확인했으며 docs/pr-assets/product-trash에 보존했다. 최초 성공 오보고는 MISTAKE_LOG의 정정 기록을 유지한다. 실제 회사 보존 정책이나 실자료 삭제/복구는 실행하지 않았다.
 P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화면 확인은 합성 성공 응답이며 이 실제 DB 결과와 구분한다.
+
+- 독립 리뷰 수정: 휴지통의 이름/부모 변경 복구에서 현재 문서·원본 경계는 기존 lifecycle 검사로 확인하고 `knowledge.protect` 능력을 별도 확인한다. 대상 부모의 보호 권한은 계속 개별 확인한다. 실제 adopted maintainer와 HTTP/OIDC 세션의 RED→GREEN 및 현재 원본·부모 ACL, 보호 권한, 기존 독자 ACL/버전 보존을 합성 PostgreSQL에서 확인했다. 전체 검사와 집중 DB 회귀 exit 0. UI의 충돌 안내가 위치만 제안하고 제목 변경을 언급하지 않는 문구는 후속 개선이다.

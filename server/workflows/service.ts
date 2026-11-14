@@ -620,8 +620,12 @@ export class WorkflowService {
         const nextParent = restoring && d.restoreParentId !== undefined
           ? d.restoreParentId
           : d.parentId === undefined ? (r.rows[0]?.parent_id ?? null) : d.parentId;
-        if (restoring && ((d.restoreParentId !== undefined && nextParent !== (r.rows[0]?.parent_id ?? null)) || (d.restoreTitle !== undefined && d.restoreTitle !== p.title)))
-          await this.authorize(db, ctx, "knowledge.protect", {kind:"page", id:pageId});
+        if (restoring && ((d.restoreParentId !== undefined && nextParent !== (r.rows[0]?.parent_id ?? null)) || (d.restoreTitle !== undefined && d.restoreTitle !== p.title))) {
+          // run() already checked the page, its current provenance and ACL under
+          // lifecycle.manage, which alone can resolve the trashed page. Check the
+          // additional capability without resolving that page as active again.
+          await this.authorize(db, ctx, "knowledge.protect");
+        }
         if (restoring) {
           const conflict = await db.query(`SELECT 1 FROM pages p LEFT JOIN workflow_document_state s ON s.workspace_id=p.workspace_id AND s.page_id=p.id WHERE p.workspace_id=$1 AND p.id<>$2 AND coalesce(s.state,'active')<>'trash' AND s.parent_id IS NOT DISTINCT FROM $3 AND p.data->>'title'=$4 LIMIT 1`, [ctx.workspaceId,pageId,nextParent,d.restoreTitle ?? p.title]);
           if (conflict.rowCount) throw Error("RESTORE_PATH_CONFLICT");

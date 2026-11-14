@@ -42,3 +42,5 @@
 기존 `implementation-status.json`, `src/data/roadmap.json`의 `demoCoverage`는 초기 로컬 시연 정보다. `operational-backlog.json`은 2026-10-30의 작업 분석 스냅샷이다. 현재 코드 연결이나 완료율로 사용하지 않는다. `check:requirements`는 251개 매핑·원래 수용 기준·미검증 상태를 확인하며 기능의 동작을 증명하지 않는다.
 
 기능 변경 PR은 해당 행과 [인계](AGENT_HANDOFF.md)에 요구사항 ID, 코드/route/UI, 실제 실행한 검사와 커밋, 남은 조건을 남긴다. 소스가 변경되면 이 문서의 기준 커밋 이후 차이를 재검토한다. 현재까지의 테스트 이력은 [TESTING](TESTING.md), 효과 측정의 계약은 [EVALUATION](EVALUATION.md)을 따른다.
+
+- P9 휴지통 복구 독립 리뷰 수정: 실제 유지관리자의 이름/부모 변경 복구가 휴지통 페이지 재조회로 404가 되던 문제를 수정했다. 현재 원본·대상 ACL과 보호 권한을 유지하며 실제 인증/DB 회귀와 전체 검사를 통과했다. 충돌 안내에 제목 선택 설명 추가는 후속이다.
