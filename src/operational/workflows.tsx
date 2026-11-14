@@ -1506,14 +1506,6 @@ export function WorkflowPanel({
           {pageItems(templates, templatePage).map((t) => (
             <article key={t.id}>
               <strong>{t.title}</strong>
-              <p>휴지통 이동: {t.trashedAt ? new Date(t.trashedAt).toLocaleString("ko-KR") : "시각 미확인"} · 유예 만료: {t.purgeAfter ? new Date(t.purgeAfter).toLocaleString("ko-KR") : "미설정"}</p>
-              <label>복구 위치
-                <select value={restoreParents[t.id] ?? "original"} onChange={(e) => setRestoreParents({ ...restoreParents, [t.id]: e.target.value })}>
-                  <option value="original">원래 위치</option>
-                  <option value="root">최상위</option>
-                  {pages.filter((p) => p.id !== t.id).map((p) => <option key={p.id} value={`page:${p.id}`}>{p.title}</option>)}
-                </select>
-              </label>
               <Button
                 disabled={busy || !detail || !latest}
                 onClick={() => {
