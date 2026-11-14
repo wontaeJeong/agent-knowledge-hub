@@ -5,7 +5,6 @@ import type { Source } from "../src/domain/types";
 import type { Batch, Draft } from "../src/domain/wiki";
 import { RefinementService } from "./refinement/service";
 import type { ProposalCandidate } from "./refinement/logic";
-import { authorizeManaged } from "./access/index";
 import {
   createBatch,
   decideBatch,
@@ -14,7 +13,13 @@ import {
   current,
 } from "../src/domain/wiki";
 import { transaction } from "./database";
-import { authorizeActionDb, effectiveAccess } from "./access/index";
+import {
+  authorizeActionDb,
+  authorizeManaged,
+  assertResourceUpperBound,
+  effectiveAccess,
+} from "./access/index";
+import { legacyStoredRole } from "./access/legacy-compat";
 import { assertReleasedImportContext } from "./operations/released-imports";
 import {
   publicationRequirements,
@@ -281,8 +286,7 @@ export async function propose(
         "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
         [ctx.workspaceId],
       );
-      if (accessSpace.rowCount)
-        await authorizeActionDb(db, ctx, "changeset.propose");
+      await authorizeManaged(db, ctx, "changeset.propose");
       await ctx.authorization?.assertSession(db);
       if (options?.importRunId) {
         const run = await db.query(
@@ -307,7 +311,9 @@ export async function propose(
           return {
             id: old.id,
             hash: old.hash,
-            ...(replayPermissions.warnings.length ? { warnings: replayPermissions.warnings } : {}),
+            ...(replayPermissions.warnings.length
+              ? { warnings: replayPermissions.warnings }
+              : {}),
           };
         }
       }
@@ -373,7 +379,9 @@ export async function propose(
               "SELECT sponsor_id FROM access_service_accounts WHERE principal_id=$1",
               [ctx.principalId],
             )
-          ).rows[0]?.sponsor_id ?? options?.importAuthorId ?? ctx.principalId;
+          ).rows[0]?.sponsor_id ??
+          options?.importAuthorId ??
+          ctx.principalId;
         if (options?.importRunId)
           Object.assign(batch, {
             importRunId: options.importRunId,
@@ -404,7 +412,13 @@ export async function propose(
         ]);
       await audit(db, ctx, "batch.propose", batch.id);
       await options?.onCreated?.(db, { id: batch.id, hash });
-      return { id: batch.id, hash, ...(initialPermissions.warnings.length ? { warnings: initialPermissions.warnings } : {}) };
+      return {
+        id: batch.id,
+        hash,
+        ...(initialPermissions.warnings.length
+          ? { warnings: initialPermissions.warnings }
+          : {}),
+      };
     },
     { principalId: ctx.principalId, operation: "batch.propose" },
   );
@@ -427,8 +441,32 @@ async function checkedBatch(
     "SELECT n.kind,n.owner_id FROM access_spaces s JOIN access_namespaces n ON n.id=s.namespace_id WHERE s.workspace_id=$1",
     [ctx.workspaceId],
   );
-  const personal = managed.rows[0]?.kind === "personal" &&
+  const personal =
+    managed.rows[0]?.kind === "personal" &&
     managed.rows[0]?.owner_id === ctx.principalId;
+  if (!managed.rowCount && ctx.authorization) {
+    await authorizeActionDb(db, ctx, "changeset.approve");
+    const authorId =
+      (batch as RuntimeBatch).importAuthorId ??
+      (batch as RuntimeBatch).proposedBy;
+    if (!authorId || authorId === ctx.principalId) throw Error("FORBIDDEN");
+    const actor = (await db.query("SELECT issuer FROM access_principals WHERE id=$1 AND active",[ctx.principalId])).rows[0];
+    if (!ctx.authorization.verifiedIssuer || actor?.issuer !== ctx.authorization.verifiedIssuer) throw Error("FORBIDDEN");
+    const authorRole = await legacyStoredRole(db, ctx.workspaceId, authorId, ctx.authorization.verifiedIssuer);
+    if (!authorRole || authorRole === "reader") throw Error("FORBIDDEN");
+    const author = { workspaceId: ctx.workspaceId, principalId: authorId };
+    await permissions(
+      db, author, batch.updates, batch.snapshots.map((s) => s.id),
+      (batch as RuntimeBatch).contextDependencyIds,
+    );
+    const envelope = (batch as RuntimeBatch).inputEnvelope;
+    if (envelope) {
+      for (const pageId of envelope.pageIds)
+        await assertResourceUpperBound(db, author, "knowledge.read", { kind: "page", id: pageId });
+      for (const sourceId of envelope.sourceIds)
+        await assertResourceUpperBound(db, author, "knowledge.read", { kind: "source", id: sourceId });
+    }
+  }
   if (managed.rowCount && !personal) {
     if (
       !(
@@ -442,10 +480,12 @@ async function checkedBatch(
     const authorId =
       (batch as RuntimeBatch).importAuthorId ??
       (batch as RuntimeBatch).proposedBy ??
-      (await db.query(
-        "SELECT principal_id FROM access_batch_authors WHERE workspace_id=$1 AND batch_id=$2",
-        [ctx.workspaceId, id],
-      )).rows[0]?.principal_id;
+      (
+        await db.query(
+          "SELECT principal_id FROM access_batch_authors WHERE workspace_id=$1 AND batch_id=$2",
+          [ctx.workspaceId, id],
+        )
+      ).rows[0]?.principal_id;
     if (!authorId || authorId === ctx.principalId) throw Error("FORBIDDEN");
     if (
       (await membership(db, {
@@ -454,7 +494,8 @@ async function checkedBatch(
       })) === "reader"
     )
       throw Error("FORBIDDEN");
-    await authorizeActionDb(db,
+    await authorizeActionDb(
+      db,
       { workspaceId: ctx.workspaceId, principalId: authorId },
       "changeset.propose",
     );
@@ -481,14 +522,20 @@ async function checkedBatch(
     )
       throw Error("APPROVAL_STALE");
     const reviewer = disclosure.rows[0].reviewer_id;
-    await authorizeActionDb(db,
+    await authorizeActionDb(
+      db,
       { workspaceId: ctx.workspaceId, principalId: reviewer },
       "changeset.approve",
     );
-    if (!(await db.query(
-      "SELECT 1 FROM access_principals WHERE id=$1 AND active AND kind='human'",
-      [reviewer],
-    )).rowCount) throw Error("APPROVAL_STALE");
+    if (
+      !(
+        await db.query(
+          "SELECT 1 FROM access_principals WHERE id=$1 AND active AND kind='human'",
+          [reviewer],
+        )
+      ).rowCount
+    )
+      throw Error("APPROVAL_STALE");
   }
   if ((batch as RuntimeBatch).importAuthorId === ctx.principalId && !personal)
     throw Error("FORBIDDEN");
@@ -498,7 +545,8 @@ async function checkedBatch(
       principalId: (batch as RuntimeBatch).importAuthorId!,
     };
     if ((await membership(db, author)) === "reader") throw Error("FORBIDDEN");
-    if (managed.rowCount) await authorizeActionDb(db, author, "changeset.propose");
+    if (managed.rowCount)
+      await authorizeActionDb(db, author, "changeset.propose");
     await permissions(
       db,
       author,
@@ -554,12 +602,54 @@ async function reviewQualification(
   ctx: Context,
   id: string,
   approval: boolean,
+  verifiedIssuer?: string,
 ) {
   const s = await db.query(
     "SELECT policy_version,minimum_approvals FROM access_spaces WHERE workspace_id=$1",
     [ctx.workspaceId],
   );
-  if (!s.rowCount) return null; // Historical service-only fixtures are not runtime-authorized.
+  if (!s.rowCount) {
+    const present = await db.query(
+      "SELECT 1 FROM legacy_compat_memberships WHERE workspace_id=$1",
+      [ctx.workspaceId],
+    );
+    if (!present.rowCount) return null; // Historical service-only fixtures remain separate.
+    if (ctx.credentialId) throw Error("FORBIDDEN");
+    if (ctx.authorization) {
+      const actor = (await db.query("SELECT issuer FROM access_principals WHERE id=$1 AND active",[ctx.principalId])).rows[0];
+      verifiedIssuer = ctx.authorization.verifiedIssuer;
+      if (!verifiedIssuer || actor?.issuer !== verifiedIssuer) throw Error("FORBIDDEN");
+    }
+    if (!verifiedIssuer) throw Error("FORBIDDEN");
+    if (ctx.authorization)
+      await authorizeActionDb(
+        db,
+        ctx,
+        approval ? "changeset.approve" : "changeset.publish",
+      );
+    else if (
+      (await legacyStoredRole(db, ctx.workspaceId, ctx.principalId)) !==
+      "reviewer"
+    )
+      throw Error("FORBIDDEN");
+    const row = await db.query(
+      "SELECT data->>'proposedBy' AS author FROM batches WHERE workspace_id=$1 AND id=$2",
+      [ctx.workspaceId, id],
+    );
+    const authorId = row.rows[0]?.author;
+    if (!authorId || (approval && authorId === ctx.principalId))
+      throw Error("FORBIDDEN");
+    const author = await legacyStoredRole(db, ctx.workspaceId, authorId, verifiedIssuer);
+    if (!author || author === "reader") throw Error("FORBIDDEN");
+    return {
+      policy_version: 0,
+      minimum_approvals: 1,
+      authorId,
+      personal: false,
+      legacy: true,
+      verifiedIssuer,
+    };
+  }
   const a = await authorizeActionDb(
     db,
     ctx,
@@ -674,7 +764,8 @@ export async function approve(
         qualification?.personal ? "personal.save.review-free" : "batch.approve",
         id,
       );
-      if (permissionSnapshot.warnings.length) return { warnings: permissionSnapshot.warnings };
+      if (permissionSnapshot.warnings.length)
+        return { warnings: permissionSnapshot.warnings };
     },
     { principalId: ctx.principalId, operation: "batch.approve" },
   );
@@ -754,6 +845,7 @@ export async function publish(
                 { workspaceId: ctx.workspaceId, principalId: ap.principal_id },
                 id,
                 true,
+                "legacy" in qualification ? qualification.verifiedIssuer : undefined,
               );
               await permissions(
                 db,
@@ -772,14 +864,23 @@ export async function publish(
             (qualification.personal ? 1 : qualification.minimum_approvals)
           )
             throw Error("APPROVAL_STALE");
-          await authorizeActionDb(
-            db,
-            {
-              workspaceId: ctx.workspaceId,
-              principalId: qualification.authorId,
-            },
-            "changeset.propose",
-          );
+          if ("legacy" in qualification && qualification.legacy) {
+            const author = await legacyStoredRole(
+              db,
+              ctx.workspaceId,
+              qualification.authorId,
+              qualification.verifiedIssuer,
+            );
+            if (!author || author === "reader") throw Error("APPROVAL_STALE");
+          } else
+            await authorizeActionDb(
+              db,
+              {
+                workspaceId: ctx.workspaceId,
+                principalId: qualification.authorId,
+              },
+              "changeset.propose",
+            );
         }
         const state = await loadState(db, ctx.workspaceId);
         let next;
@@ -894,7 +995,9 @@ export async function publish(
         result = {
           batchId: id,
           versions,
-          ...(permissionSnapshot.warnings.length ? { warnings: permissionSnapshot.warnings } : {}),
+          ...(permissionSnapshot.warnings.length
+            ? { warnings: permissionSnapshot.warnings }
+            : {}),
         };
         await db.query("INSERT INTO publications VALUES($1,$2,$3)", [
           ctx.workspaceId,

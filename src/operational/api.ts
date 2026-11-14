@@ -55,6 +55,7 @@ export interface Identity {
   spaceRole?: import("../domain/access").SpaceRole | null;
   canReviewKnowledge?: boolean;
   personalSpace?: boolean;
+  legacyAccess?: boolean;
   csrfToken: string;
   identityFeatures?: { emergency: boolean; directory: boolean };
   capabilities?: string[];

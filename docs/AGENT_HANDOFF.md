@@ -1,5 +1,19 @@
 # 에이전트 인계
 
+## 2026-11-14 병합 CI의 동시 인증 회귀 수정
+
+- 사용자 후속 요청으로 기능 PR #32~43의 병합이 승인됐다. #37 최종 CI `43601746148`에서 같은 세션의 동시 인증 갱신이 shared row lock을 UPDATE로 승격하면서 교착됐고 유효 세션이 폐기됐다. IAM-004/005/009, QNA-005와 관련된다.
+- `server/runtime/auth.ts`에서 세션별 트랜잭션 advisory lock으로 인증 증명 갱신을 직렬화한다. 권한·만료·원본 상한 검사는 유지하며 지식 내용과 평가 주장을 바꾸지 않는다. `server/identity/native-integration.test.ts`의 interactive/poll 동시 요청 두 회귀는 수정 전 실패, 수정 후 통과했다.
+- `server/collaboration/review-race.test.ts`는 증명 시작과 만료를 한 시각에서 계산해 30초 상한을 1ms 초과하는 테스트 데이터 경합을 제거했다. Node 24 전체 `npm run check`와 PostgreSQL 17의 인증·기존 역할·질문·협업 9파일 회귀가 통과했다. 최종 원격 CI는 새 커밋에서 다시 확인한다.
+- 한계: 이 수정은 동일 세션의 증명 갱신 간 교착을 다룬다. 리뷰에서 지적한 기존 final guard와 directory gate 사이의 다른 잠금 순서 가능성은 별도 재현 대상이며 전체 교착 부재나 실서비스 인수를 주장하지 않는다.
+
+## 2026-11-14 미이관 공간 3역할 호환 — P5
+
+- 관련 IAM-001/002/004/005/006/009, ACL-001~005/007 및 CORE-008의 권한·원본 상한 불변식. `server/database.ts` 전환 직전 증거와 `server/migrations/113-legacy-roles.sql`, `server/access/legacy-compat.ts`, OIDC·공통 권한·발행·작업 큐 경로 및 운영 앱의 기존 reader 원본 조회를 연결했다. reviewer는 Maintain/Admin/Owner가 아니며 current source ACL, 독립 승인·발행 직전 권한 검사는 유지한다. 실제 지식 품질·에이전트 성능은 측정하지 않았다.
+- 독립 권한 리뷰 수정: 이관 전 공간의 query 전용 내부 자격은 변경 제안·원본 등록·편입을 허용하지 않는다. 과거 작성자의 현재 원본·문서·의존·전체 입력 권한을 재인증 강제 없이 승인·발행에 재검사한다.
+- 기존 인증 세션과 membership의 전환 직전 증거가 없는 이미 업그레이드된 DB는 자동 복원하지 않는다. [운영자 백업 manifest 계약](LEGACY_ACCESS_RECOVERY.md)은 신뢰키·설치·만료·기존 기록과 회수 상태를 검증한다. 서명은 백업 진위를 대신하지 않는다. 현재 호출자는 fresh UserInfo로 그룹 역할을 좁히며 과거 작성자/검토자는 현재 DB membership·활성·철회와 원본 권한으로 비동기 검증한다. 회사의 실제 디렉터리 및 백업 확인은 수행하지 않았다.
+- 검증: 격리 PostgreSQL에서 이전 스키마→최신 migration, 실제 합성 서명 OIDC code flow/UserInfo·세션, 역할별 read/write/queue, 독립 검토·발행·원본 철회, 재로그인·회수·이관과 서명 manifest 합성 검사를 실행했다. Node 24 `npm run check` 통과(프런트 143, Node 48, import 16, 요구사항 251, 서버 타입·빌드·smoke). 파일별 신규 DB 9개에서 권한·OIDC·큐·발행·정책 등 113건 통과. UI 변경은 합성 브라우저 화면 증거와 독립 권한 리뷰가 필요하다.
+
 ## 2026-11-14 사용자 알림·검토함 연결 — P3
 
 - CLB-003~007, LIF-002, UX-003 관련. `server/runtime/collaboration-host.ts`, `collaboration-recipient.ts`, `http.ts`, `main.ts`, `server/collaboration/service.ts`, `src/operational/notifications.tsx`와 콘솔 탐색을 연결했다. 알림 읽음과 이메일 수신 상태를 구분하고 배정 전/조회 시 현재 검토 자격과 원본 상한을 검사한다. 읽음이나 기한 확인은 검증·승인이 아니다.
@@ -342,6 +356,10 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 변경: `src/ui/AccountMenu.tsx`, `src/ui/account-menu.css`, `src/App.tsx`, `src/operational/ConsoleShell.tsx`, `src/operational/App.tsx`, `src/operational/console.ts`, `src/operational/console.css`. 지식 순환이나 기존 권한·지식 데이터는 변경하지 않는다. 기존 UI 일관성 요구를 구체화한 변경이며 기존 요구사항 ID를 변경하지 않았다.
 - 한계: 공개 Gate main은 별도 테마 컨트롤을 사용하므로 사내 드롭다운 구현과 동일한 코드를 확인한 것은 아니다. 서버 계정·세션 관리 라우트는 실제 런타임에 연결되지 않아 사용자 설정에서는 현재 정보만 표시한다. 사내 SSO 및 실제 데이터로는 검증하지 않았다.
 - 검증: Node 24에서 `npm ci`, `npm run check` 통과. 사용자 메뉴 상호작용 테스트 포함. 실제 브라우저 1440px/390px 화면 확인은 로컬 서버에 브라우저가 연결되지 않아 미실시. 최종 커밋 CI는 PR에서 별도 확인한다.
+
+- P5 독립 리뷰 수정 검증: 실제 격리 DB RED→GREEN 및 PostgreSQL 17의 UUID별 DB에서 전체 서버 테스트 95개 파일 통과. Node 24 `npm run check` 통과. 외부 IdP·실제 백업 및 외부 롤백 앵커는 별도 검증이 필요하다.
+
+P5 root 확인:독립 권한 리뷰의 조회 전용 grant 제안 우회와 과거 작성자 원본 권한 철회 누락을 실제 RED→GREEN으로 수정했다. 최종 PostgreSQL17 전체95파일 통과 로그를 확인했고, 초기 PG16/pg_restore17 불일치4건과 간헐 사용량 시각 시험 실패/재실행 기록을 유지한다. Chromium1440/390에서 기존 공간 독자 원본 목록과 쓰기 비활성을 합성 API로 확인해 docs/pr-assets/product-legacy에 남겼다. 운영자 서명은 출처 진실의 독립 증거가 아니며 실제 회사 IdP/백업 인수는 미실행이다.
 
 ### 2026-11-14 P6 근거 연결 답변 재편입
 
