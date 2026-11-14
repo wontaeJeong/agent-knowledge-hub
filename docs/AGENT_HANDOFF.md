@@ -1,5 +1,14 @@
 # 에이전트 인계
 
+## 2026-11-14 사용자 알림·검토함 연결 — P3
+
+- CLB-003~007, LIF-002, UX-003 관련. `server/runtime/collaboration-host.ts`, `collaboration-recipient.ts`, `http.ts`, `main.ts`, `server/collaboration/service.ts`, `src/operational/notifications.tsx`와 콘솔 탐색을 연결했다. 알림 읽음과 이메일 수신 상태를 구분하고 배정 전/조회 시 현재 검토 자격과 원본 상한을 검사한다. 읽음이나 기한 확인은 검증·승인이 아니다.
+- 유지 순환의 사람 검토 접근성을 개선하며 기존 지식 내용과 발행 상태를 바꾸지 않는다. 지식·에이전트 성과는 평가 계약의 대조 실험 전 목표다. worker는 `AKH_COLLABORATION_DISPATCHER_ID`의 활성 서비스 주체가 설정되어야 시작하며 현재 디렉터리 확인이 실패하면 배정하지 않는다. 이메일은 계획 문서의 승인된 서명 수신자 endpoint, 공개키/issuer, HTTPS origin allowlist, 인증 토큰과 별도 게이트웨이 설정이 모두 있을 때만 사용한다. 실제 회사 설정과 메시지 전송은 수행하지 않았다.
+- 검증: Node 24 `npm run check` 통과. 격리 PostgreSQL에서 협업 서비스·인증 HTTP·검토 경합·합성 서명 TLS endpoint와 발송 gate를 실행했다. 화면 캡처, 독립 코드 리뷰, 최종 CI 및 실제 디렉터리/메일 운영 인수는 별도다.
+- 독립 리뷰 수정: 배정 철회는 revision을 올리고 오래된 확인을 차단한다. 비동기 조회의 늦은 성공·실패는 최신 결과를 바꾸지 못하며, 설정 저장은 dispatcher 상태와 무관하게 완료되고 worker는 저장 시각부터 계획을 재개한다. 실제 브라우저 1440/390 합성 화면과 오류 캡처는 `docs/pr-assets/product-collaboration/`에 있다.
+- 한계: 기한 기반 작업함이며 변경 집합 검토 자체는 기존 변경 검토 화면의 별도 흐름이다. 실제 업무의 검토 비용과 효과는 미측정이다. 발행 자격은 별도 발행 경로에서 재검증한다.
+
+
 ## 2026-11-14 운영 고도화 제외 추가 기능 — 설계 검토 대기
 
 - 사용자 요청: 추가 기능을 구현해 기능별 PR을 열어두기. 이번 요청에서 머지는 수행하지 않는다.
