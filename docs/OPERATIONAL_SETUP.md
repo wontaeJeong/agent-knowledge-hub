@@ -1,5 +1,7 @@
 # K8s 운영 앱과 로컬 kind 개발
 
+현재 구현·미연결·삭제/복구 차단은 [현재 현황](CURRENT_STATUS.md)을 함께 확인한다. 아래 날짜별 도구 기록과 이전 backlog는 당시 범위이며 실제 운영 인수를 대체하지 않는다.
+
 이 문서는 운영형 전환 경로다. 기존 정적 데모와 다르며 **문서 또는 manifest가 있다는 이유만으로 운영 인수 완료를 뜻하지 않는다.** 현재 실제 실행 근거·미충족 항목은 AGENT_HANDOFF/TESTING을 함께 확인한다.
 
 ## 기본 구성
@@ -155,4 +157,4 @@ node scripts/k8s/verify-restore.mjs /external/private-backups/knowledge-TIMESTAM
 
 ## 웹 편입 · 조직 접근 관리 구현 (2026-10-30)
 
-[실제 실행 계약·설정·검증과 남은 범위](IMPLEMENTATION_GUIDE.md), [웹 자료 편입 설계](DATA_INGESTION.md), [대화 기록](CONVERSATION_IMPORT.md)를 참조한다. 웹/REST/MCP의 개인 원본 접수·서버 영속 정리·선택 원본 공개 승인·독립 지식 검토/발행을 연결했다. Organization/Team/공간별 역할·초대·Owner·현재 권한 철회를 구현하며 기존 공간은 명시적 이관 전까지 기존 OIDC 역할을 유지한다. 원본 제한은 관리자에게도 적용한다. 새 기능의 구현은 전체 251개 요구사항이나 실제 LLM 의미 품질/운영 인수 통과를 뜻하지 않는다.
+[실제 실행 계약·설정·검증과 남은 범위](IMPLEMENTATION_GUIDE.md), [웹 자료 편입 설계](DATA_INGESTION.md), [대화 기록](CONVERSATION_IMPORT.md)를 참조한다. 웹/REST/MCP의 개인 원본 접수·서버 영속 정리·선택 원본 공개 승인·독립 지식 검토/발행을 연결했다. Organization/Team/공간별 역할·초대·Owner·현재 권한 철회를 구현하며 기존 공간의 역할 유지 요구와 현재 소유권 미확인 공간 격리의 차이는 [현재 현황](CURRENT_STATUS.md)의 미충족 조건을 따른다. 원본 제한은 관리자에게도 적용한다. 새 기능의 구현은 전체 251개 요구사항이나 실제 LLM 의미 품질/운영 인수 통과를 뜻하지 않는다.
