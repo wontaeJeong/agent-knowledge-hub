@@ -430,17 +430,18 @@ function OperationalWorkspace({
   useEffect(() => {
     let active = true;
     let authenticated = false;
+    const epoch = requestEpoch.current;
     api
       .me()
       .then(async (me) => {
-        if (!active) return;
+        if (!active || epoch !== requestEpoch.current) return;
         authenticated = true;
         setIdentity(me);
         setSelectedReaders([me.principalId]);
         await load();
       })
       .catch((e: unknown) => {
-        if (!active) return;
+        if (!active || epoch !== requestEpoch.current) return;
         if (e instanceof ApiError && e.status === 401) {
           if (authenticated) {
             clearProtected();
@@ -456,13 +457,15 @@ function OperationalWorkspace({
     };
   }, [api, load, clearProtected]);
   const perform = async (action: () => Promise<void>) => {
+    const epoch = requestEpoch.current;
     setBusy(true);
     setError("");
     setNotice("");
     try {
       await action();
-      if (action !== load) await load();
+      if (epoch === requestEpoch.current && action !== load) await load();
     } catch (e) {
+      if (epoch !== requestEpoch.current) return;
       if (e instanceof ApiError && e.status === 401) {
         clearProtected();
       }
@@ -746,7 +749,7 @@ function OperationalWorkspace({
             <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
               {(tab !== 'account' && (preview || !['policies','activity','lifecycle','agents','integrations','evaluation'].includes(tab))) && <Management section={tab} preview={preview} navigate={navigate} />}
             </Suspense>
-            {tab === "account" && <section className="op-panel"><h2>사용자 설정</h2>{preview ? <p>미리보기에서는 실제 계정과 세션을 변경하지 않습니다.</p> : <><dl className="console-definition"><div><dt>사용자</dt><dd>{identity.principalId}</dd></div><div><dt>현재 공간</dt><dd>{identity.workspaceId}</dd></div><div><dt>역할</dt><dd>{identity.spaceRole ?? identity.effectiveRole ?? identity.role}</dd></div></dl><IdentityManager api={identityApiAdapter(api)} onExpired={() => { api.clearSession(); clearProtected(); }} emergencyEnabled={identity.identityFeatures?.emergency} directoryEnabled={identity.identityFeatures?.directory} pageOptions={pages.map(({ id, title }) => ({ id, title }))} /></>}</section>}
+            {tab === "account" && <section className="op-panel"><h2>사용자 설정</h2>{preview ? <p>미리보기에서는 실제 계정과 세션을 변경하지 않습니다.</p> : <><dl className="console-definition"><div><dt>사용자</dt><dd>{identity.principalId}</dd></div><div><dt>현재 공간</dt><dd>{identity.workspaceId}</dd></div><div><dt>역할</dt><dd>{identity.spaceRole ?? identity.effectiveRole ?? identity.role}</dd></div></dl><IdentityManager api={identityApiAdapter(api)} onExpired={(reason) => { api.clearSession(); clearProtected(reason); }} emergencyEnabled={identity.identityFeatures?.emergency} directoryEnabled={identity.identityFeatures?.directory} pageOptions={pages.map(({ id, title }) => ({ id, title }))} /></>}</section>}
             {(tab === "agents" || tab === "integrations") && !preview && (
               <Suspense fallback={<p role="status">에이전트 인증을 불러오는 중…</p>}>
                 <AgentCredentials key={identity.workspaceId+tab} api={api} identity={identity} onExpired={clearProtected} section={tab} />

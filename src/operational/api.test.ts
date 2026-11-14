@@ -27,7 +27,7 @@ describe("operational client boundary", () => {
       const response = await pending;
       api.clearSession();
       response.end(JSON.stringify({ csrfToken: "stale" }));
-      await me;
+      await expect(me).rejects.toMatchObject({ status: 401 });
       await api.post("/sources", {});
       expect(sent).toBe("");
     } finally { await new Promise<void>((resolve) => server.close(() => resolve())); }
