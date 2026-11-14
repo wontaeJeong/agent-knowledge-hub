@@ -1,3 +1,4 @@
+import {assertProductWritesNotErased} from "../../operations/product-erasure";
 import {randomUUID} from "node:crypto";
 import type {PoolClient} from "pg";
 import type {Context} from "../../service";
@@ -33,6 +34,7 @@ export async function currentMetadata(db:PoolClient,ctx:Context,pageId:string,nu
 }
 /** Trusted publication hook. Call after ALL page/version inserts, before transaction commit. */
 export async function capturePublishedVersionMetadata(db:PoolClient,ctx:Context,pageId:string,number:number,_metadata?:unknown) {
+ await assertProductWritesNotErased(db,ctx.workspaceId,pageId);
  const existing=await db.query("SELECT snapshot_hash FROM version_metadata WHERE workspace_id=$1 AND page_id=$2 AND number=$3",[ctx.workspaceId,pageId,number]);
  if(existing.rowCount)return; // Never reinterpret an already captured historical version.
  const inserted=(await db.query("SELECT 1 FROM versions WHERE workspace_id=$1 AND page_id=$2 AND number=$3 AND xmin::text::bigint=mod(txid_current(),4294967296)",[ctx.workspaceId,pageId,number])).rowCount;
@@ -50,13 +52,17 @@ type ChangeToken=Readonly<{id:string}>;
 const changes=new WeakMap<ChangeToken,{workspaceId:string;principalId:string;pageId:string;tx:string;before:MetadataSnapshot}>();
 /** Call immediately before a metadata-only settings/page edit in the SAME transaction. */
 export async function beginVersionMetadataChange(db:PoolClient,ctx:Context,pageId:string):Promise<ChangeToken>{
+ await assertProductWritesNotErased(db,ctx.workspaceId,pageId);
  await authorizeActionDb(db,ctx,"knowledge.read",{kind:"page",id:pageId});
  const token=Object.freeze({id:randomUUID()}),tx=(await db.query("SELECT txid_current()::text AS id")).rows[0].id;
  changes.set(token,{workspaceId:ctx.workspaceId,principalId:ctx.principalId,pageId,tx,before:await currentMetadata(db,ctx,pageId)});return token;
 }
 /** No caller-provided before/after snapshots: both are server reads, token cannot cross transaction/actor. */
 export async function finishVersionMetadataChange(db:PoolClient,ctx:Context,token:ChangeToken,reason:string){
- const entry=changes.get(token),tx=(await db.query("SELECT txid_current()::text AS id")).rows[0].id;
+ const entry=changes.get(token);
+ if (!entry) throw Error("INVALID_METADATA_CHANGE_TOKEN");
+ await assertProductWritesNotErased(db,ctx.workspaceId,entry.pageId);
+ const tx=(await db.query("SELECT txid_current()::text AS id")).rows[0].id;
  if(!entry||entry.tx!==tx||entry.workspaceId!==ctx.workspaceId||entry.principalId!==ctx.principalId)throw Error("INVALID_METADATA_CHANGE_TOKEN");
  if(!reason.trim()||reason.length>2000)throw Error("VALIDATION_FAILED");
  const after=await currentMetadata(db,ctx,entry.pageId);
