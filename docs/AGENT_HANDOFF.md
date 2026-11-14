@@ -1,5 +1,12 @@
 # 에이전트 인계
 
+## 2026-11-14 병합 CI의 동시 인증 회귀 수정
+
+- 사용자 후속 요청으로 기능 PR #32~43의 병합이 승인됐다. #37 최종 CI `43601746148`에서 같은 세션의 동시 인증 갱신이 shared row lock을 UPDATE로 승격하면서 교착됐고 유효 세션이 폐기됐다. IAM-004/005/009, QNA-005와 관련된다.
+- `server/runtime/auth.ts`에서 세션별 트랜잭션 advisory lock으로 인증 증명 갱신을 직렬화한다. 권한·만료·원본 상한 검사는 유지하며 지식 내용과 평가 주장을 바꾸지 않는다. `server/identity/native-integration.test.ts`의 interactive/poll 동시 요청 두 회귀는 수정 전 실패, 수정 후 통과했다.
+- `server/collaboration/review-race.test.ts`는 증명 시작과 만료를 한 시각에서 계산해 30초 상한을 1ms 초과하는 테스트 데이터 경합을 제거했다. Node 24 전체 `npm run check`와 PostgreSQL 17의 인증·기존 역할·질문·협업 9파일 회귀가 통과했다. 최종 원격 CI는 새 커밋에서 다시 확인한다.
+- 한계: 이 수정은 동일 세션의 증명 갱신 간 교착을 다룬다. 리뷰에서 지적한 기존 final guard와 directory gate 사이의 다른 잠금 순서 가능성은 별도 재현 대상이며 전체 교착 부재나 실서비스 인수를 주장하지 않는다.
+
 ## 2026-11-14 미이관 공간 3역할 호환 — P5
 
 - 관련 IAM-001/002/004/005/006/009, ACL-001~005/007 및 CORE-008의 권한·원본 상한 불변식. `server/database.ts` 전환 직전 증거와 `server/migrations/113-legacy-roles.sql`, `server/access/legacy-compat.ts`, OIDC·공통 권한·발행·작업 큐 경로 및 운영 앱의 기존 reader 원본 조회를 연결했다. reviewer는 Maintain/Admin/Owner가 아니며 current source ACL, 독립 승인·발행 직전 권한 검사는 유지한다. 실제 지식 품질·에이전트 성능은 측정하지 않았다.
