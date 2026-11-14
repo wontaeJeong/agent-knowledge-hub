@@ -74,6 +74,7 @@ export function createRuntimeHandler(options: {
   dist?: string;
   storage?: StorageService;
   collector?: UrlCollector;
+  artifacts?: import("../storage/trusted-collector").TrustedArtifactCollector;
   refinement?: RefinementService;
   admission?: HttpAdmission;
   operations?: (input: OperationsRouteInput) => Promise<boolean>;
@@ -84,7 +85,7 @@ export function createRuntimeHandler(options: {
   shutdown?: ShutdownController;
 }) {
   const storageHandler = options.storage
-    ? storageRoutes(options.storage, options.collector)
+    ? storageRoutes(options.storage, options.collector, options.artifacts)
     : undefined;
   const legacyAccess = new LegacyAccessService(options.pool);
   const questions = new QuestionsService(options.pool, {
@@ -842,6 +843,16 @@ export function createRuntimeHandler(options: {
         INPUT_TOO_LARGE: 413,
         ALREADY_EXISTS: 409,
         STALE_VERSION: 409,
+        COLLECTOR_NOT_CONFIGURED: 503,
+        COLLECTOR_CONNECTION_REVOKED: 409,
+        COLLECTOR_FETCH_FAILED: 502,
+        UNSUPPORTED_COLLECTOR_VERSION: 409,
+        COLLECTION_EXCLUDED: 403,
+        ARTIFACT_SESSION_UNVERIFIED: 409,
+        ARTIFACT_INCOMPLETE: 409,
+        SELECTED_ARTIFACT_NOT_FOUND: 404,
+        NO_SELECTED_TEXT: 400,
+        ERASURE_WRITES_FENCED: 409,
         APPROVAL_STALE: 409,
         IDEMPOTENCY_CONFLICT: 409,
         SOURCE_SCOPE_CONFLICT: 409,

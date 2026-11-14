@@ -357,6 +357,19 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 한계: 공개 Gate main은 별도 테마 컨트롤을 사용하므로 사내 드롭다운 구현과 동일한 코드를 확인한 것은 아니다. 서버 계정·세션 관리 라우트는 실제 런타임에 연결되지 않아 사용자 설정에서는 현재 정보만 표시한다. 사내 SSO 및 실제 데이터로는 검증하지 않았다.
 - 검증: Node 24에서 `npm ci`, `npm run check` 통과. 사용자 메뉴 상호작용 테스트 포함. 실제 브라우저 1440px/390px 화면 확인은 로컬 서버에 브라우저가 연결되지 않아 미실시. 최종 커밋 CI는 PR에서 별도 확인한다.
 
+### 2026-11-14 — P7 승인된 개인 도구 자료 수집
+- 관련 COL-003/005/008~011·INT-005/007. `storage/trusted-collector`, migration116, native routes/host 및 앱 선택 화면을 연결했다. 기존 raw artifact 제출은 계속 차단한다.
+- 서버가 승인한 개인 host/canonical 주체/세션만 직접 조회한다. 전후 version probe, 본문/시간/TLS 경계, 서버 제외 정책, 현재 source.create와 연결 revision 재검사, 재시작 후 철회 유지 및 안정적인 이벤트 중복 처리를 구현했다.
+- 실제 DB·인증 HTTP·합성 TLS10건과 기존 storage 회귀, UI2건 및 `npm run check`가 통과했다.1440/390 및 키보드 제출/권한 철회 화면은 `docs/pr-assets/product-collector/`에 기록했다. 최종 독립 리뷰와 CI는 대기 중이다.
+- 운영자가 승인한 전용 host/session 소유권 선언과 호환 version endpoint가 필요하다. 현재 로컬1.15.0은 미지원이며2.2.2 실제 설치 인수를 완료했다고 주장하지 않는다. 사용자 세션 열람/실제 외부 수집/daemon/배포는 수행하지 않았다.
+
+P7 독립 검토 후 선택한 미완료/실패/빈 도구 출력이 다른 본문에 가려져 성공하지 않도록 저장 전 거부하며, 새로고침·수집 후에도 유효한 연결/세션 선택을 유지한다. 연결 문맥이 달라지면 메시지·도구·제목은 비운다. 실제 설치 인수·원격 소유권 독립 발견은 검증하지 않았다. fixture README의 마지막 기존 문단은 호출자 payload 경로에 대한 설명이며 별도 승인 host 경로의 구현 상태는 문서 첫 문단을 따른다.
+최종 P7 검증: Node24에서 `npm run check` 통과(프런트145, Node48, import16, 요구사항251, 서버 타입/빌드/HTTP smoke); trusted collector 실제 DB/TLS/UserInfo13개 및 React3개 통과. 첫 전체 실행은 sandbox loopback listen EPERM으로 기존9개 시험이 실패했고 권한을 허용한 동일 시험 재실행은 통과했다. 실제 사내 host/model 전송 및 운영 인수는 하지 않았다.
+
+### 2026-11-14 — P7/P9 workspace erasure integration
+- `server/storage/trusted-collector.ts` now fences a workspace with a completed erasure or a blocked receipt whose error is absent, `PHYSICAL_BLOB_PURGE_REQUIRED`, or `SHARED_LIVE_BLOB_RETAINED`. A legal-hold or failed preflight receipt alone does not indicate applied deletion. The check remains both before outbound requests and before committing the source/snapshot; other identity, session, version, and permission guards remain in place.
+- PostgreSQL 17.6 isolated collector, storage, erasure and signed-recovery regressions: 6 files / 65 tests passed; native HTTP + verified TLS tests verify zero remote requests for fenced states, while legal-hold and failed controls collect normally. An in-flight receipt blocks commit. Node 24 `npm run check` passed. Actual company host operation and external physical purge remain separate.
+
 - P5 독립 리뷰 수정 검증: 실제 격리 DB RED→GREEN 및 PostgreSQL 17의 UUID별 DB에서 전체 서버 테스트 95개 파일 통과. Node 24 `npm run check` 통과. 외부 IdP·실제 백업 및 외부 롤백 앵커는 별도 검증이 필요하다.
 
 P5 root 확인:독립 권한 리뷰의 조회 전용 grant 제안 우회와 과거 작성자 원본 권한 철회 누락을 실제 RED→GREEN으로 수정했다. 최종 PostgreSQL17 전체95파일 통과 로그를 확인했고, 초기 PG16/pg_restore17 불일치4건과 간헐 사용량 시각 시험 실패/재실행 기록을 유지한다. Chromium1440/390에서 기존 공간 독자 원본 목록과 쓰기 비활성을 합성 API로 확인해 docs/pr-assets/product-legacy에 남겼다. 운영자 서명은 출처 진실의 독립 증거가 아니며 실제 회사 IdP/백업 인수는 미실행이다.

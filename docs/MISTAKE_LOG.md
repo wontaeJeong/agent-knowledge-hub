@@ -220,6 +220,25 @@
 - 검증: `npm run check` 성공; 브라우저 localhost 접속은 ERR_CONNECTION_REFUSED.
 - 상태/후속 작업: UI 화면 검증과 캡처 미해결. 증거 확보 전까지 draft 유지.
 
+### 2026-11-14 — 승인된 도구 수집 경계의 구현·시험 정정
+- 맥락: P7의 서버 승인 host/session과 명시 artifact 수집.
+- 사실과 영향: 초기 구현에서 삭제 영수증의 실제 scope 열 대신 없는 request 열을 참조했다. 합성 blob 경로의 /var 심볼릭 링크, 시험 간 공유 editor의 비활성 상태 및 tool 출력만 있는 fixture의 빈 선택 때문에 초기 회귀가 실패했다. 운영 데이터·외부 전송 영향은 없다.
+- 원인: 실제 스키마와 fixture 전제 확인 부족. 연결 ID를 이벤트 키에 넣어 갱신된 연결에서 중복 수집했고, 미지원 버전은 일반503으로 응답했다.
+- 조치: 실제 scope 열·정본 경로·명시 시험 초기화·도구 선택을 사용했다. 이벤트는 host/issuer/subject/session/artifact로 고정하고 지원하지 않는 버전은409로 보고한다.
+- 검증: 초기 module/route 미구현과 두 경계 오류의 RED→GREEN을 관찰했다. 현재 실제 DB·인증 HTTP·합성 TLS 수집10건 및 기존 collector/storage 회귀가 통과했다. 전체 검사와 독립 리뷰는 진행 중이다. 현재 로컬 OpenCode 패키지는1.15.0이며 기록된2.2.2 설치 검증을 완료했다고 주장하지 않는다.
+- 후속 문서 편집 명령이 stdin 인코딩 오류로 실패해 적용되지 않은 상태를 확인했다. apply_patch로 재적용했으며 파일 변경과 전체 검사를 확인한다. 실패한 편집을 완료로 보고하지 않았다.
+
+### 2026-11-14 P7 독립 검토: 선택 출력 누락과 연결 변경
+- 원인: 선택한 running/error 도구 출력을 건너뛰고 나머지 assistant 본문을 성공으로 처리했다. 연결 새로고침은 첫 연결/세션으로 재설정하면서 메시지 선택은 유지했다.
+- 영향: 불완전한 선택을 성공으로 표시하거나 같은 메시지 ID를 다른 연결에 제출할 수 있었다. 합성 시험에서 재현했으며 실제 사용자 자료 수집은 실행하지 않았다.
+- 조치: 미완료 또는 텍스트 없는 선택 출력은 저장 전 거부한다. 유효한 연결/세션 선택을 유지하고 변경되면 메시지·도구·제목을 비운다.
+- 검증: 실제 DB running/error/empty 세 경우와 React 연결 갱신을 수정 전 실패로 확인했다. 최초 UI 시험은 실제 버튼 문구와 다른 selector 때문에 실패해 고친 뒤 실제 선택 재설정 실패를 재현했다. 최종 전체 검사 결과는 인계 기록 참조.
+
+### 2026-11-14 — P7/P9 erasure receipt fence integration
+- Integration testing found that the trusted collector checked only completed workspace erasures. A logically applied workspace erasure awaiting physical blob purge could therefore trigger remote requests and create a source and snapshot. No real host or production data was involved.
+- Root cause: the collector did not include the signed-recovery contract's blocked-but-applied receipt states. The fix also distinguishes legal-hold and failed preflight receipts, which did not erase data, and reuses the existing pre-fetch and commit-time guard.
+- Actual native HTTP, verified TLS and PostgreSQL tests reproduced three blocked states returning 201 before the fix; after it they return 409 without remote requests or writes. Completed, legal-hold and failed controls and an in-flight erasure race were tested. The first test fixture used a globally duplicated session identifier and failed for that fixture issue; unique session IDs exposed the intended RED. Final `npm run check` and 6 isolated PostgreSQL 17 files / 65 tests exited 0.
+
 ### 2026-11-14 — 미이관 권한의 과거 증거와 비동기 검토
 - 맥락/관련 PR: P5 이전 3역할 호환.
 - 사실과 영향: 이미 적용된 010은 이전 세션 subject만 남기고 membership 시점 스냅샷을 남기지 않았다. 처음 시도한 제안자·승인자 30초 세션 증명은 작성자 비활동 시 비동기 승인을 막았다. 초기 source 공유·role 조회·작업 큐·장기 토큰 회귀와 Node CLI 실행 방식에서도 실패를 관찰했다.
