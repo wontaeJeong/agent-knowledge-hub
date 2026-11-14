@@ -17,15 +17,18 @@ test("source revocation between reviewer selection and commit cannot create an a
             [f.workspaceId],
           );
       },
-      verifyRecipient: async ({ workspaceId, principalId }) => ({
-        ctx: { workspaceId, principalId },
-        address: null,
-        issuer: "fixture",
-        subject: principalId,
-        verifiedAt: new Date().toISOString(),
-        validUntil: new Date(Date.now() + 30000).toISOString(),
-        assertCurrent: async () => {},
-      }),
+      verifyRecipient: async ({ workspaceId, principalId }) => {
+        const verifiedAt = new Date();
+        return {
+          ctx: { workspaceId, principalId },
+          address: null,
+          issuer: "fixture",
+          subject: principalId,
+          verifiedAt: verifiedAt.toISOString(),
+          validUntil: new Date(verifiedAt.getTime() + 30000).toISOString(),
+          assertCurrent: async () => {},
+        };
+      },
       resolveReviewResponsibility: resolveGovernanceResponsibility,
     },
     { applicationOrigin: "https://knowledge.example.test" },
@@ -68,15 +71,18 @@ test("a readable editor without review authorization cannot receive review work"
     {
       authorize: authorizeInTransaction,
       assertDispatcher: async () => {},
-      verifyRecipient: async ({ workspaceId, principalId }) => ({
-        ctx: { workspaceId, principalId },
-        address: null,
-        issuer: "fixture",
-        subject: principalId,
-        verifiedAt: new Date().toISOString(),
-        validUntil: new Date(Date.now() + 30000).toISOString(),
-        assertCurrent: async () => {},
-      }),
+      verifyRecipient: async ({ workspaceId, principalId }) => {
+        const verifiedAt = new Date();
+        return {
+          ctx: { workspaceId, principalId },
+          address: null,
+          issuer: "fixture",
+          subject: principalId,
+          verifiedAt: verifiedAt.toISOString(),
+          validUntil: new Date(verifiedAt.getTime() + 30000).toISOString(),
+          assertCurrent: async () => {},
+        };
+      },
       resolveReviewResponsibility: resolveGovernanceResponsibility,
     },
     { applicationOrigin: "https://knowledge.example.test" },
@@ -117,15 +123,18 @@ test("official standard review assignment honors the official reviewer rule", as
     {
       authorize: authorizeInTransaction,
       assertDispatcher: async () => {},
-      verifyRecipient: async ({ workspaceId, principalId }) => ({
-        ctx: { workspaceId, principalId },
-        address: null,
-        issuer: "fixture",
-        subject: principalId,
-        verifiedAt: new Date().toISOString(),
-        validUntil: new Date(Date.now() + 20000).toISOString(),
-        assertCurrent: async () => {},
-      }),
+      verifyRecipient: async ({ workspaceId, principalId }) => {
+        const verifiedAt = new Date();
+        return {
+          ctx: { workspaceId, principalId },
+          address: null,
+          issuer: "fixture",
+          subject: principalId,
+          verifiedAt: verifiedAt.toISOString(),
+          validUntil: new Date(verifiedAt.getTime() + 20000).toISOString(),
+          assertCurrent: async () => {},
+        };
+      },
       resolveReviewResponsibility: resolveGovernanceResponsibility,
     },
     { applicationOrigin: "https://knowledge.example.test" },
