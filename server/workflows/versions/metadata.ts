@@ -2,7 +2,7 @@ import {assertProductWritesNotErased} from "../../operations/product-erasure";
 import {randomUUID} from "node:crypto";
 import type {PoolClient} from "pg";
 import type {Context} from "../../service";
-import {authorizeActionDb} from "../../access/index";
+import {authorizeActionDb,type Action} from "../../access/index";
 import {fingerprint} from "../../provenance";
 import {segmentAnchors,type Anchor} from "./diff";
 
@@ -49,16 +49,18 @@ export async function capturePublishedVersionMetadata(db:PoolClient,ctx:Context,
 }
 
 type ChangeToken=Readonly<{id:string}>;
+type MetadataAuthorizer=(db:PoolClient,ctx:Context,action:Action,resource:{kind:"page";id:string})=>Promise<unknown>;
 const changes=new WeakMap<ChangeToken,{workspaceId:string;principalId:string;pageId:string;tx:string;before:MetadataSnapshot}>();
 /** Call immediately before a metadata-only settings/page edit in the SAME transaction. */
-export async function beginVersionMetadataChange(db:PoolClient,ctx:Context,pageId:string):Promise<ChangeToken>{
+export async function beginVersionMetadataChange(db:PoolClient,ctx:Context,pageId:string,authorize:MetadataAuthorizer=authorizeActionDb):Promise<ChangeToken>{
  await assertProductWritesNotErased(db,ctx.workspaceId,pageId);
- await authorizeActionDb(db,ctx,"knowledge.read",{kind:"page",id:pageId});
+ const before=await currentMetadata(db,ctx,pageId);
+ await authorize(db,ctx,before.lifecycle==="trash"?"lifecycle.manage":"knowledge.read",{kind:"page",id:pageId});
  const token=Object.freeze({id:randomUUID()}),tx=(await db.query("SELECT txid_current()::text AS id")).rows[0].id;
- changes.set(token,{workspaceId:ctx.workspaceId,principalId:ctx.principalId,pageId,tx,before:await currentMetadata(db,ctx,pageId)});return token;
+ changes.set(token,{workspaceId:ctx.workspaceId,principalId:ctx.principalId,pageId,tx,before});return token;
 }
 /** No caller-provided before/after snapshots: both are server reads, token cannot cross transaction/actor. */
-export async function finishVersionMetadataChange(db:PoolClient,ctx:Context,token:ChangeToken,reason:string){
+export async function finishVersionMetadataChange(db:PoolClient,ctx:Context,token:ChangeToken,reason:string,authorize:MetadataAuthorizer=authorizeActionDb){
  const entry=changes.get(token);
  if (!entry) throw Error("INVALID_METADATA_CHANGE_TOKEN");
  await assertProductWritesNotErased(db,ctx.workspaceId,entry.pageId);
@@ -66,7 +68,7 @@ export async function finishVersionMetadataChange(db:PoolClient,ctx:Context,toke
  if(!entry||entry.tx!==tx||entry.workspaceId!==ctx.workspaceId||entry.principalId!==ctx.principalId)throw Error("INVALID_METADATA_CHANGE_TOKEN");
  if(!reason.trim()||reason.length>2000)throw Error("VALIDATION_FAILED");
  const after=await currentMetadata(db,ctx,entry.pageId);
- await authorizeActionDb(db,ctx,after.lifecycle==="trash"?"lifecycle.manage":"knowledge.read",{kind:"page",id:entry.pageId});
+ await authorize(db,ctx,after.lifecycle==="trash"?"lifecycle.manage":"knowledge.read",{kind:"page",id:entry.pageId});
  if(fingerprint(entry.before)!==fingerprint(after))await db.query("INSERT INTO version_metadata_events(workspace_id,page_id,actor_id,reason,before_snapshot,after_snapshot) VALUES($1,$2,$3,$4,$5,$6)",[ctx.workspaceId,entry.pageId,ctx.principalId,reason,entry.before,after]);
  changes.delete(token);
 }
@@ -101,6 +103,14 @@ export async function validateVersionMetadataPlans(db:PoolClient,ctx:Context,pla
 /** C review/publication hook: frozen plan/hash and current bases/policy, never a DTO projection. */
 export async function assertVersionPlansCurrent(db:PoolClient,ctx:Context,batchId:string,batchHash:string){
  const rows=(await db.query("SELECT * FROM version_restore_plans WHERE workspace_id=$1 AND batch_id=$2 ORDER BY page_id",[ctx.workspaceId,batchId])).rows;
+ const batch=(await db.query("SELECT data,hash FROM batches WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,batchId])).rows[0];
+ if(!batch||batch.hash!==batchHash)throw Error("APPROVAL_STALE");
+ const plans=rows.map(r=>r.payload as RestorePlan).sort((a,b)=>a.pageId.localeCompare(b.pageId));
+ if((plans.length>0)!==!!batch.data.versionRestorePlanHash ||
+   (plans.length && (fingerprint(plans)!==batch.data.versionRestorePlanHash ||
+     fingerprint(plans.map(p=>({pageId:p.pageId,targetVersion:p.targetVersion,fields:p.fields,next:p.next})))!==fingerprint(batch.data.versionMetadataChanges))))throw Error("APPROVAL_STALE");
+ for(const plan of plans){const draft=batch.data.updates.find((d:{id:string})=>d.id===plan.pageId);
+   if(!draft||draft.baseVersion!==plan.baseVersion||draft.content!==plan.content||draft.title!==plan.next.title||draft.summary!==plan.next.summary||fingerprint(draft.links)!==fingerprint(plan.next.relations)||fingerprint(draft.sourceIds)!==fingerprint(plan.sourceIds))throw Error("APPROVAL_STALE");}
  const projections:Record<string,MetadataSnapshot>={};
  for(const row of rows){if(row.batch_hash!==batchHash||row.plan_hash!==fingerprint(row.payload))throw Error("APPROVAL_STALE");await validatePlannedMetadata(db,ctx,row.payload);projections[row.page_id]=row.payload.next;}
  const digest=fingerprint(rows.map(r=>[r.page_id,r.plan_hash]));

@@ -61,6 +61,8 @@ import { handleBoardRequest } from "../boards";
 import { authenticateAgentKey, recordAgentRequest, permittedAgentRoute, handleCredentialRequest, startDevice, pollDevice, verifyDevice, decideDevice } from "../agent-credentials";
 import { QuestionsService } from "../questions/service";
 import { handleQuestionRoute } from "../questions/http";
+import { VersionService } from "../workflows/versions/service";
+import { handleVersionRoute } from "../workflows/versions/http";
 import { handleCollaborationRoute, type CollaborationService } from "../collaboration";
 import { handleIdentityRequest, type IdentityHttpServices } from "../identity/http";
 
@@ -88,6 +90,7 @@ export function createRuntimeHandler(options: {
     ? storageRoutes(options.storage, options.collector, options.artifacts)
     : undefined;
   const legacyAccess = new LegacyAccessService(options.pool);
+  const versions = new VersionService(options.pool, authorizeInTransaction);
   const questions = new QuestionsService(options.pool, {
     runtime: options.service,
     authorize: authorizeInTransaction,
@@ -327,6 +330,11 @@ export function createRuntimeHandler(options: {
         return res.end(output);
       }
       const service = options.service;
+      if (path.startsWith("/api/v1/versions/")) {
+        if (credential || agent) throw Error("FORBIDDEN");
+        if (await handleVersionRoute({method:req.method??"GET",path,body,ctx,send,query:url.searchParams},versions)) return;
+        return send(404,{code:"NOT_FOUND",requestId});
+      }
       if (path.startsWith("/api/v1/questions/")) {
         // Neither credential type has a verified ceiling for private threads yet.
         if (credential || agent) throw Error("FORBIDDEN");

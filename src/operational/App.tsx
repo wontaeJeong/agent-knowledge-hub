@@ -29,6 +29,7 @@ import type { ConsoleTab } from "./console";
 import { PreviewApi } from "./preview";
 import "./styles.css";
 import { WorkflowPanel, SourceLifecycle } from "./workflows";
+import { VersionsPanel } from "./versions";
 import { AccessPanel } from "./access";
 import {PolicyManager} from './policy';
 import {OperationsPanel} from './operations';
@@ -597,9 +598,6 @@ function OperationalWorkspace({
     >
       <main id="op-main" className="op-main" tabIndex={-1}>
         <h1>{consoleLabel(tab)}</h1>
-        <p className="op-lead">
-          에이전트가 활용하고, 근거와 경험으로 다시 갱신하는 지식 환경입니다.
-        </p>
         {error && (
           <div className="op-error" role="alert">
             <strong>요청을 완료하지 못했습니다.</strong>
@@ -958,6 +956,16 @@ function OperationalWorkspace({
                 onChanged={load}
                 onExpired={clearProtected}
               />
+            )}
+            {tab === "versions" && !preview && dataReady && (
+              <VersionsPanel api={api} pages={pages} batches={changes}
+                spaceId={identity.workspaceId} principalId={identity.principalId}
+                canPropose={write} canReview={review} onChanged={load} onExpired={clearProtected}/>
+            )}
+            {tab === "versions" && (preview || !dataReady) && (
+              <section className="op-panel"><h2>버전 비교 · 복원</h2>
+                <p>{preview ? "실제 서버와 현재 권한이 필요한 화면입니다." : "허용된 문서와 버전 정보를 불러오는 중이거나 불러오지 못했습니다."}</p>
+              </section>
             )}
             {tab === "access" && !preview && identity.capabilities && (
               <AccessPanel

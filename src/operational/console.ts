@@ -44,6 +44,7 @@ export const consoleGroups = [
     label: "지식 순환",
     items: [
       { id: "knowledge", label: "발행 지식" },
+      { id: "versions", label: "버전 비교 · 복원" },
       { id: "workflows", label: "편집 · 협업" },
       { id: "imports", label: "자료 넣기 · 자동 정리" },
       { id: "sources", label: "원본 · 편입" },
