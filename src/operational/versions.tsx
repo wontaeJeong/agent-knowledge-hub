@@ -236,14 +236,14 @@ export function VersionsPanel({
       if (n === generation.current) setBusy(false);
     }
   };
-  const load = async (id: string, start = 0) => {
+  const load = async (id: string, start = 0, initialize = false) => {
     const h = await viewApi.get<{ items: VersionItem[]; next: number | null }>(
       `/versions/pages/${id}/history?offset=${start}`,
     );
     setHistory(h.items);
     setHistoryOffset(start);
     setHistoryNext(h.next);
-    if (h.items.length) {
+    if (initialize && h.items.length) {
       setFrom(h.items.at(-1)!.number);
       setTo(h.items[0].number);
     }
@@ -299,7 +299,7 @@ export function VersionsPanel({
               setFrom(0);
               setTo(0);
               setComparison(null);
-              if (e.target.value) void action(() => load(e.target.value));
+              if (e.target.value) void action(() => load(e.target.value, 0, true));
             }}
           >
             <option value="">문서 선택</option>
@@ -328,6 +328,9 @@ export function VersionsPanel({
                     setComparison(null);
                   }}
                 >
+                  {!history.some(v=>v.number===(before?from:to)) && (before?from:to)>0 && (
+                    <option value={before?from:to}>v{before?from:to} · 다른 목록에서 선택</option>
+                  )}
                   {history.map((v) => (
                     <option key={v.number} value={v.number}>
                       v{v.number} ·{" "}

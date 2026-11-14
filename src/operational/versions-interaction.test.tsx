@@ -160,3 +160,13 @@ test("publication pagination reaches older bundles and document changes discard 
   await act(async () => pending({ items: [], next: null }));
   expect(readConsoleTab("#versions")).toBe("versions");
 });
+
+test('independent comparison endpoints survive history paging so v1 and v30 can be compared',async()=>{
+ const post=vi.fn(async()=>compare());
+ const get=async(path:string)=>({items:Array.from({length:path.includes('offset=25')?5:25},(_,i)=>({number:(path.includes('offset=25')?5:30)-i,at:'date',author:'author',metadataKnown:true})),next:path.includes('offset=25')?null:25});
+ const view=await render({get,post} as unknown as OperationalApi);
+ await view.select(0,'a');await view.click('다음 버전 25개');
+ await view.select(1,'1');await view.click('선택 버전 비교');
+ expect(post).toHaveBeenLastCalledWith('/versions/pages/a/compare',{from:1,to:30,offset:0});
+ expect(view.el.textContent).toContain('private-line-0');
+});

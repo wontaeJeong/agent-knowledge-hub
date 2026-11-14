@@ -37,10 +37,10 @@ afterAll(async()=>{
  else process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED=old;
 });
 const sessionHeaders={"Cookie":"akh_session=fixture","Origin":"http://localhost","X-CSRF-Token":"csrf","Content-Type":"application/json"};
-test("version workflow routes remain unavailable through the authenticated runtime",async()=>{
+test("version workflow routes validate authenticated human input and reject bearer credentials",async()=>{
  for(const path of ["/api/v1/versions/decisions", "/api/v1/versions/decisions/preview", "/api/v1/versions/restore/preview", "/api/v1/versions/restore/propose"]){
   const response=await fetch(base+path,{method:"POST",headers:sessionHeaders,body:"{}"});
-  expect(response.status, path).toBe(404);
+  expect(response.status, path).toBe(400);
  }
 });
 test("browser issues a 90-day key, bearer reads with current ACL but cannot access interactive approvals",async()=>{
@@ -51,6 +51,7 @@ test("browser issues a 90-day key, bearer reads with current ACL but cannot acce
  expect((await fetch(base+"/api/v1/usage",{headers:{Authorization:"Bearer "+token}})).status).toBe(403);
  expect((await fetch(base+"/api/v1/credentials/keys",{headers:{Authorization:"Bearer "+token}})).status).toBe(403);
  expect((await fetch(base+"/api/v1/access",{headers:{Authorization:"Bearer "+token}})).status).toBe(403);
+ expect((await fetch(base+"/api/v1/versions/restore/propose",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:"{}"})).status).toBe(403);
  expect((await fetch(base+"/api/v1/query",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({question:"x",mode:"offline"})})).status).toBe(403);
  const list=await fetch(base+"/api/v1/credentials/keys",{headers:sessionHeaders});
  expect(list.status).toBe(200);

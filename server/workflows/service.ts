@@ -1,3 +1,4 @@
+import {beginVersionMetadataChange,finishVersionMetadataChange} from "./versions/metadata";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -637,6 +638,7 @@ export class WorkflowService {
           ...settings
         } = d;
         const next = { ...(r.rows[0]?.data ?? {}), ...settings };
+        const metadataChange = await beginVersionMetadataChange(db,ctx,pageId,this.authorize);
         if (
           d.parentId !== undefined &&
           nextParent !== (r.rows[0]?.parent_id ?? null)
@@ -681,6 +683,7 @@ export class WorkflowService {
               );
             }
         }
+        await finishVersionMetadataChange(db,ctx,metadataChange,d.reason,this.authorize);
         await audit(db, ctx, "page.lifecycle", pageId);
         return {
           id: pageId,
