@@ -341,3 +341,8 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 집중 합성 PostgreSQL 시험에서 실 HTTP, 소스/질문 계보, 별도 공간 격리, nonce 중복, signed 복구 재생, stale preview·보류·현재 ACL과 gate 경합을 검증했다. 정확한 명령과 결과는 작업 보고서와 PR에 기재한다. PostgreSQL 17 복구 도구를 PostgreSQL 16 합성 서버에 사용한 release 시험은 `transaction_timeout` 미지원으로 실패했으며 PG17 CI에서 별도 확인해야 한다.
 - Task 2 사용자 휴지통·복원과 주기 보존 실행은 후속 독립 PR 범위다. 사내 보존/법적 정책, 외부 백업 삭제와 운영 수용·실제 업무 품질 개선은 검증하지 않았다.
 - 독립 리뷰 후속: 복구 미리보기의 복합 기본키 `hash`를 보존하고 payload만 삭제한다. 전체 삭제와 복구 재생에서 각각 두 미리보기의 충돌을 RED→GREEN으로 확인했고 특권 SQL 함수도 해당 키 변경을 거부한다.
+
+### P1 개인 후속 대화 — 2026-11-14
+- 요구사항 QNA-005/008/009, SRH-002/004, CORE-005: `server/questions`, `server/runtime`, `server/jobs`, `src/operational/questions.tsx`와 앱 질문 화면을 연결했다. 서버 소유 이력·원본 범위를 승인 시점과 전송·저장 직전에 검사하고, 큐의 fenced 쓰기에서 답변과 턴 완료를 함께 기록한다. 기존 P9 삭제 fence를 유지한다.
+- 검증: Node 24 `npm run check`; 실제 격리 PostgreSQL/HTTP/durable queue와 합성 loopback 모델의 두 턴·동일 nonce·영수증 소실·권한 철회 전후·취소·worker 재시작·근거 부족, 삭제·원복 회귀. 상세 실행 결과와 미실행 항목은 `.superpowers/p1-report.md` 참조. 브라우저 캡처·독립 리뷰·최종 CI는 별도다. 실제 사내 모델 품질이나 지식 성과를 주장하지 않는다.
+- 에이전트 기존 검색은 점수순/정수 offset 계약이고 질문 scoped search는 시간순/서명 cursor다. 각 경로의 현재 ACL/원본 범위는 별도 검사하며 기존 agent DTO 호환 어댑터는 PR30 discovery와 함께 후속 검토한다.

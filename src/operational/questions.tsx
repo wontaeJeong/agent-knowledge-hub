@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError, OperationalApi } from "./api";
-import { resolveJob } from "./jobs-client";
+import { isJobReceipt, resolveJob } from "./jobs-client";
 type Answer = {
   id: string;
   version: number;
@@ -92,6 +92,7 @@ export function QuestionsWorkbench({
   const [question, setQuestion] = useState(""),
     [mode, setMode] = useState<"offline" | "model">("offline"),
     [busy, setBusy] = useState(false),
+    [activeJob, setActiveJob] = useState<string | null>(null),
     [notice, setNotice] = useState(""),
     [error, setError] = useState(""),
     [turnPage, setTurnPage] = useState(0);
@@ -129,6 +130,7 @@ export function QuestionsWorkbench({
     generation.current++;
     controller.current?.abort();
     setBusy(false);
+    setActiveJob(null);
     setThread(null);
     setThreads([]);
     setResults({ items: [], nextCursor: null });
@@ -265,6 +267,8 @@ export function QuestionsWorkbench({
         request,
         request.nonce,
       );
+      if (generation.current === current && isJobReceipt(receipt))
+        setActiveJob(receipt.id);
       await resolveJob(api, receipt, {
         expectQueued: true,
         signal: abort.signal,
@@ -285,6 +289,75 @@ export function QuestionsWorkbench({
           : "모델 답변을 저장했습니다. 근거와 적용 조건을 확인하세요.",
       );
       await list();
+    } catch (e) {
+      if (generation.current === current) fail(e);
+    } finally {
+      if (generation.current === current) {
+        setBusy(false);
+        setActiveJob(null);
+      }
+    }
+  }
+  async function cancelActive() {
+    if (!activeJob) return;
+    const current = generation.current;
+    try {
+      await api.post(`/jobs-v2/${encodeURIComponent(activeJob)}/cancel`, {});
+      if (generation.current === current) {
+        controller.current?.abort();
+        setActiveJob(null);
+        setNotice("취소를 요청했습니다. 작업 상태를 확인하세요.");
+      }
+    } catch (e) {
+      if (generation.current === current) fail(e);
+    }
+  }
+  async function resume(turnId: string) {
+    if (!thread || busy) return;
+    const current = generation.current;
+    setBusy(true);
+    setError("");
+    controller.current?.abort();
+    const abort = new AbortController();
+    controller.current = abort;
+    try {
+      const receipt = await api.post(
+        `${root}/threads/${encodeURIComponent(thread.id)}/turns/${encodeURIComponent(turnId)}/resume`,
+        {},
+      );
+      if (generation.current === current && isJobReceipt(receipt))
+        setActiveJob(receipt.id);
+      await resolveJob(api, receipt, {
+        signal: abort.signal,
+        onProgress: (job) => {
+          if (generation.current === current)
+            setNotice(`작업 ${job.id} · ${job.status}`);
+        },
+      });
+      if (generation.current === current) {
+        await read(thread.id);
+        setNotice("답변을 저장했습니다.");
+      }
+    } catch (e) {
+      if (generation.current === current) fail(e);
+    } finally {
+      if (generation.current === current) {
+        setBusy(false);
+        setActiveJob(null);
+      }
+    }
+  }
+  async function cancel(jobId: string) {
+    if (!thread || busy) return;
+    const current = generation.current;
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/jobs-v2/${encodeURIComponent(jobId)}/cancel`, {});
+      if (generation.current === current) {
+        setNotice("취소를 요청했습니다. 작업 상태를 확인하세요.");
+        await read(thread.id);
+      }
     } catch (e) {
       if (generation.current === current) fail(e);
     } finally {
@@ -405,6 +478,11 @@ export function QuestionsWorkbench({
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {activeJob && (
+        <button type="button" onClick={() => void cancelActive()}>
+          현재 작업 취소
+        </button>
+      )}
       <nav aria-label="내 대화">
         <button
           type="button"
@@ -507,6 +585,26 @@ export function QuestionsWorkbench({
                     <p>
                       답변 미완료 · {turn.status}
                       {turn.jobId ? ` · 작업 ${turn.jobId}` : ""}
+                      {turn.status === "pending" && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void resume(turn.id)}
+                          >
+                            작업 다시 확인
+                          </button>
+                          {turn.jobId && (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void cancel(turn.jobId!)}
+                            >
+                              취소 요청
+                            </button>
+                          )}
+                        </>
+                      )}
                     </p>
                   )}
                 </li>

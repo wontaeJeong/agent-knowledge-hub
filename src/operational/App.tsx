@@ -29,6 +29,7 @@ import type { ConsoleTab } from "./console";
 import { PreviewApi } from "./preview";
 import "./styles.css";
 import { WorkflowPanel, SourceLifecycle } from "./workflows";
+import { QuestionsWorkbench } from "./questions";
 import { AccessPanel } from "./access";
 import {PolicyManager} from './policy';
 import {OperationsPanel} from './operations';
@@ -1297,6 +1298,7 @@ function OperationalWorkspace({
             )}
             {tab === "query" && dataReady && (
               <section className="op-panel">
+                {!preview && <QuestionsWorkbench key={`${identity.workspaceId}:${identity.principalId}`} api={api} identityKey={`${identity.workspaceId}:${identity.principalId}`} />}
                 <h2>근거 기반 질문</h2>
                 <form
                   onSubmit={(e) => {

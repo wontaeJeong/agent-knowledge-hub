@@ -514,6 +514,7 @@ export class QuestionsService {
     };
   }
   async submitTurn(ctx: Context, threadId: string, raw: unknown) {
+    if (!this.submit) throw Error("QUESTION_QUEUE_NOT_CONFIGURED");
     const accepted = await this.acceptTurn(ctx, threadId, raw);
     return this.resumeTurn(ctx, threadId, accepted.turnId);
   }
@@ -522,8 +523,6 @@ export class QuestionsService {
     await this.run(ctx, async (db) => {
       await assertQuestionWritesNotErased(db, ctx.workspaceId);
       const turn = await this.turn(db, ctx, threadId, turnId);
-      if (turn.status !== "pending" && !turn.job_id)
-        throw Error("STALE_VERSION");
       await this.valid(
         db,
         ctx,
@@ -552,13 +551,14 @@ export class QuestionsService {
     return {
       prepare: async (db: PoolClient, ctx: Context, raw: unknown) => {
         await this.guard(db, ctx);
+        await assertQuestionWritesNotErased(db, ctx.workspaceId);
         const input = preparedInput.safeParse(raw);
         const ref = input.success ? input.data : ids.parse(raw);
         const turn = await this.turn(db, ctx, ref.threadId, ref.turnId);
         if (!input.success && turn.status !== "pending")
           throw Error("TURN_ALREADY_COMPLETED");
         const thread = await this.thread(db, ctx, ref.threadId);
-        if (thread.revision !== turn.sealed.revision)
+        if (turn.status === "pending" && thread.revision !== turn.sealed.revision)
           throw Error("STALE_VERSION");
         const state = (await this.options.runtime.view(db, ctx)).state;
         await this.resolve(db, ctx, state, turn);
@@ -597,6 +597,7 @@ export class QuestionsService {
         return this.options.runQuery(ctx, turn.question, turn.mode, execution, {
           resolve: async (db, state) => {
             await this.guard(db, ctx);
+            await assertQuestionWritesNotErased(db, ctx.workspaceId);
             const fresh = await this.turn(
               db,
               ctx,
@@ -666,7 +667,7 @@ export class QuestionsService {
     turn: Turn,
   ) {
     const thread = await this.thread(db, ctx, turn.thread_id);
-    if (thread.revision !== turn.sealed.revision) throw Error("STALE_VERSION");
+    if (turn.status === "pending" && thread.revision !== turn.sealed.revision) throw Error("STALE_VERSION");
     await this.valid(db, ctx, state, turn);
     const messages: Message[] = [];
     for (const h of turn.sealed.history) {

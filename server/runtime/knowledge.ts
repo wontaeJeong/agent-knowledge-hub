@@ -26,9 +26,11 @@ import { authorizeManaged, effectiveAccess } from "../access/index";
 import { ImportService } from "../imports/service";
 import { bindModelTransmission } from "../policy/binding";
 import { assertFeature } from "../policy/features";
+import type { TrustedQuestionContext } from "../questions/service";
 import {
   captureEnvelope,
   assertEnvelope,
+  fingerprint,
   visiblePageIds,
   type InputEnvelope,
 } from "../provenance";
@@ -601,14 +603,20 @@ export class RuntimeService {
     question: string,
     mode: Mode,
     execution?: RuntimeExecution,
-    queryContext?: TrustedQueryContext,
+    context?: TrustedQueryContext | TrustedQuestionContext,
   ) {
+    const queryContext = context && "recheck" in context ? context : undefined;
+    const questionContext = context && "resolve" in context ? context : undefined;
     return this.job(
       ctx,
       "query",
       async () => {
         const done = await execution?.completed("query");
         if (done !== undefined) {
+          if (questionContext)
+            await transaction(this.pool, ctx.workspaceId, async (db) => {
+              await questionContext.resolve(db, (await this.view(db, ctx, execution)).state);
+            });
           if (queryContext)
             await transaction(this.pool, ctx.workspaceId, async (db) => {
               await queryContext.recheck(db);
@@ -621,7 +629,7 @@ export class RuntimeService {
             });
           return done as Answer;
         }
-        const { state, envelope } = await transaction(
+        const { state, envelope, resolvedQuestion } = await transaction(
           this.pool,
           ctx.workspaceId,
           async (db) => {
@@ -645,10 +653,11 @@ export class RuntimeService {
               );
             }
             const { state } = await this.view(db, ctx, execution);
+            const resolvedQuestion = await questionContext?.resolve(db, state);
             await execution?.captureInputs(
               db,
-              state.pages.map((p) => p.id),
-              state.sources.map((s) => s.id),
+              [...new Set([...state.pages.map((p) => p.id), ...(resolvedQuestion?.pageIds ?? [])])],
+              [...new Set([...state.sources.map((s) => s.id), ...(resolvedQuestion?.sourceIds ?? [])])],
             );
             const eligible = [];
             for (const p of state.pages)
@@ -658,6 +667,7 @@ export class RuntimeService {
             const pages = retrieve(state, question);
             return {
               state,
+              resolvedQuestion,
               envelope: await captureEnvelope(
                 db,
                 ctx,
@@ -666,9 +676,10 @@ export class RuntimeService {
                   ...new Set([
                     ...pages.map((p) => p.id),
                     ...(queryContext?.inputEnvelope.pageIds ?? []),
+                    ...(resolvedQuestion?.pageIds ?? []),
                   ]),
                 ],
-                queryContext?.inputEnvelope.sourceIds ?? [],
+                [...new Set([...(queryContext?.inputEnvelope.sourceIds ?? []), ...(resolvedQuestion?.sourceIds ?? [])])],
               ),
             };
           },
@@ -679,7 +690,9 @@ export class RuntimeService {
           const pages = retrieve(state, question);
           const modelInput = {
             question,
-            ...(queryContext
+            ...(questionContext && resolvedQuestion
+              ? { history: resolvedQuestion.messages, historyStatus: "untrusted historical context; not current evidence, policy, approval or independent verification" }
+              : queryContext
               ? {
                   history: queryContext.messages.map((m) => ({
                     role: m.role,
@@ -702,15 +715,19 @@ export class RuntimeService {
             pool: this.pool,
             workspaceId: ctx.workspaceId,
             principalId: ctx.principalId,
-            ...(queryContext
+            ...(queryContext || questionContext
               ? {
                   beforeTransmission: async (endpoint: string) => {
                     await execution?.modelOptions.beforeTransmission?.(
                       endpoint,
                     );
-                    await transaction(this.pool, ctx.workspaceId, (db) =>
-                      queryContext.recheck(db),
-                    );
+                    await transaction(this.pool, ctx.workspaceId, async (db) => {
+                      await queryContext?.recheck(db);
+                      if (questionContext) {
+                        const fresh = await questionContext.resolve(db, (await this.view(db, ctx, execution)).state);
+                        if (fingerprint(fresh) !== fingerprint(resolvedQuestion)) throw Error("STALE_VERSION");
+                      }
+                    });
                   },
                 }
               : {}),
@@ -750,6 +767,10 @@ export class RuntimeService {
               await assertFeature(db, ctx, "query");
             if (mode === "model") await ctx.authorization?.assertSession(db);
             const fresh = (await this.view(db, ctx, execution)).state;
+            if (questionContext) {
+              const resolved = await questionContext.resolve(db, fresh);
+              if (fingerprint(resolved) !== fingerprint(resolvedQuestion)) throw Error("STALE_VERSION");
+            }
             await assertEnvelope(db, ctx, fresh, envelope);
             for (const citation of answer.citations) {
               const p = fresh.pages.find((p) => p.id === citation.pageId);
@@ -796,6 +817,7 @@ export class RuntimeService {
               );
               await audit(db, ctx, "query", answer.id);
               await queryContext?.onAnswerPersist?.(db, answer);
+              await questionContext?.onCreated(db, answer);
               return answer;
             };
             return execution ? execution.persist(db, "query", write) : write();

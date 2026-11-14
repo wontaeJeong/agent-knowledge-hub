@@ -1,3 +1,4 @@
+import { QuestionsService } from "../questions/service";
 import { createServer } from "node:http";
 import { Pool } from "pg";
 import { migrate, assertSchemaCurrent } from "../database";
@@ -97,7 +98,13 @@ if (process.argv.includes("--migrate")) {
   } catch {
     throw Error("PLATFORM_OPERATOR_CONFIGURATION_REQUIRED");
   }
+  const questions = new QuestionsService(pool, {
+    runtime: service,
+    authorize: authorizeInTransaction,
+    runQuery: (ctx, question, mode, execution, context) => service.query(ctx, question, mode, execution, context),
+  });
   const jobs = createRuntimeJobs(pool, service, {
+    questions: questions.questionJobAdapter(),
     ...directoryFromEnvironment(),
     platformOperatorIds,
     semanticLint: refinement.semanticJobAdapter(),
@@ -141,6 +148,7 @@ if (process.argv.includes("--migrate")) {
       refinement,
       operations,
       jobs,
+      questions,
       platformOperatorIds,
       shutdown,
       probe,

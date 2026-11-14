@@ -2287,3 +2287,372 @@ it("an omitted response model is unknown rather than being replaced by the reque
   expect(row.requested_model).toBe("fixture-request");
   await f.bridge.stop();
 });
+
+it("executes a sealed private turn in the real durable runtime and atomically records its answer", async () => {
+  const f = await setup();
+  const { QuestionsService } = await import("../questions/service");
+  const questions = new QuestionsService(f.pool, {
+    runtime: f.service,
+    authorize: authorizeInTransaction,
+    runQuery: (ctx, question, mode, execution, context) =>
+      f.service.query(ctx, question, mode, execution, context as never),
+  });
+  const bridge = createRuntimeJobs(f.pool, f.service, {
+    workerCount: 1,
+    ...fixtureDirectory,
+    questions: questions.questionJobAdapter(),
+  });
+  questions.setSubmit((ctx, payload, key) =>
+    bridge.submitInteractive(ctx, "query", payload, key),
+  );
+  try {
+    const thread = await questions.createThread(f.editor);
+    const receipt = await questions.submitTurn(f.editor, thread.id, {
+      expectedRevision: 0,
+      nonce: "first",
+      question: "기존",
+      mode: "offline",
+    });
+    await bridge.workers[0].tick();
+    expect((await bridge.read(f.editor, receipt.id)).status).toBe("succeeded");
+    const read = await questions.readThread(f.editor, thread.id);
+    expect(read.turns).toHaveLength(1);
+    expect(read.turns[0].status).toBe("completed");
+    expect(
+      (
+        await f.pool.query(
+          "SELECT count(*)::int AS n FROM runtime_answers WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  } finally {
+    await bridge.stop();
+    await f.bridge.stop();
+  }
+}, 20000);
+
+it("transmits two sealed private turns with typed history and a stable concurrent nonce", async () => {
+  const transmitted: unknown[] = [];
+  await modelServer((body, res) => {
+    transmitted.push(body);
+    res.end(
+      JSON.stringify({
+        model: "fixture-request",
+        usage: { prompt_tokens: 3, completion_tokens: 2, cost: 0 },
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: JSON.stringify({
+                content: "근거가 부족합니다.",
+                insufficient: true,
+                citations: [],
+              }),
+            },
+          },
+        ],
+      }),
+    );
+  });
+  const f = await setup();
+  await f.pool.query("INSERT INTO resources VALUES($1,'source','source-b')", [
+    f.workspaceId,
+  ]);
+  await f.pool.query(
+    "INSERT INTO resource_readers VALUES($1,'source','source-b','editor')",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO sources(workspace_id,id,data) VALUES($1,'source-b',$2)",
+    [f.workspaceId, { ...source, id: "source-b", targetPageId: null }],
+  );
+  await approveModelFixture(f.pool, f.workspaceId);
+  const { QuestionsService } = await import("../questions/service");
+  const questions = new QuestionsService(f.pool, {
+    runtime: f.service,
+    authorize: authorizeInTransaction,
+    runQuery: (ctx, q, mode, execution, context) =>
+      f.service.query(ctx, q, mode, execution, context),
+  });
+  let bridge = createRuntimeJobs(f.pool, f.service, {
+    workerCount: 1,
+    ...fixtureDirectory,
+    questions: questions.questionJobAdapter(),
+  });
+  questions.setSubmit((ctx, payload, key) =>
+    bridge.submitInteractive(ctx, "query", payload, key),
+  );
+  try {
+    const thread = await questions.createThread(f.editor);
+    const input = {
+      expectedRevision: 0,
+      nonce: "same",
+      question: "first private prompt",
+      mode: "model" as const,
+    };
+    const [first, retry] = await Promise.all([
+      questions.submitTurn(f.editor, thread.id, input),
+      questions.submitTurn(f.editor, thread.id, input),
+    ]);
+    expect(retry.id).toBe(first.id);
+    await bridge.workers[0].tick();
+    expect(await bridge.read(f.editor, first.id)).toMatchObject({
+      status: "succeeded",
+    });
+    expect((await questions.submitTurn(f.editor, thread.id, input)).id).toBe(
+      first.id,
+    );
+    const second = await questions.submitTurn(f.editor, thread.id, {
+      expectedRevision: 1,
+      nonce: "next",
+      question: "second prompt",
+      mode: "model",
+    });
+    await bridge.stop();
+    bridge = createRuntimeJobs(f.pool, f.service, {
+      workerCount: 1,
+      ...fixtureDirectory,
+      questions: questions.questionJobAdapter(),
+    });
+    await bridge.workers[0].tick();
+    expect((await bridge.read(f.editor, second.id)).status).toBe("succeeded");
+    expect((await bridge.read(f.editor, first.id)).status).toBe("succeeded");
+    expect(transmitted).toHaveLength(2);
+    const secondPayload = JSON.stringify(transmitted[1]);
+    expect(secondPayload).toContain("first private prompt");
+    expect(secondPayload).toContain("근거가 부족합니다.");
+    const history = await questions.readThread(f.editor, thread.id);
+    expect(history.turns).toHaveLength(2);
+    expect(
+      history.turns.every(
+        (t) => t.status === "completed" && t.answer?.insufficient,
+      ),
+    ).toBe(true);
+    const pending = await questions.submitTurn(f.editor, thread.id, {
+      expectedRevision: 2,
+      nonce: "revoke",
+      question: "third prompt",
+      mode: "model",
+    });
+    await f.pool.query(
+      "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id='source-a' AND principal_id='editor'",
+      [f.workspaceId],
+    );
+    await bridge.workers[0].tick();
+    await expect(bridge.read(f.editor, pending.id)).rejects.toThrow();
+    expect(
+      (
+        await f.pool.query("SELECT status FROM durable_jobs WHERE id=$1", [
+          pending.id,
+        ])
+      ).rows[0].status,
+    ).not.toBe("succeeded");
+    expect(transmitted).toHaveLength(2);
+    const revoked = await questions.readThread(f.editor, thread.id);
+    expect(revoked.contextOmitted).toBe(true);
+    expect(JSON.stringify(revoked)).not.toContain("first private prompt");
+    const afterRevocation = await questions.submitTurn(f.editor, thread.id, {
+      expectedRevision: 3,
+      nonce: "after-revoke",
+      question: "safe new prompt",
+      mode: "model",
+    });
+    await bridge.workers[0].tick();
+    expect((await bridge.read(f.editor, afterRevocation.id)).status).toBe(
+      "succeeded",
+    );
+    expect(transmitted).toHaveLength(3);
+    expect(JSON.stringify(transmitted[2])).not.toContain(
+      "first private prompt",
+    );
+    expect(JSON.stringify(transmitted[2])).not.toContain("근거가 부족합니다.");
+  } finally {
+    await bridge.stop();
+    await f.bridge.stop();
+  }
+}, 20000);
+
+it("cancelled private turn does not create an answer and a new turn can be submitted", async () => {
+  const f = await setup();
+  const { QuestionsService } = await import("../questions/service");
+  const questions = new QuestionsService(f.pool, {
+    runtime: f.service,
+    authorize: authorizeInTransaction,
+    runQuery: (ctx, q, mode, execution, context) =>
+      f.service.query(ctx, q, mode, execution, context),
+  });
+  const bridge = createRuntimeJobs(f.pool, f.service, {
+    workerCount: 1,
+    ...fixtureDirectory,
+    questions: questions.questionJobAdapter(),
+  });
+  questions.setSubmit((ctx, payload, key) =>
+    bridge.submitInteractive(ctx, "query", payload, key),
+  );
+  try {
+    const thread = await questions.createThread(f.editor);
+    const first = await questions.submitTurn(f.editor, thread.id, {
+      expectedRevision: 0,
+      nonce: "cancel",
+      question: "cancelled",
+      mode: "offline",
+    });
+    await bridge.cancel(f.editor, first.id);
+    await bridge.workers[0].tick();
+    expect((await bridge.read(f.editor, first.id)).status).toBe("cancelled");
+    expect(
+      (
+        await f.pool.query(
+          "SELECT count(*)::int n FROM runtime_answers WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+    const next = await questions.submitTurn(f.editor, thread.id, {
+      expectedRevision: 1,
+      nonce: "next-after-cancel",
+      question: "기존",
+      mode: "offline",
+    });
+    await bridge.workers[0].tick();
+    expect((await bridge.read(f.editor, next.id)).status).toBe("succeeded");
+  } finally {
+    await bridge.stop();
+    await f.bridge.stop();
+  }
+}, 20000);
+
+it("a process killed after private answer commit replays its fenced checkpoint exactly once", async () => {
+  const f = await setup();
+  const { QuestionsService } = await import("../questions/service");
+  const questions = new QuestionsService(f.pool, {
+    runtime: f.service,
+    authorize: authorizeInTransaction,
+    runQuery: (ctx, q, mode, execution, context) =>
+      f.service.query(ctx, q, mode, execution, context),
+  });
+  let now = new Date();
+  const bridge = createRuntimeJobs(f.pool, f.service, {
+    workerCount: 1,
+    ...fixtureDirectory,
+    questions: questions.questionJobAdapter(),
+    queue: { leaseMs: 60000, clock: () => now },
+  });
+  questions.setSubmit((ctx, payload, key) =>
+    bridge.submitInteractive(ctx, "query", payload, key),
+  );
+  const thread = await questions.createThread(f.editor);
+  const receipt = await questions.submitTurn(f.editor, thread.id, {
+    expectedRevision: 0,
+    nonce: "crash",
+    question: "기존",
+    mode: "offline",
+  });
+  const child = spawn(
+    process.execPath,
+    ["--import", "tsx", "server/jobs/fixtures/question-crash-worker.ts"],
+    {
+      env: { ...process.env, JOB_TEST_CLOCK: now.toISOString() },
+      stdio: ["ignore", "ignore", "pipe", "ipc"],
+    },
+  );
+  try {
+    const committed = await new Promise<{ id: string }>((resolve, reject) => {
+      child.once("message", (m) => resolve(m as { id: string }));
+      child.once("error", reject);
+      child.once("exit", (code) =>
+        reject(Error("question worker exited: " + code)),
+      );
+    });
+    expect(committed.id).toBe(receipt.id);
+    const exited = once(child, "exit");
+    child.kill("SIGKILL");
+    await exited;
+    now = new Date(+now + 60001);
+    await bridge.workers[0].tick();
+    expect((await bridge.read(f.editor, receipt.id)).status).toBe("succeeded");
+    expect(
+      (
+        await f.pool.query(
+          "SELECT count(*)::int n FROM runtime_answers WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+    expect(
+      (await questions.readThread(f.editor, thread.id)).turns[0].status,
+    ).toBe("completed");
+  } finally {
+    child.kill("SIGKILL");
+    await bridge.stop();
+    await f.bridge.stop();
+  }
+}, 20000);
+
+it("a tombstone created after question admission blocks model transmission", async () => {
+  let calls = 0;
+  await modelServer((_body, res) => {
+    calls++;
+    res.end(
+      JSON.stringify({
+        model: "fixture-request",
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: JSON.stringify({
+                content: "no evidence",
+                insufficient: true,
+                citations: [],
+              }),
+            },
+          },
+        ],
+      }),
+    );
+  });
+  const f = await setup();
+  const { QuestionsService } = await import("../questions/service");
+  const questions = new QuestionsService(f.pool, {
+    runtime: f.service,
+    authorize: authorizeInTransaction,
+    runQuery: (ctx, q, mode, execution, context) =>
+      f.service.query(ctx, q, mode, execution, context),
+  });
+  const bridge = createRuntimeJobs(f.pool, f.service, {
+    workerCount: 1,
+    ...fixtureDirectory,
+    questions: questions.questionJobAdapter(),
+  });
+  questions.setSubmit((ctx, payload, key) =>
+    bridge.submitInteractive(ctx, "query", payload, key),
+  );
+  try {
+    const thread = await questions.createThread(f.editor);
+    await questions.submitTurn(f.editor, thread.id, {
+      expectedRevision: 0,
+      nonce: "erase",
+      question: "private",
+      mode: "model",
+    });
+    await f.pool.query(
+      "INSERT INTO operations_tombstones(workspace_id,id,resource_kind,resource_id,blob_hashes,allowed_readers,delete_content,approved_by) VALUES($1,'test-erasure','source','source-a','[]','[]',true,'fixture-owner')",
+      [f.workspaceId],
+    );
+    await bridge.workers[0].tick();
+    expect(calls).toBe(0);
+    expect(
+      (
+        await f.pool.query(
+          "SELECT count(*)::int n FROM runtime_answers WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+  } finally {
+    await bridge.stop();
+    await f.bridge.stop();
+  }
+}, 20000);
