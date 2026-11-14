@@ -16,6 +16,7 @@ import {
   unmappedReleasedImports,
   releasedImportProjection,
 } from "./released-imports";
+import { assertCredentialErasureScope, retireErasedCredentials } from "./product-erasure";
 type Resource = { kind: "source" | "page"; id: string };
 export interface ProductRow {
   table: string;
@@ -23,10 +24,18 @@ export interface ProductRow {
   data: Record<string, unknown>;
 }
 const tablePattern =
-  /^(sources|pages|versions|batches|requests|publications|approvals|workflow_[a-z_]+|runtime_(answers|lints|jobs)|agent_[a-z_]+|refinement_[a-z_]+|durable_(jobs|job_outbox|model_calls)|storage_(imports|import_sources|import_effects|snapshots|attachment_links))$/;
+  /^(sources|pages|versions|batches|requests|publications|approvals|workflow_[a-z_]+|runtime_(answers|lints|jobs)|agent_[a-z_]+|refinement_[a-z_]+|durable_(jobs|job_outbox|model_calls)|storage_(imports|import_sources|import_effects|snapshots|attachment_links)|question_(threads|turns|feedback|feedback_work)|version_(metadata|metadata_events|restore_previews|restore_plans|restore_applications)|versions_decisions|model_usage_events|collaboration_[a-z_]+|governance_[a-z_]+)$/;
 const identityColumns =
-  /^(id|workspace_id|principal_id|owner_id|created_by|recorded_by|reviewed_by|approved_by|actor_id|kind|state|status|operation|role|scope|parent_kind|[a-z_]+_id|[a-z_]+_hash|sha256|mime|provider|model|key|token_hash)$/;
+  /^(id|workspace_id|principal_id|owner_id|created_by|recorded_by|reviewed_by|approved_by|actor_id|kind|state|status|operation|role|scope|parent_kind|[a-z_]+_id|[a-z_]+_hash|sha256|mime|provider|model|key|token_hash|mode|category|decision|action|requested_scope|cadence|backend|user_code|document_type|due_cycle|updated_by|applied_by|decision_by|resource_type)$/;
 const referenceKeys: Record<string, string> = {
+  threadId: "question-thread",
+  thread_id: "question-thread",
+  turnId: "question-turn",
+  turn_id: "question-turn",
+  feedback_id: "question-feedback",
+  original_batch_id: "batch",
+  derived_batch_id: "batch",
+  selected_page_ids: "page",
   sourceId: "source",
   source_id: "source",
   sourceIds: "source",
@@ -198,7 +207,10 @@ function own(row: ProductRow) {
     id = d.id;
   const result = new Set<string>();
   let kind: string | undefined;
-  if (t === "imports") kind = "released-import";
+  if (t === "question_threads") kind = "question-thread";
+  else if (t === "question_turns") kind = "question-turn";
+  else if (t === "question_feedback") kind = "question-feedback";
+  else if (t === "imports") kind = "released-import";
   else if (t === "import_runs") kind = "released-run";
   else if (t === "sources") kind = "source";
   else if (t === "pages" || t === "versions") kind = "page";
@@ -304,6 +316,37 @@ export function scrubProductValue(
     return lineageKeys.has(key) ? value : "[법정 삭제]";
   return value === null || lineageKeys.has(key) ? value : "[법정 삭제]";
 }
+/** A private question may contain short copied text even if its own ID and
+ * thread ID are known. Those identifiers do not establish resource lineage. */
+function unresolvedProductRows(rows: ProductRow[], selected: ProductRow[]) {
+  return rows.filter((row) => {
+    if (selected.includes(row)) return false;
+    if (row.table.startsWith("agent_")) {
+      const hasContent = Object.entries(row.data).some(([key, value]) =>
+        !identityColumns.test(key) && !(row.table === "agent_outcomes" && key === "result") &&
+        ((typeof value === "string" && value.length > 0) || (value !== null && typeof value === "object")),
+      );
+      return hasContent && ![...lineageRefs(row)].some((ref) => ref.startsWith("source:") || ref.startsWith("page:"));
+    }
+    if (row.table === "question_turns" || row.table === "question_feedback") {
+      const context = row.table === "question_turns" ? row.data.sealed : row.data.input_envelope;
+      return ![...refs(context)].some((ref) => ref.startsWith("source:") || ref.startsWith("page:"));
+    }
+    return own(row).size === 0 && lineageRefs(row).size === 0 && Object.values(row.data).some(
+      (v) => (v !== null && typeof v === "object") || (typeof v === "string" && v.length > 100),
+    );
+  }).length + unmappedReleasedImports(rows, selected);
+}
+/** Nonces are caller-controlled content but have per-thread/actor uniqueness.
+ * Generate a fresh opaque value and verify it is absent before redaction. */
+async function erasedNonce(db: PoolClient, row: ProductRow): Promise<string> {
+  for (let i = 0; i < 8; i++) {
+    const nonce = `erased-${randomUUID()}`;
+    const existing = await db.query(`SELECT 1 FROM "${row.table}" WHERE workspace_id=$1 AND nonce=$2 LIMIT 1`, [row.data.workspace_id, nonce]);
+    if (!existing.rowCount) return nonce;
+  }
+  throw Error("ERASURE_NONCE_ALLOCATION_FAILED");
+}
 function canonical(v: unknown): string {
   return JSON.stringify(v, (_k, value) =>
     value && typeof value === "object" && !Array.isArray(value)
@@ -334,8 +377,7 @@ interface Inventory {
   rows: ProductRow[];
   columns: Map<string, { name: string; type: string }[]>;
 }
-/** Temporary fail-closed boundary. Follow-up must implement credential redaction/revocation,
- * usage retention and attribution, restore replay, and safe retirement of the write fence. */
+/** Resource-scope erasure cannot infer lineage for credential and usage records. */
 async function hasAgentData(db: PoolClient, workspaceId: string) {
   const result = await db.query(`SELECT EXISTS (
     SELECT 1 FROM agent_api_keys WHERE workspace_id=$1
@@ -360,19 +402,7 @@ async function agentDataBoundary(db: PoolClient, workspaceId: string) {
 async function assertNoAgentData(db: PoolClient, workspaceId: string) {
   if (await hasAgentData(db, workspaceId)) throw Error("ERASURE_AGENT_DATA_UNSUPPORTED");
 }
-async function hasQuestionData(db: PoolClient, workspaceId: string) {
-  const result = await db.query(`SELECT EXISTS (
-    SELECT 1 FROM question_threads WHERE workspace_id=$1
-    UNION ALL SELECT 1 FROM question_turns WHERE workspace_id=$1
-    UNION ALL SELECT 1 FROM question_feedback WHERE workspace_id=$1
-    UNION ALL SELECT 1 FROM question_feedback_work WHERE workspace_id=$1
-  ) AS present`, [workspaceId]);
-  return result.rows[0].present as boolean;
-}
-async function assertNoQuestionData(db: PoolClient, workspaceId: string) {
-  if (await hasQuestionData(db, workspaceId)) throw Error("ERASURE_QUESTION_DATA_UNSUPPORTED");
-}
-/** These append-only workflow records are not yet covered by erasure or recovery replay. */
+/** Presence is retained for compatibility and diagnostic tests. */
 export async function hasVersionWorkflowData(db: PoolClient, workspaceId: string) {
   const result = await db.query(`SELECT
     EXISTS(SELECT 1 FROM version_metadata WHERE workspace_id=$1) OR
@@ -382,9 +412,6 @@ export async function hasVersionWorkflowData(db: PoolClient, workspaceId: string
     EXISTS(SELECT 1 FROM version_restore_plans WHERE workspace_id=$1) OR
     EXISTS(SELECT 1 FROM version_restore_applications WHERE workspace_id=$1) AS present`, [workspaceId]);
   return result.rows[0].present as boolean;
-}
-async function assertNoVersionWorkflowData(db: PoolClient, workspaceId: string) {
-  if (await hasVersionWorkflowData(db, workspaceId)) throw Error("ERASURE_VERSION_METADATA_UNSUPPORTED");
 }
 async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
   const metadata = (
@@ -406,13 +433,14 @@ async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
   for (const [table, cols] of columns) {
     const scoped = cols.some((c) => c.name === "workspace_id"),
       jobScoped = cols.some((c) => c.name === "job_id"),
-      keyScoped = table === "agent_key_requests" && cols.some((c) => c.name === "key_id");
-    if (!scoped && !jobScoped && !keyScoped)
+      keyScoped = table === "agent_key_requests" && cols.some((c) => c.name === "key_id"),
+      deliveryScoped = ["collaboration_delivery_events", "collaboration_delivery_receipts"].includes(table);
+    if (!scoped && !jobScoped && !keyScoped && !deliveryScoped)
       throw Error(`ERASURE_SCOPE_UNSUPPORTED:${table}`);
     let offset = 0;
     for (;;) {
       const result = await db.query(
-        `SELECT t.ctid::text AS locator,${releasedImportProjection(table) ?? "to_jsonb(t)"} AS data FROM "${table}" t WHERE ${scoped ? "t.workspace_id=$1" : jobScoped ? "t.job_id IN(SELECT id FROM durable_jobs WHERE workspace_id=$1)" : "t.key_id IN(SELECT id FROM agent_api_keys WHERE workspace_id=$1)"} ORDER BY t.ctid LIMIT 1000 OFFSET $2 FOR UPDATE OF t`,
+        `SELECT t.ctid::text AS locator,${releasedImportProjection(table) ?? "to_jsonb(t)"} AS data FROM "${table}" t WHERE ${scoped ? "t.workspace_id=$1" : jobScoped ? "t.job_id IN(SELECT id FROM durable_jobs WHERE workspace_id=$1)" : keyScoped ? "t.key_id IN(SELECT id FROM agent_api_keys WHERE workspace_id=$1)" : "t.delivery_id IN(SELECT id FROM collaboration_digest_outbox WHERE workspace_id=$1)"} ORDER BY t.ctid LIMIT 1000 OFFSET $2 FOR UPDATE OF t`,
         [ctx.workspaceId, offset],
       );
       for (const r of result.rows)
@@ -433,9 +461,8 @@ export async function replayProductErasure(
 ) {
   if (!resources.length && !entireWorkspace) return;
   await db.query("SELECT pg_advisory_xact_lock($1)", [MUTATION_GATE]);
-  await assertNoAgentData(db, workspaceId);
-  await assertNoQuestionData(db, workspaceId);
-  await assertNoVersionWorkflowData(db, workspaceId);
+  await assertCredentialErasureScope(db, workspaceId);
+  if (!entireWorkspace) await assertNoAgentData(db, workspaceId);
   const ctx = { workspaceId, principalId: "signed-recovery-ledger" },
     all = await inventory(db, ctx),
     selected = selectErasureRows(
@@ -482,7 +509,7 @@ export async function replayProductErasure(
     }
     const replacements: Record<string, unknown> = {};
     for (const c of all.columns.get(row.table) ?? []) {
-      if (identityColumns.test(c.name)) continue;
+      if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result")) continue;
       const value = row.data[c.name];
       if (c.type === "jsonb" || c.type === "json")
         replacements[c.name] = scrubProductValue(value);
@@ -490,7 +517,8 @@ export async function replayProductErasure(
         (c.type === "text" || c.type === "character varying") &&
         value !== null
       )
-        replacements[c.name] = "[법정 삭제]";
+        replacements[c.name] = c.name === "nonce" && ["question_turns", "question_feedback"].includes(row.table)
+          ? await erasedNonce(db, row) : "[법정 삭제]";
     }
     if (Object.keys(replacements).length)
       await db.query(
@@ -499,19 +527,8 @@ export async function replayProductErasure(
       );
     counts[row.table] = (counts[row.table] ?? 0) + 1;
   }
-  const opaque = entireWorkspace
-    ? 0
-    : all.rows.filter(
-        (r) =>
-          !selected.includes(r) &&
-          own(r).size === 0 &&
-          lineageRefs(r).size === 0 &&
-          Object.values(r.data).some(
-            (v) =>
-              typeof v === "object" ||
-              (typeof v === "string" && v.length > 100),
-          ),
-      ).length + unmappedReleasedImports(all.rows, selected);
+  if (entireWorkspace) await retireErasedCredentials(db, workspaceId);
+  const opaque = entireWorkspace ? 0 : unresolvedProductRows(all.rows, selected);
   if (opaque || storage.shared) throw Error("RECOVERY_ERASURE_INCOMPLETE");
   counts.unresolved_unlineaged_rows = opaque;
   counts.shared_live_blob_hashes = storage.shared;
@@ -556,17 +573,7 @@ async function calculate(db: PoolClient, ctx: Context, input: unknown) {
       d.scope === "workspace" ||
       selectedRefs.has(`${h.resource_kind}:${h.resource_id}`),
   );
-  const opaque =
-    all.rows.filter(
-      (r) =>
-        !selected.includes(r) &&
-        own(r).size === 0 &&
-        refs(r.data).size === 0 &&
-        Object.values(r.data).some(
-          (v) =>
-            typeof v === "object" || (typeof v === "string" && v.length > 100),
-        ),
-    ).length + unmappedReleasedImports(all.rows, selected);
+  const opaque = d.scope === "workspace" ? 0 : unresolvedProductRows(all.rows, selected);
   const graph = await allContentReferences(db),
     resourceIds = new Set(
       selected
@@ -625,9 +632,9 @@ export async function previewErasure(
       total: p.selected.length,
       legalHold: p.blocked,
       unresolvedUnlineagedRows: p.opaque,
-      agentDataUnsupported: await hasAgentData(db, ctx.workspaceId),
-      questionDataUnsupported: await hasQuestionData(db, ctx.workspaceId),
-      versionWorkflowDataUnsupported: await hasVersionWorkflowData(db, ctx.workspaceId),
+      agentDataUnsupported: d.scope !== "workspace" && await hasAgentData(db, ctx.workspaceId),
+      questionDataUnsupported: false,
+      versionWorkflowDataUnsupported: false,
       agentDataBoundary: boundary,
       allCopiesErased: false,
     };
@@ -676,16 +683,8 @@ export async function executeErasure(
           status = "blocked";
           throw Error("LEGAL_HOLD");
         }
-        await assertNoAgentData(db, ctx.workspaceId);
-        if (await hasQuestionData(db, ctx.workspaceId)) {
-          status = "blocked";
-          throw Error("ERASURE_QUESTION_DATA_UNSUPPORTED");
-        }
-        if (await hasVersionWorkflowData(db, ctx.workspaceId)) {
-          // Preflight occurs before tombstones or redaction. A failed receipt is
-          // audit evidence, not a partially executed deletion or write fence.
-          throw Error("ERASURE_VERSION_METADATA_UNSUPPORTED");
-        }
+        await assertCredentialErasureScope(db, ctx.workspaceId);
+        if (d.scope !== "workspace") await assertNoAgentData(db, ctx.workspaceId);
         const resources: Resource[] =
           d.scope === "workspace"
             ? (
@@ -719,7 +718,7 @@ export async function executeErasure(
           if (await redactReleasedImportRow(db, row)) continue;
           const replacements: Record<string, unknown> = {};
           for (const c of p.all.columns.get(row.table) ?? []) {
-            if (identityColumns.test(c.name)) continue;
+            if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result")) continue;
             const value = row.data[c.name];
             if (c.type === "jsonb" || c.type === "json")
               replacements[c.name] = scrubProductValue(value);
@@ -727,7 +726,8 @@ export async function executeErasure(
               (c.type === "text" || c.type === "character varying") &&
               value !== null
             )
-              replacements[c.name] = "[법정 삭제]";
+              replacements[c.name] = c.name === "nonce" && ["question_turns", "question_feedback"].includes(row.table)
+              ? await erasedNonce(db, row) : "[법정 삭제]";
           }
           if (!Object.keys(replacements).length) continue;
           await db.query(
@@ -735,6 +735,7 @@ export async function executeErasure(
             [row.table, row.locator, JSON.stringify(replacements)],
           );
         }
+        if (d.scope === "workspace") await retireErasedCredentials(db, ctx.workspaceId);
         const jobs = p.selected
           .filter((r) => r.table === "durable_jobs")
           .map((r) => r.data.id);

@@ -333,3 +333,10 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 변경: `src/ui/AccountMenu.tsx`, `src/ui/account-menu.css`, `src/App.tsx`, `src/operational/ConsoleShell.tsx`, `src/operational/App.tsx`, `src/operational/console.ts`, `src/operational/console.css`. 지식 순환이나 기존 권한·지식 데이터는 변경하지 않는다. 기존 UI 일관성 요구를 구체화한 변경이며 기존 요구사항 ID를 변경하지 않았다.
 - 한계: 공개 Gate main은 별도 테마 컨트롤을 사용하므로 사내 드롭다운 구현과 동일한 코드를 확인한 것은 아니다. 서버 계정·세션 관리 라우트는 실제 런타임에 연결되지 않아 사용자 설정에서는 현재 정보만 표시한다. 사내 SSO 및 실제 데이터로는 검증하지 않았다.
 - 검증: Node 24에서 `npm ci`, `npm run check` 통과. 사용자 메뉴 상호작용 테스트 포함. 실제 브라우저 1440px/390px 화면 확인은 로컬 서버에 브라우저가 연결되지 않아 미실시. 최종 커밋 CI는 PR에서 별도 확인한다.
+
+### 2026-11-14 — P9 Task 1: 검토 기반 삭제와 복구 재생 (LIF-005~007, VER-012, OPS-008~009)
+
+- `server/operations/erasure.ts`, `product-erasure.ts`와 migration 111은 질문 턴·피드백, 버전 메타데이터·복구 계획, 협업·거버넌스 기록, 에이전트 자격증명 및 모델 사용 표식을 인벤토리와 승인된 삭제에 포함한다. 전체 공간에서는 자격증명을 철회하고 계보 없는 기록도 삭제한다. 원본별 삭제는 접근·법적 보류·기준 해시를 재검사하고, 계보 없는 질문·에이전트 내용은 미해결로 보고한다. 다른 공간에 연결된 잘못된 자격증명 관계는 트랜잭션 전체를 거부한다.
+- 동일 mutation gate와 페이지 tombstone으로 늦은 버전 메타데이터 쓰기를 막는다. 호출자는 데이터 변경 전에 shared gate를 잡아야 한다. 일반 transaction은 이를 수행한다. 법적 보류로 거부된 요청은 실행된 삭제가 아니다. 불변 ID·행위자·제약된 enum·사용량 수치는 보존하며 외부 백업까지 삭제했다고 주장하지 않는다.
+- 집중 합성 PostgreSQL 시험에서 실 HTTP, 소스/질문 계보, 별도 공간 격리, nonce 중복, signed 복구 재생, stale preview·보류·현재 ACL과 gate 경합을 검증했다. 정확한 명령과 결과는 작업 보고서와 PR에 기재한다. PostgreSQL 17 복구 도구를 PostgreSQL 16 합성 서버에 사용한 release 시험은 `transaction_timeout` 미지원으로 실패했으며 PG17 CI에서 별도 확인해야 한다.
+- Task 2 사용자 휴지통·복원과 주기 보존 실행은 후속 독립 PR 범위다. 사내 보존/법적 정책, 외부 백업 삭제와 운영 수용·실제 업무 품질 개선은 검증하지 않았다.
