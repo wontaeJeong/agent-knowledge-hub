@@ -8,7 +8,7 @@ import { migrate } from "../database";
 import { OidcAuth, sessionHash } from "../runtime/auth";
 import { authorizeAction } from "../access/index";
 
-test("actual released-schema upgrade: archived verified legacy reviewer authenticates but ownerless workload remains quarantined, not silently declared compatible", async () => {
+test("actual released-schema upgrade admits evidenced legacy reviewer while quarantining other spaces and forbidding management", async () => {
   if (!process.env.TEST_DATABASE_URL) throw Error("TEST_DATABASE_URL_REQUIRED");
   const root = new Pool({ connectionString: process.env.TEST_DATABASE_URL }),
     schema = "identity_legacy_" + randomUUID().replaceAll("-", "");
@@ -107,6 +107,7 @@ test("actual released-schema upgrade: archived verified legacy reviewer authenti
       } as IncomingMessage,
       session = await auth.authenticate(req);
     expect(session?.identityRole).toBe("reviewer");
+    expect(session?.role).toBe("reviewer");
     expect(session?.spaceRole).toBeNull();
     const ctx = {
       ...session!,
@@ -119,11 +120,21 @@ test("actual released-schema upgrade: archived verified legacy reviewer authenti
         version: 1,
       }),
     ).rejects.toThrow("NOT_FOUND");
+    await expect(
+      authorizeAction(pool, ctx, "knowledge.read"),
+    ).resolves.toMatchObject({ legacyRole: "reviewer" });
     await expect(authorizeAction(pool, ctx, "space.admin")).rejects.toThrow(
-      "NOT_FOUND",
+      "FORBIDDEN",
     );
     await expect(
       authorizeAction(pool, ctx, "policy.strengthen"),
+    ).rejects.toThrow("FORBIDDEN");
+    await expect(
+      authorizeAction(
+        pool,
+        { ...ctx, workspaceId: "unknown-legacy" },
+        "knowledge.read",
+      ),
     ).rejects.toThrow("NOT_FOUND");
     expect(
       (

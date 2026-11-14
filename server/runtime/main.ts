@@ -2,11 +2,13 @@ import { createServer } from "node:http";
 import { Pool } from "pg";
 import { migrate, assertSchemaCurrent } from "../database";
 import { OidcAuth } from "./auth";
+import { createIdentityRuntime } from "../identity/runtime";
 import { RuntimeService } from "./knowledge";
 import { createRuntimeHandler } from "./http";
 import { bootstrapAccess, validateAccessBootstrap } from "../access/index";
 import { authorizeInTransaction } from "../access/index";
 import { StorageService, FileBlobStore, UrlCollector } from "../storage";
+import { TrustedArtifactCollector, collectorConfigurationFromEnvironment } from "../storage/trusted-collector";
 import { RefinementService } from "../refinement/service";
 import {
   createSemanticProvider,
@@ -25,6 +27,7 @@ import {createOperationalHost} from './operational-host';
 import {OperationsLoop} from './operations-loop';
 import {monitorOnce,webhookAdapter,emailGatewayAdapter} from '../operations';
 import {registerTrustedDestinations} from '../policy/model';
+import { createCollaborationHost, collaborationDeliveryFromEnvironment } from "./collaboration-host";
 import {scanHandoffs} from '../workflows/governance/maintenance';
 
 if (!process.env.DATABASE_URL) throw Error("DATABASE_URL_REQUIRED");
@@ -51,7 +54,13 @@ if (process.argv.includes("--migrate")) {
   await assertSchemaCurrent(pool);
   await assertOperationalStartup(pool);
   try{await registerTrustedDestinations(pool,JSON.parse(process.env.AKH_MODEL_DESTINATIONS_JSON??'[]'));}catch{throw Error('POLICY_CONFIGURATION');}
-  const auth = await OidcAuth.create(pool);
+  const approvers = z.array(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)).max(100).parse(JSON.parse(process.env.AKH_EMERGENCY_APPROVER_IDS ?? "[]"));
+  const bindings = z.array(z.object({ key: z.string().min(1).max(100), issuer: z.string().url(), externalGroupId: z.string().min(1).max(500), groupId: z.string().min(1).max(100), label: z.string().min(1).max(200) }).strict()).max(100).parse(JSON.parse(process.env.AKH_IDENTITY_DIRECTORY_BINDINGS ?? "[]"));
+  const identity = createIdentityRuntime(pool, {
+    platformEmergencyApproverIds: approvers,
+    ...(bindings.length ? { directoryBindings: bindings } : {}),
+  });
+  const auth = await OidcAuth.create(pool, identity.authOptions);
   // Accepted in-flight jobs are visible after restart as interrupted, never silently successful.
   await pool.query(
     `UPDATE runtime_jobs SET status='failed',error_code='PROCESS_INTERRUPTED',finished_at=now() WHERE status='running';
@@ -80,6 +89,8 @@ if (process.argv.includes("--migrate")) {
       process.env.AKH_APPROVED_COLLECTION_ORIGINS ?? "[]",
     ),
   });
+  const artifacts = new TrustedArtifactCollector(storage, collectorConfigurationFromEnvironment());
+  await artifacts.initialize();
   const refinement = new RefinementService(
     pool,
     authorizeInTransaction,
@@ -97,9 +108,20 @@ if (process.argv.includes("--migrate")) {
   } catch {
     throw Error("PLATFORM_OPERATOR_CONFIGURATION_REQUIRED");
   }
+  // Only explicitly provisioned service/credential bindings may run scheduled
+  // retention. These do not grant policy editing or ordinary administrative APIs.
+  const retentionServices = z.array(z.object({
+    workspaceId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+    principalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+    credentialId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+  }).strict()).max(100).parse(JSON.parse(process.env.AKH_RETENTION_SERVICES_JSON ?? "[]"));
+
+  const directory = directoryFromEnvironment();
+  const collaboration = createCollaborationHost(pool, auth.origin, {...directory, ...collaborationDeliveryFromEnvironment(), dispatcherId:process.env.AKH_COLLABORATION_DISPATCHER_ID});
   const jobs = createRuntimeJobs(pool, service, {
-    ...directoryFromEnvironment(),
+    ...directory,
     platformOperatorIds,
+    retentionServices,
     semanticLint: refinement.semanticJobAdapter(),
     revalidateInteractiveGrant: (binding) =>
       auth.revalidateInteractiveGrant(binding),
@@ -134,13 +156,16 @@ if (process.argv.includes("--migrate")) {
       pool,
       service,
       auth,
+      identityServices: identity.httpServices,
       origin: auth.origin,
       workspaceId: auth.workspaceId,
       storage,
+      artifacts,
       collector,
       refinement,
       operations,
       jobs,
+      collaboration: collaboration.service,
       platformOperatorIds,
       shutdown,
       probe,
@@ -151,6 +176,7 @@ if (process.argv.includes("--migrate")) {
   server.headersTimeout = 10000;
   server.listen(Number(process.env.PORT || 8080), "0.0.0.0");
   jobs.start();
+  if (process.env.AKH_COLLABORATION_DISPATCHER_ID) collaboration.worker.start();
   monitor.start();
   handoffs.start();
   const stopImports =
@@ -162,6 +188,7 @@ if (process.argv.includes("--migrate")) {
     stopImports();
     server.close(async () => {
       await jobs.stop();
+      await collaboration.worker.stop();
       await monitor.stop();
       await handoffs.stop();
       await shutdown.drain(8000);

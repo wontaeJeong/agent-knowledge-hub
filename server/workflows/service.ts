@@ -1,3 +1,4 @@
+import {beginVersionMetadataChange,finishVersionMetadataChange} from "./versions/metadata";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -73,6 +74,8 @@ const docSchema = z
     expectedRevision: revision,
     state: z.enum(["active", "archived", "trash"]).optional(),
     parentId: id.nullable().optional(),
+    restoreParentId: id.nullable().optional(),
+    restoreTitle: z.string().trim().min(1).max(300).optional(),
     reason: z.string().trim().min(1).max(2000),
     properties: z.record(z.string().max(100), z.string().max(2000)).optional(),
     reviewDue: z.iso.datetime().nullable().optional(),
@@ -591,7 +594,7 @@ export class WorkflowService {
         if (
           d.state &&
           Object.keys(d).some(
-            (key) => !["expectedRevision", "state", "reason"].includes(key),
+            (key) => !["expectedRevision", "state", "reason", "restoreParentId", "restoreTitle"].includes(key),
           )
         )
           await this.authorize(db, ctx, "knowledge.protect", {
@@ -613,10 +616,21 @@ export class WorkflowService {
           await requireRead(db, ctx, "source", sid);
         if ((r.rows[0]?.revision ?? 0) !== d.expectedRevision)
           throw Error("STALE_VERSION");
-        const nextParent =
-          d.parentId === undefined
-            ? (r.rows[0]?.parent_id ?? null)
-            : d.parentId;
+        const restoring = r.rows[0]?.state === "trash" && d.state === "active";
+        if ((d.restoreParentId !== undefined || d.restoreTitle !== undefined) && !restoring) throw Error("VALIDATION_FAILED");
+        const nextParent = restoring && d.restoreParentId !== undefined
+          ? d.restoreParentId
+          : d.parentId === undefined ? (r.rows[0]?.parent_id ?? null) : d.parentId;
+        if (restoring && ((d.restoreParentId !== undefined && nextParent !== (r.rows[0]?.parent_id ?? null)) || (d.restoreTitle !== undefined && d.restoreTitle !== p.title))) {
+          // run() already checked the page, its current provenance and ACL under
+          // lifecycle.manage, which alone can resolve the trashed page. Check the
+          // additional capability without resolving that page as active again.
+          await this.authorize(db, ctx, "knowledge.protect");
+        }
+        if (restoring) {
+          const conflict = await db.query(`SELECT 1 FROM pages p LEFT JOIN workflow_document_state s ON s.workspace_id=p.workspace_id AND s.page_id=p.id WHERE p.workspace_id=$1 AND p.id<>$2 AND coalesce(s.state,'active')<>'trash' AND s.parent_id IS NOT DISTINCT FROM $3 AND p.data->>'title'=$4 LIMIT 1`, [ctx.workspaceId,pageId,nextParent,d.restoreTitle ?? p.title]);
+          if (conflict.rowCount) throw Error("RESTORE_PATH_CONFLICT");
+        }
         const visited = new Set([pageId]);
         let parent = nextParent;
         while (parent) {
@@ -629,16 +643,28 @@ export class WorkflowService {
           );
           parent = a.rows[0]?.parent_id;
         }
+        if (restoring && d.restoreParentId && nextParent !== (r.rows[0]?.parent_id ?? null))
+          await this.authorize(db, ctx, "knowledge.protect", {kind:"page", id:d.restoreParentId});
         if (d.replacementId) await this.page(db, ctx, d.replacementId);
         const {
           expectedRevision: _,
           parentId: __,
           state: ___,
+          restoreParentId: ____,
+          restoreTitle: _____,
           ...settings
         } = d;
         const next = { ...(r.rows[0]?.data ?? {}), ...settings };
+        const metadataChange = await beginVersionMetadataChange(db,ctx,pageId,this.authorize);
+        if (d.state === "trash" && r.rows[0]?.state !== "trash") {
+          const policy = (await db.query("SELECT policy FROM content_retention_policies WHERE workspace_id=$1",[ctx.workspaceId])).rows[0]?.policy;
+          const grace = policy?.enabled && Number.isSafeInteger(policy?.trashGraceDays) && policy.trashGraceDays >= 1 && policy.trashGraceDays <= 36500 ? policy.trashGraceDays : null;
+          const time = (await db.query("SELECT clock_timestamp() AS now")).rows[0].now as Date;
+          next.trashedAt = time.toISOString();
+          next.purgeAfter = grace === null ? null : new Date(time.getTime()+grace*86400000).toISOString();
+        } else if (restoring) { next.trashedAt = null; next.purgeAfter = null; }
         if (
-          d.parentId !== undefined &&
+          (d.parentId !== undefined || d.restoreParentId !== undefined) &&
           nextParent !== (r.rows[0]?.parent_id ?? null)
         ) {
           const previousAudience = await readers(
@@ -653,6 +679,10 @@ export class WorkflowService {
             [ctx.workspaceId, pageId, previousAudience],
           );
         }
+        if (restoring && d.restoreTitle !== undefined && d.restoreTitle !== p.title) {
+          await db.query("UPDATE pages SET data=jsonb_set(data,'{title}',to_jsonb($3::text)) WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,pageId,d.restoreTitle]);
+          await db.query("INSERT INTO workflow_events(workspace_id,id,principal_id,kind,resource_id,data) VALUES($1,$2,$3,'page.restore.rename',$4,$5)",[ctx.workspaceId,randomUUID(),ctx.principalId,pageId,{before:p.title,after:d.restoreTitle,reason:d.reason}]);
+        }
         await db.query(
           "INSERT INTO workflow_document_state VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(workspace_id,page_id) DO UPDATE SET parent_id=excluded.parent_id,state=excluded.state,revision=excluded.revision,data=excluded.data",
           [
@@ -664,7 +694,7 @@ export class WorkflowService {
             next,
           ],
         );
-        if (d.state === "trash" || d.protected !== undefined) {
+        if (d.state === "trash" || d.protected !== undefined || (restoring && d.restoreTitle !== undefined && d.restoreTitle !== p.title)) {
           const batches = await db.query(
             "SELECT id,data FROM batches WHERE workspace_id=$1 AND data->>'status' IN ('pending','approved')",
             [ctx.workspaceId],
@@ -681,6 +711,7 @@ export class WorkflowService {
               );
             }
         }
+        await finishVersionMetadataChange(db,ctx,metadataChange,d.reason,this.authorize);
         await audit(db, ctx, "page.lifecycle", pageId);
         return {
           id: pageId,

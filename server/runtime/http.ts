@@ -34,6 +34,7 @@ import { handleAgentRoute } from "../agents/http";
 import { handleAgentMcp } from "../agents/mcp";
 import { accessRoute, routeAction } from "../access/http";
 import type { Context } from "../service";
+import { legacySessionRole } from "../access/legacy-compat";
 import {
   storageRoutes,
   type StorageService,
@@ -60,9 +61,14 @@ import { handleBoardRequest } from "../boards";
 import { authenticateAgentKey, recordAgentRequest, permittedAgentRoute, handleCredentialRequest, startDevice, pollDevice, verifyDevice, decideDevice } from "../agent-credentials";
 import { QuestionsService } from "../questions/service";
 import { handleQuestionRoute } from "../questions/http";
+import { VersionService } from "../workflows/versions/service";
+import { handleVersionRoute } from "../workflows/versions/http";
+import { handleCollaborationRoute, type CollaborationService } from "../collaboration";
+import { handleIdentityRequest, type IdentityHttpServices } from "../identity/http";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
+  identityServices?: IdentityHttpServices;
   service: RuntimeService;
   origin: string;
   workspaceId: string;
@@ -70,18 +76,21 @@ export function createRuntimeHandler(options: {
   dist?: string;
   storage?: StorageService;
   collector?: UrlCollector;
+  artifacts?: import("../storage/trusted-collector").TrustedArtifactCollector;
   refinement?: RefinementService;
   admission?: HttpAdmission;
   operations?: (input: OperationsRouteInput) => Promise<boolean>;
   jobs?: RuntimeJobsBridge;
+  collaboration?: CollaborationService;
   platformOperatorIds?: readonly string[];
   probe?: (req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
   shutdown?: ShutdownController;
 }) {
   const storageHandler = options.storage
-    ? storageRoutes(options.storage, options.collector)
+    ? storageRoutes(options.storage, options.collector, options.artifacts)
     : undefined;
   const legacyAccess = new LegacyAccessService(options.pool);
+  const versions = new VersionService(options.pool, authorizeInTransaction);
   const questions = new QuestionsService(options.pool, {
     runtime: options.service,
     authorize: authorizeInTransaction,
@@ -215,16 +224,6 @@ export function createRuntimeHandler(options: {
         : agent ? null : await (options.auth?.authenticate(req) ?? Promise.resolve(null));
       if (!session && !agent) return send(401, { code: "UNAUTHENTICATED", requestId });
       const actor = agent ?? session!;
-      if (
-        actor.workspaceId !== options.workspaceId &&
-        !(
-          await options.pool.query(
-            "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
-            [actor.workspaceId],
-          )
-        ).rowCount
-      )
-        return send(403, { code: "FORBIDDEN" });
       const ctx: Context = {
         requestId,
         workspaceId: actor.workspaceId,
@@ -235,6 +234,10 @@ export function createRuntimeHandler(options: {
           ? undefined
           : options.auth!.requestGuard(req, session!),
       };
+      if (actor.workspaceId !== options.workspaceId && !(await options.pool.query("SELECT 1 FROM access_spaces WHERE workspace_id=$1",[actor.workspaceId])).rowCount) {
+        if (!ctx.authorization || !await legacySessionRole(options.pool,ctx,ctx.authorization.sessionId))
+          return send(403,{code:"FORBIDDEN"});
+      }
       ticket?.identify(
         ctx.workspaceId,
         ctx.principalId,
@@ -277,6 +280,16 @@ export function createRuntimeHandler(options: {
           path.startsWith("/api/v1/storage/") ? 5 * 1024 * 1024 : 512000,
         );
       }
+      if (path.startsWith("/api/v1/identity/")) {
+        if (credential || agent) throw Error("FORBIDDEN");
+        if (!options.identityServices) throw Error("NOT_FOUND");
+        const result = await handleIdentityRequest(options.identityServices, ctx, req.method || "GET", path + url.search, body);
+        if (!result) throw Error("NOT_FOUND");
+        if ((path === "/api/v1/identity/logout-all" && req.method === "POST") ||
+            (req.method === "DELETE" && "current" in result.body && result.body.current === true))
+          options.auth!.setCookie(res, "akh_session", "", 0);
+        return send(result.status, result.body);
+      }
       if (agent) {
         if (!permittedAgentRoute(req.method || "GET",path,agent.agent.scope,body))
           return send(403,{code:"FORBIDDEN",requestId});
@@ -317,6 +330,11 @@ export function createRuntimeHandler(options: {
         return res.end(output);
       }
       const service = options.service;
+      if (path.startsWith("/api/v1/versions/")) {
+        if (credential || agent) throw Error("FORBIDDEN");
+        if (await handleVersionRoute({method:req.method??"GET",path,body,ctx,send,query:url.searchParams},versions)) return;
+        return send(404,{code:"NOT_FOUND",requestId});
+      }
       if (path.startsWith("/api/v1/questions/")) {
         // Neither credential type has a verified ceiling for private threads yet.
         if (credential || agent) throw Error("FORBIDDEN");
@@ -332,6 +350,12 @@ export function createRuntimeHandler(options: {
         }
         if (await handleQuestionRoute({ method: req.method ?? "GET", path: path + url.search, body, ctx, send }, questions)) return;
         return send(404, { code: "NOT_FOUND", requestId });
+      }
+      if (path.startsWith("/api/v1/collaboration/")) {
+        if (!options.collaboration) throw Error("COLLABORATION_NOT_CONFIGURED");
+        if (agent || credential) throw Error("FORBIDDEN");
+        if (await handleCollaborationRoute({method:req.method ?? "GET",path:path + url.search,body,ctx,send},options.collaboration)) return;
+        return send(404,{code:"NOT_FOUND",requestId});
       }
       if (await handleRetentionRoute({ method: req.method ?? "GET", path, body, ctx, send }, retention)) return;
       if(await handleGovernanceRoute({method:req.method??'GET',path,body,ctx,send},new GovernanceService(options.pool,authorizeInTransaction)))return;
@@ -462,6 +486,7 @@ export function createRuntimeHandler(options: {
             principalId: ctx.principalId,
             role,
             csrfToken: session.csrfToken,
+            identityFeatures: { emergency: !!options.identityServices?.emergency, directory: !!options.identityServices?.directory },
             capabilities: options.jobs
               ? runtimeCapabilities(
                   a.capabilities,
@@ -469,8 +494,9 @@ export function createRuntimeHandler(options: {
                   options.platformOperatorIds,
                 )
               : a.capabilities,
-            effectiveRole: a.role,
-            spaceRole: {
+            legacyAccess: !!a.legacyRole,
+            effectiveRole: a.legacyRole ? null : a.role,
+            spaceRole: a.legacyRole ? null : {
               read: "Read",
               triage: "Triage",
               write: "Write",
@@ -480,7 +506,7 @@ export function createRuntimeHandler(options: {
             canReviewKnowledge:
               !ctx.credentialId && a.capabilities.includes("changeset.approve"),
             personalSpace: a.space.namespaceKind === "personal",
-            space: a.space,
+            space: a.legacyRole ? null : a.space,
           });
         } catch (e) {
           if (
@@ -499,6 +525,7 @@ export function createRuntimeHandler(options: {
             principalId: ctx.principalId,
             role: "reader",
             csrfToken: session.csrfToken,
+            identityFeatures: { emergency: !!options.identityServices?.emergency, directory: !!options.identityServices?.directory },
             capabilities: [
               "space.create",
               ...(p.rows[0].team_create ? ["team.create"] : []),
@@ -590,8 +617,10 @@ export function createRuntimeHandler(options: {
         return;
       if (path === "/mcp" && !(await access.effective(ctx)).role)
         throw Error("NOT_FOUND");
-      if (path !== "/mcp")
-        await authorizeAction(options.pool, ctx, routeAction(path, req.method));
+      if (path !== "/mcp") {
+        const legacySourceRead = path === "/api/v1/sources" && req.method === "GET" && (await access.effective(ctx)).legacyRole;
+        await authorizeAction(options.pool, ctx, legacySourceRead ? "knowledge.read" : routeAction(path, req.method));
+      }
       if (
         await handleWorkflowRoute(
           { method: req.method ?? "GET", path, body, ctx, send },
@@ -808,6 +837,8 @@ export function createRuntimeHandler(options: {
         ENOENT: 404,
         FORBIDDEN: 403,
         UNAUTHENTICATED: 401,
+        FRESH_DIRECTORY_HUMAN_REQUIRED: 401,
+        STALE_DIRECTORY_PROOF: 409,
         VALIDATION_FAILED: 400,
         EXPORT_TOO_LARGE: 413,
         INVALID_CLIENT: 400,
@@ -820,6 +851,17 @@ export function createRuntimeHandler(options: {
         INPUT_TOO_LARGE: 413,
         ALREADY_EXISTS: 409,
         STALE_VERSION: 409,
+        RESTORE_PATH_CONFLICT: 409,
+        COLLECTOR_NOT_CONFIGURED: 503,
+        COLLECTOR_CONNECTION_REVOKED: 409,
+        COLLECTOR_FETCH_FAILED: 502,
+        UNSUPPORTED_COLLECTOR_VERSION: 409,
+        COLLECTION_EXCLUDED: 403,
+        ARTIFACT_SESSION_UNVERIFIED: 409,
+        ARTIFACT_INCOMPLETE: 409,
+        SELECTED_ARTIFACT_NOT_FOUND: 404,
+        NO_SELECTED_TEXT: 400,
+        ERASURE_WRITES_FENCED: 409,
         APPROVAL_STALE: 409,
         IDEMPOTENCY_CONFLICT: 409,
         SOURCE_SCOPE_CONFLICT: 409,
@@ -883,3 +925,5 @@ export function createRuntimeHandler(options: {
     }
   };
 }
+
+export { createCollaborationHost } from "./collaboration-host";

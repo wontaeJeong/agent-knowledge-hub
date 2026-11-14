@@ -86,3 +86,8 @@ test("schedule editor preserves explicit holiday/catchup policy and CAS revision
   expect(body.catchup).toBe("bounded");
   expect(body.expectedRevision).toBe(4);
 });
+test("retention schedule pins approved policy revision and never accepts page or model scope", () => {
+ const body=scheduleRequest({key:'retention',cadence:'daily',time:'09:00',timezone:'UTC',weekday:1,pageIds:['p'],sourceIds:['s'],tokens:10,costMicros:1,identity:{workspaceId:'w',principalId:'service',credentialId:'c'},retentionPolicyRevision:4});
+ expect(body.job).toMatchObject({kind:'retention',payload:{policyRevision:4},pageIds:[],sourceIds:[],reservation:{tokens:0,costMicros:0}});
+ expect(body.approvedPageIds).toEqual([]);expect(body.approvedSourceIds).toEqual([]);
+});

@@ -8,6 +8,7 @@ import { registerPrincipal, personalSpace } from "../access";
 import type { SpaceRole } from "../../src/domain/access";
 import { workspaceHref } from "../../src/entry";
 import { effectiveAccess, syncIdentity } from "../access/index";
+import { legacyVerifiedRole } from "../access/legacy-compat";
 import type {
   InteractiveSessionBinding,
   InteractiveSessionSnapshot,
@@ -144,27 +145,33 @@ export class OidcAuth {
       );
       if (!result.rowCount) throw Error("UNAUTHENTICATED");
       try {
-        const access = await effectiveAccess(db, {
-          workspaceId: expected.workspaceId,
-          principalId: expected.principalId,
-        });
+        const access = await effectiveAccess(
+          db,
+          {
+            workspaceId: expected.workspaceId,
+            principalId: expected.principalId,
+          },
+          sessionHash(raw),
+        );
         const role: Role = access.capabilities.includes("changeset.approve")
           ? "reviewer"
           : access.capabilities.includes("changeset.propose")
             ? "editor"
             : "reader";
         if (role !== expected.role) throw Error("UNAUTHENTICATED");
-        const spaceRole = access.role
-          ? (
-              {
-                read: "Read",
-                triage: "Triage",
-                write: "Write",
-                maintain: "Maintain",
-                admin: "Admin",
-              } as const
-            )[access.role]
-          : null;
+        const spaceRole = access.legacyRole
+          ? null
+          : access.role
+            ? (
+                {
+                  read: "Read",
+                  triage: "Triage",
+                  write: "Write",
+                  maintain: "Maintain",
+                  admin: "Admin",
+                } as const
+              )[access.role]
+            : null;
         if (
           expected.spaceRole !== undefined &&
           spaceRole !== expected.spaceRole
@@ -184,6 +191,7 @@ export class OidcAuth {
     };
     const guard = {
       sessionId: raw ? sessionHash(raw) : undefined,
+      verifiedIssuer: this.config.serverMetadata().issuer,
       assertSession: (db: PoolClient) => check(db),
       revalidate: async () => {
         const fresh = await this.authenticate(req, false);
@@ -219,10 +227,14 @@ export class OidcAuth {
     );
     const row = found.rows[0];
     if (!row) throw Error("UNAUTHENTICATED");
-    const access = await effectiveAccess(db, {
-      workspaceId: binding.workspaceId,
-      principalId: binding.principalId,
-    });
+    const access = await effectiveAccess(
+      db,
+      {
+        workspaceId: binding.workspaceId,
+        principalId: binding.principalId,
+      },
+      binding.sessionId,
+    );
     if (!access.role) throw Error("UNAUTHENTICATED");
     const role: Role = access.capabilities.includes("changeset.approve")
       ? "reviewer"
@@ -254,6 +266,10 @@ export class OidcAuth {
       const proof = await this.directoryProof(row.subject, info);
       const current = await identityTransaction(this.pool, async (db) => {
         await this.acceptVerifiedIdentity(db, binding, row.subject, proof);
+        await db.query(
+          "UPDATE runtime_sessions SET legacy_role_ceiling=$2,legacy_verified_at=clock_timestamp() WHERE id=$1",
+          [binding.sessionId, identityRole],
+        );
         return this.executionSession(db, binding, true);
       });
       const snapshot = {
@@ -498,7 +514,7 @@ export class OidcAuth {
       tokens.access_token,
       claims.sub,
     );
-    this.role(info); // Directory eligibility is not a product role binding.
+    const identityRole = this.role(info); // Directory eligibility never creates a product role binding.
     const proof = await this.directoryProof(claims.sub, info);
     const principalId = sessionHash(
       this.config.serverMetadata().issuer + "\0" + claims.sub,
@@ -519,12 +535,22 @@ export class OidcAuth {
       );
       if (proof) await syncDirectoryMemberships(db, proof);
       let workspaceId = this.workspaceId;
-      try {
-        const a = await effectiveAccess(db, { workspaceId, principalId });
-        if (!a.role) workspaceId = await personalSpace(db, principalId);
-      } catch (e) {
-        if (!(e instanceof Error) || e.message !== "NOT_FOUND") throw e;
-        workspaceId = await personalSpace(db, principalId);
+      const legacy = await legacyVerifiedRole(
+        db,
+        workspaceId,
+        principalId,
+        this.config.serverMetadata().issuer,
+        claims.sub,
+      );
+      if (!legacy) {
+        try {
+          const a = await effectiveAccess(db, { workspaceId, principalId });
+          if (!a.role) workspaceId = await personalSpace(db, principalId);
+        } catch (e) {
+          if (e instanceof Error && e.message === "NOT_FOUND")
+            workspaceId = await personalSpace(db, principalId);
+          else throw e;
+        }
       }
       await db.query(
         "INSERT INTO workspaces VALUES($1) ON CONFLICT DO NOTHING",
@@ -553,6 +579,11 @@ export class OidcAuth {
           tokens.access_token,
         ],
       );
+      if (legacy)
+        await db.query(
+          "UPDATE runtime_sessions SET legacy_role_ceiling=$2,legacy_verified_at=clock_timestamp() WHERE id=$1",
+          [sessionHash(session), identityRole],
+        );
       await initializeSessionPolicy(db, {
         sessionId: sessionHash(session),
         principalId,
@@ -610,34 +641,45 @@ export class OidcAuth {
       };
       return await identityTransaction(this.pool, async (db) => {
         await this.acceptVerifiedIdentity(db, binding, s.subject, proof);
+        await db.query(
+          "UPDATE runtime_sessions SET legacy_role_ceiling=$2,legacy_verified_at=clock_timestamp() WHERE id=$1",
+          [binding.sessionId, identityRole],
+        );
         let role: Role = "reader";
         let spaceRole: SpaceRole | null = null,
           personal = false,
           canReviewKnowledge = false;
         try {
-          const a = await effectiveAccess(db, {
-            workspaceId,
-            principalId: s.principal_id,
-          });
+          const a = await effectiveAccess(
+            db,
+            {
+              workspaceId,
+              principalId: s.principal_id,
+            },
+            sessionHash(raw),
+          );
           role = a.capabilities.includes("changeset.approve")
             ? "reviewer"
             : a.capabilities.includes("changeset.propose")
               ? "editor"
               : "reader";
-          spaceRole = a.role
-            ? (
-                {
-                  read: "Read",
-                  triage: "Triage",
-                  write: "Write",
-                  maintain: "Maintain",
-                  admin: "Admin",
-                } as const
-              )[a.role]
-            : null;
-          personal = a.space.namespaceKind === "personal";
+          spaceRole = a.legacyRole
+            ? null
+            : a.role
+              ? (
+                  {
+                    read: "Read",
+                    triage: "Triage",
+                    write: "Write",
+                    maintain: "Maintain",
+                    admin: "Admin",
+                  } as const
+                )[a.role]
+              : null;
+          personal = a.space?.namespaceKind === "personal";
           canReviewKnowledge =
             personal ||
+            a.legacyRole === "reviewer" ||
             (a.capabilities.includes("changeset.approve") &&
               (
                 await db.query(
@@ -687,7 +729,7 @@ export class OidcAuth {
       const a = await effectiveAccess(db, {
         workspaceId: id,
         principalId: session.principalId,
-      });
+      }, guard.sessionId);
       if (!a.role) throw Error("NOT_FOUND");
       const csrf = token();
       await touchSession(

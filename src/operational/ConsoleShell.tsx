@@ -35,11 +35,13 @@ const icons = {
   usage: Activity,
   jobs: ListChecks,
   knowledge: BookOpen,
+  versions: Layers3,
   workflows: Settings2,
   refinement: FlaskConical,
   imports: Database,
   sources: Database,
   review: ClipboardCheck,
+  notifications: ClipboardCheck,
   query: Layers3,
   lint: SearchCheck,
   agents: Bot,
@@ -162,14 +164,6 @@ export function ConsoleShell({
             </div>
           ))}
         </nav>
-        <div className="console-sidebar-note">
-          <ShieldCheck size={17} />
-          <span>
-            근거와 권한을 보존하고
-            <br />
-            검토한 변경만 발행합니다.
-          </span>
-        </div>
         <AccountMenu
           name={account?.name ?? (preview ? "미리보기 사용자" : "사용자")}
           detail={account?.detail ?? (preview ? "합성 예시" : "연결 중")}

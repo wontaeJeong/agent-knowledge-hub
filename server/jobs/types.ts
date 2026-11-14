@@ -41,6 +41,8 @@ export interface JobHooks {
     input: JobInput,
     purpose?: "execute" | "schedule" | "read",
   ) => Promise<void>;
+  /** Human administrator approval of retention schedule changes/runs. */
+  authorizeRetentionSchedule?: (db: PoolClient, ctx: Context) => Promise<void>;
   /** Production bridges must reject human/one-operation grants for schedules. */
   validateScheduleIdentity?: (
     db: PoolClient,
