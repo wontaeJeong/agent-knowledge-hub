@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, OperationalApi, documentHref } from "./api";
 import { Button } from "../ui/primitives";
 interface Preferences {
@@ -76,6 +76,7 @@ export function NotificationPanel({
   onExpired?: () => void;
   spaceId?: string;
 }) {
+  const generation = useRef(0);
   const canRead = capabilities.includes("knowledge.read"),
     manage = capabilities.includes("knowledge.protect");
   const [prefs, setPrefs] = useState(initial),
@@ -93,6 +94,7 @@ export function NotificationPanel({
     [cadenceRevision, setCadenceRevision] = useState(0);
   const failure = useCallback(
     (e: unknown) => {
+      generation.current++;
       setNotifications([]);
       setReviews([]);
       setDeliveries([]);
@@ -106,27 +108,37 @@ export function NotificationPanel({
   );
   const refresh = useCallback(async () => {
     if (!canRead) return;
-    const [p, n, d, r] = await Promise.all([
-      api.get<Preferences>("/collaboration/preferences"),
-      api.get<{ items: InAppNotification[] }>(
-        `/collaboration/notifications?offset=${offset}`,
-      ),
-      api.get<{ items: Delivery[] }>(
-        `/collaboration/deliveries?offset=${offset}`,
-      ),
-      api.get<{ items: Review[] }>(
-        `/collaboration/review-due?offset=${offset}&all=${all && manage}`,
-      ),
-    ]);
-    setPrefs(p);
-    setNotifications(n.items);
-    setDeliveries(d.items);
-    setReviews(r.items);
-  }, [api, canRead, offset, all, manage]);
+    const current = ++generation.current;
+    try {
+      const [p, n, d, r] = await Promise.all([
+        api.get<Preferences>("/collaboration/preferences"),
+        api.get<{ items: InAppNotification[] }>(
+          `/collaboration/notifications?offset=${offset}`,
+        ),
+        api.get<{ items: Delivery[] }>(
+          `/collaboration/deliveries?offset=${offset}`,
+        ),
+        api.get<{ items: Review[] }>(
+          `/collaboration/review-due?offset=${offset}&all=${all && manage}`,
+        ),
+      ]);
+      if (current !== generation.current) return;
+      setPrefs(p);
+      setNotifications(n.items);
+      setDeliveries(d.items);
+      setReviews(r.items);
+    } catch (e) {
+      if (current === generation.current) failure(e);
+    }
+  }, [api, canRead, offset, all, manage, failure]);
   useEffect(() => {
-    void refresh().catch(failure);
-  }, [refresh, failure]);
+    void refresh();
+    return () => {
+      generation.current++;
+    };
+  }, [refresh]);
   const perform = async (action: () => Promise<void>) => {
+    generation.current++;
     setBusy(true);
     setError("");
     try {

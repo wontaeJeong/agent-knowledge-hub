@@ -232,3 +232,67 @@ test("a fresh email binding cannot refresh a stale directory identity assertion"
     await f.pool.end();
   }
 });
+test("preferences save succeeds over HTTP when the background dispatcher is not configured", async () => {
+  const f = await fixture();
+  await adoptFixture(f.pool, f.workspaceId);
+  const { createCollaborationHost } = await import("./http");
+  const collaboration = createCollaborationHost(
+    f.pool,
+    "https://knowledge.example.test",
+    {},
+  );
+  const auth = {
+    authenticate: async () => ({ ...f.editor, csrfToken: "csrf" }),
+    requestGuard: () => ({
+      revalidate: async () => {},
+      assertSession: async () => {},
+    }),
+  } as unknown as OidcAuth;
+  const server = createServer(
+    createRuntimeHandler({
+      pool: f.pool,
+      service: new RuntimeService(f.pool),
+      origin: "https://knowledge.example.test",
+      workspaceId: f.workspaceId,
+      auth,
+      collaboration: collaboration.service,
+    }),
+  );
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const response = await fetch(base + "/api/v1/collaboration/preferences", {
+      method: "POST",
+      headers: {
+        origin: "https://knowledge.example.test",
+        "x-csrf-token": "csrf",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ expectedRevision: 0, dailyDigest: true }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      revision: 1,
+      dailyDigest: true,
+    });
+    expect(
+      (
+        await f.pool.query(
+          "SELECT revision FROM workflow_preferences WHERE workspace_id=$1 AND principal_id=$2",
+          [f.workspaceId, "editor"],
+        )
+      ).rows[0].revision,
+    ).toBe(1);
+    expect(
+      (
+        await f.pool.query(
+          "SELECT id FROM collaboration_digest_outbox WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rowCount,
+    ).toBe(0);
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+    await f.pool.end();
+  }
+});

@@ -562,7 +562,8 @@ it("review scan withdraws a revoked assignment and assigns an eligible backup on
     [f.workspaceId],
   );
   await f.service.scanReviews();
-  expect((await f.service.reviewInbox(f.editor)).items).toHaveLength(1);
+  const oldWork = (await f.service.reviewInbox(f.editor)).items[0];
+  expect(oldWork).toBeTruthy();
   await f.pool.query(
     "UPDATE access_team_members SET active=false WHERE principal_id='editor' AND team_id=(SELECT namespace_id FROM access_spaces WHERE workspace_id=$1)",
     [f.workspaceId],
@@ -589,6 +590,9 @@ it("review scan withdraws a revoked assignment and assigns an eligible backup on
     "UPDATE access_team_members SET active=true WHERE principal_id='editor' AND team_id=(SELECT namespace_id FROM access_spaces WHERE workspace_id=$1)",
     [f.workspaceId],
   );
+  await expect(
+    f.service.acknowledgeReview(f.editor, oldWork.id, oldWork.revision),
+  ).rejects.toThrow("STALE_VERSION");
   await f.service.scanReviews();
   expect((await f.service.reviewInbox(f.editor)).items).toHaveLength(1);
 });

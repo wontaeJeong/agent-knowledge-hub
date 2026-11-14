@@ -310,7 +310,11 @@ export class CollaborationService {
       if ((old?.revision ?? 0) !== patch.expectedRevision)
         throw Error("STALE_VERSION");
       const { expectedRevision, ...changes } = patch,
-        data = { ...(old?.data ?? {}), ...changes };
+        data = {
+          ...(old?.data ?? {}),
+          ...changes,
+          _digestChangedAt: this.clock().toISOString(),
+        };
       preferences(data);
       const revision = expectedRevision + 1;
       await db.query(
@@ -319,7 +323,6 @@ export class CollaborationService {
       );
       return { ...preferences(data), revision };
     });
-    if (input !== undefined) await this.syncPlans();
     return result;
   }
   async syncPlans() {
@@ -376,15 +379,8 @@ export class CollaborationService {
                 [r.workspace_id, r.principal_id, cadence],
               )
             ).rows[0];
-            let cursor = new Date(
-                +this.clock() - (cadence === "daily" ? 2 : 15) * 86400000,
-              ),
-              next = nextDigest(p, cadence, cursor);
-            for (let i = 0; i < 32 && +next <= +this.clock(); i++) {
-              cursor = next;
-              next = nextDigest(p, cadence, next);
-            }
-            if (prior) cursor = new Date(prior.cursor_at);
+            const changedAt = date(r.data._digestChangedAt) ?? this.clock();
+            const cursor = prior ? new Date(prior.cursor_at) : changedAt;
             await db.query(
               "INSERT INTO collaboration_digest_plans VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$10)",
               [
@@ -396,7 +392,7 @@ export class CollaborationService {
                 h,
                 p,
                 cursor,
-                nextDigest(p, cadence, this.clock()),
+                nextDigest(p, cadence, changedAt),
                 this.clock(),
               ],
             );
@@ -1244,7 +1240,7 @@ export class CollaborationService {
           ]),
           workId = "review_" + cycle;
         await db.query(
-          "UPDATE collaboration_review_due_work SET status='superseded',updated_at=$3 WHERE workspace_id=$1 AND page_id=$2 AND due_cycle<>$4 AND status IN ('needs-review','needs-assignment','acknowledged')",
+          "UPDATE collaboration_review_due_work SET status='superseded',revision=revision+1,updated_at=$3 WHERE workspace_id=$1 AND page_id=$2 AND due_cycle<>$4 AND status IN ('needs-review','needs-assignment','acknowledged')",
           [workspaceId, pageId, this.clock(), cycle],
         );
         const status =
@@ -1368,7 +1364,11 @@ export class CollaborationService {
         )
       ).rows[0];
       if (!r) throw Error("NOT_FOUND");
-      if (r.revision !== expectedRevision) throw Error("STALE_VERSION");
+      if (
+        r.revision !== expectedRevision ||
+        !["needs-review", "needs-assignment"].includes(r.status)
+      )
+        throw Error("STALE_VERSION");
       await this.assertReviewer(db, ctx, r.document_type, r.page_id);
       await this.hooks.authorize(db, ctx, "knowledge.read", {
         kind: "page",
