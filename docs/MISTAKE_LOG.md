@@ -233,3 +233,10 @@
 
 - Earlier single-page connector tests used a mock authorizer and did not establish native scoped-credential or source-copy-policy behavior; the batch action did not exist. Native HTTP and synthetic PostgreSQL reproduced the missing action as a 400 before implementation.
 - During regression work, changing the shared baseline before checking the selected personal revision caused the shared stale condition to appear first. The tests now isolate each cause. Atomic proposal/receipt, replay permissions, current copy policy, source forgery and two-client conflicts are checked. No production data was used.
+
+### 2026-11-14 — P8 independent security review
+
+- The inner proposal cache could return after a racing request completed without rechecking selected revision or current copy policy. Personal added links were not included in current copy checks or receipt bindings. A newly written, unsynchronized personal draft could be read after its source copy permission was revoked. Independent review reproduced five failures on synthetic DB/native HTTP; no production data was affected.
+- Added replay guards on both batch and existing single-page inner cached/recovery paths, complete linked-page/source checks and receipt bindings, and metadata-only current dependency checks before protected local display or body sync. Pending denied edits are preserved and become accessible again only after permission is restored. An additional single-page cache race also reproduced RED before its fix. Compatibility cost: older servers without `check-local` fail closed until upgraded.
+- The first broad PostgreSQL 17 run was deliberately interrupted (exit 130) after discovering the additional single-page race; it is not counted as a pass. Final validation results are recorded in the task report.
+- Final validation: focused PostgreSQL 17 native/security tests passed after a test-only timeout adjustment for shared cluster load; `npm run check` and the complete isolated PostgreSQL 17 suite (97 files / 697 tests, zero skips) exited 0. The earlier timeout and interrupted run remain recorded in the task report.

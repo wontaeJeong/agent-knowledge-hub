@@ -464,6 +464,7 @@ export class AgentService {
     ctx: Context,
     input: unknown,
     commitGuard?: (db: PoolClient, result: { id: string; hash: string; status: string; published: boolean }) => Promise<void>,
+    replayGuard?: (db: PoolClient) => Promise<void>,
   ) {
     const q = agentInputs.wiki_propose_change.parse(input);
     return this.mutation(
@@ -530,6 +531,7 @@ export class AgentService {
         if (!result) throw Error("TRANSACTION_INCOMPLETE");
         return result;
       },
+      replayGuard,
     );
   }
   async reportOutcome(ctx: Context, input: unknown) {
@@ -611,7 +613,7 @@ export class AgentService {
       return { ...result, reviewImport: { status: "pending", code } };
     }
   }
-  private async personalAccess(db: PoolClient, ctx: Context, p: PersonalPage) {
+  private async personalAccess(db: PoolClient, ctx: Context, p: Pick<PersonalPage, "sourceRefs" | "upstream" | "links">) {
     await this.refs(db, ctx, p.sourceRefs);
     for (const ref of p.sourceRefs)
       await this.authorize(db, ctx, "local.copy", {
@@ -628,6 +630,8 @@ export class AgentService {
         "local.copy",
       );
     }
+    for (const linked of p.links)
+      await this.binding(db, ctx, {kind:"page", id:linked}, "local.copy");
   }
   private async connectorSnapshot(ctx: Context, metadataOnly: boolean) {
     return this.run(ctx, "personal.sync", async (db) => {
@@ -704,6 +708,13 @@ export class AgentService {
     if (action === "snapshot" || action === "access") {
       z.object({}).strict().parse(input);
       return this.connectorSnapshot(ctx, action === "access");
+    }
+    if (action === "check-local") {
+      const q = z.object({sourceRefs,links:z.array(id).max(100),upstream:upstream.optional()}).strict().parse(input);
+      return this.run(ctx, "personal.sync", async db => {
+        await this.personalAccess(db, ctx, q);
+        return {authorized:true};
+      });
     }
     if (action === "push") {
       const q = z
@@ -796,9 +807,11 @@ export class AgentService {
                 kind: "source" as const,
                 id: r.id,
               })),
+              ...q.page.links.map(id=>({kind:"page" as const,id})),
             ]);
             return result;
           }),
+        async db => { await this.personalAccess(db, ctx, q.page); },
       );
     }
     if (action === "propose-batch") {
@@ -825,7 +838,7 @@ export class AgentService {
           if (updates.some(u=>u.id===page.id)) throw Error("VALIDATION_FAILED");
           updates.push({...draftOf(page),title:personal.title,content:personal.content,links:personal.links});
           refs.push(...personal.sourceRefs);
-          resources.push({kind:"page",id:page.id},...personal.sourceRefs.map(r=>({kind:"source" as const,id:r.id})));
+          resources.push({kind:"page",id:page.id},...personal.sourceRefs.map(r=>({kind:"source" as const,id:r.id})),...personal.links.map(id=>({kind:"page" as const,id})));
         }
         const uniqueRefs = [...new Map(refs.map(r=>[fingerprint(r),r])).values()];
         return {updates,source_refs:uniqueRefs,resources};
@@ -835,7 +848,7 @@ export class AgentService {
         return this.proposeChange(ctx,{updates:prepared.updates,source_refs:prepared.source_refs,idempotency_key:`personal-batch-${fingerprint([ctx.workspaceId,ctx.principalId,q])}`},async(db,result)=>{
           const current=await prepare(db,true);
           await complete(db,result,current.resources);
-        });
+        }, async db=>{await prepare(db);});
       },async db=>{await prepare(db);});
     }
     if (action === "propose") {
@@ -883,14 +896,17 @@ export class AgentService {
           idempotency_key: q.id,
         };
       });
-      return this.proposeChange(ctx, prepared, async (db) => {
+      const guard = async (db: PoolClient) => {
+        await this.authorize(db, ctx, "personal.sync");
         const row = await db.query(
-          "SELECT revision FROM agent_personal_pages WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
+          "SELECT revision,data FROM agent_personal_pages WHERE workspace_id=$1 AND owner_id=$2 AND id=$3 FOR UPDATE",
           [ctx.workspaceId, ctx.principalId, q.pageId],
         );
         if (row.rows[0]?.revision !== q.personalVersion)
           throw Error("STALE_PERSONAL_VERSION");
-      });
+        await this.personalAccess(db, ctx, row.rows[0].data as PersonalPage);
+      };
+      return this.proposeChange(ctx, prepared, guard, guard);
     }
     if (action === "proposal") {
       const q = z.object({ id }).strict().parse(input);

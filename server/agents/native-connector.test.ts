@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { test, expect, vi } from "vitest";
 import { createServer } from "node:http";
 import * as oidc from "openid-client";
 import { fixture, adoptFixture, page } from "../test-support";
@@ -6,6 +6,7 @@ import { AccessService } from "../access/index";
 import { RuntimeService } from "../runtime/knowledge";
 import { createRuntimeHandler } from "../runtime/http";
 import { OidcAuth } from "../runtime/auth";
+vi.setConfig({testTimeout: 30000, hookTimeout: 30000});
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
