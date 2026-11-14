@@ -5,6 +5,7 @@ export function createEvaluationAgent({
   apiKey,
   allowTransmission,
   thinking,
+  beforeTransmission,
 }) {
   if (!baseUrl || !model || !allowTransmission)
     throw Error("MODEL_NOT_CONFIGURED");
@@ -42,6 +43,8 @@ export function createEvaluationAgent({
       knownCost = true;
     for (let call = 0; call < input.budget.calls; call++) {
       let data;
+      let responseCost = null;
+      await beforeTransmission?.(input, endpoint.href);
       try {
         const res = await fetch(endpoint, {
           method: "POST",
@@ -78,6 +81,14 @@ export function createEvaluationAgent({
           }),
         });
         if (!res.ok) throw Error("MODEL_FAILED");
+        const costHeader = res.headers.get("x-litellm-response-cost");
+        if (
+          costHeader !== null &&
+          costHeader.trim() !== "" &&
+          Number.isFinite(Number(costHeader)) &&
+          Number(costHeader) >= 0
+        )
+          responseCost = Number(costHeader);
         const reader = res.body?.getReader();
         if (!reader) throw Error("MODEL_FAILED");
         let raw = "",
@@ -104,12 +115,13 @@ export function createEvaluationAgent({
       )
         tokens += data.usage.total_tokens;
       else knownTokens = false;
+      const callCost = responseCost ?? data.usage?.cost;
       if (
-        typeof data.usage?.cost === "number" &&
-        Number.isFinite(data.usage.cost) &&
-        data.usage.cost >= 0
+        typeof callCost === "number" &&
+        Number.isFinite(callCost) &&
+        callCost >= 0
       )
-        cost += data.usage.cost;
+        cost += callCost;
       else knownCost = false;
       if (tokens > input.budget.maxTokens) throw Error("TOKEN_BUDGET_EXCEEDED");
       const choice = data.choices?.[0];
@@ -117,6 +129,9 @@ export function createEvaluationAgent({
         throw Error("MODEL_FAILED");
       const response = choice.message;
       if (response.tool_calls?.length) {
+        if (!knownTokens) throw Error("TOKEN_USAGE_UNKNOWN");
+        if (tokens >= input.budget.maxTokens)
+          throw Error("TOKEN_BUDGET_EXCEEDED");
         if (response.tool_calls.length > 10)
           throw Error("TOOL_BUDGET_EXCEEDED");
         messages.push(response);

@@ -72,3 +72,93 @@ test("transmission opt-in required; never falls back to fixture when unconfigure
     /MODEL_CONFIGURATION/,
   );
 });
+test("unknown token usage cannot silently exceed a multi-call token budget", async () => {
+  let count = 0;
+  const server = createServer(async (req, res) => {
+    for await (const _ of req) {
+    }
+    count++;
+    res.end(
+      JSON.stringify({
+        choices: [
+          {
+            finish_reason: "tool_calls",
+            message: {
+              tool_calls: [
+                {
+                  id: "x",
+                  function: { name: "raw_lookup", arguments: '{"id":"s1"}' },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const agent = createEvaluationAgent({
+      baseUrl: `http://127.0.0.1:${server.address().port}/v1`,
+      model: "fixture",
+      allowTransmission: true,
+    });
+    await assert.rejects(
+      agent(
+        {
+          model: "fixture",
+          seed: 1,
+          budget: { calls: 2, maxTokens: 100, timeoutMs: 1000 },
+          task: { prompt: "test" },
+          context: [],
+        },
+        { raw_lookup: async () => ({ id: "s1" }) },
+      ),
+      /TOKEN_USAGE_UNKNOWN/,
+    );
+    assert.equal(count, 1);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+test("records actual LiteLLM response cost without inferring a value", async () => {
+  const server = createServer(async (req, res) => {
+    for await (const _ of req) {
+    }
+    res.setHeader("x-litellm-response-cost", "0.125");
+    res.end(
+      JSON.stringify({
+        usage: { total_tokens: 8 },
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: '{"answer":"yes","abstained":false,"citations":[]}',
+            },
+          },
+        ],
+      }),
+    );
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const agent = createEvaluationAgent({
+      baseUrl: `http://127.0.0.1:${server.address().port}/v1`,
+      model: "fixture",
+      allowTransmission: true,
+    });
+    const r = await agent(
+      {
+        model: "fixture",
+        seed: 1,
+        budget: { calls: 1, maxTokens: 100, timeoutMs: 1000 },
+        task: { prompt: "test" },
+        context: [],
+      },
+      { raw_lookup: async () => ({}) },
+    );
+    assert.equal(r.usage.cost, 0.125);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
