@@ -6,6 +6,7 @@
 - `server/runtime/auth.ts`에서 세션별 트랜잭션 advisory lock으로 인증 증명 갱신을 직렬화한다. 권한·만료·원본 상한 검사는 유지하며 지식 내용과 평가 주장을 바꾸지 않는다. `server/identity/native-integration.test.ts`의 interactive/poll 동시 요청 두 회귀는 수정 전 실패, 수정 후 통과했다.
 - `server/collaboration/review-race.test.ts`는 증명 시작과 만료를 한 시각에서 계산해 30초 상한을 1ms 초과하는 테스트 데이터 경합을 제거했다. Node 24 전체 `npm run check`와 PostgreSQL 17의 인증·기존 역할·질문·협업 9파일 회귀가 통과했다. 최종 원격 CI는 새 커밋에서 다시 확인한다.
 - 한계: 이 수정은 동일 세션의 증명 갱신 간 교착을 다룬다. 리뷰에서 지적한 기존 final guard와 directory gate 사이의 다른 잠금 순서 가능성은 별도 재현 대상이며 전체 교착 부재나 실서비스 인수를 주장하지 않는다.
+- 최종 제품 조합 확인: 인증 수정 포함 전체 `npm run check`와 PostgreSQL 17 서버 111파일·823시험 통과. 앞서 검증한 통합 트리와의 제품 코드 차이는 인증 수정·동시 요청 회귀·증명 시각 fixture뿐이다. 임시 무볼륨 테스트 컨테이너는 종료했다. 각 PR 최종 커밋의 원격 CI와 실제 병합 결과는 별도로 확인한다.
 
 ## 2026-11-14 미이관 공간 3역할 호환 — P5
 
