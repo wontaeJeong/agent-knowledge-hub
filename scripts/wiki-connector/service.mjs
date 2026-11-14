@@ -72,6 +72,15 @@ export async function createService({ file, identities, pages = [] }) {
               .map(metadata),
           };
         }
+        if (action === "check-local") {
+          if (!input || !Array.isArray(input.sourceRefs) || !Array.isArray(input.links)) throw Error("VALIDATION_FAILED");
+          if (input.upstream && !personalVisible(actor, input)) throw Error("FORBIDDEN");
+          for (const link of input.links)
+            if (!state.shared.some(p=>p.id===link && visible(actor,p))) throw Error("FORBIDDEN");
+          for (const ref of input.sourceRefs)
+            if (!state.shared.some(p=>visible(actor,p) && p.sourceRefs.some(r=>hash(r)===hash(ref)))) throw Error("FORBIDDEN");
+          return {authorized:true};
+        }
         if (action === "proposal") {
           requireId(input.id);
           const p = state.proposals[input.id];
@@ -233,7 +242,8 @@ export async function createService({ file, identities, pages = [] }) {
             p.status = "published";
           }
           result = p;
-        } else throw Error("NOT_FOUND");
+        } else if (action === "propose-batch") throw Error("FEATURE_UNAVAILABLE");
+        else throw Error("NOT_FOUND");
         await store.write(next);
         state = next;
         return structuredClone(result);

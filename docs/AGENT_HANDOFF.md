@@ -412,6 +412,14 @@ P5 root 확인:독립 권한 리뷰의 조회 전용 grant 제안 우회와 과�
 - Task 2 사용자 휴지통·복원과 주기 보존 실행은 후속 독립 PR 범위다. 사내 보존/법적 정책, 외부 백업 삭제와 운영 수용·실제 업무 품질 개선은 검증하지 않았다.
 - 독립 리뷰 후속: 복구 미리보기의 복합 기본키 `hash`를 보존하고 payload만 삭제한다. 전체 삭제와 복구 재생에서 각각 두 미리보기의 충돌을 RED→GREEN으로 확인했고 특권 SQL 함수도 해당 키 변경을 거부한다.
 
+### 2026-11-14 — P8 native local connector (CORE-009, KI-01~07 partial)
+
+- `server/agents/{service,http}.ts` and `scripts/wiki-connector/{client,cli,mcp,service}.mjs` submit 1–20 selected synchronized personal revisions as one pending common proposal. The exact-input receipt commits atomically with that proposal; replay rechecks current access, copy policy and selected revisions. Existing PAT scopes are unchanged.
+- Synthetic PostgreSQL and native HTTP with scoped credentials, two clients and two workspaces exercise synchronization, conflict preservation, forged source rejection, policy revocation, retry, and changed-baseline rejection. Real SSO, installation, production policy acceptance, and knowledge quality remain unverified. ADR 004 remains proposed.
+
+- P8 independent review fix: cached inner proposals (including the existing single-page route) now recheck selected personal revisions and copy authorization; links on personal revisions are checked as current page dependencies including inherited raw-source ACL/copy policy, and are bound to receipts. Protected unsynchronized drafts require the native `check-local` dependency check before read/search/conflict display or body transmission. Denied pending edits remain stored for later authorized access. Hosts predating this action fail closed; upgrade server and client together. Six PostgreSQL authorization-race and native HTTP regressions cover these paths. Full test outcomes are in the P8 report.
+- Final P8 review-fix verification: Node 24 `npm run check` exit 0; PostgreSQL 17.6 complete isolated server suite 97 files / 697 tests, zero skips, exit 0; six focused review regressions and native integration separately passed. The initial shared-cluster 5-second targeted test timeout was corrected by increasing the test-only timeout; no product network timeout changed.
+
 ## 2026-11-14 P2 버전 비교·선택 검토·복원 연결
 
 관련 VER-004~010, REV-004~007, KNO-014. 기존 VersionService/handleVersionRoute를 실제 cookie 인증·선택 공간·CSRF·현재 권한 검사 뒤 native HTTP에 연결하고 #versions 콘솔에 VersionsPanel을 제공한다. 인증된 사람의 비교/복원/선택 검토이며 credential 경로는 열지 않는다. 복원·부분 판단은 새 pending 묶음이고 독립 검토·발행이 필요하다. 현재 ACL·보호 내용·의존성과 원본 철회를 다시 확인하며 과거 메타데이터를 현재 값으로 채우지 않는다.
