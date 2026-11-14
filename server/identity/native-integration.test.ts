@@ -163,6 +163,49 @@ test("native final guards reject unknown activity; only live verified recovery u
       .rowCount,
   ).toBe(0);
 });
+test.each([true, false])(
+  "concurrent verified session refresh keeps a valid session (interactive=%s)",
+  async (interactive) => {
+    const f = await native(),
+      s = await f.session(f.subject, true);
+    // Hold the shared session check briefly so both requests overlap at the
+    // legacy proof update. A lock upgrade used to deadlock and discard the session.
+    const wrapped = new WeakSet<import("pg").PoolClient>();
+    const delaySharedCheck = (client: import("pg").PoolClient) => {
+      if (wrapped.has(client)) return;
+      wrapped.add(client);
+      const query = client.query;
+      client.query = (async (...args: unknown[]) => {
+        const result = await (query as (...args: unknown[]) => unknown).apply(
+          client,
+          args,
+        );
+        if (typeof args[0] === "string" && args[0].includes("FOR SHARE OF s,p"))
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        return result;
+      }) as typeof client.query;
+    };
+    f.pool.on("acquire", delaySharedCheck);
+    try {
+      const sessions = await Promise.all([
+        f.auth.authenticate(s.req, interactive),
+        f.auth.authenticate(s.req, interactive),
+      ]);
+      expect(
+        sessions.every((session) => session?.principalId === s.principalId),
+      ).toBe(true);
+      expect(
+        (
+          await f.pool.query("SELECT id FROM runtime_sessions WHERE id=$1", [
+            s.id,
+          ])
+        ).rowCount,
+      ).toBe(1);
+    } finally {
+      f.pool.off("acquire", delaySharedCheck);
+    }
+  },
+);
 test("native interactive grant revalidation does not extend idle lifetime; current policy checked again at final effect", async () => {
   const f = await native(),
     s = await f.session(f.subject, true),
