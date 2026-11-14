@@ -129,6 +129,8 @@ export function collectArtifact(
     sessionId?: string;
     selectedToolIds?: string[];
   },
+  /** Trusted host-only binding after fetching the exact selected URL. Never request JSON. */
+  verifiedBinding?: { sessionId: string; artifactId: string },
 ) {
   if (
     options.tool !== "opencode" ||
@@ -140,10 +142,9 @@ export function collectArtifact(
     throw Error("PAYLOAD_TOO_LARGE");
   // Neither caller-provided artifact/session identifiers nor caller-provided
   // exclusions prove provenance or enforce a trusted exclusion policy.
-  if (
-    options.format === "api.assistant-message" ||
-    options.format === "api.synthetic-message"
-  )
+  if (!verifiedBinding || options.selectedIds.length !== 1 ||
+      options.selectedIds[0] !== verifiedBinding.artifactId ||
+      options.sessionId !== verifiedBinding.sessionId)
     throw Error("ARTIFACT_SESSION_UNVERIFIED");
   if (options.format === "api.assistant-message") {
     const { data: d } = assistantEvent.parse(input);
@@ -243,6 +244,7 @@ export function collectArtifact(
     };
   }
   const { data: d } = event.parse(input);
+  if (d.sessionID !== verifiedBinding.sessionId) throw Error("ARTIFACT_SESSION_UNVERIFIED");
   if (
     !options.selectedIds.includes(d.id) ||
     options.excludedSessionIds.includes(d.sessionID)

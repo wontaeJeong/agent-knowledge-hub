@@ -7,6 +7,7 @@ import { createRuntimeHandler } from "./http";
 import { bootstrapAccess, validateAccessBootstrap } from "../access/index";
 import { authorizeInTransaction } from "../access/index";
 import { StorageService, FileBlobStore, UrlCollector } from "../storage";
+import { TrustedArtifactCollector, collectorConfigurationFromEnvironment } from "../storage/trusted-collector";
 import { RefinementService } from "../refinement/service";
 import {
   createSemanticProvider,
@@ -80,6 +81,8 @@ if (process.argv.includes("--migrate")) {
       process.env.AKH_APPROVED_COLLECTION_ORIGINS ?? "[]",
     ),
   });
+  const artifacts = new TrustedArtifactCollector(storage, collectorConfigurationFromEnvironment());
+  await artifacts.initialize();
   const refinement = new RefinementService(
     pool,
     authorizeInTransaction,
@@ -137,6 +140,7 @@ if (process.argv.includes("--migrate")) {
       origin: auth.origin,
       workspaceId: auth.workspaceId,
       storage,
+      artifacts,
       collector,
       refinement,
       operations,

@@ -219,3 +219,10 @@
 - 조치 및 재발 방지: Node 24에서 전체 `npm run check`를 재실행하고 PR을 템플릿에 맞춰 수정한다. PR 작성 전에 체크리스트와 UI 증거를 대조한다.
 - 검증: `npm run check` 성공; 브라우저 localhost 접속은 ERR_CONNECTION_REFUSED.
 - 상태/후속 작업: UI 화면 검증과 캡처 미해결. 증거 확보 전까지 draft 유지.
+
+### 2026-11-14 — 승인된 도구 수집 경계의 구현·시험 정정
+- 맥락: P7의 서버 승인 host/session과 명시 artifact 수집.
+- 사실과 영향: 초기 구현에서 삭제 영수증의 실제 scope 열 대신 없는 request 열을 참조했다. 합성 blob 경로의 /var 심볼릭 링크, 시험 간 공유 editor의 비활성 상태 및 tool 출력만 있는 fixture의 빈 선택 때문에 초기 회귀가 실패했다. 운영 데이터·외부 전송 영향은 없다.
+- 원인: 실제 스키마와 fixture 전제 확인 부족. 연결 ID를 이벤트 키에 넣어 갱신된 연결에서 중복 수집했고, 미지원 버전은 일반503으로 응답했다.
+- 조치: 실제 scope 열·정본 경로·명시 시험 초기화·도구 선택을 사용했다. 이벤트는 host/issuer/subject/session/artifact로 고정하고 지원하지 않는 버전은409로 보고한다.
+- 검증: 초기 module/route 미구현과 두 경계 오류의 RED→GREEN을 관찰했다. 현재 실제 DB·인증 HTTP·합성 TLS 수집10건 및 기존 collector/storage 회귀가 통과했다. 전체 검사와 독립 리뷰는 진행 중이다. 현재 로컬 OpenCode 패키지는1.15.0이며 기록된2.2.2 설치 검증을 완료했다고 주장하지 않는다.
