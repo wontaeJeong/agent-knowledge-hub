@@ -82,6 +82,12 @@ export class OidcAuth {
     proof: GroupProof | undefined,
   ) {
     const issuer = this.config.serverMetadata().issuer;
+    // Serialize proof refreshes before either takes shared session locks. Keep
+    // this separate from row locks used by final authorization and revocation.
+    await db.query(
+      "SELECT pg_advisory_xact_lock(7203110, hashtext($1))",
+      [binding.sessionId],
+    );
     const actor = await db.query(
       "SELECT id,issuer,subject FROM access_principals WHERE id=$1 AND active AND kind='human' FOR SHARE",
       [binding.principalId],
