@@ -90,7 +90,7 @@ export async function readers(
         a.rows.some((r) => r.principal_id === who),
       );
       const v = await db.query(
-        "SELECT data FROM versions WHERE workspace_id=$1 AND page_id=$2 ORDER BY number DESC LIMIT 1",
+        "SELECT jsonb_build_object('sourceIds',data->'sourceIds','provenance',jsonb_build_object('sourceIds',data->'provenance'->'sourceIds')) AS data FROM versions WHERE workspace_id=$1 AND page_id=$2 ORDER BY number DESC LIMIT 1",
         [workspace, parentId],
       );
       if (!v.rowCount) return [];

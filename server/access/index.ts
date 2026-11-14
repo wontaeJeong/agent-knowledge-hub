@@ -392,7 +392,7 @@ export async function assertResourceUpperBound(
         )
           throw Error("NOT_FOUND");
         const v = await db.query(
-          "SELECT data FROM versions WHERE workspace_id=$1 AND page_id=$2 AND (number=(SELECT max(number) FROM versions WHERE workspace_id=$1 AND page_id=$2) OR number=$3)",
+          "SELECT jsonb_build_object('sourceIds',data->'sourceIds','provenance',jsonb_build_object('sourceIds',data->'provenance'->'sourceIds','pageIds',data->'provenance'->'pageIds')) AS data FROM versions WHERE workspace_id=$1 AND page_id=$2 AND (number=(SELECT max(number) FROM versions WHERE workspace_id=$1 AND page_id=$2) OR number=$3)",
           [
             ctx.workspaceId,
             pageId,
@@ -435,7 +435,7 @@ export async function assertResourceUpperBound(
           pending.push(...(input.provenance?.pageIds ?? []));
         }
         const p = await db.query(
-          "SELECT data FROM pages WHERE workspace_id=$1 AND id=$2",
+          "SELECT jsonb_build_object('links',data->'links') AS data FROM pages WHERE workspace_id=$1 AND id=$2",
           [ctx.workspaceId, pageId],
         );
         pending.push(...(p.rows[0]?.data.links ?? []));
@@ -961,7 +961,7 @@ export class AccessService {
           pending.push({ id, version: 1 });
       }
       const meta = await db.query(
-        "SELECT data FROM pages WHERE workspace_id=$1 AND id=$2",
+        "SELECT jsonb_build_object('links',data->'links') AS data FROM pages WHERE workspace_id=$1 AND id=$2",
         [ctx.workspaceId, p.id],
       );
       for (const id of meta.rows[0]?.data.links ?? [])

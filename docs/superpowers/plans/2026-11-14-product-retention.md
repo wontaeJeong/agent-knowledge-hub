@@ -45,3 +45,11 @@
 - [ ] Observe RED, implement bounded dependency-safe pruning and immutable retirement/replay.
 - [ ] Write tests for explicitly configured service identity and scheduled durable execution/retries, denied or revoked identity, and stop behavior; implement.
 - [ ] Run focused DB/HTTP/worker regressions and `npm run check`. Document unverified browser/operations; root reviews and captures UI.
+
+### 독립 리뷰 수정 ledger — 2026-11-14
+
+- [x] 합성 DB 리뷰 프로브와 영구 시험으로 원본 hold, 비공개 질문 핀, 유일 snapshot, 자격 범위 우회 RED 확인.
+- [x] replay의 그래프 법적 보류와 비공개 참조 차단, 남는 최신 snapshot 검사; 초안 현재/과거 페이지·원본 권한 확인.
+- [x] historical-only 초안 hold 및 과거 페이지/원본 권한 회귀, 실제 HTTP/worker 성공 fixture 권한 명시. SQL 조회는 본문 대신 계보만 반환.
+- [x] 운영 README에서 기본 비활성 durable scheduler와 물리 purge 대기 명시.
+- [x] PostgreSQL 17 전체 98개 파일 727개 시험과 Node 24 전체 check 종료 코드 0. 실제 회사 정책·외부 백업·CAS 물리 purge·운영 인수는 범위 밖이다.
