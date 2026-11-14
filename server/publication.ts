@@ -70,6 +70,19 @@ type RuntimeBatch = Batch & {
   inputEnvelope?: InputEnvelope;
 };
 
+/** Model answer reintegration must never modify a page currently marked protected. */
+export async function assertUnprotectedModelTargets(
+  db: PoolClient,
+  workspaceId: string,
+  updates: Draft[],
+) {
+  const protectedPages = await db.query(
+    "SELECT 1 FROM workflow_document_state WHERE workspace_id=$1 AND page_id=ANY($2::text[]) AND data->>'protected'='true' LIMIT 1",
+    [workspaceId, updates.map((update) => update.id)],
+  );
+  if (protectedPages.rowCount) throw Error("FORBIDDEN");
+}
+
 async function permissions(
   db: PoolClient,
   ctx: Context,
@@ -514,6 +527,15 @@ async function checkedBatch(
       await loadState(db, ctx.workspaceId),
       (batch as RuntimeBatch).inputEnvelope!,
     );
+  // Only new model-answer evolution batches have this hash-pinned marker.
+  // Existing human edits, structural answer filing and ordinary ingest retain their policy.
+  if (
+    batch.status !== "published" &&
+    batch.mode === "model" &&
+    batch.answerId &&
+    typeof (batch as Batch & { evolutionReason?: unknown }).evolutionReason === "string"
+  )
+    await assertUnprotectedModelTargets(db, ctx.workspaceId, batch.updates);
   await permissions(
     db,
     ctx,

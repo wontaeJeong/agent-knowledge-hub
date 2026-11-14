@@ -24,7 +24,7 @@ import {
 import { transaction } from "../database";
 import { loadState, membership, readers, audit } from "../repository";
 import { KnowledgeService, type Context } from "../service";
-import { digest, propose } from "../publication";
+import { digest, propose, assertUnprotectedModelTargets } from "../publication";
 import { answerOutput, drafts } from "./schema";
 import { callModel, type ModelCall, type ModelOptions } from "./model";
 import { authorizeManaged, effectiveAccess } from "../access/index";
@@ -988,11 +988,7 @@ export class RuntimeService {
           requestAuthorizationPending: Boolean(ctx.authorization),
           onCreated: async (db) => {
             await binding.recheck(db);
-            const protectedPages = await db.query(
-              "SELECT 1 FROM workflow_document_state WHERE workspace_id=$1 AND page_id=ANY($2::text[]) AND data->>'protected'='true' LIMIT 1",
-              [ctx.workspaceId, updates.map((update) => update.id)],
-            );
-            if (protectedPages.rowCount) throw Error("FORBIDDEN");
+            await assertUnprotectedModelTargets(db, ctx.workspaceId, updates);
             if (ctx.authorization || ctx.credentialId)
               await assertFeature(
                 db,
@@ -1013,6 +1009,7 @@ export class RuntimeService {
           async (db) => {
             await binding.recheck(db);
             await checkRecommendations(db);
+            await assertUnprotectedModelTargets(db, ctx.workspaceId, updates);
           },
         );
       return result;

@@ -841,3 +841,170 @@ test("model cannot change protected human pages even when actor can protect them
     await f.pool.end();
   }
 });
+
+const protectedRaceOutput = {
+  updates: [
+    {
+      id: "topic",
+      title: "주제",
+      summary: "시험 주제",
+      scope: "team",
+      content: "기존 내용\n모델 변경",
+      links: [],
+      facts: [],
+      sourceIds: [source.id],
+      baseVersion: 1,
+    },
+  ],
+  reason: "새 조건 검토",
+  candidates: [
+    {
+      pageId: "topic",
+      key: "retry",
+      value: "실패",
+      kind: "inference",
+      conditions: {},
+      exceptions: [],
+      validFrom: null,
+      validTo: null,
+      uncertainty: "미확인",
+      sourceId: source.id,
+      quote: "실패 시 재시도한다.",
+    },
+  ],
+};
+async function assertNoPublishedEvolution(
+  f: Awaited<ReturnType<typeof setup>>,
+) {
+  expect(
+    (
+      await f.pool.query(
+        "SELECT count(*) FROM versions WHERE workspace_id=$1 AND page_id='topic'",
+        [f.workspaceId],
+      )
+    ).rows[0].count,
+  ).toBe("1");
+  for (const table of ["refinement_evidence", "refinement_claims"]) {
+    expect(
+      (
+        await f.pool.query(
+          `SELECT count(*) FROM ${table} WHERE workspace_id=$1`,
+          [f.workspaceId],
+        )
+      ).rows[0].count,
+    ).toBe("0");
+  }
+}
+async function protectTopic(f: Awaited<ReturnType<typeof setup>>) {
+  await f.pool.query(
+    "INSERT INTO workflow_document_state(workspace_id,page_id,state,data) VALUES($1,'topic','active','{\"protected\":true}') ON CONFLICT(workspace_id,page_id) DO UPDATE SET data=excluded.data, revision=workflow_document_state.revision+1",
+    [f.workspaceId],
+  );
+}
+
+test("protection added before pending model proposal release blocks release and rolls back it", async () => {
+  const f = await setup(protectedRaceOutput);
+  try {
+    let sawPending = false;
+    const ctx = {
+      ...f.ctx,
+      authorization: {
+        ...f.ctx.authorization,
+        revalidate: async () => {
+          const pending = await f.pool.query(
+            "SELECT 1 FROM batches WHERE workspace_id=$1 AND data->>'requestAuthorizationPending'='true'",
+            [f.workspaceId],
+          );
+          if (pending.rowCount && !sawPending) {
+            sawPending = true;
+            await protectTopic(f);
+          }
+        },
+      },
+    };
+    await expect(f.runtime.file(ctx, f.answer.id)).rejects.toThrow("FORBIDDEN");
+    expect(sawPending).toBe(true);
+    expect(
+      (
+        await f.pool.query(
+          "SELECT count(*) FROM batches WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows[0].count,
+    ).toBe("0");
+    await assertNoPublishedEvolution(f);
+  } finally {
+    await f.pool.end();
+  }
+});
+
+test("protection added after proposal blocks approval even for protect-capable reviewer", async () => {
+  const f = await setup(protectedRaceOutput);
+  try {
+    const b = await f.runtime.file(f.ctx, f.answer.id);
+    if ("outcome" in b) throw Error("expected proposal");
+    await protectTopic(f);
+    await expect(
+      f.runtime.core.approve(
+        { workspaceId: f.workspaceId, principalId: "reviewer" },
+        b.id,
+        b.hash,
+      ),
+    ).rejects.toThrow("FORBIDDEN");
+    await assertNoPublishedEvolution(f);
+  } finally {
+    await f.pool.end();
+  }
+});
+
+test("protection added after approval blocks publication and creates no version or claims", async () => {
+  const f = await setup(protectedRaceOutput);
+  try {
+    const b = await f.runtime.file(f.ctx, f.answer.id);
+    if ("outcome" in b) throw Error("expected proposal");
+    const reviewer = { workspaceId: f.workspaceId, principalId: "reviewer" };
+    await f.runtime.core.approve(reviewer, b.id, b.hash);
+    await protectTopic(f);
+    await expect(
+      f.runtime.core.publish(reviewer, b.id, b.hash, "protection-race"),
+    ).rejects.toThrow("FORBIDDEN");
+    await assertNoPublishedEvolution(f);
+  } finally {
+    await f.pool.end();
+  }
+});
+
+test("human-authored proposals keep the existing protected-page review policy", async () => {
+  const f = await setup(null);
+  try {
+    const b = await f.runtime.core.propose(
+      f.editor,
+      [
+        {
+          id: "topic",
+          title: "주제",
+          summary: "시험 주제",
+          scope: "team",
+          content: "기존 내용\n사람의 명시 수정",
+          links: [],
+          facts: [],
+          sourceIds: [source.id],
+          baseVersion: 1,
+        },
+      ],
+      [source.id],
+    );
+    await protectTopic(f);
+    const reviewer = { workspaceId: f.workspaceId, principalId: "reviewer" };
+    await f.runtime.core.approve(reviewer, b.id, b.hash);
+    const result = await f.runtime.core.publish(
+      reviewer,
+      b.id,
+      b.hash,
+      "human-protected",
+    );
+    expect(result.versions.topic).toBe(2);
+  } finally {
+    await f.pool.end();
+  }
+});
