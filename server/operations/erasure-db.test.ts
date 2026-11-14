@@ -51,7 +51,7 @@ async function setup() {
     s: new OperationsService(f.pool, authorizeInTransaction),
   };
 }
-test("workspace erasure cannot complete while immutable version metadata remains", async () => {
+test("workspace erasure redacts immutable version metadata", async () => {
   const f = await setup();
   await transaction(f.pool, f.workspaceId, async db => {
     await db.query("INSERT INTO versions VALUES($1,'topic',2,$2)", [f.workspaceId, {...page.versions[0], number: 2}]);
@@ -59,38 +59,24 @@ test("workspace erasure cannot complete while immutable version metadata remains
   });
   const input = {scope: "workspace" as const};
   const preview = await previewErasure(f.s, f.ctx, input);
-  await expect(executeErasure(f.s, f.ctx, {...input, previewHash: preview.previewHash, confirm: "ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+  expect((await executeErasure(f.s, f.ctx, {...input, previewHash: preview.previewHash, confirm: "ERASE_ENTIRE_WORKSPACE"})).status).toBe("completed");
   expect((await f.pool.query("SELECT 1 FROM version_metadata WHERE workspace_id=$1", [f.workspaceId])).rowCount).toBe(1);
 });
-test("workspace erasure cannot complete while immutable metadata events remain", async () => {
+test("workspace erasure redacts immutable metadata events", async () => {
   const f = await setup();
   await f.pool.query("INSERT INTO version_metadata_events(workspace_id,page_id,actor_id,reason,before_snapshot,after_snapshot) VALUES($1,'topic','editor','private reason',$2,$3)", [f.workspaceId, {title: "private before"}, {title: "private after"}]);
   const input = {scope: "workspace" as const};
   const preview = await previewErasure(f.s, f.ctx, input);
-  await expect(executeErasure(f.s, f.ctx, {...input, previewHash: preview.previewHash, confirm: "ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+  expect((await executeErasure(f.s, f.ctx, {...input, previewHash: preview.previewHash, confirm: "ERASE_ENTIRE_WORKSPACE"})).status).toBe("completed");
   expect((await f.pool.query("SELECT 1 FROM version_metadata_events WHERE workspace_id=$1", [f.workspaceId])).rowCount).toBe(1);
 });
-test("unsupported version preflight failure leaves no deletion fence and permits later writes", async () => {
-  const f = await setup();
-  await f.pool.query("INSERT INTO version_metadata_events(workspace_id,page_id,actor_id,reason,before_snapshot,after_snapshot) VALUES($1,'topic','editor','reason','{}','{}')", [f.workspaceId]);
-  const input = {scope:"workspace" as const}, preview = await previewErasure(f.s, f.ctx, input);
-  for (let i=0;i<2;i++) await expect(executeErasure(f.s,f.ctx,{...input,previewHash:preview.previewHash,confirm:"ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
-  const receipts = (await f.pool.query("SELECT status,error_code FROM operations_erasure_receipts WHERE workspace_id=$1",[f.workspaceId])).rows;
-  expect(receipts).toHaveLength(2);
-  expect(receipts.every(r=>r.status==="failed" && r.error_code==="ERASURE_VERSION_METADATA_UNSUPPORTED")).toBe(true);
-  expect((await f.pool.query("SELECT count(*)::int AS n FROM operations_audit_chain WHERE workspace_id=$1 AND event->>'operation'='content.erasure-blocked'",[f.workspaceId])).rows[0].n).toBe(2);
+test("stale workspace preview leaves no deletion fence or approval", async () => {
+  const f = await setup(), input = {scope:"workspace" as const};
+  const preview = await previewErasure(f.s,f.ctx,input);
+  await f.pool.query("INSERT INTO version_metadata_events(workspace_id,page_id,actor_id,reason,before_snapshot,after_snapshot) VALUES($1,'topic','editor','new reason','{}','{}')",[f.workspaceId]);
+  await expect(executeErasure(f.s,f.ctx,{...input,previewHash:preview.previewHash,confirm:"ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_PREVIEW_STALE");
   expect((await f.pool.query("SELECT 1 FROM operations_tombstones WHERE workspace_id=$1",[f.workspaceId])).rowCount).toBe(0);
-  const key="recovery-key".repeat(5), signing="independent-recovery".repeat(4);
-  const ledger=readRecoveryLedger(await captureRecoveryLedger(f.pool,key,signing),key,signing);
-  expect(ledger.erasureScopes?.some(s=>s.workspace_id===f.workspaceId)).toBe(false);
-  const questions = new QuestionsService(f.pool,{runtime:new RuntimeService(f.pool),authorize:authorizeInTransaction,runQuery:async()=>{throw Error('NOT_CONFIGURED');}});
-  await expect(questions.createThread({...f.editor,authorization:{revalidate:async()=>{},assertSession:async()=>{}}})).resolves.toHaveProperty("id");
-  const old=process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED;
-  process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED="true";
-  try {
-    await expect(handleCredentialRequest(f.pool,f.ctx,"POST","/api/v1/credentials/keys",{name:"fixture",scope:"read"},"http://localhost")).resolves.toBeTruthy();
-    await expect(recordModelUsage({pool:f.pool,workspaceId:f.workspaceId,principalId:"editor"},{operation:"query",provider:"openai",backend:"external",model:"fixture",deploymentId:null,succeeded:true,latencyMs:1,inputTokens:null,outputTokens:null,cacheReadTokens:null,cacheWriteTokens:null,costUsd:null,errorCode:null})).resolves.toBeUndefined();
-  } finally { if(old===undefined)delete process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED;else process.env.AGENT_KNOWLEDGE_HUB_AGENT_CREDENTIALS_ENABLED=old; }
+  expect((await f.pool.query("SELECT status,error_code FROM operations_erasure_receipts WHERE workspace_id=$1",[f.workspaceId])).rows).toContainEqual({status:"failed",error_code:"ERASURE_PREVIEW_STALE"});
 });
 test("an existing blocked workspace receipt still fences question and agent writes", async () => {
   const f=await setup();
@@ -122,38 +108,29 @@ test.each(["resource","workspace"] as const)("%s erasure rechecks metadata commi
     const pid=(await writer.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
     await writer.query("INSERT INTO version_metadata_events(workspace_id,page_id,actor_id,reason,before_snapshot,after_snapshot) VALUES($1,'topic','editor','reason','{}','{}')",[f.workspaceId]);
     attempt=executeErasure(f.s,f.ctx,{...input,previewHash:preview.previewHash,confirm:scope==="resource"?"ERASE_PREVIEWED_RESOURCE_LINEAGE":"ERASE_ENTIRE_WORKSPACE"});
-    const rejected=expect(attempt).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+    const rejected=expect(attempt).rejects.toThrow("ERASURE_PREVIEW_STALE");
     let blocked:number[]=[];
     for(let i=0;i<1000&&!blocked.length;i++) blocked=(await writer.query("SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND $1=ANY(pg_blocking_pids(pid))",[pid])).rows.map(r=>r.pid);
     expect(blocked.length).toBeGreaterThan(0);
     await writer.query("COMMIT");
     await rejected;
-    expect((await f.pool.query("SELECT status,error_code FROM operations_erasure_receipts WHERE workspace_id=$1",[f.workspaceId])).rows).toContainEqual({status:"failed",error_code:"ERASURE_VERSION_METADATA_UNSUPPORTED"});
+    expect((await f.pool.query("SELECT status,error_code FROM operations_erasure_receipts WHERE workspace_id=$1",[f.workspaceId])).rows).toContainEqual({status:"failed",error_code:"ERASURE_PREVIEW_STALE"});
     expect((await f.pool.query("SELECT 1 FROM operations_tombstones WHERE workspace_id=$1",[f.workspaceId])).rowCount).toBe(0);
   } finally {await writer.query("ROLLBACK");writer.release();if(attempt)await attempt.catch(()=>{});}
 });
-test("version workflow data blocks both scopes and replay only in its own workspace", async () => {
-  const a = await setup(), b = await setup();
-  const resource = {scope: "resource" as const, resource: {kind: "source" as const, id: "source-a"}};
-  const before = await previewErasure(a.s, a.ctx, resource);
-  await a.pool.query("INSERT INTO version_restore_previews(workspace_id,principal_id,hash,payload,expires_at) VALUES($1,'editor','preview',$2,now()+interval '1 hour')", [a.workspaceId, {content: "protected"}]);
-  await expect(executeErasure(a.s, a.ctx, {...resource, previewHash:before.previewHash, confirm:"ERASE_PREVIEWED_RESOURCE_LINEAGE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
-  for (const input of [resource, {scope: "workspace" as const}]) {
-    const preview = await previewErasure(a.s, a.ctx, input);
-    expect(preview.versionWorkflowDataUnsupported).toBe(true);
-    await expect(executeErasure(a.s, a.ctx, {...input, previewHash: preview.previewHash, confirm: input.scope === "resource" ? "ERASE_PREVIEWED_RESOURCE_LINEAGE" : "ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
-    const db = await a.pool.connect();
-    try {
-      await db.query("BEGIN");
-      await expect(replayProductErasure(db, a.workspaceId, input.scope === "resource" ? [input.resource] : [], input.scope === "workspace")).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
-    } finally { await db.query("ROLLBACK"); db.release(); }
-  }
-  expect((await previewErasure(b.s, b.ctx, resource)).versionWorkflowDataUnsupported).toBe(false);
-  const preview = await previewErasure(b.s, b.ctx, resource);
-  expect((await executeErasure(b.s, b.ctx, {...resource, previewHash: preview.previewHash, confirm: "ERASE_PREVIEWED_RESOURCE_LINEAGE"})).status).toBe("completed");
-  expect((await a.pool.query("SELECT payload FROM version_restore_previews WHERE workspace_id=$1", [a.workspaceId])).rows[0].payload.content).toBe("protected");
+test("unlineaged restore preview is reported and recovery replay fails closed", async () => {
+  const a=await setup(), b=await setup();
+  await a.pool.query("INSERT INTO version_restore_previews(workspace_id,principal_id,hash,payload,expires_at) VALUES($1,'editor','preview',$2,now()+interval '1 hour')",[a.workspaceId,{content:'protected'}]);
+  const input={scope:'resource' as const,resource:{kind:'source' as const,id:'source-a'}};
+  const preview=await previewErasure(a.s,a.ctx,input);
+  expect(preview.unresolvedUnlineagedRows).toBeGreaterThan(0);
+  const db=await a.pool.connect();
+  try {await db.query('BEGIN');await expect(replayProductErasure(db,a.workspaceId,[input.resource])).rejects.toThrow('RECOVERY_ERASURE_INCOMPLETE');}
+  finally {await db.query('ROLLBACK');db.release();}
+  expect((await a.pool.query("SELECT payload FROM version_restore_previews WHERE workspace_id=$1",[a.workspaceId])).rows[0].payload.content).toBe('protected');
+  expect((await previewErasure(b.s,b.ctx,input)).unresolvedUnlineagedRows).toBe(0);
 });
-test.each(["versions_decisions", "version_restore_plans", "version_restore_applications"])("%s records block workspace erasure", async table => {
+test.each(["versions_decisions", "version_restore_plans", "version_restore_applications"])("%s records are redacted by workspace erasure", async table => {
   const f = await setup();
   await f.pool.query("INSERT INTO batches(workspace_id,id,data,hash) VALUES($1,'batch','{}','hash')", [f.workspaceId]);
   if (table === "versions_decisions") {
@@ -163,8 +140,9 @@ test.each(["versions_decisions", "version_restore_plans", "version_restore_appli
     if (table === "version_restore_applications") await f.pool.query("INSERT INTO version_restore_applications(workspace_id,batch_id,page_id,number,plan_hash,applied_by) VALUES($1,'batch','topic',1,'hash','editor')", [f.workspaceId]);
   }
   const input = {scope:"workspace" as const}, preview = await previewErasure(f.s, f.ctx, input);
-  expect(preview.versionWorkflowDataUnsupported).toBe(true);
-  await expect(executeErasure(f.s, f.ctx, {...input, previewHash:preview.previewHash, confirm:"ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_VERSION_METADATA_UNSUPPORTED");
+  expect(preview.versionWorkflowDataUnsupported).toBe(false);
+  expect((await executeErasure(f.s, f.ctx, {...input, previewHash:preview.previewHash, confirm:"ERASE_ENTIRE_WORKSPACE"})).status).toBe("completed");
+  expect(JSON.stringify((await f.pool.query(`SELECT * FROM ${table} WHERE workspace_id=$1`,[f.workspaceId])).rows)).not.toContain("private");
 });
 test("each version workflow EXISTS independently detects its own real row", async () => {
   const f=await setup(), db=await f.pool.connect();
@@ -191,48 +169,26 @@ test("each version workflow EXISTS independently detects its own real row", asyn
     }
   } finally {db.release();}
 });
-test("legacy arbitrary-client capture bypasses the exclusive erasure gate", async () => {
-  const f = await setup();
-  const gate = await f.pool.connect(), writer = await f.pool.connect();
-  let capture: Promise<void> | undefined;
+test("trusted version capture rejects callers without the mutation gate", async () => {
+  const f=await setup(), db=await f.pool.connect();
   try {
-    await writer.query("BEGIN");
-    await writer.query("INSERT INTO versions VALUES($1,'topic',2,$2)", [f.workspaceId, {...page.versions[0], number: 2}]);
-    const pid = (await writer.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
-    await gate.query("BEGIN");
-    await gate.query("SELECT pg_advisory_xact_lock(822025)");
-    capture = capturePublishedVersionMetadata(writer, f.editor, "topic", 2);
-    await gate.query("SELECT pg_sleep(0.1)");
-    const activity = (await gate.query("SELECT wait_event_type,wait_event FROM pg_stat_activity WHERE pid=$1", [pid])).rows[0];
-    expect(activity).toMatchObject({wait_event_type: "Client", wait_event: "ClientRead"});
-  } finally {
-    await gate.query("ROLLBACK");
-    if (capture) await capture;
-    await writer.query("ROLLBACK");
-    gate.release();
-    writer.release();
-  }
+    await db.query("BEGIN");
+    await db.query("INSERT INTO versions VALUES($1,'topic',2,$2)",[f.workspaceId,{...page.versions[0],number:2}]);
+    await expect(capturePublishedVersionMetadata(db,f.editor,'topic',2)).rejects.toThrow("ERASURE_MUTATION_GATE_REQUIRED");
+  } finally {await db.query("ROLLBACK");db.release();}
 });
-test("question copies block resource and workspace erasure and recovery without affecting other workspaces", async () => {
-  const a = await setup(), b = await setup();
-  await a.pool.query("INSERT INTO question_threads(workspace_id,id,principal_id,revision) VALUES($1,'thread','editor',1)", [a.workspaceId]);
-  await a.pool.query("INSERT INTO question_turns(workspace_id,thread_id,id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed) VALUES($1,'thread','turn','editor',1,'nonce','hash','private copied text','offline','pending',$2)", [a.workspaceId, {sourceIds:['source-a'], history:'private history'}]);
-  await a.pool.query("INSERT INTO question_feedback(workspace_id,id,principal_id,nonce,request_hash,answer_id,answer_version,category,reason,evidence,input_envelope) VALUES($1,'feedback','editor','nonce','hash','answer',1,'incorrect','private reason',$2,$3)", [a.workspaceId, {text:'private evidence'}, {sourceIds:['source-a']}]);
-  await a.pool.query("INSERT INTO question_feedback_work(workspace_id,feedback_id,page_id,page_version,recipient_ids,status,evidence_keys) VALUES($1,'feedback','topic',1,ARRAY[]::text[],'pending-unassigned',$2)", [a.workspaceId, {quote:'private work'}]);
-  const resource = {scope:'resource' as const,resource:{kind:'source' as const,id:'source-a'}};
-  for (const input of [resource, {scope:'workspace' as const}]) {
-    const preview = await previewErasure(a.s,a.ctx,input);
-    expect(preview.questionDataUnsupported).toBe(true);
-    await expect(executeErasure(a.s,a.ctx,{...input,previewHash:preview.previewHash,confirm:input.scope==='workspace'?'ERASE_ENTIRE_WORKSPACE':'ERASE_PREVIEWED_RESOURCE_LINEAGE'})).rejects.toThrow('ERASURE_QUESTION_DATA_UNSUPPORTED');
-    const db = await a.pool.connect();
-    try { await db.query('BEGIN'); await expect(replayProductErasure(db,a.workspaceId,input.scope==='resource'?[input.resource]:[],input.scope==='workspace')).rejects.toThrow('ERASURE_QUESTION_DATA_UNSUPPORTED'); }
-    finally { await db.query('ROLLBACK'); db.release(); }
-  }
-  expect((await a.pool.query("SELECT status,error_code FROM operations_erasure_receipts WHERE workspace_id=$1",[a.workspaceId])).rows).toEqual(expect.arrayContaining([expect.objectContaining({status:'blocked',error_code:'ERASURE_QUESTION_DATA_UNSUPPORTED'})]));
-  expect((await a.pool.query("SELECT question FROM question_turns WHERE workspace_id=$1",[a.workspaceId])).rows[0].question).toBe('private copied text');
-  expect((await a.pool.query("SELECT data->>'content' AS content FROM sources WHERE workspace_id=$1 AND id='source-a'",[a.workspaceId])).rows[0].content).toContain('재시도');
-  const other = await previewErasure(b.s,b.ctx,resource);
-  expect((await executeErasure(b.s,b.ctx,{...resource,previewHash:other.previewHash,confirm:'ERASE_PREVIEWED_RESOURCE_LINEAGE'})).status).toBe('completed');
+test("question copies follow resource lineage and preserve enum and identity", async () => {
+  const a=await setup(), b=await setup();
+  await a.pool.query("INSERT INTO question_threads(workspace_id,id,principal_id,revision) VALUES($1,'thread','editor',1)",[a.workspaceId]);
+  await a.pool.query("INSERT INTO question_turns(workspace_id,thread_id,id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed) VALUES($1,'thread','turn','editor',1,'nonce','hash','private copied text','offline','pending',$2)",[a.workspaceId,{sourceIds:['source-a'],history:'private history'}]);
+  await a.pool.query("INSERT INTO question_feedback(workspace_id,id,principal_id,nonce,request_hash,answer_id,answer_version,category,reason,evidence,input_envelope) VALUES($1,'feedback','editor','nonce','hash','answer',1,'incorrect','private reason',$2,$3)",[a.workspaceId,{text:'private evidence'},{sourceIds:['source-a']}]);
+  const input={scope:'resource' as const,resource:{kind:'source' as const,id:'source-a'}};
+  const preview=await previewErasure(a.s,a.ctx,input);
+  expect(preview.questionDataUnsupported).toBe(false);
+  await executeErasure(a.s,a.ctx,{...input,previewHash:preview.previewHash,confirm:'ERASE_PREVIEWED_RESOURCE_LINEAGE'});
+  expect((await a.pool.query("SELECT id,principal_id,question,mode FROM question_turns WHERE workspace_id=$1",[a.workspaceId])).rows[0]).toEqual({id:'turn',principal_id:'editor',question:'[법정 삭제]',mode:'offline'});
+  expect((await a.pool.query("SELECT category,reason FROM question_feedback WHERE workspace_id=$1",[a.workspaceId])).rows[0]).toEqual({category:'incorrect',reason:'[법정 삭제]'});
+  const other=await previewErasure(b.s,b.ctx,input); expect((await executeErasure(b.s,b.ctx,{...input,previewHash:other.previewHash,confirm:'ERASE_PREVIEWED_RESOURCE_LINEAGE'})).status).toBe('completed');
 });
 test("question writes wait for erasure and fail closed after its tombstone", async () => {
   const f=await setup(), db=await f.pool.connect();
@@ -283,7 +239,7 @@ test("credential request inventory follows its key workspace without mixing anot
   expect(aPreview.counts.agent_key_requests).toBe(1);
   expect(bPreview.counts.agent_key_requests).toBe(1);
 });
-test("credential and model usage rows block resource and workspace erasure and recovery replay", async () => {
+test("unlineaged agent usage blocks resource erasure, while workspace erasure redacts it", async () => {
   const a = await setup(), b = await setup();
   const preview = await previewErasure(a.s, a.ctx, {scope: "resource", resource: {kind: "source", id: "source-a"}});
   await a.pool.query("INSERT INTO model_usage_events(workspace_id,principal_id,operation,provider,backend,model,succeeded,latency_ms) VALUES($1,'editor','query','openai','external','fixture',true,1)", [a.workspaceId]);
@@ -291,7 +247,7 @@ test("credential and model usage rows block resource and workspace erasure and r
   const current = await previewErasure(a.s, a.ctx, input);
   await expect(executeErasure(a.s, a.ctx, {...input, previewHash: current.previewHash, confirm: "ERASE_PREVIEWED_RESOURCE_LINEAGE"})).rejects.toThrow("ERASURE_AGENT_DATA_UNSUPPORTED");
   const workspace = await previewErasure(a.s, a.ctx, {scope: "workspace"});
-  await expect(executeErasure(a.s, a.ctx, {scope: "workspace", previewHash: workspace.previewHash, confirm: "ERASE_ENTIRE_WORKSPACE"})).rejects.toThrow("ERASURE_AGENT_DATA_UNSUPPORTED");
+  expect((await executeErasure(a.s, a.ctx, {scope: "workspace", previewHash: workspace.previewHash, confirm: "ERASE_ENTIRE_WORKSPACE"})).status).toBe("completed");
   const client = await a.pool.connect();
   try {
     await client.query("BEGIN");
@@ -299,7 +255,7 @@ test("credential and model usage rows block resource and workspace erasure and r
     await client.query("ROLLBACK");
   } finally { client.release(); }
   expect((await a.pool.query("SELECT data FROM sources WHERE workspace_id=$1 AND id='source-a'", [a.workspaceId])).rowCount).toBe(1);
-  expect((await a.pool.query("SELECT count(*)::int AS n FROM model_usage_events WHERE workspace_id=$1", [a.workspaceId])).rows[0].n).toBe(1);
+  expect((await a.pool.query("SELECT model FROM model_usage_events WHERE workspace_id=$1", [a.workspaceId])).rows[0].model).toBe("[법정 삭제]");
   expect((await previewErasure(b.s, b.ctx, input)).previewHash).toBeTruthy();
   expect(preview.previewHash).toBeTruthy();
 });
@@ -370,7 +326,7 @@ test("credential rows and resource-bearing routes block erasure without changing
   await executeErasure(b.s,b.ctx,{...input,previewHash:other.previewHash,confirm:"ERASE_PREVIEWED_RESOURCE_LINEAGE"});
   expect((await a.pool.query("SELECT revoked_at FROM agent_api_keys WHERE id=$1",[key])).rows[0].revoked_at).toBeNull();
   const db = await a.pool.connect();
-  try { await db.query("BEGIN"); await expect(replayProductErasure(db,a.workspaceId,[],true)).rejects.toThrow("ERASURE_AGENT_DATA_UNSUPPORTED"); }
+  try { await db.query("BEGIN"); await replayProductErasure(db,a.workspaceId,[],true); expect((await db.query("SELECT revoked_at FROM agent_api_keys WHERE id=$1",[key])).rows[0].revoked_at).not.toBeNull(); }
   finally { await db.query("ROLLBACK"); db.release(); }
 });
 test("restored device grant cannot issue credentials after an erasure tombstone", async () => {

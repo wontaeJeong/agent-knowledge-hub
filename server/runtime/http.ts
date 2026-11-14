@@ -61,9 +61,11 @@ import { authenticateAgentKey, recordAgentRequest, permittedAgentRoute, handleCr
 import { QuestionsService } from "../questions/service";
 import { handleQuestionRoute } from "../questions/http";
 import { handleCollaborationRoute, type CollaborationService } from "../collaboration";
+import { handleIdentityRequest, type IdentityHttpServices } from "../identity/http";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
+  identityServices?: IdentityHttpServices;
   service: RuntimeService;
   origin: string;
   workspaceId: string;
@@ -279,6 +281,16 @@ export function createRuntimeHandler(options: {
           path.startsWith("/api/v1/storage/") ? 5 * 1024 * 1024 : 512000,
         );
       }
+      if (path.startsWith("/api/v1/identity/")) {
+        if (credential || agent) throw Error("FORBIDDEN");
+        if (!options.identityServices) throw Error("NOT_FOUND");
+        const result = await handleIdentityRequest(options.identityServices, ctx, req.method || "GET", path + url.search, body);
+        if (!result) throw Error("NOT_FOUND");
+        if ((path === "/api/v1/identity/logout-all" && req.method === "POST") ||
+            (req.method === "DELETE" && "current" in result.body && result.body.current === true))
+          options.auth!.setCookie(res, "akh_session", "", 0);
+        return send(result.status, result.body);
+      }
       if (agent) {
         if (!permittedAgentRoute(req.method || "GET",path,agent.agent.scope,body))
           return send(403,{code:"FORBIDDEN",requestId});
@@ -470,6 +482,7 @@ export function createRuntimeHandler(options: {
             principalId: ctx.principalId,
             role,
             csrfToken: session.csrfToken,
+            identityFeatures: { emergency: !!options.identityServices?.emergency, directory: !!options.identityServices?.directory },
             capabilities: options.jobs
               ? runtimeCapabilities(
                   a.capabilities,
@@ -507,6 +520,7 @@ export function createRuntimeHandler(options: {
             principalId: ctx.principalId,
             role: "reader",
             csrfToken: session.csrfToken,
+            identityFeatures: { emergency: !!options.identityServices?.emergency, directory: !!options.identityServices?.directory },
             capabilities: [
               "space.create",
               ...(p.rows[0].team_create ? ["team.create"] : []),
@@ -816,6 +830,8 @@ export function createRuntimeHandler(options: {
         ENOENT: 404,
         FORBIDDEN: 403,
         UNAUTHENTICATED: 401,
+        FRESH_DIRECTORY_HUMAN_REQUIRED: 401,
+        STALE_DIRECTORY_PROOF: 409,
         VALIDATION_FAILED: 400,
         EXPORT_TOO_LARGE: 413,
         INVALID_CLIENT: 400,
