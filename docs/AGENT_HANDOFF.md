@@ -351,3 +351,5 @@ CORE-001~008의 일부 로컬 동작을 추가했다. 원본 기준 239개를 �
 - 합성 화면 검증: [1440px](pr-assets/product-conversations/review-desktop-1440.png), [390px](pr-assets/product-conversations/review-mobile-390.png). 실제 앱에서 다른 공간으로 전환한 뒤 인용 요청의 `X-Space-Id`와 해당 공간 본문, 가로 폭 및 이전 대화 병합을 확인했다. 기존 키보드 취소·403 기록도 [캡처 설명](pr-assets/product-conversations/README.md)에 보존한다. 실제 사내 자료·모델 검증은 아니다.
 
 - P1 리뷰 수정 최종 검증: Node 24 `npm run check`와 PostgreSQL 17 격리 DB 전체 서버 테스트 95개 파일 통과. 회사 IdP·운영 모델·최종 CI는 별도다.
+
+- 교차 기능 삭제 후속: P5 기존 역할 증거와 P7 수집기 연결이 존재하면 workspace 삭제 및 서명 복구 재생의 같은 트랜잭션에서 각각 철회한다. 기능 미설치 DB도 지원하며 미확인 제어 스키마는 차단한다. 법적 보류·오류는 전체 롤백하고 다른 공간은 유지한다. 합성 복구 상태에서 기존 editor가 다시 원본을 작성하던 RED와 수정 후 현재 권한 거부를 확인했다.
