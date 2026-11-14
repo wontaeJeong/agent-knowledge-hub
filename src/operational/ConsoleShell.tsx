@@ -40,6 +40,7 @@ const icons = {
   imports: Database,
   sources: Database,
   review: ClipboardCheck,
+  notifications: ClipboardCheck,
   query: Layers3,
   lint: SearchCheck,
   agents: Bot,
