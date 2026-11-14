@@ -25,6 +25,7 @@ import {createOperationalHost} from './operational-host';
 import {OperationsLoop} from './operations-loop';
 import {monitorOnce,webhookAdapter,emailGatewayAdapter} from '../operations';
 import {registerTrustedDestinations} from '../policy/model';
+import { createCollaborationHost, collaborationDeliveryFromEnvironment } from "./collaboration-host";
 import {scanHandoffs} from '../workflows/governance/maintenance';
 
 if (!process.env.DATABASE_URL) throw Error("DATABASE_URL_REQUIRED");
@@ -97,8 +98,10 @@ if (process.argv.includes("--migrate")) {
   } catch {
     throw Error("PLATFORM_OPERATOR_CONFIGURATION_REQUIRED");
   }
+  const directory = directoryFromEnvironment();
+  const collaboration = createCollaborationHost(pool, auth.origin, {...directory, ...collaborationDeliveryFromEnvironment(), dispatcherId:process.env.AKH_COLLABORATION_DISPATCHER_ID});
   const jobs = createRuntimeJobs(pool, service, {
-    ...directoryFromEnvironment(),
+    ...directory,
     platformOperatorIds,
     semanticLint: refinement.semanticJobAdapter(),
     revalidateInteractiveGrant: (binding) =>
@@ -141,6 +144,7 @@ if (process.argv.includes("--migrate")) {
       refinement,
       operations,
       jobs,
+      collaboration: collaboration.service,
       platformOperatorIds,
       shutdown,
       probe,
@@ -151,6 +155,7 @@ if (process.argv.includes("--migrate")) {
   server.headersTimeout = 10000;
   server.listen(Number(process.env.PORT || 8080), "0.0.0.0");
   jobs.start();
+  if (process.env.AKH_COLLABORATION_DISPATCHER_ID) collaboration.worker.start();
   monitor.start();
   handoffs.start();
   const stopImports =
@@ -162,6 +167,7 @@ if (process.argv.includes("--migrate")) {
     stopImports();
     server.close(async () => {
       await jobs.stop();
+      await collaboration.worker.stop();
       await monitor.stop();
       await handoffs.stop();
       await shutdown.drain(8000);

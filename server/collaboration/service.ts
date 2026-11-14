@@ -137,7 +137,12 @@ export class CollaborationService {
       throw Error("COLLABORATION_AUTHORIZATION_REQUIRED");
     const app = new URL(options.applicationOrigin);
     if (
-      app.protocol !== "https:" ||
+      !(
+        app.protocol === "https:" ||
+        (app.protocol === "http:" &&
+          ["localhost", "127.0.0.1"].includes(app.hostname) &&
+          !options.gateway)
+      ) ||
       app.username ||
       app.password ||
       app.search ||
@@ -479,6 +484,19 @@ export class CollaborationService {
     const fingerprints: unknown[] = [];
     for (const n of events) {
       try {
+        if (n.kind.startsWith("review-")) {
+          const work = await db.query(
+            "SELECT document_type,page_id FROM collaboration_review_due_work WHERE workspace_id=$1 AND id=$2 AND assigned_id=$3 AND status IN ('needs-review','needs-assignment','acknowledged')",
+            [ctx.workspaceId, n.data.reviewWorkId, ctx.principalId],
+          );
+          if (!work.rowCount) continue;
+          await this.assertReviewer(
+            db,
+            ctx,
+            work.rows[0].document_type,
+            work.rows[0].page_id,
+          );
+        }
         if (n.kind === "comment") {
           const c = (
             await db.query(
@@ -535,7 +553,7 @@ export class CollaborationService {
           group = {
             pageId: page.id,
             title: page.title.replace(/[\u0000-\u001f]/g, " ").slice(0, 300),
-            url: `${this.origin}/?app=1#/wiki/${encodeURIComponent(page.id)}`,
+            url: `${this.origin}/?app=1&space=${encodeURIComponent(ctx.workspaceId)}&document=${encodeURIComponent(page.id)}`,
             eventIds: [],
           };
           groups.set(page.id, group);
@@ -624,7 +642,13 @@ export class CollaborationService {
         ).rows;
       const result = await this.eligible(db, ctx, p, rows);
       return {
-        items: result.items,
+        items: result.items.map((item) => ({
+          ...item,
+          events: item.eventIds.map((id) => ({
+            id,
+            read: Boolean(rows.find((row) => row.id === id)?.read_at),
+          })),
+        })),
         nextOffset: rows.length === 25 ? offset + 25 : null,
       };
     });
@@ -1094,6 +1118,34 @@ export class CollaborationService {
       policyHash: fingerprint(policy ?? { explicit: true }),
     };
   }
+  private async assertReviewer(
+    db: PoolClient,
+    ctx: Context,
+    documentType: string,
+    pageId: string,
+  ) {
+    await this.hooks.authorize(db, ctx, "changeset.approve");
+    const designated = await db.query(
+      "SELECT 1 FROM access_reviewers WHERE workspace_id=$1 AND principal_id=$2",
+      [ctx.workspaceId, ctx.principalId],
+    );
+    if (!designated.rowCount) throw Error("FORBIDDEN");
+    const page = await db.query(
+      "SELECT data->>'status' AS status FROM pages WHERE workspace_id=$1 AND id=$2",
+      [ctx.workspaceId, pageId],
+    );
+    if (!page.rowCount) throw Error("NOT_FOUND");
+    const types = [
+      documentType,
+      ...(page.rows[0].status === "공식 기준" ? ["official-standard"] : []),
+    ];
+    const rules = await db.query(
+      "SELECT reviewer_ids FROM access_review_rules WHERE workspace_id=$1 AND document_type=ANY($2::text[])",
+      [ctx.workspaceId, types],
+    );
+    if (rules.rows.some((row) => !row.reviewer_ids.includes(ctx.principalId)))
+      throw Error("FORBIDDEN");
+  }
   async scanReviews() {
     const ids = await this.tx(async (db) => {
       await this.hooks.assertDispatcher(db);
@@ -1129,6 +1181,12 @@ export class CollaborationService {
           await this.tx(async (db) => {
             await this.hooks.assertDispatcher(db);
             await this.assertProof(db, proof);
+            await this.assertReviewer(
+              db,
+              proof.ctx,
+              snapshot.documentType,
+              pageId,
+            );
             await this.hooks.authorize(db, proof.ctx, "knowledge.read", {
               kind: "page",
               id: pageId,
@@ -1154,8 +1212,29 @@ export class CollaborationService {
         const fresh = await this.reviewSnapshot(db, workspaceId, pageId);
         if (!fresh || fresh.future || fresh.inputHash !== snapshot.inputHash)
           return 0;
-        if (chosen) await this.assertProof(db, chosen);
+        if (chosen) {
+          await this.assertProof(db, chosen);
+          await this.assertReviewer(
+            db,
+            chosen.ctx,
+            snapshot.documentType,
+            pageId,
+          );
+          await this.hooks.authorize(db, chosen.ctx, "knowledge.read", {
+            kind: "page",
+            id: pageId,
+            version: Number(snapshot.row.page_version),
+          });
+          await captureEnvelope(
+            db,
+            chosen.ctx,
+            await loadState(db, workspaceId),
+            [pageId],
+          );
+        }
         const cycle = fingerprint([
+            workspaceId,
+            chosen?.ctx.principalId ?? null,
             pageId,
             snapshot.due?.toISOString() ?? "unknown",
             snapshot.row.page_version,
@@ -1173,7 +1252,7 @@ export class CollaborationService {
         if (!chosen && snapshot.due)
           reason = "RESPONSIBLE_RECIPIENT_UNAVAILABLE";
         const inserted = await db.query(
-          "INSERT INTO collaboration_review_due_work(id,workspace_id,page_id,page_version,due_cycle,document_type,due_at,input_hash,policy_hash,assignment_revision,owner_id,backup_id,assigned_id,status,reason_code,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16) ON CONFLICT(workspace_id,page_id,due_cycle) DO NOTHING",
+          "INSERT INTO collaboration_review_due_work(id,workspace_id,page_id,page_version,due_cycle,document_type,due_at,input_hash,policy_hash,assignment_revision,owner_id,backup_id,assigned_id,status,reason_code,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16) ON CONFLICT(workspace_id,page_id,due_cycle) DO UPDATE SET status=excluded.status,reason_code=excluded.reason_code,assigned_id=excluded.assigned_id,revision=collaboration_review_due_work.revision+1,acknowledged_at=NULL,updated_at=excluded.updated_at WHERE collaboration_review_due_work.status='superseded'",
           [
             workId,
             workspaceId,
@@ -1239,6 +1318,8 @@ export class CollaborationService {
               id: r.page_id,
               version: r.page_version,
             });
+            if (!options.all)
+              await this.assertReviewer(db, ctx, r.document_type, r.page_id);
             const snapshot = await this.reviewSnapshot(
               db,
               ctx.workspaceId,
@@ -1288,6 +1369,7 @@ export class CollaborationService {
       ).rows[0];
       if (!r) throw Error("NOT_FOUND");
       if (r.revision !== expectedRevision) throw Error("STALE_VERSION");
+      await this.assertReviewer(db, ctx, r.document_type, r.page_id);
       await this.hooks.authorize(db, ctx, "knowledge.read", {
         kind: "page",
         id: r.page_id,

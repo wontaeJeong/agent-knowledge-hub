@@ -37,6 +37,7 @@ import {GovernanceWorkbench} from './governance';
 import { StoragePanel } from "./storage";
 import { RefinementPanel } from "./refinement";
 import { JobsPanel } from "./jobs";
+import { NotificationPanel } from "./notifications";
 import { resolveJob, isJobReceipt } from "./jobs-client";
 
 interface PublishedPage {
@@ -745,6 +746,8 @@ function OperationalWorkspace({
             <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
               {(tab !== 'account' && (preview || !['policies','activity','lifecycle','agents','integrations','evaluation'].includes(tab))) && <Management section={tab} preview={preview} navigate={navigate} />}
             </Suspense>
+            {tab === "notifications" && !preview && <NotificationPanel api={api} capabilities={identity.capabilities ?? []} spaceId={identity.workspaceId} onExpired={clearProtected}/>}
+            {tab === "notifications" && preview && <p>실제 알림은 로그인한 공간에서 확인할 수 있습니다.</p>}
             {tab === "account" && <section className="op-panel"><h2>사용자 설정</h2>{preview ? <p>미리보기에서는 실제 계정과 세션을 변경하지 않습니다.</p> : <><dl className="console-definition"><div><dt>사용자</dt><dd>{identity.principalId}</dd></div><div><dt>현재 공간</dt><dd>{identity.workspaceId}</dd></div><div><dt>역할</dt><dd>{identity.spaceRole ?? identity.effectiveRole ?? identity.role}</dd></div></dl><p>계정 정보 변경과 세션 관리는 아직 연결되지 않았습니다.</p></>}</section>}
             {(tab === "agents" || tab === "integrations") && !preview && (
               <Suspense fallback={<p role="status">에이전트 인증을 불러오는 중…</p>}>

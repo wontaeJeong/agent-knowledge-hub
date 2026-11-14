@@ -60,6 +60,7 @@ import { handleBoardRequest } from "../boards";
 import { authenticateAgentKey, recordAgentRequest, permittedAgentRoute, handleCredentialRequest, startDevice, pollDevice, verifyDevice, decideDevice } from "../agent-credentials";
 import { QuestionsService } from "../questions/service";
 import { handleQuestionRoute } from "../questions/http";
+import { handleCollaborationRoute, type CollaborationService } from "../collaboration";
 
 export function createRuntimeHandler(options: {
   pool: Pool;
@@ -74,6 +75,7 @@ export function createRuntimeHandler(options: {
   admission?: HttpAdmission;
   operations?: (input: OperationsRouteInput) => Promise<boolean>;
   jobs?: RuntimeJobsBridge;
+  collaboration?: CollaborationService;
   platformOperatorIds?: readonly string[];
   probe?: (req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
   shutdown?: ShutdownController;
@@ -332,6 +334,12 @@ export function createRuntimeHandler(options: {
         }
         if (await handleQuestionRoute({ method: req.method ?? "GET", path: path + url.search, body, ctx, send }, questions)) return;
         return send(404, { code: "NOT_FOUND", requestId });
+      }
+      if (path.startsWith("/api/v1/collaboration/")) {
+        if (!options.collaboration) throw Error("COLLABORATION_NOT_CONFIGURED");
+        if (agent || credential) throw Error("FORBIDDEN");
+        if (await handleCollaborationRoute({method:req.method ?? "GET",path:path + url.search,body,ctx,send},options.collaboration)) return;
+        return send(404,{code:"NOT_FOUND",requestId});
       }
       if (await handleRetentionRoute({ method: req.method ?? "GET", path, body, ctx, send }, retention)) return;
       if(await handleGovernanceRoute({method:req.method??'GET',path,body,ctx,send},new GovernanceService(options.pool,authorizeInTransaction)))return;
@@ -883,3 +891,5 @@ export function createRuntimeHandler(options: {
     }
   };
 }
+
+export { createCollaborationHost } from "./collaboration-host";

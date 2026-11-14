@@ -10,7 +10,12 @@ export interface PublishedPage {
   scope?: string;
 }
 export interface ChangeSet {
-  reviewWarnings?:{pageId:string;key:string;code:'PROPERTY_REQUIRED';mode:'warn'|'block'}[];
+  reviewWarnings?: {
+    pageId: string;
+    key: string;
+    code: "PROPERTY_REQUIRED";
+    mode: "warn" | "block";
+  }[];
   id: string;
   hash: string;
   status: string;
@@ -43,6 +48,7 @@ export const consoleGroups = [
       { id: "imports", label: "자료 넣기 · 자동 정리" },
       { id: "sources", label: "원본 · 편입" },
       { id: "review", label: "변경 검토" },
+      { id: "notifications", label: "내 알림 · 검토함" },
       { id: "query", label: "질문 · 재편입" },
       { id: "lint", label: "지식 건강 점검" },
       { id: "refinement", label: "정련 · 경험" },
