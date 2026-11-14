@@ -14,17 +14,20 @@ import {
 } from "../src/domain/wiki";
 import { transaction } from "./database";
 import {
-  validateVersionMetadataPlans, assertVersionPlansCurrent,
-  applyApprovedVersionMetadataPlans, capturePublishedVersionMetadata,
-  type RestorePlan, type MetadataSnapshot,
-} from "./workflows/versions/metadata";
-import {
   authorizeActionDb,
   authorizeManaged,
   assertResourceUpperBound,
   effectiveAccess,
 } from "./access/index";
 import { legacyStoredRole } from "./access/legacy-compat";
+import {
+  validateVersionMetadataPlans,
+  assertVersionPlansCurrent,
+  applyApprovedVersionMetadataPlans,
+  capturePublishedVersionMetadata,
+  type RestorePlan,
+  type MetadataSnapshot,
+} from "./workflows/versions/metadata";
 import { assertReleasedImportContext } from "./operations/released-imports";
 import {
   publicationRequirements,
@@ -103,7 +106,12 @@ async function permissions(
   metadataProjections: Record<string, MetadataSnapshot> = {},
 ) {
   const acl: Record<string, unknown> = {};
-  const requirements = await publicationRequirements(db, ctx, updates, metadataProjections);
+  const requirements = await publicationRequirements(
+    db,
+    ctx,
+    updates,
+    metadataProjections,
+  );
   acl.requiredProperties = requirements.policy;
   const policy = await db.query(
     "SELECT policy_version FROM access_spaces WHERE workspace_id=$1",
@@ -326,15 +334,27 @@ export async function propose(
         }
       }
       await options?.onBeforeCreate?.(db);
-      const metadataPlans = [...(options?.versionMetadataPlans ?? [])].sort((a,b)=>a.pageId.localeCompare(b.pageId));
+      const metadataPlans = [...(options?.versionMetadataPlans ?? [])].sort(
+        (a, b) => a.pageId.localeCompare(b.pageId),
+      );
       for (const plan of metadataPlans) {
-        const draft = updates.find(d=>d.id===plan.pageId);
-        if (!draft || draft.baseVersion !== plan.baseVersion || draft.content !== plan.content ||
-          draft.title !== plan.next.title || draft.summary !== plan.next.summary ||
-          digest(draft.links) !== digest(plan.next.relations) || digest(draft.sourceIds) !== digest(plan.sourceIds))
+        const draft = updates.find((d) => d.id === plan.pageId);
+        if (
+          !draft ||
+          draft.baseVersion !== plan.baseVersion ||
+          draft.content !== plan.content ||
+          draft.title !== plan.next.title ||
+          draft.summary !== plan.next.summary ||
+          digest(draft.links) !== digest(plan.next.relations) ||
+          digest(draft.sourceIds) !== digest(plan.sourceIds)
+        )
           throw Error("VALIDATION_FAILED");
       }
-      const metadataProjections = await validateVersionMetadataPlans(db,ctx,metadataPlans);
+      const metadataProjections = await validateVersionMetadataPlans(
+        db,
+        ctx,
+        metadataPlans,
+      );
       const initialPermissions = await permissions(
         db,
         ctx,
@@ -412,10 +432,16 @@ export async function propose(
           (batch as RuntimeBatch).inputEnvelope = options.inputEnvelope;
         if (options?.requestAuthorizationPending)
           Object.assign(batch, { requestAuthorizationPending: true });
-        if (metadataPlans.length) Object.assign(batch, {
-          versionRestorePlanHash: digest(metadataPlans),
-          versionMetadataChanges: metadataPlans.map(p=>({pageId:p.pageId,targetVersion:p.targetVersion,fields:p.fields,next:p.next})),
-        });
+        if (metadataPlans.length)
+          Object.assign(batch, {
+            versionRestorePlanHash: digest(metadataPlans),
+            versionMetadataChanges: metadataPlans.map((p) => ({
+              pageId: p.pageId,
+              targetVersion: p.targetVersion,
+              fields: p.fields,
+              next: p.next,
+            })),
+          });
         enqueueBatch(state, batch);
       } catch {
         throw Error("VALIDATION_FAILED");
@@ -435,11 +461,33 @@ export async function propose(
         ]);
       await audit(db, ctx, "batch.propose", batch.id);
       await options?.onCreated?.(db, { id: batch.id, hash });
-      const final = (await db.query("SELECT data,hash FROM batches WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,batch.id])).rows[0];
-      if (!final || final.hash !== batchHash(final.data)) throw Error("APPROVAL_STALE");
-      for (const plan of metadataPlans) await db.query("INSERT INTO version_restore_plans VALUES($1,$2,$3,$4,$5,$6)",
-        [ctx.workspaceId,batch.id,final.hash,plan.pageId,digest(plan),plan]);
-      return { id: batch.id, hash:final.hash, ...(initialPermissions.warnings.length ? { warnings: initialPermissions.warnings } : {}) };
+      const final = (
+        await db.query(
+          "SELECT data,hash FROM batches WHERE workspace_id=$1 AND id=$2",
+          [ctx.workspaceId, batch.id],
+        )
+      ).rows[0];
+      if (!final || final.hash !== batchHash(final.data))
+        throw Error("APPROVAL_STALE");
+      for (const plan of metadataPlans)
+        await db.query(
+          "INSERT INTO version_restore_plans VALUES($1,$2,$3,$4,$5,$6)",
+          [
+            ctx.workspaceId,
+            batch.id,
+            final.hash,
+            plan.pageId,
+            digest(plan),
+            plan,
+          ],
+        );
+      return {
+        id: batch.id,
+        hash: final.hash,
+        ...(initialPermissions.warnings.length
+          ? { warnings: initialPermissions.warnings }
+          : {}),
+      };
     },
     { principalId: ctx.principalId, operation: "batch.propose" },
   );
@@ -471,21 +519,44 @@ async function checkedBatch(
       (batch as RuntimeBatch).importAuthorId ??
       (batch as RuntimeBatch).proposedBy;
     if (!authorId || authorId === ctx.principalId) throw Error("FORBIDDEN");
-    const actor = (await db.query("SELECT issuer FROM access_principals WHERE id=$1 AND active",[ctx.principalId])).rows[0];
-    if (!ctx.authorization.verifiedIssuer || actor?.issuer !== ctx.authorization.verifiedIssuer) throw Error("FORBIDDEN");
-    const authorRole = await legacyStoredRole(db, ctx.workspaceId, authorId, ctx.authorization.verifiedIssuer);
+    const actor = (
+      await db.query(
+        "SELECT issuer FROM access_principals WHERE id=$1 AND active",
+        [ctx.principalId],
+      )
+    ).rows[0];
+    if (
+      !ctx.authorization.verifiedIssuer ||
+      actor?.issuer !== ctx.authorization.verifiedIssuer
+    )
+      throw Error("FORBIDDEN");
+    const authorRole = await legacyStoredRole(
+      db,
+      ctx.workspaceId,
+      authorId,
+      ctx.authorization.verifiedIssuer,
+    );
     if (!authorRole || authorRole === "reader") throw Error("FORBIDDEN");
     const author = { workspaceId: ctx.workspaceId, principalId: authorId };
     await permissions(
-      db, author, batch.updates, batch.snapshots.map((s) => s.id),
+      db,
+      author,
+      batch.updates,
+      batch.snapshots.map((s) => s.id),
       (batch as RuntimeBatch).contextDependencyIds,
     );
     const envelope = (batch as RuntimeBatch).inputEnvelope;
     if (envelope) {
       for (const pageId of envelope.pageIds)
-        await assertResourceUpperBound(db, author, "knowledge.read", { kind: "page", id: pageId });
+        await assertResourceUpperBound(db, author, "knowledge.read", {
+          kind: "page",
+          id: pageId,
+        });
       for (const sourceId of envelope.sourceIds)
-        await assertResourceUpperBound(db, author, "knowledge.read", { kind: "source", id: sourceId });
+        await assertResourceUpperBound(db, author, "knowledge.read", {
+          kind: "source",
+          id: sourceId,
+        });
     }
   }
   if (managed.rowCount && !personal) {
@@ -596,19 +667,28 @@ async function checkedBatch(
       await loadState(db, ctx.workspaceId),
       (batch as RuntimeBatch).inputEnvelope!,
     );
-  const projections = batch.status === "published" ? {} : (await assertVersionPlansCurrent(db,ctx,id,hash)).projections;
   // Only new model-answer evolution batches have this hash-pinned marker.
   // Existing human edits, structural answer filing and ordinary ingest retain their policy.
   if (
     batch.status !== "published" &&
     batch.mode === "model" &&
     batch.answerId &&
-    typeof (batch as Batch & { evolutionReason?: unknown }).evolutionReason === "string"
+    typeof (batch as Batch & { evolutionReason?: unknown }).evolutionReason ===
+      "string"
   )
     await assertUnprotectedModelTargets(db, ctx.workspaceId, batch.updates);
+  const projections =
+    batch.status === "published"
+      ? {}
+      : (await assertVersionPlansCurrent(db, ctx, id, hash)).projections;
   await permissions(
-    db,ctx,batch.updates,batch.snapshots.map(s=>s.id),(batch as RuntimeBatch).contextDependencyIds,
-    true,projections,
+    db,
+    ctx,
+    batch.updates,
+    batch.snapshots.map((s) => s.id),
+    (batch as RuntimeBatch).contextDependencyIds,
+    true,
+    projections,
   );
   if (hash !== r.rows[0].hash || hash !== batchHash(batch))
     throw Error("APPROVAL_STALE");
@@ -634,9 +714,15 @@ async function reviewQualification(
     if (!present.rowCount) return null; // Historical service-only fixtures remain separate.
     if (ctx.credentialId) throw Error("FORBIDDEN");
     if (ctx.authorization) {
-      const actor = (await db.query("SELECT issuer FROM access_principals WHERE id=$1 AND active",[ctx.principalId])).rows[0];
+      const actor = (
+        await db.query(
+          "SELECT issuer FROM access_principals WHERE id=$1 AND active",
+          [ctx.principalId],
+        )
+      ).rows[0];
       verifiedIssuer = ctx.authorization.verifiedIssuer;
-      if (!verifiedIssuer || actor?.issuer !== verifiedIssuer) throw Error("FORBIDDEN");
+      if (!verifiedIssuer || actor?.issuer !== verifiedIssuer)
+        throw Error("FORBIDDEN");
     }
     if (!verifiedIssuer) throw Error("FORBIDDEN");
     if (ctx.authorization)
@@ -657,7 +743,12 @@ async function reviewQualification(
     const authorId = row.rows[0]?.author;
     if (!authorId || (approval && authorId === ctx.principalId))
       throw Error("FORBIDDEN");
-    const author = await legacyStoredRole(db, ctx.workspaceId, authorId, verifiedIssuer);
+    const author = await legacyStoredRole(
+      db,
+      ctx.workspaceId,
+      authorId,
+      verifiedIssuer,
+    );
     if (!author || author === "reader") throw Error("FORBIDDEN");
     return {
       policy_version: 0,
@@ -760,7 +851,7 @@ export async function approve(
         batch.snapshots.map((s) => s.id),
         (batch as RuntimeBatch).contextDependencyIds,
         false,
-        (await assertVersionPlansCurrent(db,ctx,id,hash)).projections,
+        (await assertVersionPlansCurrent(db, ctx, id, hash)).projections,
       );
       Object.assign(batch, { reviewWarnings: permissionSnapshot.warnings });
       await db.query(
@@ -843,7 +934,7 @@ export async function publish(
           batch.snapshots.map((s) => s.id),
           (batch as RuntimeBatch).contextDependencyIds,
           false,
-          (await assertVersionPlansCurrent(db,ctx,id,hash)).projections,
+          (await assertVersionPlansCurrent(db, ctx, id, hash)).projections,
         );
         if (permissionSnapshot.hash !== approval.rows[0].acl_hash)
           throw Error("APPROVAL_STALE");
@@ -867,7 +958,9 @@ export async function publish(
                 { workspaceId: ctx.workspaceId, principalId: ap.principal_id },
                 id,
                 true,
-                "legacy" in qualification ? qualification.verifiedIssuer : undefined,
+                "legacy" in qualification
+                  ? qualification.verifiedIssuer
+                  : undefined,
               );
               await permissions(
                 db,
@@ -876,7 +969,17 @@ export async function publish(
                 batch.snapshots.map((s) => s.id),
                 (batch as RuntimeBatch).contextDependencyIds,
                 true,
-                (await assertVersionPlansCurrent(db,{workspaceId:ctx.workspaceId,principalId:ap.principal_id},id,hash)).projections,
+                (
+                  await assertVersionPlansCurrent(
+                    db,
+                    {
+                      workspaceId: ctx.workspaceId,
+                      principalId: ap.principal_id,
+                    },
+                    id,
+                    hash,
+                  )
+                ).projections,
               );
               valid++;
             } catch {
@@ -907,7 +1010,7 @@ export async function publish(
             );
         }
         // Refresh the same-transaction receipt for the publishing actor after validating all reviewers.
-        await assertVersionPlansCurrent(db,ctx,id,hash);
+        await assertVersionPlansCurrent(db, ctx, id, hash);
         const state = await loadState(db, ctx.workspaceId);
         let next;
         try {
@@ -1001,11 +1104,9 @@ export async function publish(
           ]);
           versions[d.id] = v.number;
         }
-        await applyApprovedVersionMetadataPlans(db,ctx,id,hash,versions);
-        for (const [pageId,number] of Object.entries(versions))
-          await capturePublishedVersionMetadata(db,ctx,pageId,number);
         const candidates =
-          (batch as Batch & { candidates?: ProposalCandidate[] }).candidates ?? [];
+          (batch as Batch & { candidates?: ProposalCandidate[] }).candidates ??
+          [];
         if (candidates.length) {
           const refinement = new RefinementService(
             pool,
@@ -1014,8 +1115,17 @@ export async function publish(
               await authorizeManaged(client, actor, "knowledge.read", resource);
             },
           );
-          await refinement.publishCandidatesDb(db, ctx, id, candidates, versions);
+          await refinement.publishCandidatesDb(
+            db,
+            ctx,
+            id,
+            candidates,
+            versions,
+          );
         }
+        await applyApprovedVersionMetadataPlans(db, ctx, id, hash, versions);
+        for (const [pageId, number] of Object.entries(versions))
+          await capturePublishedVersionMetadata(db, ctx, pageId, number);
         // Source bodies remain unchanged; processing state is separate from the immutable input.
         await db.query(
           "UPDATE batches SET data=$3 WHERE workspace_id=$1 AND id=$2",
