@@ -28,7 +28,7 @@
 | 실제 도구 수집 / COL-003·005·008 | [collectors](../server/storage/collectors.ts)에 OpenCode 2.2.2 fixture와 파서가 있다. 두 자동 형식은 `available:false`다. 수동 입력 경로는 별도다. | 검증된 artifact↔세션 결합, 서버 제외 정책, 현재 권한 및 실제 호스트 검증 전까지 자동 수집 지원으로 표시하지 않는다. |
 | 보존·삭제·복구 / LIF-005~007, VER-012, OPS-008~009 | [보존 서비스](../server/retention/service.ts)와 [삭제 경계](../server/operations/erasure.ts), 운영 도구가 있다. | 전체 공간 삭제·복구 재생은 질문·에이전트 자격증명·버전 기록을 포함하며 원본 단위는 계보 없는 자료를 미해결로 보고한다. 일반 보존은 제한된 미참조 개인 초안 범위다. 주기 보존 실행과 사용자 휴지통·복원, 외부 백업과 운영 인수 검증이 남는다. 차단 성공은 삭제 완료가 아니다. |
 | 개인 작업본 통합 / CORE-009, KI-01~08 | [로컬 커넥터](../scripts/wiki-connector/service.mjs)는 합성 개발 서비스 경로이고 [서버 agent 서비스](../server/agents/service.ts)에는 개인 작업본 관련 로직이 있다. | 현재 로컬 커넥터와 운영 서버의 실제 종단 통합·KI 인수는 별도다. [ADR 004](adr/004-unified-knowledge-service.md)는 제안 상태다. |
-| 평가 / CORE-012, EVA | [평가 실행기](../scripts/evaluation/runner.mjs)와 [합성 데이터](../scripts/evaluation/fixtures/knowledge-evolution.v1.json)가 있다. [인계](AGENT_HANDOFF.md)에 실제 모델 배정 33·완료 32·시간초과 1·인용 안전성 실패 3의 과거 기록이 있다. | 사전 작성된 위키를 제공하는 실험이며 실제 편입/유지 과정, 정적 위키 대조군, 승인된 업무 정답과 후속 업무 효과를 검증하지 않았다. |
+| 평가 / CORE-012, EVA | 기존 사전 작성 위키 실행기와 별도로 [실제 유지 순환 평가](../server/evaluation/run.ts)는 편입·독립 검토·발행·운영 질문·점검을 3회 이상 실행하고 동일 원본의 raw/static/maintained 대조군을 평가한다. 합성 HTTP/DB/loopback 회귀와 현재 ACL·전송 정책 재검사가 있다. | 합성 응답과 문자열 인용 검사는 의미적 지지·실제 업무 개선을 증명하지 않는다. 실제 승인 정답·도메인 판정자·사내 환경과 기존 100답변/95% 등 수용 기준은 미검증이며 검토 작업 시간은 명시된 인간 시작/완료 기록이 없으면 미측정이다. |
 | 배포·운영 / OPS, NFR | [기동](../server/runtime/main.ts), [site 배포 도구](../scripts/k8s/deploy-site.mjs), [운영 설정](OPERATIONAL_SETUP.md) 및 과거 kind/OIDC/모델 실행 기록이 있다. | 사내 SSO/TLS/CNI·저장소·독립 백업·보존 정책·혼합 부하·복구·운영 인수. 로컬/CI 검사를 운영 승인으로 사용하지 않는다. |
 
 ## 먼저 해소할 제품·운영 결정
