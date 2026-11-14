@@ -29,15 +29,19 @@ import type { ConsoleTab } from "./console";
 import { PreviewApi } from "./preview";
 import "./styles.css";
 import { WorkflowPanel, SourceLifecycle } from "./workflows";
+import { VersionsPanel } from "./versions";
 import { QuestionsWorkbench } from "./questions";
 import { AccessPanel } from "./access";
-import {PolicyManager} from './policy';
-import {OperationsPanel} from './operations';
-import {TracePanel} from './traces';
-import {GovernanceWorkbench} from './governance';
+import { PolicyManager } from "./policy";
+import { OperationsPanel } from "./operations";
+import { TracePanel } from "./traces";
+import { GovernanceWorkbench } from "./governance";
 import { StoragePanel } from "./storage";
 import { RefinementPanel } from "./refinement";
 import { JobsPanel } from "./jobs";
+import { IdentityManager, identityApiAdapter } from "./identity";
+import { NotificationPanel } from "./notifications";
+import { ToolCollectorPanel } from "./ToolCollectorPanel";
 import { resolveJob, isJobReceipt } from "./jobs-client";
 
 interface PublishedPage {
@@ -54,7 +58,26 @@ interface PublishedPage {
   replacementId?: string | null;
 }
 interface ChangeSet {
-  reviewWarnings?:{pageId:string;key:string;code:'PROPERTY_REQUIRED';mode:'warn'|'block'}[];
+  evolutionReason?: string;
+  candidates?: {
+    pageId: string;
+    key: string;
+    value: string;
+    kind: string;
+    conditions: Record<string, string>;
+    validFrom: string | null;
+    validTo: string | null;
+    uncertainty: string;
+    sourceId: string;
+    sourceVersion: string;
+    location: { start: number; end: number; quote: string };
+  }[];
+  reviewWarnings?: {
+    pageId: string;
+    key: string;
+    code: "PROPERTY_REQUIRED";
+    mode: "warn" | "block";
+  }[];
   id: string;
   hash: string;
   status: string;
@@ -135,7 +158,9 @@ export default function OperationalApp({
 }) {
   const [spaceId, setSpaceId] = useState(() => {
     try {
-      const remembered = preview ? null : sessionStorage.getItem("akh-login-return");
+      const remembered = preview
+        ? null
+        : sessionStorage.getItem("akh-login-return");
       if (!preview) sessionStorage.removeItem("akh-login-return");
       const params = new URLSearchParams(window.location.search);
       if (
@@ -182,14 +207,28 @@ function OperationalWorkspace({
     () => (preview ? new PreviewApi() : new OperationalApi("", spaceId)),
     [preview, spaceId],
   );
-  const policyApi=useCallback(<T,>(path:string,options?:{method:string;body:unknown})=>api.request<T>(path.replace(/^\/api\/v1(?=\/|$)/,''),options?.method??'GET',options?.body),[api]);
+  const policyApi = useCallback(
+    <T,>(path: string, options?: { method: string; body: unknown }) =>
+      api.request<T>(
+        path.replace(/^\/api\/v1(?=\/|$)/, ""),
+        options?.method ?? "GET",
+        options?.body,
+      ),
+    [api],
+  );
   const requestEpoch = useRef(0),
     loadSequence = useRef(0),
     currentScope = useRef("");
   const waitAbort = useMemo(() => new AbortController(), [api]);
   useEffect(() => () => waitAbort.abort(), [waitAbort]);
   const [spaces, setSpaces] = useState<
-    { id: string; namespaceSlug: string; slug: string; role: string }[]
+    {
+      id: string;
+      namespaceSlug: string;
+      slug: string;
+      role: string;
+      legacyAccess?: boolean;
+    }[]
   >([]);
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -199,7 +238,9 @@ function OperationalWorkspace({
   const [tab, setTab] = useState<ConsoleTab>(() =>
     !preview && new URLSearchParams(window.location.search).has("document")
       ? "workflows"
-      : readConsoleTab(typeof window === "undefined" ? "" : window.location.hash),
+      : readConsoleTab(
+          typeof window === "undefined" ? "" : window.location.hash,
+        ),
   );
   const navigate = useCallback((next: ConsoleTab) => {
     setTab(next);
@@ -305,7 +346,8 @@ function OperationalWorkspace({
   const load = useCallback(async () => {
     let epoch = requestEpoch.current;
     let sequence = ++loadSequence.current;
-    const isCurrent = () => epoch === requestEpoch.current && sequence === loadSequence.current;
+    const isCurrent = () =>
+      epoch === requestEpoch.current && sequence === loadSequence.current;
     setDataReady(false);
     setPages([]);
     setSources([]);
@@ -318,7 +360,9 @@ function OperationalWorkspace({
       if (!isCurrent()) return;
       const nextScope = current.principalId + "\0" + current.workspaceId;
       if (currentScope.current && currentScope.current !== nextScope) {
-        clearProtected("사용자 또는 공간이 바뀌어 이전 보호 내용을 비웠습니다.");
+        clearProtected(
+          "사용자 또는 공간이 바뀌어 이전 보호 내용을 비웠습니다.",
+        );
         epoch = requestEpoch.current;
         sequence = loadSequence.current;
       }
@@ -351,31 +395,42 @@ function OperationalWorkspace({
       const [p, s, c, m, j, config, availableSpaces, executors] =
         await Promise.all([
           api.get<{ items: PublishedPage[] }>("/pages"),
-          (preview || !current.capabilities || capabilities.includes("changeset.propose"))
+          preview ||
+          !current.capabilities ||
+          capabilities.includes("changeset.propose") ||
+          (current.legacyAccess && capabilities.includes("knowledge.read"))
             ? api.get<{ items: Source[] }>("/sources")
             : Promise.resolve({ items: [] }),
-          (preview || !current.capabilities || capabilities.includes("queue.triage"))
+          preview ||
+          !current.capabilities ||
+          capabilities.includes("queue.triage")
             ? api.get<{ items: ChangeSet[] }>("/changesets")
             : Promise.resolve({ items: [] }),
-          (preview || !current.capabilities || capabilities.includes("space.admin"))
+          preview ||
+          !current.capabilities ||
+          capabilities.includes("space.admin")
             ? api.get<{ items: { principalId: string; role: string }[] }>(
                 "/members",
               )
             : Promise.resolve({
-                items: [{ principalId: current.principalId, role: current.role }],
+                items: [
+                  { principalId: current.principalId, role: current.role },
+                ],
               }),
           api.get<{ items: Job[] }>(
             capabilities.includes("jobs.read") ? "/jobs-v2" : "/jobs",
           ),
           api.get<{ configured: boolean; model: string | null }>("/model"),
-          preview || !current.capabilities ? Promise.resolve({ items: [] }) : api.get<{
-            items: {
-              id: string;
-              namespaceSlug: string;
-              slug: string;
-              role: string;
-            }[];
-          }>("/spaces"),
+          preview || !current.capabilities
+            ? Promise.resolve({ items: [] })
+            : api.get<{
+                items: {
+                  id: string;
+                  namespaceSlug: string;
+                  slug: string;
+                  role: string;
+                }[];
+              }>("/spaces"),
           capabilities.includes("jobs.manage")
             ? api.get<{
                 items: {
@@ -430,17 +485,18 @@ function OperationalWorkspace({
   useEffect(() => {
     let active = true;
     let authenticated = false;
+    const epoch = requestEpoch.current;
     api
       .me()
       .then(async (me) => {
-        if (!active) return;
+        if (!active || epoch !== requestEpoch.current) return;
         authenticated = true;
         setIdentity(me);
         setSelectedReaders([me.principalId]);
         await load();
       })
       .catch((e: unknown) => {
-        if (!active) return;
+        if (!active || epoch !== requestEpoch.current) return;
         if (e instanceof ApiError && e.status === 401) {
           if (authenticated) {
             clearProtected();
@@ -456,13 +512,15 @@ function OperationalWorkspace({
     };
   }, [api, load, clearProtected]);
   const perform = async (action: () => Promise<void>) => {
+    const epoch = requestEpoch.current;
     setBusy(true);
     setError("");
     setNotice("");
     try {
       await action();
-      if (action !== load) await load();
+      if (epoch === requestEpoch.current && action !== load) await load();
     } catch (e) {
+      if (epoch !== requestEpoch.current) return;
       if (e instanceof ApiError && e.status === 401) {
         clearProtected();
       }
@@ -530,9 +588,11 @@ function OperationalWorkspace({
     if (
       !identity ||
       !["overview", "usage"].includes(tab) ||
-      (!preview && identity.capabilities &&
+      (!preview &&
+        identity.capabilities &&
         !identity.capabilities.includes("usage.read_aggregate"))
-    ) return;
+    )
+      return;
     let active = true;
     setUsage(null);
     const epoch = requestEpoch.current;
@@ -566,13 +626,18 @@ function OperationalWorkspace({
     : (identity?.canReviewKnowledge ?? identity?.role === "reviewer");
   const [pageNumber, setPageNumber] = useState(0);
   const filtered = pages.filter((p) => {
-    const state = p.currentRecommendation === true
-      ? "current"
-      : p.currentRecommendation === false ? "not-current" : "unknown";
-    return (recommendationFilter === "all" || recommendationFilter === state) &&
+    const state =
+      p.currentRecommendation === true
+        ? "current"
+        : p.currentRecommendation === false
+          ? "not-current"
+          : "unknown";
+    return (
+      (recommendationFilter === "all" || recommendationFilter === state) &&
       `${p.title} ${p.summary} ${p.content}`
         .toLocaleLowerCase()
-        .includes(search.toLocaleLowerCase());
+        .includes(search.toLocaleLowerCase())
+    );
   });
   const visible = filtered.slice(pageNumber * 25, (pageNumber + 1) * 25);
 
@@ -581,18 +646,31 @@ function OperationalWorkspace({
       preview={preview}
       tab={tab}
       navigate={navigate}
-      account={identity && !preview ? {
-        name: identity.principalId,
-        detail: identity.effectiveRole ? `${identity.space?.owner ? "Owner · " : ""}${identity.spaceRole ?? identity.effectiveRole}` : identity.role === "reviewer" ? "검토자" : identity.role === "editor" ? "작성자" : "독자",
-        busy,
-        onLogout: () => { void perform(async () => { await api.logout(); window.location.assign("/"); }); },
-      } : null}
+      account={
+        identity && !preview
+          ? {
+              name: identity.principalId,
+              detail: identity.effectiveRole
+                ? `${identity.space?.owner ? "Owner · " : ""}${identity.spaceRole ?? identity.effectiveRole}`
+                : identity.role === "reviewer"
+                  ? "검토자"
+                  : identity.role === "editor"
+                    ? "작성자"
+                    : "독자",
+              busy,
+              onLogout: () => {
+                void perform(async () => {
+                  await api.logout();
+                  clearProtected();
+                  window.location.assign("/");
+                });
+              },
+            }
+          : null
+      }
     >
       <main id="op-main" className="op-main" tabIndex={-1}>
         <h1>{consoleLabel(tab)}</h1>
-        <p className="op-lead">
-          에이전트가 활용하고, 근거와 경험으로 다시 갱신하는 지식 환경입니다.
-        </p>
         {error && (
           <div className="op-error" role="alert">
             <strong>요청을 완료하지 못했습니다.</strong>
@@ -647,29 +725,34 @@ function OperationalWorkspace({
           </section>
         ) : (
           <>
-            {!preview && spaces.length > 0 && <div className="op-context">
-              <label>
-                지식 공간
-                <select
-                  value={identity.workspaceId}
-                  disabled={busy}
-                  onChange={(e) => {
-                    if (
-                      window.confirm(
-                        "공간을 전환하면 저장하지 않은 입력과 현재 화면을 비웁니다. 전환할까요?",
+            {!preview && spaces.length > 0 && (
+              <div className="op-context">
+                <label>
+                  지식 공간
+                  <select
+                    value={identity.workspaceId}
+                    disabled={busy}
+                    onChange={(e) => {
+                      if (
+                        window.confirm(
+                          "공간을 전환하면 저장하지 않은 입력과 현재 화면을 비웁니다. 전환할까요?",
+                        )
                       )
-                    )
-                      onSpace(e.target.value);
-                  }}
-                >
-                  {spaces.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      @{s.namespaceSlug}/{s.slug} · {s.role}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>}
+                        onSpace(e.target.value);
+                    }}
+                  >
+                    {spaces.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.legacyAccess
+                          ? `기존 공간 ${s.id}`
+                          : `@${s.namespaceSlug}/${s.slug}`}{" "}
+                        · {s.role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
             {![
               "overview",
               "usage",
@@ -686,7 +769,8 @@ function OperationalWorkspace({
             ].includes(tab) && (
               <div className="op-context">
                 <span>
-                  {preview ? "합성 예시" : "서버 정본"} · {dataReady
+                  {preview ? "합성 예시" : "서버 정본"} ·{" "}
+                  {dataReady
                     ? `${pages.length}개 접근 가능 발행본`
                     : "발행본 확인 중 또는 조회 실패"}
                 </span>
@@ -713,9 +797,14 @@ function OperationalWorkspace({
                 서버에서 처리하고 있습니다. 창을 반복 제출하지 마세요.
               </p>
             )}
-            {!dataReady && tab !== "overview" && tab !== "knowledge" && tab !== "access" && (
-              <p role="status">서버 지식을 확인 중이거나 불러오지 못했습니다.</p>
-            )}
+            {!dataReady &&
+              tab !== "overview" &&
+              tab !== "knowledge" &&
+              tab !== "access" && (
+                <p role="status">
+                  서버 지식을 확인 중이거나 불러오지 못했습니다.
+                </p>
+              )}
             {tab === "overview" && dataReady && (
               <Overview
                 summary={summarizeConsole({
@@ -744,26 +833,124 @@ function OperationalWorkspace({
               </section>
             )}
             <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
-              {(tab !== 'account' && (preview || !['policies','activity','lifecycle','agents','integrations','evaluation'].includes(tab))) && <Management section={tab} preview={preview} navigate={navigate} />}
+              {tab !== "account" &&
+                (preview ||
+                  ![
+                    "policies",
+                    "activity",
+                    "lifecycle",
+                    "agents",
+                    "integrations",
+                    "evaluation",
+                  ].includes(tab)) && (
+                  <Management
+                    section={tab}
+                    preview={preview}
+                    navigate={navigate}
+                  />
+                )}
             </Suspense>
-            {tab === "account" && <section className="op-panel"><h2>사용자 설정</h2>{preview ? <p>미리보기에서는 실제 계정과 세션을 변경하지 않습니다.</p> : <><dl className="console-definition"><div><dt>사용자</dt><dd>{identity.principalId}</dd></div><div><dt>현재 공간</dt><dd>{identity.workspaceId}</dd></div><div><dt>역할</dt><dd>{identity.spaceRole ?? identity.effectiveRole ?? identity.role}</dd></div></dl><p>계정 정보 변경과 세션 관리는 아직 연결되지 않았습니다.</p></>}</section>}
+            {tab === "notifications" && !preview && (
+              <NotificationPanel
+                api={api}
+                capabilities={identity.capabilities ?? []}
+                spaceId={identity.workspaceId}
+                onExpired={clearProtected}
+              />
+            )}
+            {tab === "notifications" && preview && (
+              <p>실제 알림은 로그인한 공간에서 확인할 수 있습니다.</p>
+            )}
+            {tab === "account" && (
+              <section className="op-panel">
+                <h2>사용자 설정</h2>
+                {preview ? (
+                  <p>미리보기에서는 실제 계정과 세션을 변경하지 않습니다.</p>
+                ) : (
+                  <>
+                    <dl className="console-definition">
+                      <div>
+                        <dt>사용자</dt>
+                        <dd>{identity.principalId}</dd>
+                      </div>
+                      <div>
+                        <dt>현재 공간</dt>
+                        <dd>{identity.workspaceId}</dd>
+                      </div>
+                      <div>
+                        <dt>역할</dt>
+                        <dd>
+                          {identity.spaceRole ??
+                            identity.effectiveRole ??
+                            identity.role}
+                        </dd>
+                      </div>
+                    </dl>
+                    <IdentityManager
+                      api={identityApiAdapter(api)}
+                      onExpired={(reason) => {
+                        api.clearSession();
+                        clearProtected(reason);
+                      }}
+                      emergencyEnabled={identity.identityFeatures?.emergency}
+                      directoryEnabled={identity.identityFeatures?.directory}
+                      pageOptions={pages.map(({ id, title }) => ({
+                        id,
+                        title,
+                      }))}
+                    />
+                  </>
+                )}
+              </section>
+            )}
             {(tab === "agents" || tab === "integrations") && !preview && (
-              <Suspense fallback={<p role="status">에이전트 인증을 불러오는 중…</p>}>
-                <AgentCredentials key={identity.workspaceId+tab} api={api} identity={identity} onExpired={clearProtected} section={tab} />
+              <Suspense
+                fallback={<p role="status">에이전트 인증을 불러오는 중…</p>}
+              >
+                <AgentCredentials
+                  key={identity.workspaceId + tab}
+                  api={api}
+                  identity={identity}
+                  onExpired={clearProtected}
+                  section={tab}
+                />
               </Suspense>
             )}
+            {tab === "integrations" &&
+              !preview &&
+              identity.capabilities?.includes("source.create") && (
+                <ToolCollectorPanel api={api} onExpired={clearProtected} />
+              )}
             {tab === "evaluation" && !preview && dataReady && (
-              <Suspense fallback={<p role="status">평가 도구를 불러오는 중…</p>}>
-                <ModelAssessment api={api} identity={identity} pages={pages} onExpired={clearProtected} />
+              <Suspense
+                fallback={<p role="status">평가 도구를 불러오는 중…</p>}
+              >
+                <ModelAssessment
+                  api={api}
+                  identity={identity}
+                  pages={pages}
+                  onExpired={clearProtected}
+                />
               </Suspense>
             )}
             {tab === "boards" && !preview && (
               <Suspense fallback={<p role="status">공지·VOC를 불러오는 중…</p>}>
-                <BoardsWorkbench key={identity.workspaceId} api={api} identity={identity} onExpired={clearProtected} />
+                <BoardsWorkbench
+                  key={identity.workspaceId}
+                  api={api}
+                  identity={identity}
+                  onExpired={clearProtected}
+                />
               </Suspense>
             )}
             {tab === "boards" && preview && (
-              <section className="op-panel"><h2>게시판은 운영 서버 전용입니다</h2><p>합성 목업에서는 실제 공지·내부 검토·VOC를 읽거나 변경하지 않습니다.</p></section>
+              <section className="op-panel">
+                <h2>게시판은 운영 서버 전용입니다</h2>
+                <p>
+                  합성 목업에서는 실제 공지·내부 검토·VOC를 읽거나 변경하지
+                  않습니다.
+                </p>
+              </section>
             )}
             {tab === "imports" && !preview && (
               <Suspense fallback={<p>자료 입력 화면을 불러오는 중…</p>}>
@@ -819,7 +1006,11 @@ function OperationalWorkspace({
                 />
               </Suspense>
             )}
-            {tab === "knowledge" && !dataReady && <p role="status">발행 지식을 확인 중이거나 불러오지 못했습니다.</p>}
+            {tab === "knowledge" && !dataReady && (
+              <p role="status">
+                발행 지식을 확인 중이거나 불러오지 못했습니다.
+              </p>
+            )}
             {tab === "knowledge" && dataReady && (
               <section className="op-panel">
                 <div className="op-section-head">
@@ -846,7 +1037,9 @@ function OperationalWorkspace({
                     aria-label="권고 상태 필터"
                     value={recommendationFilter}
                     onChange={(e) => {
-                      setRecommendationFilter(e.target.value as typeof recommendationFilter);
+                      setRecommendationFilter(
+                        e.target.value as typeof recommendationFilter,
+                      );
                       setPageNumber(0);
                     }}
                   >
@@ -856,8 +1049,14 @@ function OperationalWorkspace({
                     <option value="unknown">상태 미확인</option>
                   </select>
                 </label>
-                <p>검토 기한 경과는 내용이 틀렸거나 자동 폐기되었다는 뜻이 아닙니다.</p>
-                <p>현재 권고 대상은 서버의 검색 자격이며 독립 검증이나 공식성을 뜻하지 않습니다.</p>
+                <p>
+                  검토 기한 경과는 내용이 틀렸거나 자동 폐기되었다는 뜻이
+                  아닙니다.
+                </p>
+                <p>
+                  현재 권고 대상은 서버의 검색 자격이며 독립 검증이나 공식성을
+                  뜻하지 않습니다.
+                </p>
                 <p role="status">검색 결과 {filtered.length}건</p>
                 {!filtered.length && (
                   <p>
@@ -880,14 +1079,27 @@ function OperationalWorkspace({
                                 ? "현재 권고 비대상"
                                 : "상태 미확인"}
                           </Badge>
-                          {page.reviewOverdue === true && <Badge>검토 기한 경과</Badge>}
-                          {page.currentRecommendation === false && <span>
-                            {[
-                              typeof page.lifecycle === "string" && page.lifecycle && page.lifecycle !== "active" && `생애주기: ${page.lifecycle}`,
-                              typeof page.effectiveFrom === "string" && page.effectiveFrom && `시행일: ${page.effectiveFrom}`,
-                              typeof page.replacementId === "string" && page.replacementId && "대체 문서 지정됨",
-                            ].filter(Boolean).join(" · ") || "비대상 사유 미확인"}
-                          </span>}
+                          {page.reviewOverdue === true && (
+                            <Badge>검토 기한 경과</Badge>
+                          )}
+                          {page.currentRecommendation === false && (
+                            <span>
+                              {[
+                                typeof page.lifecycle === "string" &&
+                                  page.lifecycle &&
+                                  page.lifecycle !== "active" &&
+                                  `생애주기: ${page.lifecycle}`,
+                                typeof page.effectiveFrom === "string" &&
+                                  page.effectiveFrom &&
+                                  `시행일: ${page.effectiveFrom}`,
+                                typeof page.replacementId === "string" &&
+                                  page.replacementId &&
+                                  "대체 문서 지정됨",
+                              ]
+                                .filter(Boolean)
+                                .join(" · ") || "비대상 사유 미확인"}
+                            </span>
+                          )}
                           <span>{page.summary}</span>
                         </summary>
                         <div
@@ -930,7 +1142,10 @@ function OperationalWorkspace({
             {preview && ["workflows", "refinement"].includes(tab) && (
               <section className="op-panel">
                 <h2>{consoleLabel(tab)} · 미리보기 미지원</h2>
-                <p>이 화면은 실제 서버와 현재 권한이 필요합니다. 목업에서는 서버를 호출하지 않습니다.</p>
+                <p>
+                  이 화면은 실제 서버와 현재 권한이 필요합니다. 목업에서는
+                  서버를 호출하지 않습니다.
+                </p>
               </section>
             )}
             {tab === "workflows" && !preview && dataReady && (
@@ -949,6 +1164,29 @@ function OperationalWorkspace({
                 onExpired={clearProtected}
               />
             )}
+            {tab === "versions" && !preview && dataReady && (
+              <VersionsPanel
+                api={api}
+                pages={pages}
+                batches={changes}
+                spaceId={identity.workspaceId}
+                principalId={identity.principalId}
+                canPropose={write}
+                canReview={review}
+                onChanged={load}
+                onExpired={clearProtected}
+              />
+            )}
+            {tab === "versions" && (preview || !dataReady) && (
+              <section className="op-panel">
+                <h2>버전 비교 · 복원</h2>
+                <p>
+                  {preview
+                    ? "실제 서버와 현재 권한이 필요한 화면입니다."
+                    : "허용된 문서와 버전 정보를 불러오는 중이거나 불러오지 못했습니다."}
+                </p>
+              </section>
+            )}
             {tab === "access" && !preview && identity.capabilities && (
               <AccessPanel
                 api={api}
@@ -958,9 +1196,36 @@ function OperationalWorkspace({
                 onSelect={onSpace}
               />
             )}
-            {tab==='policies'&&!preview&&dataReady&&<PolicyManager api={policyApi} capabilities={identity.capabilities??[]} sourceOptions={sources.map(s=>({id:s.id,title:s.title}))} onChanged={load} onExpired={clearProtected}/>}
-            {tab==='activity'&&!preview&&<><TracePanel api={api}/><OperationsPanel api={api} canAdmin={!!identity.capabilities?.includes('space.admin')} canOwner={identity.space?.owner??false}/></>}
-            {tab==='lifecycle'&&!preview&&<GovernanceWorkbench api={policyApi} capabilities={identity.capabilities??[]} onChanged={load} onExpired={clearProtected}/>}
+            {tab === "policies" && !preview && dataReady && (
+              <PolicyManager
+                api={policyApi}
+                capabilities={identity.capabilities ?? []}
+                sourceOptions={sources.map((s) => ({
+                  id: s.id,
+                  title: s.title,
+                }))}
+                onChanged={load}
+                onExpired={clearProtected}
+              />
+            )}
+            {tab === "activity" && !preview && (
+              <>
+                <TracePanel api={api} />
+                <OperationsPanel
+                  api={api}
+                  canAdmin={!!identity.capabilities?.includes("space.admin")}
+                  canOwner={identity.space?.owner ?? false}
+                />
+              </>
+            )}
+            {tab === "lifecycle" && !preview && (
+              <GovernanceWorkbench
+                api={policyApi}
+                capabilities={identity.capabilities ?? []}
+                onChanged={load}
+                onExpired={clearProtected}
+              />
+            )}
             {tab === "refinement" && !preview && dataReady && (
               <RefinementPanel
                 api={api}
@@ -1094,39 +1359,45 @@ function OperationalWorkspace({
                       <small>
                         {s.id} · {s.verification}
                       </small>
-                      {!preview && <SourceLifecycle
-                        api={api}
-                        sourceId={s.id}
-                        canCorrect={
-                          !!identity.capabilities?.includes("source.create")
-                        }
-                        canWithdraw={
-                          !!identity.capabilities?.includes("lifecycle.manage")
-                        }
-                        canSetPolicy={
-                          !!identity.capabilities?.includes("space.admin")
-                        }
-                        perform={perform}
-                      />}
-                      {!preview && <StoragePanel
-                        key={`${identity.workspaceId}:${s.id}`}
-                        api={api}
-                        parent={{ kind: "source", id: s.id }}
-                        baseVersion={
-                          pages.find((p) => p.id === s.targetPageId)?.version
-                        }
-                        editorPageId={
-                          pages.find((p) => p.id === s.targetPageId)?.id
-                        }
-                        transport={(path, init) => api.transport(path, init)}
-                        canCreate={
-                          !!identity.capabilities?.includes("source.create")
-                        }
-                        canExport={
-                          !!identity.capabilities?.includes("data.export")
-                        }
-                        onChanged={load}
-                      />}
+                      {!preview && (
+                        <SourceLifecycle
+                          api={api}
+                          sourceId={s.id}
+                          canCorrect={
+                            !!identity.capabilities?.includes("source.create")
+                          }
+                          canWithdraw={
+                            !!identity.capabilities?.includes(
+                              "lifecycle.manage",
+                            )
+                          }
+                          canSetPolicy={
+                            !!identity.capabilities?.includes("space.admin")
+                          }
+                          perform={perform}
+                        />
+                      )}
+                      {!preview && (
+                        <StoragePanel
+                          key={`${identity.workspaceId}:${s.id}`}
+                          api={api}
+                          parent={{ kind: "source", id: s.id }}
+                          baseVersion={
+                            pages.find((p) => p.id === s.targetPageId)?.version
+                          }
+                          editorPageId={
+                            pages.find((p) => p.id === s.targetPageId)?.id
+                          }
+                          transport={(path, init) => api.transport(path, init)}
+                          canCreate={
+                            !!identity.capabilities?.includes("source.create")
+                          }
+                          canExport={
+                            !!identity.capabilities?.includes("data.export")
+                          }
+                          onChanged={load}
+                        />
+                      )}
                     </details>
                   ))}
                   <ListPager
@@ -1181,11 +1452,69 @@ function OperationalWorkspace({
                       >
                         {statusLabels[c.status] || c.status}
                       </Badge>
-                      {!!c.reviewWarnings?.length&&<aside role="status"><h3>발행 전 필수 속성 확인</h3><ul>{c.reviewWarnings.map(warning=><li key={`${warning.pageId}:${warning.key}`}>{warning.pageId} · {warning.key} 누락 · {warning.mode==='block'?'반영 차단':'검토 경고'}</li>)}</ul></aside>}
+                      {!!c.reviewWarnings?.length && (
+                        <aside role="status">
+                          <h3>발행 전 필수 속성 확인</h3>
+                          <ul>
+                            {c.reviewWarnings.map((warning) => (
+                              <li key={`${warning.pageId}:${warning.key}`}>
+                                {warning.pageId} · {warning.key} 누락 ·{" "}
+                                {warning.mode === "block"
+                                  ? "반영 차단"
+                                  : "검토 경고"}
+                              </li>
+                            ))}
+                          </ul>
+                        </aside>
+                      )}
                     </div>
                     <small className="op-id">
                       {c.id} · 내용 해시 {c.hash}
                     </small>
+                    {c.evolutionReason && (
+                      <p>모델의 변경 이유: {c.evolutionReason}</p>
+                    )}
+                    {c.evolutionReason && (
+                      <ul>
+                        {c.updates.map((update) => (
+                          <li key={update.id}>
+                            {update.title} ·{" "}
+                            {update.baseVersion
+                              ? `기존 페이지 v${update.baseVersion} 갱신`
+                              : "새 분석 페이지"}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {!!c.candidates?.length && (
+                      <details>
+                        <summary>
+                          미검증 주장 후보 {c.candidates.length}개
+                        </summary>
+                        <p>
+                          발행 후 재검토 후보가 되며 승인 자체는 실행 검증이
+                          아닙니다.
+                        </p>
+                        <ul>
+                          {c.candidates.map((candidate, index) => (
+                            <li key={index}>
+                              {candidate.pageId} · {candidate.key}:{" "}
+                              {candidate.value} · {candidate.kind} · 조건{" "}
+                              {JSON.stringify(candidate.conditions)} · 유효{" "}
+                              {candidate.validFrom ?? "미상"} ~{" "}
+                              {candidate.validTo ?? "미상"} ·{" "}
+                              {candidate.uncertainty}
+                              <br />
+                              원본 {candidate.sourceId} · 버전{" "}
+                              {candidate.sourceVersion} · 위치{" "}
+                              {candidate.location.start}–
+                              {candidate.location.end} ·{" "}
+                              {candidate.location.quote}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     {identity.spaceRole && identity.spaceRole !== "Read" && (
                       <label>
                         검토 큐 분류
@@ -1298,7 +1627,13 @@ function OperationalWorkspace({
             )}
             {tab === "query" && dataReady && (
               <section className="op-panel">
-                {!preview && <QuestionsWorkbench key={`${identity.workspaceId}:${identity.principalId}`} api={api} identityKey={`${identity.workspaceId}:${identity.principalId}`} />}
+                {!preview && (
+                  <QuestionsWorkbench
+                    key={`${identity.workspaceId}:${identity.principalId}`}
+                    api={api}
+                    identityKey={`${identity.workspaceId}:${identity.principalId}`}
+                  />
+                )}
                 <h2>근거 기반 질문</h2>
                 <form
                   onSubmit={(e) => {
@@ -1387,14 +1722,23 @@ function OperationalWorkspace({
                       }
                       onClick={() =>
                         perform(async () => {
-                          await api.post(
+                          const result = await api.post<{
+                            outcome?: string;
+                            reason?: string;
+                          }>(
                             `/answers/${encodeURIComponent(answer.id)}/file`,
                             {},
                           );
-                          setNotice(
-                            "답변을 검토 가능한 변경 제안으로 등록했습니다.",
-                          );
-                          navigate("review");
+                          if (result.outcome === "no-changes") {
+                            setNotice(
+                              `모델의 변경 없음 사유: ${result.reason || "추가할 변경이 없습니다."}`,
+                            );
+                          } else {
+                            setNotice(
+                              "답변을 검토 가능한 변경 제안으로 등록했습니다.",
+                            );
+                            navigate("review");
+                          }
                         })
                       }
                     >
@@ -1465,29 +1809,31 @@ function OperationalWorkspace({
                 )}
               </section>
             )}
-            {tab === "jobs" && !preview && identity.capabilities?.includes("jobs.read") && (
-              <>
-                <p>
-                  서버 접수 작업은 이 창을 닫아도 유지됩니다. 개인 요청은 원래
-                  세션의 로그아웃·만료·IdP 권한 회수 시 재검사로 중단됩니다.
-                  취소 요청과 실제 취소 완료는 구분됩니다.
-                </p>
-                {identity.capabilities.includes("jobs.manage") &&
-                  !directoryConfigured && (
-                    <p role="status">
-                      무인 실행 주체의 현재 디렉터리 확인 경로가 미설정이어서
-                      예약 실행을 차단합니다. 개인 대화형 요청과 구조 점검은
-                      별도입니다.
-                    </p>
-                  )}
-                <JobsPanel
-                  api={api}
-                  capabilities={identity.capabilities ?? []}
-                  executionIdentities={executionIdentities}
-                  onExpired={clearProtected}
-                />
-              </>
-            )}
+            {tab === "jobs" &&
+              !preview &&
+              identity.capabilities?.includes("jobs.read") && (
+                <>
+                  <p>
+                    서버 접수 작업은 이 창을 닫아도 유지됩니다. 개인 요청은 원래
+                    세션의 로그아웃·만료·IdP 권한 회수 시 재검사로 중단됩니다.
+                    취소 요청과 실제 취소 완료는 구분됩니다.
+                  </p>
+                  {identity.capabilities.includes("jobs.manage") &&
+                    !directoryConfigured && (
+                      <p role="status">
+                        무인 실행 주체의 현재 디렉터리 확인 경로가 미설정이어서
+                        예약 실행을 차단합니다. 개인 대화형 요청과 구조 점검은
+                        별도입니다.
+                      </p>
+                    )}
+                  <JobsPanel
+                    api={api}
+                    capabilities={identity.capabilities ?? []}
+                    executionIdentities={executionIdentities}
+                    onExpired={clearProtected}
+                  />
+                </>
+              )}
             {tab === "jobs" &&
               !identity.capabilities?.includes("jobs.read") && (
                 <section className="op-panel">
@@ -1562,8 +1908,20 @@ function OperationalWorkspace({
                 </Button>
                 {!preview && usage && (
                   <>
-                  <a className="button secondary" href={`/api/v1/usage/export?days=${usageDays}`} download="agent-knowledge-hub-usage.csv">호출 CSV</a>
-                  <a className="button secondary" href={"/api/v1/usage/model-export?days="+usageDays} download="agent-knowledge-hub-model-usage.csv">모델 사용량 CSV</a>
+                    <a
+                      className="button secondary"
+                      href={`/api/v1/usage/export?days=${usageDays}`}
+                      download="agent-knowledge-hub-usage.csv"
+                    >
+                      호출 CSV
+                    </a>
+                    <a
+                      className="button secondary"
+                      href={"/api/v1/usage/model-export?days=" + usageDays}
+                      download="agent-knowledge-hub-model-usage.csv"
+                    >
+                      모델 사용량 CSV
+                    </a>
                   </>
                 )}
                 {usage ? (

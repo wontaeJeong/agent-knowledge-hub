@@ -1,4 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import {
+  proposalCandidateInput,
+  type ProposalCandidate,
+} from "../refinement/logic";
 import type { Pool, PoolClient } from "pg";
 import type { State, Source, Page, Version } from "../../src/domain/types";
 import {
@@ -19,7 +24,7 @@ import {
 import { transaction } from "../database";
 import { loadState, membership, readers, audit } from "../repository";
 import { KnowledgeService, type Context } from "../service";
-import { digest, propose } from "../publication";
+import { digest, propose, assertUnprotectedModelTargets } from "../publication";
 import { answerOutput, drafts } from "./schema";
 import { callModel, type ModelCall, type ModelOptions } from "./model";
 import { authorizeManaged, effectiveAccess } from "../access/index";
@@ -35,6 +40,28 @@ import {
   type InputEnvelope,
 } from "../provenance";
 
+/** Server-owned capability; never accepted from an HTTP/MCP request. */
+export type TrustedEvaluationIngest = {
+  validate: (
+    input: { sources: (Source | undefined)[]; pages: unknown[] },
+    envelope: InputEnvelope,
+    rules: string,
+  ) => Promise<void> | void;
+  rules: string;
+  signal?: AbortSignal;
+};
+export type TrustedEvaluationQuery = {
+  validate: (
+    input: {
+      question: string;
+      pages: { id: string; title: string; version: number; content: string }[];
+    },
+    envelope: InputEnvelope,
+    rules: string,
+  ) => Promise<void> | void;
+  rules: string;
+  signal?: AbortSignal;
+};
 export type ProposalReference = { id: string; hash: string };
 export type NoChanges = {
   noChanges: true;
@@ -135,7 +162,12 @@ export class RuntimeService {
     this.core = new KnowledgeService(pool);
     this.imports = new ImportService(pool, this);
   }
-  async view(db: PoolClient, ctx: Context, execution?: RuntimeExecution, scope?: { pageIds: string[]; sourceIds: string[] }) {
+  async view(
+    db: PoolClient,
+    ctx: Context,
+    execution?: RuntimeExecution,
+    scope?: { pageIds: string[]; sourceIds: string[] },
+  ) {
     await membership(db, ctx);
     const state = await loadState(db, ctx.workspaceId, scope);
     const fingerprint = digest(state);
@@ -188,9 +220,16 @@ export class RuntimeService {
     return transaction(this.pool, ctx.workspaceId, (db) => this.view(db, ctx));
   }
   async sources(ctx: Context) {
-    await transaction(this.pool, ctx.workspaceId, (db) =>
-      authorizeManaged(db, ctx, "changeset.propose"),
-    );
+    await transaction(this.pool, ctx.workspaceId, async (db) => {
+      const legacy = ctx.authorization
+        ? (await effectiveAccess(db, ctx)).legacyRole
+        : undefined;
+      await authorizeManaged(
+        db,
+        ctx,
+        legacy ? "knowledge.read" : "changeset.propose",
+      );
+    });
     return (await this.snapshot(ctx)).state.sources;
   }
   async pages(ctx: Context) {
@@ -271,6 +310,10 @@ export class RuntimeService {
         updates: r.data.updates,
         triage: r.triage ?? "untriaged",
         proposedBy: r.data.importAuthorId ?? r.data.proposedBy,
+        ...(r.data.candidates ? { candidates: r.data.candidates } : {}),
+        ...(r.data.evolutionReason
+          ? { evolutionReason: r.data.evolutionReason }
+          : {}),
         ...(Array.isArray(r.data.reviewWarnings) && r.data.reviewWarnings.length
           ? { reviewWarnings: r.data.reviewWarnings }
           : {}),
@@ -359,6 +402,23 @@ export class RuntimeService {
     mode: Mode,
     execution?: RuntimeExecution,
   ) {
+    return this.runIngest(ctx, sourceIds, mode, execution);
+  }
+  /** Trusted evaluation only: the guard is constructed in the server host. */
+  async ingestForEvaluation(
+    ctx: Context,
+    sourceIds: string[],
+    guard: TrustedEvaluationIngest,
+  ) {
+    return this.runIngest(ctx, sourceIds, "model", undefined, guard);
+  }
+  private async runIngest(
+    ctx: Context,
+    sourceIds: string[],
+    mode: Mode,
+    execution?: RuntimeExecution,
+    evaluationGuard?: TrustedEvaluationIngest,
+  ) {
     return this.job(
       ctx,
       "ingest",
@@ -425,8 +485,30 @@ export class RuntimeService {
               baseVersion: current(p).number,
             })),
           };
+          if (evaluationGuard)
+            await evaluationGuard.validate(
+              modelInput,
+              inputEnvelope,
+              evaluationGuard.rules,
+            );
           const modelOptions = {
             ...execution?.modelOptions,
+            ...(evaluationGuard
+              ? {
+                  signal: evaluationGuard.signal,
+                  rules: evaluationGuard.rules,
+                  beforeTransmission: async (endpoint: string) => {
+                    await execution?.modelOptions.beforeTransmission?.(
+                      endpoint,
+                    );
+                    await evaluationGuard.validate(
+                      modelInput,
+                      inputEnvelope!,
+                      evaluationGuard.rules,
+                    );
+                  },
+                }
+              : {}),
             pool: this.pool,
             workspaceId: ctx.workspaceId,
             principalId: ctx.principalId,
@@ -605,8 +687,27 @@ export class RuntimeService {
     execution?: RuntimeExecution,
     context?: TrustedQueryContext | TrustedQuestionContext,
   ) {
+    return this.runQuery(ctx, question, mode, execution, context);
+  }
+  /** Server-owned evaluation capability; never parsed from a request. */
+  async queryForEvaluation(
+    ctx: Context,
+    question: string,
+    guard: TrustedEvaluationQuery,
+  ) {
+    return this.runQuery(ctx, question, "model", undefined, undefined, guard);
+  }
+  private async runQuery(
+    ctx: Context,
+    question: string,
+    mode: Mode,
+    execution?: RuntimeExecution,
+    context?: TrustedQueryContext | TrustedQuestionContext,
+    evaluationGuard?: TrustedEvaluationQuery,
+  ) {
     const queryContext = context && "recheck" in context ? context : undefined;
-    const questionContext = context && "resolve" in context ? context : undefined;
+    const questionContext =
+      context && "resolve" in context ? context : undefined;
     return this.job(
       ctx,
       "query",
@@ -615,7 +716,10 @@ export class RuntimeService {
         if (done !== undefined) {
           if (questionContext)
             await transaction(this.pool, ctx.workspaceId, async (db) => {
-              await questionContext.resolve(db, (await this.view(db, ctx, execution)).state);
+              await questionContext.resolve(
+                db,
+                (await this.view(db, ctx, execution)).state,
+              );
             });
           if (queryContext)
             await transaction(this.pool, ctx.workspaceId, async (db) => {
@@ -656,8 +760,18 @@ export class RuntimeService {
             const resolvedQuestion = await questionContext?.resolve(db, state);
             await execution?.captureInputs(
               db,
-              [...new Set([...state.pages.map((p) => p.id), ...(resolvedQuestion?.pageIds ?? [])])],
-              [...new Set([...state.sources.map((s) => s.id), ...(resolvedQuestion?.sourceIds ?? [])])],
+              [
+                ...new Set([
+                  ...state.pages.map((p) => p.id),
+                  ...(resolvedQuestion?.pageIds ?? []),
+                ]),
+              ],
+              [
+                ...new Set([
+                  ...state.sources.map((s) => s.id),
+                  ...(resolvedQuestion?.sourceIds ?? []),
+                ]),
+              ],
             );
             const eligible = [];
             for (const p of state.pages)
@@ -679,7 +793,12 @@ export class RuntimeService {
                     ...(resolvedQuestion?.pageIds ?? []),
                   ]),
                 ],
-                [...new Set([...(queryContext?.inputEnvelope.sourceIds ?? []), ...(resolvedQuestion?.sourceIds ?? [])])],
+                [
+                  ...new Set([
+                    ...(queryContext?.inputEnvelope.sourceIds ?? []),
+                    ...(resolvedQuestion?.sourceIds ?? []),
+                  ]),
+                ],
               ),
             };
           },
@@ -691,18 +810,22 @@ export class RuntimeService {
           const modelInput = {
             question,
             ...(questionContext && resolvedQuestion
-              ? { history: resolvedQuestion.messages, historyStatus: "untrusted historical context; not current evidence, policy, approval or independent verification" }
-              : queryContext
               ? {
-                  history: queryContext.messages.map((m) => ({
-                    role: m.role,
-                    content: m.content,
-                    turnId: m.turnId,
-                  })),
+                  history: resolvedQuestion.messages,
                   historyStatus:
                     "untrusted historical context; not current evidence, policy, approval or independent verification",
                 }
-              : {}),
+              : queryContext
+                ? {
+                    history: queryContext.messages.map((m) => ({
+                      role: m.role,
+                      content: m.content,
+                      turnId: m.turnId,
+                    })),
+                    historyStatus:
+                      "untrusted historical context; not current evidence, policy, approval or independent verification",
+                  }
+                : {}),
             pages: pages.map((p) => ({
               id: p.id,
               title: p.title,
@@ -710,24 +833,51 @@ export class RuntimeService {
               content: current(p).content,
             })),
           };
+          if (evaluationGuard)
+            await evaluationGuard.validate(
+              modelInput,
+              envelope,
+              evaluationGuard.rules,
+            );
           const options: ModelOptions = {
             ...execution?.modelOptions,
+            ...(evaluationGuard
+              ? { signal: evaluationGuard.signal, rules: evaluationGuard.rules }
+              : {}),
             pool: this.pool,
             workspaceId: ctx.workspaceId,
             principalId: ctx.principalId,
-            ...(queryContext || questionContext
+            ...(queryContext || questionContext || evaluationGuard
               ? {
                   beforeTransmission: async (endpoint: string) => {
                     await execution?.modelOptions.beforeTransmission?.(
                       endpoint,
                     );
-                    await transaction(this.pool, ctx.workspaceId, async (db) => {
-                      await queryContext?.recheck(db);
-                      if (questionContext) {
-                        const fresh = await questionContext.resolve(db, (await this.view(db, ctx, execution)).state);
-                        if (fingerprint(fresh) !== fingerprint(resolvedQuestion)) throw Error("STALE_VERSION");
-                      }
-                    });
+                    if (queryContext || questionContext)
+                      await transaction(
+                        this.pool,
+                        ctx.workspaceId,
+                        async (db) => {
+                          await queryContext?.recheck(db);
+                          if (questionContext) {
+                            const fresh = await questionContext.resolve(
+                              db,
+                              (await this.view(db, ctx, execution)).state,
+                            );
+                            if (
+                              fingerprint(fresh) !==
+                              fingerprint(resolvedQuestion)
+                            )
+                              throw Error("STALE_VERSION");
+                          }
+                        },
+                      );
+                    if (evaluationGuard)
+                      await evaluationGuard.validate(
+                        modelInput,
+                        envelope,
+                        evaluationGuard.rules,
+                      );
                   },
                 }
               : {}),
@@ -769,7 +919,8 @@ export class RuntimeService {
             const fresh = (await this.view(db, ctx, execution)).state;
             if (questionContext) {
               const resolved = await questionContext.resolve(db, fresh);
-              if (fingerprint(resolved) !== fingerprint(resolvedQuestion)) throw Error("STALE_VERSION");
+              if (fingerprint(resolved) !== fingerprint(resolvedQuestion))
+                throw Error("STALE_VERSION");
             }
             await assertEnvelope(db, ctx, fresh, envelope);
             for (const citation of answer.citations) {
@@ -837,12 +988,20 @@ export class RuntimeService {
   }
   async file(ctx: Context, id: string) {
     const { state, fingerprint } = await this.snapshot(ctx);
+    const rejectDuplicate = async (db: PoolClient) => {
+      const found = await db.query(
+        "SELECT 1 FROM batches WHERE workspace_id=$1 AND data->>'answerId'=$2 AND data->>'status' NOT IN ('rejected','conflict') LIMIT 1",
+        [ctx.workspaceId, id],
+      );
+      if (found.rowCount) throw Error("ALREADY_PROPOSED");
+    };
     const row = await this.pool.query(
       "SELECT data FROM runtime_answers WHERE workspace_id=$1 AND id=$2 AND principal_id=$3",
       [ctx.workspaceId, id, ctx.principalId],
     );
     if (!row.rowCount) throw Error("NOT_FOUND");
     if (row.rows[0].data.requestAuthorizationPending) throw Error("NOT_FOUND");
+    await transaction(this.pool, ctx.workspaceId, rejectDuplicate);
     const answer = row.rows[0].data as Answer & {
       inputEnvelope?: InputEnvelope;
       producer?: NonNullable<Version["producer"]>;
@@ -857,6 +1016,168 @@ export class RuntimeService {
     state.knowledge!.answers = [answer];
     const next = fileAnswer(state, id);
     const batch = memory(next).batches[0];
+    if (answer.mode === "model") {
+      const envelope = answer.inputEnvelope!;
+      const checkRecommendations = async (db: PoolClient) => {
+        for (const id of envelope.pageIds)
+          if (!(await currentRecommendation(db, ctx, id)))
+            throw Error("STALE_VERSION");
+      };
+      await transaction(this.pool, ctx.workspaceId, checkRecommendations);
+      const contextPages = state.pages.filter((p) =>
+        envelope.pageIds.includes(p.id),
+      );
+      const sources = state.sources.filter((s) =>
+        envelope.sourceIds.includes(s.id),
+      );
+      const binding = await bindModelTransmission(
+        this.pool,
+        ctx,
+        "ingest",
+        envelope,
+        {
+          pool: this.pool,
+          workspaceId: ctx.workspaceId,
+          principalId: ctx.principalId,
+          beforeTransmission: async () =>
+            transaction(this.pool, ctx.workspaceId, checkRecommendations),
+          privatePersonalSpace:
+            Boolean(
+              (state as State & { serverPersonalSpace?: boolean })
+                .serverPersonalSpace,
+            ) && sources.every((s) => s.scope === "private"),
+        },
+      );
+      const data = await this.model(
+        "ingest",
+        {
+          task: "Reintegrate the derived answer. It is not independent evidence. Compare the cited versions and sources, preserve conflicts and applicability, and propose changes only when useful.",
+          answer: {
+            id: answer.id,
+            question: answer.question,
+            content: answer.content,
+            citations: answer.citations,
+            mode: answer.mode,
+          },
+          sources,
+          pages: contextPages.map((p) => ({
+            ...p,
+            versions: undefined,
+            content: current(p).content,
+            baseVersion: current(p).number,
+          })),
+        },
+        binding.options,
+      );
+      const proposed = (data as { updates: unknown }).updates;
+      let updates =
+        Array.isArray(proposed) && proposed.length === 0
+          ? []
+          : drafts.parse(proposed);
+      updates = updates.map((d) => ({
+        ...d,
+        sourceIds: [...new Set([...d.sourceIds, ...envelope.sourceIds])],
+      }));
+      updates = updates.filter((d) => {
+        const p = state.pages.find((p) => p.id === d.id);
+        if (!p) return true;
+        if (!envelope.pageIds.includes(p.id)) throw Error("MODEL_INVALID");
+        if (d.baseVersion !== current(p).number) throw Error("STALE_VERSION");
+        return contentFingerprint(d) !== contentFingerprint(draftOf(p));
+      });
+      const rawCandidates = z
+        .array(proposalCandidateInput)
+        .max(100)
+        .parse((data as { candidates?: unknown }).candidates ?? []);
+      const candidates: ProposalCandidate[] = rawCandidates.map((candidate) => {
+        const source = sources.find((s) => s.id === candidate.sourceId);
+        const update = updates.find((d) => d.id === candidate.pageId);
+        const start = source?.content.indexOf(candidate.quote) ?? -1;
+        if (
+          !source ||
+          !update ||
+          !update.sourceIds.includes(source.id) ||
+          start < 0
+        )
+          throw Error("MODEL_INVALID");
+        return {
+          ...candidate,
+          sourceVersion: digest(source),
+          location: {
+            start,
+            end: start + candidate.quote.length,
+            quote: candidate.quote,
+          },
+          verifiedAt: null,
+        };
+      });
+      await ctx.authorization?.revalidate();
+      if (!updates.length) {
+        await transaction(this.pool, ctx.workspaceId, async (db) => {
+          await binding.recheck(db);
+          await ctx.authorization?.assertSession(db);
+          await checkRecommendations(db);
+          const fresh = await loadState(db, ctx.workspaceId);
+          await assertEnvelope(db, ctx, fresh, envelope);
+          if (digest(fresh) !== fingerprint) throw Error("STALE_VERSION");
+        });
+        const reason = (data as { reason?: unknown }).reason;
+        return {
+          outcome: "no-changes" as const,
+          reason:
+            typeof reason === "string" && reason.trim()
+              ? reason.trim().slice(0, 1000)
+              : "모델이 기존 지식에 추가할 변경을 제안하지 않았습니다.",
+        };
+      }
+      const result = await propose(
+        this.pool,
+        ctx,
+        drafts.parse(updates),
+        envelope.sourceIds,
+        {
+          expectedStateHash: fingerprint,
+          mode: "model",
+          producer: { kind: "model", provider: null, model: null },
+          dependencyIds: envelope.pageIds,
+          inputEnvelope: envelope,
+          answerId: answer.id,
+          candidates,
+          evolutionReason:
+            typeof (data as { reason?: unknown }).reason === "string"
+              ? (data as { reason: string }).reason.trim().slice(0, 1000) ||
+                "모델이 변경 이유를 제공하지 않았습니다."
+              : "모델이 변경 이유를 제공하지 않았습니다.",
+          onBeforeCreate: rejectDuplicate,
+          requestAuthorizationPending: Boolean(ctx.authorization),
+          onCreated: async (db) => {
+            await binding.recheck(db);
+            await assertUnprotectedModelTargets(db, ctx.workspaceId, updates);
+            if (ctx.authorization || ctx.credentialId)
+              await assertFeature(
+                db,
+                ctx,
+                "ingest",
+                undefined,
+                "changeset.propose",
+              );
+            await checkRecommendations(db);
+          },
+        },
+      );
+      if (ctx.authorization)
+        await this.releaseAuthorizedResult(
+          ctx,
+          "batch",
+          result.id,
+          async (db) => {
+            await binding.recheck(db);
+            await checkRecommendations(db);
+            await assertUnprotectedModelTargets(db, ctx.workspaceId, updates);
+          },
+        );
+      return result;
+    }
     return propose(
       this.pool,
       ctx,
@@ -886,6 +1207,7 @@ export class RuntimeService {
           answer.citations.map((c) => c.pageId),
         inputEnvelope: answer.inputEnvelope,
         answerId: answer.id,
+        onBeforeCreate: rejectDuplicate,
       },
     );
   }
@@ -957,7 +1279,14 @@ export class RuntimeService {
   async reject(ctx: Context, id: string, hash: string) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
       if ((await membership(db, ctx)) !== "reviewer") throw Error("FORBIDDEN");
-      await authorizeManaged(db, ctx, "triage.manage");
+      const legacy = ctx.authorization
+        ? (await effectiveAccess(db, ctx)).legacyRole
+        : undefined;
+      await authorizeManaged(
+        db,
+        ctx,
+        legacy ? "changeset.approve" : "triage.manage",
+      );
       const managed = await db.query(
         "SELECT 1 FROM access_spaces WHERE workspace_id=$1",
         [ctx.workspaceId],

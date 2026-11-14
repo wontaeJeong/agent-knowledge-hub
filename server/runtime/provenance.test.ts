@@ -62,7 +62,7 @@ const draft = (id: string, sourceId: string): Draft => ({
   links: [],
   facts: [],
 });
-async function setup() {
+async function setup(publishBroadPage = true) {
   const f = await fixture();
   const runtime = new RuntimeService(f.pool);
   await f.pool.query(
@@ -74,6 +74,7 @@ async function setup() {
     { ...source, id: "broad-source" },
     ["editor", "reviewer", "reader"],
   );
+  if (publishBroadPage) {
   const b = await runtime.core.propose(
     f.editor,
     [draft("broad-page", "broad-source")],
@@ -81,6 +82,7 @@ async function setup() {
   );
   await runtime.core.approve(f.ctx, b.id, b.hash);
   await runtime.core.publish(f.ctx, b.id, b.hash, "setup");
+  }
   await adoptFixture(f.pool, f.workspaceId);
   const authorization = await approveInProcessModelFixture(
     f.pool,
@@ -148,7 +150,8 @@ async function http(
   };
 }
 test("all selected raw model sources constrain every output despite injected broad attribution", async () => {
-  const f = await setup();
+  // Start without a published broad page; immutable version metadata is not a fixture cleanup target.
+  const f = await setup(false);
   try {
     await f.pool.query("DELETE FROM versions WHERE workspace_id=$1", [
       f.workspaceId,
@@ -286,7 +289,7 @@ test("filing keeps full uncited query context intersection and dependency envelo
       "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id=$2 AND principal_id='reader'",
       [f.workspaceId, source.id],
     );
-    const runtime = new RuntimeService(f.pool, async () => ({
+    const runtime = new RuntimeService(f.pool, async (op) => op === "ingest" ? ({ updates: [draft("answer-analysis", "broad-source")] }) : ({
       content: "restricted synthesis",
       insufficient: false,
       citations: [
@@ -300,6 +303,7 @@ test("filing keeps full uncited query context intersection and dependency envelo
     }));
     const answer = await runtime.query(f.editor, "shared-token", "model");
     const b = await runtime.file(f.editor, answer.id);
+    if ("outcome" in b) throw Error("expected proposal");
     expect(
       (await runtime.changesets(f.ctx)).find((x) => x.id === b.id)!.updates[0]
         .sourceIds,

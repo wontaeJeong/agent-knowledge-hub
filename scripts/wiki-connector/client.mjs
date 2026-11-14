@@ -124,13 +124,13 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
     // Remove revoked content, including draft/conflict/proposal copies.
     for (const [id, r] of Object.entries(state.personal)) {
       if (
-        (r.base && !personal.some((p) => p.id === id)) ||
+        !r.dirty && ((r.base && !personal.some((p) => p.id === id)) ||
         (r.draft.upstream &&
           !shared.some(
             (p) =>
               p.id === r.draft.upstream.pageId &&
               p.spaceId === r.draft.upstream.spaceId,
-          ))
+          )))
       )
         delete state.personal[id];
     }
@@ -176,11 +176,20 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
     )
       await snapshot();
   }
+  async function checkLocal(p) {
+    await request("check-local", {sourceRefs:p.sourceRefs, links:p.links, ...(p.upstream ? {upstream:p.upstream} : {})});
+  }
+  async function canReadLocal(p) {
+    try { await checkLocal(p); return true; }
+    catch (e) { if (["FORBIDDEN", "NOT_FOUND"].includes(e.message)) return false; throw e; }
+  }
   async function sync() {
     await snapshot();
     for (const r of Object.values(state.personal)) {
       if (!r.dirty || r.incoming) continue;
       try {
+        // Check the draft's complete dependencies before sending its body.
+        await checkLocal(r.draft);
         const remote = validatePage(
           await request("push", {
             mutationId: r.mutationId,
@@ -274,6 +283,7 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
         requireId(spaceId);
         await authorize();
         const r = spaceId === "personal" ? state.personal[id] : null;
+        if (r && !await canReadLocal(r.draft)) throw Error("NOT_FOUND");
         const page =
           r?.draft ??
           state.shared.find(
@@ -295,9 +305,13 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
           throw Error("VALIDATION_FAILED");
         await authorize();
         const q = query.toLocaleLowerCase();
+        const visiblePersonal = [];
+        for (const r of Object.values(state.personal)) {
+          if (await canReadLocal(r.draft)) visiblePersonal.push(r.draft);
+        }
         return [
           ...state.shared,
-          ...Object.values(state.personal).map((r) => r.draft),
+          ...visiblePersonal,
         ]
           .filter((p) =>
             `${p.title}\n${p.content}`.toLocaleLowerCase().includes(q),
@@ -319,9 +333,10 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
     conflicts() {
       return run(async () => {
         await authorize();
-        return Object.values(state.personal)
-          .filter((r) => r.incoming)
-          .map((r) => ({
+        const visible = [];
+        for (const r of Object.values(state.personal).filter(r=>r.incoming))
+          if (await canReadLocal(r.draft) && await canReadLocal(r.incoming) && (!r.base || await canReadLocal(r.base))) visible.push(r);
+        return visible.map((r) => ({
             base: r.base,
             draft: r.draft,
             incoming: r.incoming,
@@ -333,6 +348,7 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
       return run(async () => {
         await authorize();
         const r = conflict(id);
+        if (!await canReadLocal(r.draft) || !await canReadLocal(r.incoming) || (r.base && !await canReadLocal(r.base))) throw Error("NOT_FOUND");
         const merged = validatePage({ ...r.draft, content });
         r.merge = {
           content: merged.content,
@@ -347,6 +363,7 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
       return run(async () => {
         await snapshot();
         const r = conflict(id);
+        if (!await canReadLocal(r.draft) || !await canReadLocal(r.incoming) || (r.base && !await canReadLocal(r.base))) throw Error("NOT_FOUND");
         if (!r.merge || r.merge.hash !== expectedHash)
           throw Error("MERGE_CONFIRMATION_STALE");
         const merged = { ...r.draft, content: r.merge.content };
@@ -400,6 +417,29 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
         if (r.base.version !== personalVersion)
           throw Error("STALE_PERSONAL_VERSION");
         return request("propose", { ...input, personalVersion });
+      });
+    },
+    proposeBatch(input) {
+      return run(async () => {
+        if (!input || !Array.isArray(input.selections) || input.selections.length < 1 || input.selections.length > 20) throw Error("VALIDATION_FAILED");
+        requireId(input.id); requireId(input.targetSpaceId);
+        const selections = input.selections.map((s) => {
+          requireId(s.pageId);
+          const personalVersion = revision(s.personalVersion), baseVersion = revision(s.baseVersion);
+          if (!personalVersion || !baseVersion) throw Error("VALIDATION_FAILED");
+          const selected = state.personal[s.pageId];
+          if (!selected || selected.dirty || selected.incoming) throw Error("SYNC_REQUIRED");
+          if (selected.base.version !== personalVersion) throw Error("STALE_PERSONAL_VERSION");
+          return {pageId:s.pageId,baseVersion,personalVersion};
+        });
+        if (new Set(selections.map(s=>s.pageId)).size !== selections.length) throw Error("VALIDATION_FAILED");
+        await authorize();
+        for (const s of selections) {
+          const selected = state.personal[s.pageId];
+          if (!selected || selected.dirty || selected.incoming) throw Error("SYNC_REQUIRED");
+          if (selected.base.version !== s.personalVersion) throw Error("STALE_PERSONAL_VERSION");
+        }
+        return request("propose-batch",{id:input.id,targetSpaceId:input.targetSpaceId,selections});
       });
     },
     async start() {
