@@ -173,6 +173,7 @@ export class AgentService {
     requestKey: string,
     hash: string,
     action: string,
+    replayGuard?: (db: PoolClient) => Promise<void>,
   ): Promise<{ found: false } | { found: true; result: T }> {
     return this.run(ctx, action, async (db) => {
       const row = await db.query(
@@ -181,6 +182,7 @@ export class AgentService {
       );
       if (!row.rowCount) return { found: false };
       if (row.rows[0].fingerprint !== hash) throw Error("IDEMPOTENCY_CONFLICT");
+      await replayGuard?.(db);
       for (const resource of row.rows[0].resources as Binding[])
         await this.binding(
           db,
@@ -198,6 +200,7 @@ export class AgentService {
     input: unknown,
     action: string,
     work: (complete: Complete) => Promise<T>,
+    replayGuard?: (db: PoolClient) => Promise<void>,
   ): Promise<T> {
     key.parse(requestKey);
     const hash = fingerprint(input);
@@ -207,6 +210,7 @@ export class AgentService {
       requestKey,
       hash,
       action,
+      replayGuard,
     );
     if (existing.found) return existing.result;
     const complete: Complete = async (db, result, resources) => {
@@ -237,6 +241,7 @@ export class AgentService {
         requestKey,
         hash,
         action,
+        replayGuard,
       );
       if (recovered.found) return recovered.result;
       throw e;
@@ -458,7 +463,7 @@ export class AgentService {
   async proposeChange(
     ctx: Context,
     input: unknown,
-    commitGuard?: (db: PoolClient) => Promise<void>,
+    commitGuard?: (db: PoolClient, result: { id: string; hash: string; status: string; published: boolean }) => Promise<void>,
   ) {
     const q = agentInputs.wiki_propose_change.parse(input);
     return this.mutation(
@@ -517,8 +522,8 @@ export class AgentService {
           expectedStateHash: prepared.fingerprint,
           dependencyIds: prepared.envelope.pageIds,
           onCreated: async (db, batch) => {
-            await commitGuard?.(db);
             result = { ...batch, status: "pending", published: false };
+            await commitGuard?.(db, result);
             await complete(db, result, prepared.resources);
           },
         });
@@ -795,6 +800,43 @@ export class AgentService {
             return result;
           }),
       );
+    }
+    if (action === "propose-batch") {
+      const q = z.object({
+        id, targetSpaceId: id,
+        selections: z.array(z.object({pageId:id,baseVersion:z.number().int().positive(),personalVersion:z.number().int().positive()}).strict()).min(1).max(20),
+      }).strict().parse(input);
+      if (q.targetSpaceId !== ctx.workspaceId) throw Error("SOURCE_SCOPE_CONFLICT");
+      if (new Set(q.selections.map(s => s.pageId)).size !== q.selections.length) throw Error("VALIDATION_FAILED");
+      const prepare = async (db: PoolClient, lock = false) => {
+        await this.authorize(db, ctx, "personal.sync");
+        const {state} = await this.runtime.view(db, ctx);
+        const updates: z.infer<typeof updatesSchema> = [], refs: z.infer<typeof sourceRefs> = [], resources: Binding[] = [];
+        for (const selection of [...q.selections].sort((a,b)=>a.pageId.localeCompare(b.pageId))) {
+          const row = await db.query(`SELECT revision,data FROM agent_personal_pages WHERE workspace_id=$1 AND owner_id=$2 AND id=$3${lock ? " FOR UPDATE" : ""}`,[ctx.workspaceId,ctx.principalId,selection.pageId]);
+          if (!row.rowCount) throw Error("NOT_FOUND");
+          if (row.rows[0].revision !== selection.personalVersion) throw Error("STALE_PERSONAL_VERSION");
+          const personal = row.rows[0].data as PersonalPage;
+          await this.personalAccess(db, ctx, personal);
+          if (!personal.upstream) throw Error("SOURCE_REGISTRATION_REQUIRED");
+          const page = state.pages.find(p=>p.id===personal.upstream!.pageId);
+          if (!page) throw Error("NOT_FOUND");
+          if (current(page).number !== selection.baseVersion || personal.upstream.version !== selection.baseVersion) throw Error("STALE_VERSION");
+          if (updates.some(u=>u.id===page.id)) throw Error("VALIDATION_FAILED");
+          updates.push({...draftOf(page),title:personal.title,content:personal.content,links:personal.links});
+          refs.push(...personal.sourceRefs);
+          resources.push({kind:"page",id:page.id},...personal.sourceRefs.map(r=>({kind:"source" as const,id:r.id})));
+        }
+        const uniqueRefs = [...new Map(refs.map(r=>[fingerprint(r),r])).values()];
+        return {updates,source_refs:uniqueRefs,resources};
+      };
+      return this.mutation(ctx,"personal.propose-batch",q.id,q,"changeset.propose",async complete=>{
+        const prepared=await this.run(ctx,"changeset.propose",db=>prepare(db));
+        return this.proposeChange(ctx,{updates:prepared.updates,source_refs:prepared.source_refs,idempotency_key:`personal-batch-${fingerprint([ctx.workspaceId,ctx.principalId,q])}`},async(db,result)=>{
+          const current=await prepare(db,true);
+          await complete(db,result,current.resources);
+        });
+      },async db=>{await prepare(db);});
     }
     if (action === "propose") {
       const q = z
