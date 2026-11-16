@@ -517,3 +517,11 @@
 - Additional discovery regression: resource authorization ceilings must be checked alongside stored reader ACLs before listing category names; the new source-denial regression failed first and now passes through the shared authorized envelope gate.
 - Integration discovery: the new durable tables initially failed the existing retention inventory gate. Added explicit classifications/private target hashing and subscription deletion under reviewed erasure, with graph lineage and a failing-first regression; generic target redaction would violate the space target CHECK or collide across topic keys.
 - Status: corrected locally; actual company directory/gateway and production acceptance remain separate. Final regression evidence is attached to the feature PR.
+
+### 2026-11-16 — Publication outbox lineage used a page kind for a batch ID
+- Context: independent review N1 of Task 8, PR #48.
+- Observed impact: source-only selection reached the originating batch but omitted the publication event and linked notification when their target page had no independently selected edge. Event rows contain identifiers; no body disclosure was established.
+- Cause: the erasure mapper grouped publication with page-scoped expiry although migration 120 stores `NEW.batch_id` for publication `resource_id`.
+- Correction: publication and review request map to batch; expiry keeps page and job failure keeps job. Regression tests use the exported graph selector and actual source-scoped deletion plus trusted recovery replay, retaining an independent target page.
+- Validation: all three new assertions failed before the production fix and passed after it; initial native fixture setup also required its existing resources FK row. Full project and affected native regressions are recorded in the PR follow-up report. No schema/UI change or external delivery.
+- Status: corrected locally; independent re-review/integration CI still required before merge.

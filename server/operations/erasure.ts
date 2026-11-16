@@ -230,7 +230,13 @@ function own(row: ProductRow) {
 }
 function lineageRefs(row: ProductRow) {
   if (row.table === "collaboration_events") {
-    const kind = row.data.kind === "job-failure" ? "job" : row.data.kind === "change-review-request" ? "batch" : "page";
+    // Publication capture stores its originating batch ID, while page_id is
+    // the independent target edge. Source-only erasure must follow the batch.
+    const kind = row.data.kind === "job-failure"
+      ? "job"
+      : ["publication", "change-review-request"].includes(String(row.data.kind))
+        ? "batch"
+        : "page";
     const result=refs(row.data);
     if(typeof row.data.resource_id === "string")result.add(`${kind}:${row.data.resource_id}`);
     return result;
