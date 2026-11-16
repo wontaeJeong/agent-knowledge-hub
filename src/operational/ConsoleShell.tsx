@@ -1,3 +1,5 @@
+import type { Identity } from "./api";
+import { Navigation } from "./convenience/Navigation";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -64,10 +66,14 @@ export function ConsoleShell({
   navigate,
   account,
   children,
+  identity,
+  active = tab,
 }: {
+  identity?: Identity | null;
+  active?: ConsoleTab;
   preview: boolean;
   tab: ConsoleTab;
-  navigate: (tab: ConsoleTab) => void;
+  navigate: (tab: ConsoleTab) => boolean | void;
   account: {
     name: string;
     detail: string;
@@ -139,32 +145,40 @@ export function ConsoleShell({
           className={open ? "is-open" : ""}
           aria-label="운영 콘솔"
         >
-          {consoleGroups.map((group) => (
-            <div className="console-nav-group" key={group.label}>
-              <p>{group.label}</p>
-              {group.items
-                .filter((item) => item.id !== "account")
-                .map((item) => {
-                  const Icon = icons[item.id];
-                  return (
-                    <a
-                      key={item.id}
-                      href={`#${item.id}`}
-                      aria-current={item.id === tab ? "page" : undefined}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        navigate(item.id);
-                        setOpen(false);
-                      }}
-                    >
-                      <Icon size={18} />
-                      <span>{item.label}</span>
-                      {item.id === tab && <ChevronRight size={15} />}
-                    </a>
-                  );
-                })}
-            </div>
-          ))}
+          {!preview
+            ? identity && (
+                <Navigation
+                  identity={identity}
+                  active={active}
+                  navigate={navigate}
+                  onSelected={() => setOpen(false)}
+                />
+              )
+            : consoleGroups.map((group) => (
+                <div className="console-nav-group" key={group.label}>
+                  <p>{group.label}</p>
+                  {group.items
+                    .filter((item) => item.id !== "account")
+                    .map((item) => {
+                      const Icon = icons[item.id];
+                      return (
+                        <a
+                          key={item.id}
+                          href={`#${item.id}`}
+                          aria-current={item.id === tab ? "page" : undefined}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (navigate(item.id) !== false) setOpen(false);
+                          }}
+                        >
+                          <Icon size={18} />
+                          <span>{item.label}</span>
+                          {item.id === tab && <ChevronRight size={15} />}
+                        </a>
+                      );
+                    })}
+                </div>
+              ))}
         </nav>
         <AccountMenu
           name={account?.name ?? (preview ? "미리보기 사용자" : "사용자")}
@@ -172,8 +186,7 @@ export function ConsoleShell({
           dark={dark}
           onTheme={() => setDark(!dark)}
           onSettings={() => {
-            navigate("account");
-            setOpen(false);
+            if (navigate("account") !== false) setOpen(false);
           }}
           onLogout={account?.onLogout}
           busy={account?.busy}
@@ -187,6 +200,15 @@ export function ConsoleShell({
             <strong>{consoleLabel(tab)}</strong>
           </div>
           <div>
+            {identity?.capabilities?.includes("knowledge.read") && (
+              <Button onClick={() => navigate("search")}>검색</Button>
+            )}
+            {identity?.capabilities?.includes("draft.write") && (
+              <Button onClick={() => navigate("compose")}>새 문서</Button>
+            )}
+            {identity?.capabilities?.includes("knowledge.read") && (
+              <Button onClick={() => navigate("notifications")}>알림</Button>
+            )}
             <span
               className={`console-environment ${preview ? "is-preview" : ""}`}
             >

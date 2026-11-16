@@ -1,3 +1,4 @@
+import type { ConvenienceSection } from "./convenience/types";
 import type { Source } from "../domain/types";
 import type { Draft, Issue } from "../domain/wiki";
 
@@ -73,10 +74,13 @@ export const consoleGroups = [
     ],
   },
 ] as const;
-export type ConsoleTab = (typeof consoleGroups)[number]["items"][number]["id"];
+export type ConsoleTab = (typeof consoleGroups)[number]["items"][number]["id"] | ConvenienceSection;
 export const consoleItems = consoleGroups.flatMap((g) => [...g.items]);
-export const consoleLabel = (tab: ConsoleTab) =>
-  consoleItems.find((x) => x.id === tab)!.label;
+const convenienceLabels: Record<ConvenienceSection, string> = {
+  home: "홈", favorites: "즐겨찾기", recent: "최근 방문", subscriptions: "구독", search: "검색", compose: "새 문서", tasks: "내 작업", "saved-views": "저장 보기",
+};
+export const consoleLabel = (tab: ConsoleTab): string =>
+  consoleItems.find((x) => x.id === tab)?.label ?? convenienceLabels[tab as ConvenienceSection];
 export function readConsoleTab(hash: string): ConsoleTab {
   const id = hash.replace(/^#/, "");
   return consoleItems.some((x) => x.id === id)

@@ -1,5 +1,22 @@
 # 현재 구현과 남은 연결
 
+## 2026-11-17 C1 최종 호환 검토 보완
+
+기존 access 화면이 생성하는 document 없는 share URL·로그인 복귀·현재 인가된 공유 조회를 복구했다. 비관리자의 개인 API 키/장치 메뉴와 자격 있는 검토자의 평가 메뉴를 canonical capability에 맞춰 복원했으며 관리자 전용 컨트롤은 유지했다. preview 메뉴와 취소된 history 복원의 URL도 preview로 재열린다. 실제 URL 생성 컴포넌트·인증 전후·거절 공유·capability·preview 재마운트 회귀를 포함한 최종 check는 frontend255/Node48/import16/evaluation41 및 251개 요구사항·타입/build/smoke를 통과했다. [화면 증거](pr-assets/convenience-navigation/README.md)는 15장이다. 운영 인수 승격은 아니다.
+
+
+## 2026-11-17 C1 검토 보완
+
+1차 검토에서 공간이 다른 브라우저 history 복귀의 API scope 불일치, 기존 공지/VOC·정련 메뉴 누락, section 없는 업무 target 키의 조용한 삭제를 발견해 수정했다. 새 공간으로 API 소유 workspace를 먼저 재마운트하며, ID 충돌·이전 지연 응답·Back/Forward·미저장 이동 취소를 회귀 검증했다. 최종 check는 frontend240/Node48/import16/evaluation41과 기존 251개 요구사항·타입/build/smoke를 통과했다. 현재 [화면 증거](pr-assets/convenience-navigation/README.md)는 1440/390 light/dark 총12장이다. 실제 운영 인수·동시 main 통합 완료를 뜻하지 않는다.
+
+
+## 2026-11-17 C1 이동 기반 추가 (#49)
+
+`src/operational/convenience`와 운영 앱에 capability 기반 사용자 메뉴, 명시적 새 섹션 경로, 기존 문서/댓글/공유/탭 호환 및 안전한 로그인 복귀를 추가했다. 정확한 검토·작업·접근 요청은 현재 서버가 허용한 대상을 다시 조회해 선택하며 불가 대상을 다른 작업으로 바꾸지 않는다. 계정/공간/세션 변경은 보호된 대상 상태를 비운다. 미저장 문서 입력은 메뉴 이동과 종료 경고로 보존한다.
+
+새 홈·개인 목록·검색·작성·일반 작업함·저장 보기 및 버전/문단 위치의 실제 기능 연결은 각 후속 작업 범위다. C1은 해당 경로를 검증/보존하고 미연결 상태를 표시한다. UXC-01~10 전체 완료나 기존 요구사항의 운영 수용 승격이 아니다. Node24 전체 check 및 합성 1440/390 light/dark·키보드 증거는 [C1 기록](pr-assets/convenience-navigation/README.md)을 따른다. BASE `51129cb` 기준이며 동시 main 통합 이후 재검증이 필요하다.
+
+
 기준일: 2026-11-14. 확인한 소스: `9883fbeb609c99fc4b0247168d496ac65fa0b8e4`. **소스 정적 대조이며 새 운영 인수 결과가 아니다.** 이 문서는 현재 구현을 읽는 진입점이다. 기능 변경 시 해당 행의 소스·연결·남은 조건과 확인 커밋을 함께 갱신한다. 날짜가 있는 과거 인계·시험 기록은 당시 증거로 보존한다.
 
 제품 목표는 [North Star](LLM_WIKI_CORE.md), 수용 기준은 [기준 요구사항](requirements/requirements.json)과 [CORE 추가 기준](requirements/core-requirements.json), 개발 순서는 [요구사항 정비 기준](requirements/MAINTENANCE.md)을 따른다. 251개 중 필수 236개·확장 12개·선택 3개이며, 전체 운영 수용 완료로 판정한 항목은 없다. 이것은 구현이 전혀 없다는 뜻이 아니다.

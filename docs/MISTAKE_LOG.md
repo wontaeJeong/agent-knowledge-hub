@@ -1,5 +1,31 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — C1 최종 검토의 기존 공유·개인 도구·preview 호환 누락
+
+- 맥락/관련 작업: #49 / PR #63 전체 분기 검토, 수정 기준 `3f3e63f`.
+- 사실과 영향: 실제 access 화면은 document 없이 share URL을 생성하는데 새 parser가 이를 document 전용 댓글과 함께 거절했다. 개인 키·장치 및 검토 평가의 메뉴를 공간 Admin에 묶어 비관리자의 정상 진입을 숨겼다. preview 메뉴 이동/취소 복원은 app=1 주소를 만들어 재열기 모드가 실제 workspace로 바뀌었다.
+- 원인/조치: 실제 기존 URL 생성자와 기능별 canonical 인가를 충분히 대조하지 않았다. 독립 share 위치를 검증/보존하고 기존 현재 권한 공유 API로 조회한다. 개인 멤버·검토 자격 메뉴와 관리자 부분을 분리했다. URL 생성 mode를 명시해 preview 쓰기/복원 모두 preview=1로 보존한다.
+- 검증/상태: 실제 AccessPanel 링크 생성→인증 전 복귀 저장→인증 후 공유 조회와 403/404, Reader/Writer/Maintain 메뉴·현재 자격 거부, preview 메뉴→history 취소→entryMode 재열기를 시험했다. RED7실패/79통과 후 GREEN86통과, 보강5파일95통과. 최종 check frontend255/Node48/import16/evaluation41·요구사항251·타입/build/smoke 통과. 화면15장·pageerror0. [증거](pr-assets/convenience-navigation/README.md). 운영 SSO/DB와 동시 main 통합은 별도 확인한다.
+
+
+### 2026-11-17 — C1 검토에서 발견한 history 공간 불일치와 메뉴 누락
+
+- 맥락/관련 작업: #49 C1 독립 1차 검토, 수정 기준 `b7d7cd3`.
+- 사실과 영향: child history 처리만 URL location을 바꾸어 이전 공간 API가 같은 문서/업무 ID를 해석할 수 있었다. ACL 우회로 판정한 것은 아니며 URL과 실제 작업 공간이 달라지는 오류다. 대체 메뉴가 기존 boards/refinement를 모든 사용자에게서 제거했고, section 없는 targetKind/targetId는 오류 없이 overview로 정규화됐다.
+- 원인/조치: history 이동과 selector 이동의 outer space 소유권을 연결하지 않았다. guarded history 처리에서 outer workspace를 먼저 재마운트하도록 수정했다. 두 기존 화면을 knowledge.read 진입에 복구했으며 기존 변경 capability를 유지했다. orphan 업무 키는 parser와 로그인 복귀에서 명시적으로 거절한다.
+- 검증/상태: RED10실패/64통과 후 GREEN74통과. 실제 Back/Forward·같은 ID의 두 공간·미저장 Back 취소·이전 공간 지연 응답을 확인했다. 최종 `npm run check` 1회: frontend240/Node48/import16/evaluation41 및 요구사항251·서버 타입/build/smoke 통과. 메뉴 수정 후 실제 1440/390 light/dark12장·pageerror0. [증거](pr-assets/convenience-navigation/README.md). 별도 main 통합·운영 SSO/DB 인수는 계속 후속 조건이다.
+
+
+### 2026-11-17 — C1 실행 환경·이동 회귀와 검증 harness 수정
+
+- 맥락/관련 작업: #49 C1, 격리 worktree `2ff4`, BASE `51129cb`. 원본 main과 다른 세션 worktree는 변경하지 않았다.
+- 사실과 영향: 최초 npm ci가 shell Node26에서 EBADENGINE으로 실패했고 추정한 Homebrew Node24 경로도 없었다. 캐시의 실제 Node24.22.2를 확인해 PATH에 고정한 뒤 offline install 및 baseline을 통과했다. 데이터 변경 영향은 없다.
+- 개발 중 확인: 새 union의 bare section 생성이 typecheck 2건을 실패시켰다. 첫 전체 check에서 공간 전환 시 무조건 overview로 바꿔 기존 published-list의 `둘째 공간 지식` 회귀가 실패했다. 모바일 미저장 이동 취소 후 메뉴가 닫히는 문제, 철회 검토를 활성 대상으로 여는 문제, 정확한 작업의 새로고침에서 기존 상세를 재인가하지 않는 문제도 각각 RED 시험으로 확인했다.
+- 원인/조치: bare section 타입을 보완하고, 공간 변경은 문서/개인/업무 ID만 제거하면서 기존 안전한 콘솔 탭을 유지했다. 취소된 이동은 false를 반환해 메뉴를 열어 두며, rejected로 저장되는 철회 검토는 일반 오류로 처리한다. 작업 상세는 매 수동 새로고침/변경 후 재조회하고 먼저 기존 상세를 비운다. 자동 편집 과정에서 잠시 잘못 바뀐 Boards key는 원복하고 Workflow key에 계정/문서 경계를 적용했다.
+- 시험 환경 실수: jsdom Vite가 없는 Navigation 모듈 import를 수집 단계에서 거부해 계약 stub 후 행동 RED를 다시 관찰했다. 잘못된 경로 시험의 문서 API fixture가 불완전해 별개 렌더 오류를 냈으며 실제 실패 경계의 404로 수정했다. 브라우저 init script가 DOM 생성 전 documentElement에 접근해 pageerror를 냈다. harness는 theme storage만 준비하도록 고친 뒤 전부 다시 실행했다. 제품 오류를 성공으로 숨기지 않았다.
+- 검증/상태: 위 회귀는 수정 후 통과했다. 최종 `npm run check`: frontend230/Node48/import16/evaluation41, 요구사항251, 서버 타입검사/build/smoke 통과. 별도 Chromium의 1440/390 light/dark 8장, 키보드 이동·초점·capability 표시 통과, pageerror0. [로그와 화면](pr-assets/convenience-navigation/README.md). 실서비스 OIDC/DB 인수와 동시 main 통합 뒤 재검증은 남아 있다.
+
+
 ### 2026-11-16 — 편의기능 설계의 원본 공개·정확한 이동·개인 공간 경계
 
 - 사실과 영향: 첫 설계는 새 문서의 원본 공개 승인 서비스를 기존 import-run 결합과 구분하지 않았고, 검토/작업/접근 요청의 정확한 대상 URL이 빠졌다. 보완 중 모든 최초 발행에 독립 검토자를 요구해 owner-only 개인 공간이 막히는 설계 결함도 발견했다. 제품 코드에 적용하기 전 독립 검토로 확인했다.
