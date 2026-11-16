@@ -57,6 +57,7 @@ export const extensionErrorStatuses: Readonly<Record<string, number>> =
       INVALID_FILENAME: 400,
       MIME_MISMATCH: 400,
       UNSUPPORTED_MEDIA_TYPE: 415,
+      INVALID_IMAGE: 415,
       INVALID_UTF8: 400,
       UNSAFE_CONTENT: 400,
       INVALID_JSON: 400,

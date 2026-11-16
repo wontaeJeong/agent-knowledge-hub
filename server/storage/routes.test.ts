@@ -369,3 +369,46 @@ it("serves raw replacement headers, immutable version previews and reviewed edit
     (await fetch(base + `/api/v1/storage/blobs/${initial.id}`)).status,
   ).toBe(400);
 });
+it("delivers safe raster preview over native HTTP while downloads stay attachments", async () => {
+  const sharp = (await import("sharp")).default;
+  const bytes = await sharp({
+    create: { width: 4, height: 3, channels: 3, background: "white" },
+  })
+    .webp()
+    .toBuffer();
+  const response = await fetch(base + "/api/v1/storage/blobs", {
+    method: "PUT",
+    headers: {
+      "content-type": "image/webp",
+      "x-parent-kind": "page",
+      "x-parent-id": page.id,
+      "x-filename": "image.webp",
+    },
+    body: bytes,
+  });
+  expect(response.status).toBe(201);
+  const file = (await response.json()) as { slotId: string; id: string };
+  const preview = await fetch(
+    base + `/api/v1/storage/attachments/${file.slotId}/versions/1/preview`,
+  );
+  expect(preview.status).toBe(200);
+  expect(await preview.json()).toMatchObject({
+    render: "raster-image",
+    mime: "image/webp",
+    width: 4,
+    height: 3,
+    base64: bytes.toString("base64"),
+  });
+  const embedded = await fetch(
+    base + `/api/v1/storage/blobs/${file.id}/preview`,
+  );
+  expect(embedded.status).toBe(200);
+  expect(await embedded.json()).toMatchObject({
+    render: "raster-image",
+    width: 4,
+    height: 3,
+  });
+  const download = await fetch(base + `/api/v1/storage/blobs/${file.id}`);
+  expect(download.headers.get("content-type")).toBe("application/octet-stream");
+  expect(download.headers.get("cache-control")).toBe("no-store");
+});

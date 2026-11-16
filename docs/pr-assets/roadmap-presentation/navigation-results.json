@@ -1,0 +1,24 @@
+[
+  {
+    "width": 1440,
+    "outline": 4,
+    "find": 1,
+    "math": true,
+    "diagram": true,
+    "preview": true,
+    "overflow": false,
+    "errors": [],
+    "external": []
+  },
+  {
+    "width": 390,
+    "outline": 4,
+    "find": 1,
+    "math": true,
+    "diagram": true,
+    "preview": true,
+    "overflow": false,
+    "errors": [],
+    "external": []
+  }
+]

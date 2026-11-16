@@ -477,3 +477,42 @@ it("delivers exact shared files and tickets through real HTTP but denies expired
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+it("authorizes raster image tokens in exact pinned shares and denies them after share revocation", async () => {
+  const sharp = (await import("sharp")).default;
+  const bytes = await sharp({
+    create: { width: 2, height: 2, channels: 3, background: "white" },
+  })
+    .png()
+    .toBuffer();
+  const image = await s.upload(
+    f.editor,
+    {
+      parent: { kind: "page", id: page.id },
+      filename: "pinned.png",
+      mime: "image/png",
+    },
+    (async function* () {
+      yield bytes;
+    })(),
+  );
+  await f.pool.query(
+    "UPDATE versions SET data=jsonb_set(data,'{content}',to_jsonb($3::text)) WHERE workspace_id=$1 AND page_id=$2 AND number=1",
+    [f.workspaceId, page.id, `![図](/api/v1/storage/blobs/${image.id})`],
+  );
+  const share = await access.createShare(owner, {
+    pageId: page.id,
+    version: 1,
+    principalId: "reader",
+    actions: ["knowledge.read"],
+    expiresAt: new Date(Date.now() + 600000).toISOString(),
+    expectedVersion: await policy(),
+  });
+  await access.removeGrant(owner, "reader", await policy());
+  expect((await s.previewAttachment(f.reader, image.slotId, 1)).render).toBe(
+    "raster-image",
+  );
+  await access.revokeShare(owner, share.id, await policy());
+  await expect(s.previewAttachment(f.reader, image.slotId, 1)).rejects.toThrow(
+    "NOT_FOUND",
+  );
+});

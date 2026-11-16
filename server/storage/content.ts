@@ -57,6 +57,82 @@ export async function bounded(
     if (!complete) void iterator.return?.().catch(() => {});
   }
 }
+export const rasterMimes = ["image/png", "image/jpeg", "image/webp"];
+/** Walk real chunk boundaries: decoder metadata may omit APNG frames. Never scan payload substrings. */
+function requireStaticPng(bytes: Buffer) {
+  const invalid = () => {
+    throw Error("INVALID_IMAGE");
+  };
+  if (
+    !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  )
+    invalid();
+  let offset = 8,
+    data = false;
+  while (offset + 12 <= bytes.length) {
+    const size = bytes.readUInt32BE(offset);
+    if (size > bytes.length - offset - 12) invalid();
+    const type = bytes.toString("latin1", offset + 4, offset + 8);
+    if (
+      !/^[a-zA-Z]{4}$/.test(type) ||
+      (offset === 8 && (type !== "IHDR" || size !== 13)) ||
+      (offset !== 8 && type === "IHDR")
+    )
+      invalid();
+    if (["acTL", "fcTL", "fdAT"].includes(type)) invalid();
+    const end = offset + size + 12;
+    if (type === "IDAT") data = true;
+    if (type === "IEND") {
+      if (size !== 0 || !data || end !== bytes.length) invalid();
+      return;
+    }
+    offset = end;
+  }
+  invalid();
+}
+/** Decode bounded pixels before declaring a raster structurally valid. No SVG/animated images. */
+export async function inspectAttachment(
+  bytes: Buffer,
+  mime: string,
+  filename: string,
+) {
+  const checked = inspectContent(bytes, mime, filename);
+  if (checked.extraction !== "image") return checked;
+  if (mime === "image/png") requireStaticPng(bytes);
+  const sharp = (await import("sharp")).default;
+  try {
+    const image = sharp(bytes, {
+      failOn: "warning",
+      limitInputPixels: 4_000_000,
+      animated: true,
+    });
+    const metadata = await image.metadata();
+    const format = {
+      "image/png": "png",
+      "image/jpeg": "jpeg",
+      "image/webp": "webp",
+    }[mime];
+    if (
+      metadata.format !== format ||
+      !metadata.width ||
+      !metadata.height ||
+      metadata.width > 4096 ||
+      metadata.height > 4096 ||
+      (metadata.pages ?? 1) !== 1
+    )
+      throw Error("INVALID_IMAGE");
+    // metadata alone does not validate compressed pixel data. Fully decode with a 16MiB output ceiling.
+    await image.raw().toBuffer();
+    return {
+      scanState: "clean" as const,
+      extraction: "image" as const,
+      width: metadata.width,
+      height: metadata.height,
+    };
+  } catch {
+    throw Error("INVALID_IMAGE");
+  }
+}
 export function inspectContent(bytes: Buffer, mime: string, filename: string) {
   if (
     !filename ||
@@ -68,6 +144,15 @@ export function inspectContent(bytes: Buffer, mime: string, filename: string) {
     throw Error("INVALID_FILENAME");
   if (!bytes.length || bytes.length > MAX_BYTES)
     throw Error("PAYLOAD_TOO_LARGE");
+  if (rasterMimes.includes(mime)) {
+    const extension = {
+      "image/png": /\.png$/i,
+      "image/jpeg": /\.jpe?g$/i,
+      "image/webp": /\.webp$/i,
+    }[mime]!;
+    if (!extension.test(filename)) throw Error("MIME_MISMATCH");
+    return { scanState: "pending" as const, extraction: "image" as const };
+  }
   if (mime === "application/pdf") {
     if (
       !filename.toLowerCase().endsWith(".pdf") ||
