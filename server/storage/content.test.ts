@@ -87,3 +87,77 @@ describe("persistent bounded content store", () => {
     ).rejects.toThrow("STORAGE_TIMEOUT");
   });
 });
+
+it("rejects APNG frames and malformed PNG chunk framing before decoding but accepts static raster formats", async () => {
+  const { inspectAttachment } = await import("./content");
+  const { readFile } = await import("node:fs/promises");
+  const sharp = (await import("sharp")).default;
+  const animated = await readFile(
+    new URL("./fixtures/animated-two-frame.png", import.meta.url),
+  );
+  await expect(
+    inspectAttachment(animated, "image/png", "animated.png"),
+  ).rejects.toThrow("INVALID_IMAGE");
+  const png = await sharp({
+    create: { width: 2, height: 2, channels: 3, background: "white" },
+  })
+    .png()
+    .toBuffer();
+  for (const bytes of [
+    png.subarray(0, png.length - 1),
+    Buffer.concat([png, Buffer.from("trailing")]),
+    Buffer.concat([
+      png.subarray(0, 33),
+      Buffer.from([255, 255, 255, 255]),
+      png.subarray(37),
+    ]),
+    animated.subarray(0, 50),
+    Buffer.concat([animated.subarray(0, 33), animated.subarray(53)]),
+  ])
+    await expect(
+      inspectAttachment(bytes, "image/png", "malformed.png"),
+    ).rejects.toThrow("INVALID_IMAGE");
+  for (const [format, mime, filename] of [
+    ["png", "image/png", "static.png"],
+    ["jpeg", "image/jpeg", "static.jpg"],
+    ["webp", "image/webp", "static.webp"],
+  ] as const) {
+    const bytes = await sharp(png).toFormat(format).toBuffer();
+    expect(await inspectAttachment(bytes, mime, filename)).toMatchObject({
+      scanState: "clean",
+      extraction: "image",
+      width: 2,
+      height: 2,
+    });
+  }
+});
+
+it("checks PNG chunk types rather than rejecting animation names inside inert ancillary data", async () => {
+  const { inspectAttachment } = await import("./content");
+  const sharp = (await import("sharp")).default;
+  const png = await sharp({
+    create: { width: 2, height: 2, channels: 3, background: "white" },
+  })
+    .png()
+    .toBuffer();
+  const payload = Buffer.from("Comment\0acTL fcTL fdAT");
+  const typed = Buffer.concat([Buffer.from("tEXt"), payload]);
+  let crc = 0xffffffff;
+  for (const byte of typed) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++)
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  const chunk = Buffer.alloc(payload.length + 12);
+  chunk.writeUInt32BE(payload.length, 0);
+  typed.copy(chunk, 4);
+  chunk.writeUInt32BE((crc ^ 0xffffffff) >>> 0, chunk.length - 4);
+  const staticWithComment = Buffer.concat([
+    png.subarray(0, -12),
+    chunk,
+    png.subarray(-12),
+  ]);
+  expect(
+    await inspectAttachment(staticWithComment, "image/png", "comment.png"),
+  ).toMatchObject({ scanState: "clean", width: 2, height: 2 });
+});

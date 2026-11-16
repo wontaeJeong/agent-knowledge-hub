@@ -1,5 +1,12 @@
 # 에이전트 인계
 
+## 2026-11-16 문서 표시·이미지 첨부 — 로드맵 Task 3
+
+- 독립 리뷰의 Important 2건을 회귀로 재현해 수정했다. Sharp가 APNG의 pages를 생략하므로 실제 PNG 청크 경계를 검사해 acTL/fcTL/fdAT·손상/종료 뒤 데이터를 거부한다. 유효한 2프레임 합성 APNG는 실제 런타임에서415로 거부되고 blob 메타데이터가 생기지 않는다. 수식/다이어그램 세대와 별개인 이미지 요청 토큰은 새 선택·닫기·컨텍스트/언마운트에서 갱신하며 늦은 성공이 최신 권한 거부를 덮지 못한다. 대기 중 닫기도 지원한다. 이미지 object URL은 생성하지 않는다. 새 codec/React deferred/native HTTP 회귀 및 최종 전체 검사 결과는 화면 증거 README를 따른다.
+- EDT-001/008/009. `src/ui/Markdown.tsx`와 운영 문서·질문·고정 인용 및 기존 데모의 공통 읽기 경로를 연결했다. 원본 Markdown 표/코드/내부 링크를 다시 직렬화하지 않고, 로컬 KaTeX MathML과 엄격한 Mermaid flowchart/sequenceDiagram을 표시한다. 외부 이미지·HTML 실행·다이어그램 설정/콜백은 차단한다.
+- `server/storage/content.ts`, `service.ts`, `attachments.ts`, `file-read.ts`, `routes.ts`와 `src/operational/storage.tsx`에서 PNG/JPEG/WebP 업로드·이미지 미리보기·불변 버전 교체와 검토 연결을 지원한다. 5 MiB/400만 화소/4096px/정지 이미지 제한, 전체 픽셀 디코딩, 현재 ACL·원본 상한·고정 공유·디코딩 뒤 재검사·철회를 적용한다. 기존 CAS·스냅샷·보존/물리 삭제 게이트를 재사용하며 공개 파일 저장소는 없다.
+- 지원 형식·API·원본/발행/평가 경계는 [문서 표시 계약](DOCUMENT_PRESENTATION.md). 이미지 구조 검사는 바이러스/근거 검증이 아니며 PDF 변환·추출·미리보기, SVG/GIF와 임의 Mermaid 확장은 미지원이다. 지식/에이전트 성과는 측정하지 않았다.
+- 검증: Node24 전체 `npm run check`, 파일별 격리 PostgreSQL17의 storage/erasure 회귀 및 OIDC 세션·CSRF를 지나는 이미지 HTTP 검사를 실행했다. 실제 Chromium/React/서버/합성 OIDC·DB의 1440/390 문서·첨부 캡처와 업로드→미리보기→교체→원본 ACL 철회 후 차단, 외부 요청0/브라우저 오류0 근거는 [화면 증거](pr-assets/roadmap-presentation/README.md). 최종 실행 수와 PR 검토 상태는 해당 증거에 기록한다. 회사 SSO/실제 자료 운영 인수는 수행하지 않았다.
 ## 2026-11-16 일괄 결과의 호스트 재조회 경계 수정
 
 - PR #45 독립 검토에서 apply 직후 `onChanged` → App.load의 `dataReady=false` → WorkflowPanel unmount로 결과/복구 토큰이 사라지는 경계를 확인했다. 적용 응답 뒤 자동 부모 갱신을 제거하고, 결과·실패 대상 선택·같은 토큰 재확인을 보존한 뒤 사용자가 명시적으로 목록을 새로고침하게 했다. 명시적 갱신은 결과 화면을 닫는다.
@@ -571,3 +578,8 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 
 - `LinkCompletion`의 지연 권한 응답이 최신 삽입 콜백을 사용하고, `WorkflowPanel`이 현재 초안/계정 바인딩과 활성 자동 저장 편집기의 최신 본문을 사용해 대기 중 입력을 보존하도록 수정했다. EDT-007과 초안 저장 경계에 해당한다. 기존 요청 세대/대상 철회 검사는 유지한다.
 - `src/operational/navigation-draft.test.tsx`에서 과거 콜백 호출·실제 편집창의 입력 유실 RED를 확인한 뒤 수정했다. React 입력과 실제 DraftAutosave→OperationalApi의 합성 저장소에 동일한 최신 본문·링크가 남는 통합 회귀를 포함한다. 전체 `npm run check`(프런트180)와 native 인증 HTTP 탐색·CSRF·원본 철회 회귀를 재통과했다. 시각 변경은 없어 기존 캡처를 유지한다.
+
+### Task3/Task2 integration safety
+- Resolved overlapping published-body UI by using the shared safe Markdown renderer inside DocumentBody navigation. Outline/find decorate existing DOM without replacing authenticated attachment handlers. Math/SVG/control/status nodes are excluded from text marking. An integration regression failed on an external img before the change; safe image/math/find/preview and existing navigation/draft tests16 now pass. Fullcheck passed; actual integrated screenshots and scoped independent review follow.
+
+- Task3/Task2 final base integration: Node24 npmruncheck passed, native presentation-http/navigation-http/bulk3files passed, actual Chromium1440/390 safe-renderer navigation fixture passed outline4/find1/math/diagram/preview with external0/errors0/overflowfalse. Synthetic component input/reader is explicit in capture README; original actualOIDC/runtime/DB flow remains separately evidenced.

@@ -1,5 +1,17 @@
 # 실수와 교훈 기록
 
+### 2026-11-16 — APNG 프레임 누락과 최신 이미지 응답 경합
+- 맥락: 문서 이미지 첨부의 독립 리뷰. 195바이트 합성 2프레임 APNG와 실제 React deferred promise로 두 문제를 재현했다.
+- 사실/영향/원인: Sharp 메타데이터에 APNG pages가 없어 단일 프레임으로 간주했고, 원본 바이트를 받은 브라우저는 검증되지 않은 추가 프레임을 표시했다. 이미지 요청은 컨텍스트 세대만 비교하여 최근 권한 거부 후 예전 성공이 이미지를 복구할 수 있었다. 최초 구현·집중 시험이 이 입력과 완료 순서를 놓쳤다.
+- 조치: PNG의 서명·실제 청크 길이/종료를 순회하며 모든 APNG 애니메이션 청크를 거부한다. 원본 보존·400만 화소 제한은 유지한다. 이미지별 요청 토큰을 모든 선택/닫기/컨텍스트/언마운트에서 갱신하고 다이어그램 세대와 분리했다. 대기 중 닫기도 늦은 응답을 무효화한다. data URL만 사용하므로 미회수 object URL은 없다.
+- 검증/상태: codec 및 실제 OIDC/CSRF HTTP에서 APNG 승인 문제가 RED→GREEN, 메타데이터 생성0. 손상 청크·정상 PNG/JPEG/WebP·불활성 청크 문자열 구분을 검사했다. 실제 React의 최신 거부/역순 응답/닫기/컨텍스트·언마운트 회귀 RED→GREEN. 최종 전체 검사와 실제 대기 중 닫기 화면 결과는 PR 증거 README에 기록한다. 사내 운영 인수는 미실행이다.
+
+### 2026-11-16 — 문서 표시의 정제·화면 상태와 검증 요약 수정
+- 맥락: EDT-001/008/009 이미지·수식·Mermaid 구현. 모든 자료와 계정은 합성이다.
+- 사실/원인: 첫 이미지 연결 fixture에서 원본 부모의 명시 pageId를 빠뜨려 기존 보호 규칙이 거부했다. 집중 실행의 마지막 두 파일만 보고 전체가 통과했다고 부모 에이전트에 보고했으나 전체 로그에서 lifecycle 실패를 확인해 즉시 정정했다. 이 검사는 정상 차단이며 정책을 약화하지 않았다.
+- 추가 실패: 실제 런타임 검사에서 INVALID_IMAGE 오류 매핑 누락이 일반503으로 나타났다. 브라우저에서는 화살표 포함 data 속성이 정제되어 Mermaid가 표시되지 않았고, MathML annotation 문자열이 중복 표시됐다. 기존 업로드의 전체 문서 재조회는 첨부 목록을 초기화했다. DOM/HTTP 증거로 각 원인을 재현했다.
+- 조치: 명시 대상 fixture, 안전한415 매핑, 단순 마커와 정제된 코드 본문을 읽는 다이어그램 처리, 비표시 TeX annotation 제거, 업로드의 로컬 목록 갱신과 늦은 응답 컨텍스트 검사를 적용했다. 보안 정제와 원본/권한 경계는 유지했다. 허용 SVG는 외부 스타일 없이 로컬 CSS로 읽을 수 있게 표시한다.
+- 검증/상태: 관련 서버·클라이언트 회귀 RED→GREEN. 실제 Chromium에서 수식/다이어그램/업로드/이미지/교체/현재 ACL 차단, 1440/390 캡처, 외부 요청0·브라우저 오류0을 확인했다. 마지막 전체 검사와 저장/삭제 회귀 결과는 PR 증거에 기록한다. 사내 운영 인수는 미실행이다.
 ### 2026-11-16 — 일괄 결과가 실제 호스트 재조회에서 사라짐
 
 - 사실/원인: BulkEditor 단독 시험은 onChanged를 no-op으로 사용해 통과했으나 실제 App.load는 dataReady를 내려 패널을 unmount한다. apply 후 결과와 같은 토큰 재확인 상태가 즉시 소실됐다. 합성 fixture/독립 코드 검토로 확인했으며 운영 자료 영향은 확인하지 않았다.
@@ -632,8 +644,14 @@
 - 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
 - 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
 
+### 2026-11-16 - Presentation and navigation renderer overlap
+- Separate PRs both owned published-body rendering. Taking navigation alone would preserve its earlier DOMPurify renderer, allowing remote img and omitting configured math/image preview behavior. Taking Markdown alone would lose outline/find. Added a failing integration regression, then composed safe Markdown under navigation without replacing its event-bound DOM. Targeted16 and fullcheck passed; independent review remains required.
 ### 2026-11-16 - Integration scheduling and native filter correction
 - Started the presentation merge before its final CI inspection, then cancelled only that uncommitted merge to integrate the already-CI-green bulk PR first. No committed or external changes were discarded. The presentation remote was already ff769e8; the initial stale-ref suspicion was incorrect.
 - A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.
 ### 2026-11-16 - Semantic search integration MCP inventory
 - Native integration runtime tools/list correctly advertised knowledge_semantic_search but the pre-existing exact tool inventory expectation omitted it. This caused one assertion failure; the13 semantic provider tests passed. Updated the authenticated inventory expectation to the connected reviewed feature, preserving the explicit prohibition on approval tools. No production behavior changed.
+
+- The first integration capture omitted shared token/shell styles and was replaced after inspecting the real screenshot. Final captures use tokens.css, operational-app/op-main/op-panel; only the final1440/390 evidence is retained.
+
+- Independent integration re-review found pending Mermaid source was marked as text then asynchronously replaced by SVG, leaving a stale find count. Controlled deferred-Mermaid regression reproduced marks0/status1. Excluded the entire pending/resolved diagram container, matching the existing SVG exclusion; regular code/table search remains supported.
