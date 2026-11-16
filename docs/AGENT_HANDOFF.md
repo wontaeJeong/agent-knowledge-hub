@@ -574,3 +574,9 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 독립 spec/quality 리뷰와 두 차례 범위 재검토에서 Important 잔여 없음. 검토한 ca6c958..7bb6d86의 세 수정 커밋을 bulk #45·구독 #48이 포함된 통합4f50478 위에 옮겼다. git range-diff로 코드 patch 동등성을 확인했고, MISTAKE_LOG의 양쪽 추가 기록만 함께 보존했다. 최종 통합 소스09fa3b1에서 Node24 `npm run check` 통과(프런트49파일191시험·원래251요구사항·서버 타입·빌드·HTTP smoke), 전용 native PostgreSQL17에서 workflow/lineage/native HTTP/recovery/retention/provenance/bulk 8파일122시험 통과. Docker dump/restore·배포·사내 수용·원격 CI는 이 로컬 결과로 주장하지 않는다. 템플릿의 추가 계보는 아직 fail-closed이고, 충돌하는 legacy 초안은 목록에서 개별 제외되어 별도 복구가 필요하다.
 
 통합된 #48의 승인 대기 검토 이벤트 유실은 별도 미해결이다. PR48 리뷰5921247928·5921544871에 재현 경로가 있으며, 이 내부 링크 수정은 해당 이벤트 문제를 해결하지 않는다.
+
+### 2026-11-16 — PR #56 native HTTP 통합 시험 시간 예산
+
+- 부모 작업이 전달한 원격 CI `43890549626`의 PostgreSQL 119파일 실행에서 `navigation-http.test.ts` 단일 사례만 기본 5000ms를 초과했다. assertion/product 오류는 보고되지 않았으며 다른 CI 작업은 통과했다. 해당 사례는 fixture migration/bootstrap과 OIDC/current-ACL 검증을 포함한 native HTTP 요청 34건을 순차 실행한다. 이전 로컬 파일 시간도 5.20초로 기본 제한에 근접했다.
+- 제품·전역 테스트·CI 설정을 변경하지 않고 해당 통합 사례에만 20초 상한을 명시했다. `server/questions/runtime-http.test.ts`의 20초/30초 native HTTP 예산을 따르며 auth/CSRF·상대/절대/network 링크·Host·원본 철회 검사를 그대로 유지했다. sleep/retry는 추가하지 않았다.
+- 전용 native PostgreSQL의 해당 파일 1시험 통과(파일 5.46초), `npm run check:server` 통과. 테스트만 수정한 작은 변경이므로 전체 광역 suite는 반복하지 않았다. 정확한 명령/출력은 기존 task report에 추가했다. 최종 원격 CI 확인은 부모 작업에서 수행한다.

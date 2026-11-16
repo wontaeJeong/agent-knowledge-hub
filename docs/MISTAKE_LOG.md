@@ -616,3 +616,9 @@
 - 확인된 원인/영향: migration120은 requestAuthorizationPending 검토 배치에도 동일 review:id:hash 이벤트를 만들고, event projection은 checkedBatch의 NOT_FOUND를 처리 완료로 소비한다. 후속 releaseAuthorizedResult가 pending 플래그를 지워도 같은 키의 이벤트 삽입이 충돌해 실제 검토 알림이 영구 누락될 수 있다. 실제 사용자 데이터 영향은 확인하지 않았다.
 - 조치/후속 작업: 권한 확정 전 capture/projection을 지연하고 staged scan→승인 release→재scan에서 정확히1건, 승인 실패에서는0건인 회귀가 필요하다. 내부 링크 계보 수정과 별도이며 이번 변경에 이벤트 수정은 포함하지 않았다.
 - 상태: 미해결. 원격 PR 리뷰에 경로를 기록했으며 통합 main 발행 전 해결·독립 재검증이 필요하다.
+
+### 2026-11-16 — 누적 native HTTP 회귀 사례의 기본 시간 초과
+
+- 맥락/사실: 부모가 제공한 PR #56 CI `43890549626` 로그에서 `15:03:25 Error: Test timed out in 5000ms`가 `navigation-http.test.ts:9`에 발생했다. 119파일 PostgreSQL suite의 유일한 실패였고 assertion/product 실패는 없었다. 로컬에서도 이전 파일 시간이 5.20초였다.
+- 원인: 하나의 현재 권한/철회 시나리오에 fixture 초기화와 34건의 순차 HTTP 검사가 누적됐지만 기본 5초 상한을 유지했다. 요청별 fresh OIDC·현재 ACL을 생략해 시간을 줄이는 것은 검증 범위를 약화한다.
+- 조치/검증: peer native HTTP 사례와 같은 명시적 20초 상한을 해당 사례에만 적용하고 이유를 주석으로 남겼다. 기존 assertion·제품·전역 CI gate는 그대로다. 임의 sleep/retry 없이 해당 파일 native PostgreSQL 1/1(파일 5.46초) 및 서버 typecheck를 통과했다. 전체 광역 suite는 지시대로 반복하지 않았으며 최종 원격 확인은 부모 작업이 담당한다.

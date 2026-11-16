@@ -6,6 +6,8 @@ import { RuntimeService } from "../runtime/knowledge";
 import { createRuntimeHandler } from "../runtime/http";
 import { OidcAuth, sessionHash } from "../runtime/auth";
 
+// Fixture migrations plus 34 sequential native HTTP requests exercise fresh OIDC
+// and current ACLs; use the bounded budget already used by native HTTP peers.
 test("authenticated native navigation, completion and personal lists remove revoked source titles", async () => {
   const f = await fixture();
   await adoptFixture(f.pool, f.workspaceId);
@@ -243,4 +245,4 @@ test("authenticated native navigation, completion and personal lists remove revo
     await new Promise<void>((resolve) => provider.close(() => resolve()));
     await f.pool.end();
   }
-});
+}, 20_000);
