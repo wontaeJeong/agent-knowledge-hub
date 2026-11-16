@@ -512,3 +512,10 @@
 - 미구현 bulkPreview/bulkApply를 호출하는 도메인 회귀3건이 예상대로 실패한 뒤 구현으로 통과했다.
 - 첫 독립 화면 캡처에서 앱 shell CSS 클래스가 없어 스타일이 적용되지 않은 검증 harness 문제를 확인했다. 실제 앱의 전역CSS와 shell 클래스를 사용해1440/390 캡처를 다시 생성했다. 제품 런타임의 CSS누락은 아니며 합성 화면임을 명시했다.
 - 미리보기 위조·다른사용자·권한철회·CAS 재시도·CSRF를 도메인과 인증HTTP에서 확인했다.
+
+### 2026-11-16 - Bulk editing independent review fixes
+- Review found that tags changed a property string rather than canonical Page.tags, and unexpected errors after partial commits discarded results.
+- Added a failing canonical-tag regression, then updated Page.tags inside the metadata transaction. ScopedSearch tag filtering is verified.
+- Added per-preview/per-target workflow_events receipts atomically with mutations. A response lost after commit is unconfirmed until the same preview reconciles the receipt, without duplicating the metadata revision.
+- The first search regression needed adoptFixture because canonical authorization correctly rejected missing legacy evidence. Production authorization was not relaxed.
+- A documentation append command failed with source encoding error; retried ASCII source. No product data was affected. Node24 npm run check and native bulk5/workflows25 tests pass; scoped independent re-review follows.

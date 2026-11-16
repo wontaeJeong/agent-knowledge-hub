@@ -488,3 +488,5 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 ## 2026-11-16 — EDT-012 다중 문서 편집
 - 서버 서명된 10분 유효 미리보기를 사용자·공간·자격증명에 고정하고 최대50문서의 태그 교체·상위 이동·보관을 현재 ACL과 metadata CAS로 적용한다. 문서별 성공/실패/제외를 반환하고 실패 대상만 새 미리보기로 재시도한다. 기존 검토/발행 본문과 권한은 변경하지 않는다.
 - 실제 운영 WorkflowPanel에 연결했으며 합성 API 브라우저1440/390 캡처는 docs/pr-assets/bulk. Node24 npm run check, 실제 PostgreSQL17의 도메인/네이티브 OIDC·CSRF·HTTP회귀4개, UI2개 통과. 서버 재시작 뒤 미리보기는 다시 생성해야 한다. 실제 사내 인수·지식 성과는 별도다.
+
+- EDT-012 review fixes: canonical Page.tags/search metadata now agree. Atomic per-target workflow_events receipts support same-preview reconciliation after response loss. Unknown/unprocessed outcomes remain visible; current authorization is required to read a receipt. Preview validity is ten minutes and restart requires new preview; company acceptance remains separate.
