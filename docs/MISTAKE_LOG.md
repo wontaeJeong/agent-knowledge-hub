@@ -507,3 +507,11 @@
 - 조치: 새 동시 인증 회귀 2건의 RED를 확인하고 proof refresh 시작에서 세션별 advisory mutex를 잡는다. 최초 exclusive row lock 대안은 독립 리뷰에서 directory gate와 역순 잠금 가능성이 확인돼 채택하지 않았다. fixture는 하나의 기준 시각을 사용한다.
 - 검증: 최종 수정의 PostgreSQL 17 관련 9파일과 전체 `npm run check` 통과. 잘못 지정한 `legacy-compat.test.ts` 필터는 실행 전 거부됐으며 실제 `legacy-compatibility.test.ts`로 수정해 실행했다. 원격 최종 CI를 다시 통과해야 병합한다.
 - 남은 제약: 기존 final guard/directory gate 경합의 더 넓은 잠금 순서는 별도 재현·검토 대상이다. 이번 검증을 모든 동시성 문제의 해결로 표시하지 않는다.
+
+### 2026-11-16 — 문서 탐색 검증 환경과 합성 fixture 수정
+
+- 맥락: EDT-007/010, SRH-009/010 기능 worktree.
+- 사실/영향: 최초 기본 검사에서 sandbox의 localhost 바인딩 EPERM으로 HTTP 시험 10건이 실패했다. 예전 로컬 PG 포트는 종료돼 ECONNREFUSED가 났다. 신규 DB fixture는 pages의 명시적 data 컬럼 없이 INSERT하여 not-null 오류가 났으며, 작성 화면 캡처는 recovery 권한 API에 빈 목록 fixture를 반환해 바인딩 검사로 초안이 닫혀 타임아웃됐다. 인계 문서 갱신용 Python stdin의 인코딩 오류도 발생해 UTF-8 heredoc 작성으로 전환했다. 제품 상태나 원격 배포는 변경하지 않았다.
+- 원인/조치: 도구 권한·환경과 API별 fixture 계약 확인이 부족했다. 권한 있는 실행에서 localhost 회귀를 재실행하고 공유 disposable PostgreSQL17의 파일별 UUID DB 실행기를 사용했다. INSERT 컬럼을 명시하고 recovery의 실제 명시적 403 응답을 fixture에 사용했다. 제품 인증·바인딩 검사를 완화하지 않았다.
+- 검증: 환경/fixture 문제 수정 후 신규 기능의 의도한 RED를 확인했다. 자동완성·삽입 전 철회·Markdown 코드 오인 회귀는 실제 실패 후 수정했고 targeted green, native 인증 HTTP green, 실제 Chromium 1440/390 캡처 성공·pageerror 0건을 확인했다. 최종 전체 `npm run check`와 workflow 서버 8파일 회귀도 통과했다.
+- 상태: 수정·검증됨. 실제 회사 자료·디렉터리·부하 시험은 미실행이다.

@@ -1,7 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+import {
+  DocumentBody,
+  PersonalDocuments,
+  RelatedDocuments,
+  LinkCompletion,
+} from "./document-navigation";
 import { StoragePanel } from "./storage";
 import { Button } from "../ui/primitives";
 import type { Page } from "../domain/types";
@@ -816,6 +820,15 @@ export function WorkflowPanel({
           </Button>
         </section>
       )}
+      {spaceId && (
+        <PersonalDocuments
+          key={identityScope}
+          api={api}
+          spaceId={spaceId}
+          refreshKey={`${selected}:${notice}:${detail?.page.versions.at(-1)?.number}`}
+          onError={fail}
+        />
+      )}
       <label>
         문서 선택
         <select
@@ -849,15 +862,21 @@ export function WorkflowPanel({
           )}
           <details open>
             <summary>현재 발행본 본문 · v{latest.number}</summary>
-            <div
-              className="op-markdown"
-              dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(
-                  marked.parse(latest.content, { async: false }),
-                ),
-              }}
+            <DocumentBody
+              key={`${selected}:${latest.number}`}
+              content={latest.content}
             />
           </details>
+          {spaceId && (
+            <RelatedDocuments
+              key={`${identityScope}:${selected}`}
+              api={api}
+              spaceId={spaceId}
+              pageId={selected}
+              version={latest.number}
+              onError={fail}
+            />
+          )}
           <StoragePanel
             key={`${spaceId}:${selected}`}
             api={api}
@@ -941,6 +960,19 @@ export function WorkflowPanel({
               </Button>
             )}
           </div>
+          {draft && spaceId && (
+            <LinkCompletion
+              key={`${identityScope}:${selected}:${draft.id}`}
+              api={api}
+              spaceId={spaceId}
+              onError={fail}
+              onInsert={(markdown) => {
+                const next = `${content}\n${markdown}`;
+                setContent(next);
+                autosave.current?.edit(next);
+              }}
+            />
+          )}
           {draft && (
             <form
               onSubmit={(e) => {

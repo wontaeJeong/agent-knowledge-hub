@@ -484,3 +484,10 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 ### 2026-11-14 — P1~P10 사용자 승인 병합
 - 후속 “머지” 요청에 따라 기능 PR #32~43을 squash 순서로 통합한다. 요구사항 범위는 변경하지 않으며 기존 PR #30은 별도다.
 - 각 기능의 격리 worktree에서 현재 main 및 선행 기능을 보존하고 최종 head의 필수 CI를 확인한다. 절차·검증과 제약은 [병합 기록](superpowers/plans/2026-11-14-product-merge.md)을 참조한다.
+
+## 2026-11-16 문서 탐색과 개인 목록
+
+- EDT-007/010, SRH-009/010: `server/workflows/service.ts`, `http.ts`, `src/operational/document-navigation.tsx`, `workflows.tsx`, `styles.css`에 현재 ACL의 링크 후보·백링크·태그 관계(각 20건), 목차·코드/표 검색 위치 이동, 기존 즐겨찾기·최근 API 기반 목록과 개인 초안 링크 완성을 연결했다. 기존 구독 버튼·서버 활동 저장을 재사용한다.
+- [API·판단·현재 한계](design/2026-11-16-document-navigation.md), [실제 1440/390 화면](pr-assets/roadmap-navigation/README.md). North Star의 인간 검토·연결된 재사용을 개선하며 본문·원본·ACL·발행 상태를 자동 변경하지 않는다. 의미 유사도·지식 품질·업무 성과 효과는 미측정이다.
+- 검증: TDD로 없는 탐색 API·자동완성·삽입 전 권한 철회·코드 예시 백링크 오인 회귀의 실패를 확인하고 수정 후 통과했다. native HTTP에서 OIDC UserInfo·DB 세션·CSRF·현재 원본 ACL 철회 후 탐색/자동완성/개인 목록 제목 제거를 검증했다. Node 24 전체 `npm run check`와 PostgreSQL17 전체 workflow 서버 8파일 회귀를 통과했다. 프런트 178시험, import 16시험, Node/평가·요구사항251·서버 타입·빌드·smoke 포함이며 운영 인수는 아니다.
+- 제약: 현재 권한은 요청·포커스 복귀·60초 주기로 재검사하며 권한 변경 실시간 푸시는 포함하지 않는다. 서버는 기존 전체 상태 조회로 ACL을 계산하므로 큰 공간의 부하 시험이 필요하다. 같은 태그를 관련 문서로 표시하며 SRH-009 주제/공간 구독 확대와 실제 사내 인수는 별도다.
