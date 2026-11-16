@@ -48,3 +48,5 @@
 
 - P9 보존 리뷰 후속: 복구 재생에서 원본 법적 보류·비공개 참조·최신 스냅샷을 보수적으로 보호하고 초안의 현재 및 이력 계보에 대한 실행 자격증명의 접근을 재검사한다. CAS 물리 purge와 실제 운영 정책 검증은 남아 있다.
 - P7/P9 integration: applied workspace erasure receipts, including physical-purge-pending states, fence trusted collection before outbound requests and at final commit. Legal-hold and failed preflight alone are not treated as completed erasure. Verified with synthetic PostgreSQL 17, native HTTP and local TLS; external physical deletion and production operation remain separate.
+
+- EDT-012: 운영 편집 화면의 다중 문서 태그/위치/보관 미리보기·대상별CAS 결과·실패 재시도 연결. 미리보기는 최대50문서/10분이고 현재권한을 적용 시 재검사한다.

@@ -1,3 +1,4 @@
+import { BulkEditor } from "./BulkEditor";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
 import { marked } from "marked";
@@ -759,6 +760,7 @@ export function WorkflowPanel({
   return (
     <section className="op-panel">
       <h2>편집과 협업</h2>
+      {manage && <BulkEditor api={api} pages={pages} scope={`${spaceId ?? ""}:${principalId ?? ""}`} onChanged={onChanged} onExpired={onExpired} />}
       <p>
         개인 초안은 본인에게만 보입니다. 검토·승인 전에는 발행본이 바뀌지
         않습니다.

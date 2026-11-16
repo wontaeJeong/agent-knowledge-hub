@@ -1,3 +1,4 @@
+import { bulkPreview, bulkApply } from "./bulk";
 import {
   beginVersionMetadataChange,
   finishVersionMetadataChange,
@@ -199,6 +200,8 @@ export class WorkflowService {
       throw Error("NOT_FOUND");
     return p;
   }
+  bulkPreview(ctx: Context, input: unknown) { return bulkPreview(this, ctx, input); }
+  bulkApply(ctx: Context, input: unknown) { return bulkApply(this, ctx, input); }
   async drafts(ctx: Context) {
     return this.run(ctx, "draft.write", undefined, async (db) => {
       const rows = await db.query(

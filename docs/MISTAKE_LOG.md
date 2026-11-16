@@ -507,3 +507,8 @@
 - 조치: 새 동시 인증 회귀 2건의 RED를 확인하고 proof refresh 시작에서 세션별 advisory mutex를 잡는다. 최초 exclusive row lock 대안은 독립 리뷰에서 directory gate와 역순 잠금 가능성이 확인돼 채택하지 않았다. fixture는 하나의 기준 시각을 사용한다.
 - 검증: 최종 수정의 PostgreSQL 17 관련 9파일과 전체 `npm run check` 통과. 잘못 지정한 `legacy-compat.test.ts` 필터는 실행 전 거부됐으며 실제 `legacy-compatibility.test.ts`로 수정해 실행했다. 원격 최종 CI를 다시 통과해야 병합한다.
 - 남은 제약: 기존 final guard/directory gate 경합의 더 넓은 잠금 순서는 별도 재현·검토 대상이다. 이번 검증을 모든 동시성 문제의 해결로 표시하지 않는다.
+
+### 2026-11-16 — 다중 문서 편집 회귀와 화면 검증
+- 미구현 bulkPreview/bulkApply를 호출하는 도메인 회귀3건이 예상대로 실패한 뒤 구현으로 통과했다.
+- 첫 독립 화면 캡처에서 앱 shell CSS 클래스가 없어 스타일이 적용되지 않은 검증 harness 문제를 확인했다. 실제 앱의 전역CSS와 shell 클래스를 사용해1440/390 캡처를 다시 생성했다. 제품 런타임의 CSS누락은 아니며 합성 화면임을 명시했다.
+- 미리보기 위조·다른사용자·권한철회·CAS 재시도·CSRF를 도메인과 인증HTTP에서 확인했다.

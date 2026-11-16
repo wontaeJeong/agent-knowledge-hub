@@ -41,6 +41,8 @@ export async function handleWorkflowRoute(
       );
   }
   if (method !== "POST") return false;
+  if (route === "/bulk/preview") return reply(await service.bulkPreview(ctx, body));
+  if (route === "/bulk/apply") return reply(await service.bulkApply(ctx, body));
   if (route === "/drafts")
     return reply(await service.saveDraft(ctx, body), 201);
   if (route === "/templates")
