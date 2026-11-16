@@ -1,5 +1,11 @@
 # 실수와 교훈 기록
 
+### 2026-11-16 — 일괄 결과가 실제 호스트 재조회에서 사라짐
+
+- 사실/원인: BulkEditor 단독 시험은 onChanged를 no-op으로 사용해 통과했으나 실제 App.load는 dataReady를 내려 패널을 unmount한다. apply 후 결과와 같은 토큰 재확인 상태가 즉시 소실됐다. 합성 fixture/독립 코드 검토로 확인했으며 운영 자료 영향은 확인하지 않았다.
+- 조치: 적용 직후 부모 자동 갱신 대신 명시적 ‘결과 확인 후 문서 목록 새로고침’을 제공한다. 호스트 unmount 경계 시험은 수정 전 실패, 수정 후 통과했다. 명시적 갱신 이후의 결과 보존은 제공하지 않는다.
+- 검증: 프런트 회귀 3건·전체 기본 검사·1440/390 실제 컴포넌트 화면·동일 토큰 재확인·독립 재검토. 최종 원격 CI는 해당 PR head 기준으로 확인한다.
+
 ### 2026-11-14 — 기능 완성 설계의 복구·보존 범위 보완
 - 맥락: 운영 고도화를 제외한 추가 기능의 PR 분리 설계.
 - 사실과 영향: 초안 P9에 삭제/철회는 있었지만 사용자 휴지통 복구 시험이 빠졌고, 보존 배치 제외 표현이 제품 보존 실행까지 제외하는 것으로 읽힐 수 있었다. 코드 변경 전에 독립 설계 검토에서 발견했다.
@@ -533,6 +539,34 @@
 - Impact/cause: agent search duplicated eligibility logic, omitted replacementId and per-resource authorizer checks, and searched only current body in history mode. Five new native regressions failed before changes. Canonical ScopedSearch/currentRecommendation now owns retrieval.
 - Implementation error: using omit on a refined Zod object caused an import failure; explicitly mapping its shape fixed construction. Canonical search rejected unadopted fixtures; explicit adoptFixture setup fixed test identities without weakening production authorization. Existing historical expectation incorrectly used current effectiveFrom; it now expects unknown historical metadata.
 - Verification: five new search regressions, one native cookie MCP regression and nine existing agent regressions passed. Broader final checks are recorded in handoff. Actual company model and operational acceptance remain unverified.
+### 2026-11-16 — Notification expiry clock ordering and capability fixture
+- Context: Task 8 CLB-004–006 in isolated `feat/roadmap-notifications-20261116`.
+- Observed impact: an expiry regression intermittently produced no notification when comparing DB subscription timestamps with the application clock; no production data or external message was involved. A later UI fixture omitted the protection capability required by the canonical lifecycle API and failed after controls were correctly gated.
+- Cause: two clocks (and initially different timestamp precision) were used for event/subscription ordering. The UI fixture represented lifecycle access without the separate protected-setting capability.
+- Correction: use DB `clock_timestamp()` and exact timestamp text (preserving PostgreSQL microseconds across the JS boundary) for outbox/subscription ordering, while the injectable clock controls deadline evaluation and delivery windows. Discover candidates from subscriptions/explicit job responsibility, then use current canonical authorization. Align the UI fixture and actual controls with both required capabilities.
+- Validation: the initially failing expiry DB regression and protected-setting UI interaction now pass; event retry/current-category/source-revocation/native HTTP/final-digest gates are covered. Intentional TDD red runs for missing subscription/event/processing/expiry controls were observed before those implementations; these were expected missing-feature failures.
+- Additional discovery regression: resource authorization ceilings must be checked alongside stored reader ACLs before listing category names; the new source-denial regression failed first and now passes through the shared authorized envelope gate.
+- Integration discovery: the new durable tables initially failed the existing retention inventory gate. Added explicit classifications/private target hashing and subscription deletion under reviewed erasure, with graph lineage and a failing-first regression; generic target redaction would violate the space target CHECK or collide across topic keys.
+- Status: corrected locally; actual company directory/gateway and production acceptance remain separate. Final regression evidence is attached to the feature PR.
+
+### 2026-11-16 — Publication outbox lineage used a page kind for a batch ID
+- Context: independent review N1 of Task 8, PR #48.
+- Observed impact: source-only selection reached the originating batch but omitted the publication event and linked notification when their target page had no independently selected edge. Event rows contain identifiers; no body disclosure was established.
+- Cause: the erasure mapper grouped publication with page-scoped expiry although migration 120 stores `NEW.batch_id` for publication `resource_id`.
+- Correction: publication and review request map to batch; expiry keeps page and job failure keeps job. Regression tests use the exported graph selector and actual source-scoped deletion plus trusted recovery replay, retaining an independent target page.
+- Validation: all three new assertions failed before the production fix and passed after it; initial native fixture setup also required its existing resources FK row. Full project and affected native regressions are recorded in the PR follow-up report. No schema/UI change or external delivery.
+- Status: corrected locally; independent re-review/integration CI still required before merge.
+### 2026-11-16 — 다중 문서 편집 회귀와 화면 검증
+- 미구현 bulkPreview/bulkApply를 호출하는 도메인 회귀3건이 예상대로 실패한 뒤 구현으로 통과했다.
+- 첫 독립 화면 캡처에서 앱 shell CSS 클래스가 없어 스타일이 적용되지 않은 검증 harness 문제를 확인했다. 실제 앱의 전역CSS와 shell 클래스를 사용해1440/390 캡처를 다시 생성했다. 제품 런타임의 CSS누락은 아니며 합성 화면임을 명시했다.
+- 미리보기 위조·다른사용자·권한철회·CAS 재시도·CSRF를 도메인과 인증HTTP에서 확인했다.
+
+### 2026-11-16 - Bulk editing independent review fixes
+- Review found that tags changed a property string rather than canonical Page.tags, and unexpected errors after partial commits discarded results.
+- Added a failing canonical-tag regression, then updated Page.tags inside the metadata transaction. ScopedSearch tag filtering is verified.
+- Added per-preview/per-target workflow_events receipts atomically with mutations. A response lost after commit is unconfirmed until the same preview reconciles the receipt, without duplicating the metadata revision.
+- The first search regression needed adoptFixture because canonical authorization correctly rejected missing legacy evidence. Production authorization was not relaxed.
+- A documentation append command failed with source encoding error; retried ASCII source. No product data was affected. Node24 npm run check and native bulk5/workflows25 tests pass; scoped independent re-review follows.
 
 ### 2026-11-16 — 탐색 PR 최신 main 통합
 - 사실/원인: 오래된 PR30과 최근 기능 병합 사이에서 인계·실수 기록과 HTTP me 경로 충돌이 발생했다.
@@ -554,3 +588,7 @@
 - 조치: 링크 응답은 최신 커밋된 삽입 콜백을 사용한다. WorkflowPanel은 현재 초안·계정 바인딩을 확인하고 활성 DraftAutosave의 현재 본문에 추가한 동일 값을 React 입력과 자동 저장에 전달한다. 기존 대상/요청 세대·권한 철회 검사를 유지한다.
 - 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
 - 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
+
+### 2026-11-16 - Integration scheduling and native filter correction
+- Started the presentation merge before its final CI inspection, then cancelled only that uncommitted merge to integrate the already-CI-green bulk PR first. No committed or external changes were discarded. The presentation remote was already ff769e8; the initial stale-ref suspicion was incorrect.
+- A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.
