@@ -523,3 +523,9 @@
 - 사실/원인: 오래된 PR30과 최근 기능 병합 사이에서 인계·실수 기록과 HTTP me 경로 충돌이 발생했다.
 - 조치: 양쪽 기록을 보존하고 현재 me 처리 뒤에 discovery GET을 연결했다. 검증은 후속 실행 결과에 기록한다.
 - 상태: 통합 검증 중.
+
+### 2026-11-16 - Concurrent valid-session authentication deadlock
+- Initial screenshot401 was hypothesized to be pool starvation. SQL instrumentation disproved it:40P01, process2579 holding a session update waiting directory7203101; process2575 holding directory gate waiting its transaction/session row. Larger pool was not accepted as a fix.
+- Reproduced with two actual auth/protected transactions and observed pg_blocking_pids. Central gate acquisition now orders directory serialization before row locks across shared transaction entrypoints; direct OperationsService shared SQL and callback/switch-space were covered.
+- Transient backend faults preserve session while denying the request503. Fixture's first second-test attempt reused a global session hash and failed unique-key; changed synthetic hash to workspace-specific. No production session was affected.
+- The central gate lengthens global serialized sections; initialApp1/DB1 behavior is validated, throughput improvement is not claimed.

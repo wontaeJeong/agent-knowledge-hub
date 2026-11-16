@@ -497,3 +497,8 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 ## 2026-11-16 — 탐색 대시보드 최신 통합 검증
 - PR30을 main5218828과 통합했다. 원래 인계·실수 기록을 보존하고 discovery GET과 최신 인증 me 경로를 함께 유지했다.
 - Node24 npm run check 통과. PostgreSQL17 격리 DB discovery/runtime/access 3파일37개 통과. 실제 Chromium1440/390 합성 명시 미리보기와 document overflow 없음 확인, docs/pr-assets/discovery에 캡처. 실제 회사 품질/대규모/운영 인수는 미검증이다.
+
+## 2026-11-16 - Authentication transaction lock order
+- Synthetic actualbrowser concurrent reads exposed SQLSTATE40P01 between directory gate7203101 and a refreshed runtime_session row. The mutation gate now orders shared directory serialization before workspace/session/identity rows. Callback/switch-space join the common gate and OperationsService shared mode uses the same helper. Exclusive mutation operations retain their existing exclusion.
+- SQL deadlock/serialization/lock/backend availability failures become AUTH_BACKEND_UNAVAILABLE503 and do not discard a valid session. Current-identity/session/ACL checks remain required, and actual authentication failures still revoke the session.
+- Native deterministic blocked-backend regression fails before the fix and passes after it, including preserved session after transient40P01. Node24 npm run check and11nativefiles pass. A real pool6 browser recheck follows; this is not a scalability/SLO claim.
