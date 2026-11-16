@@ -706,3 +706,6 @@
 - 확인된 원인/영향: migration120은 requestAuthorizationPending 검토 배치에도 동일 review:id:hash 이벤트를 만들고, event projection은 checkedBatch의 NOT_FOUND를 처리 완료로 소비한다. 후속 releaseAuthorizedResult가 pending 플래그를 지워도 같은 키의 이벤트 삽입이 충돌해 실제 검토 알림이 영구 누락될 수 있다. 실제 사용자 데이터 영향은 확인하지 않았다.
 - 조치/후속 작업: 권한 확정 전 capture/projection을 지연하고 staged scan→승인 release→재scan에서 정확히1건, 승인 실패에서는0건인 회귀가 필요하다. 내부 링크 계보 수정과 별도이며 이번 변경에 이벤트 수정은 포함하지 않았다.
 - 상태: 미해결. 원격 PR 리뷰에 경로를 기록했으며 통합 main 발행 전 해결·독립 재검증이 필요하다.
+
+### 2026-11-17 - Auth CI inherited cumulative navigation budget
+- Final auth620c505 CI failed only the existing34-request navigation HTTP test at its default5000ms; every other native file passed. Adopted the exact independently reviewed f08058f test file (same assertions, single case20s) and reran auth/discovery/navigation. No product timeout change. Final auth CI must pass again.
