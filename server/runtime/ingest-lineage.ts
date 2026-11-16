@@ -8,7 +8,8 @@ import {
   type ProposalCandidate,
 } from "../refinement/logic";
 import { digest } from "../publication";
-import type { InputEnvelope } from "../provenance";
+import { captureEnvelope, type InputEnvelope } from "../provenance";
+import { authorizeManaged } from "../access/index";
 
 /** The server binds model claims to immutable source bytes; model timestamps never verify them. */
 export function bindCandidates(
@@ -49,45 +50,112 @@ type Rejected = Batch & {
   contextDependencyIds?: string[];
   reviewFeedback?: { reason: string; recordedBy: string; recordedAt: string };
 };
+type Feedback = {
+  batchId: string;
+  batch: Rejected;
+  reason: string;
+  envelope: InputEnvelope;
+};
+/** Includes proposal-only links as well as every current/historical page/source they depend on. */
+async function feedbackEnvelope(
+  db: PoolClient,
+  ctx: Context,
+  state: State,
+  batch: Rejected,
+) {
+  const internal = new Set(
+    batch.updates.filter((d) => d.baseVersion === 0).map((d) => d.id),
+  );
+  const pageIds = [
+    ...new Set([
+      ...(batch.inputEnvelope?.pageIds ?? []),
+      ...(batch.contextDependencyIds ?? []),
+      ...batch.updates.filter((d) => d.baseVersion > 0).map((d) => d.id),
+      ...batch.updates.flatMap((d) =>
+        d.links.filter((id) => !internal.has(id)),
+      ),
+    ]),
+  ];
+  const sourceIds = [
+    ...new Set([
+      ...batch.snapshots.map((s) => s.id),
+      ...(batch.inputEnvelope?.sourceIds ?? []),
+      ...batch.updates.flatMap((d) => [
+        ...d.sourceIds,
+        ...d.facts.map((f) => f.sourceId),
+      ]),
+    ]),
+  ];
+  let envelope = await captureEnvelope(db, ctx, state, pageIds, sourceIds);
+  // Model policy also treats document parents as influencing lineage. Pin them rather than
+  // relying on a later policy closure that would omit their version/ACL from this envelope.
+  for (;;) {
+    if (envelope.pageIds.length + envelope.sourceIds.length > 200)
+      throw Error("POLICY_RESOURCE_LIMIT");
+    const parents = (
+      await db.query(
+        "SELECT parent_id FROM workflow_document_state WHERE workspace_id=$1 AND page_id=ANY($2::text[]) AND parent_id IS NOT NULL",
+        [ctx.workspaceId, envelope.pageIds],
+      )
+    ).rows.map((r) => r.parent_id as string);
+    const added = parents.filter((p) => !envelope.pageIds.includes(p));
+    if (!added.length) break;
+    envelope = await captureEnvelope(
+      db,
+      ctx,
+      state,
+      [...envelope.pageIds, ...added],
+      envelope.sourceIds,
+    );
+  }
+  for (const id of envelope.pageIds)
+    await authorizeManaged(db, ctx, "knowledge.read", { kind: "page", id });
+  for (const id of envelope.sourceIds)
+    await authorizeManaged(db, ctx, "knowledge.read", { kind: "source", id });
+  return envelope;
+}
 export async function rejectedFeedback(
   db: PoolClient,
   ctx: Context,
   state: State,
   relevantPageIds: string[],
   sourceIds: string[],
-) {
-  const sourceSet = new Set(state.sources.map((s) => s.id)),
-    pageSet = new Set(state.pages.map((p) => p.id));
+): Promise<Feedback[]> {
   const rows = await db.query(
     "SELECT id,data FROM batches WHERE workspace_id=$1 AND data->>'status'='rejected' ORDER BY id",
     [ctx.workspaceId],
   );
-  const result = rows.rows.filter((row) => {
-    const b = row.data as Rejected;
-    return (
-      !b.requestAuthorizationPending &&
-      (b.snapshots.some((s) => sourceIds.includes(s.id)) ||
-        b.updates.some((d) => relevantPageIds.includes(d.id))) &&
-      [
-        ...b.snapshots.map((s) => s.id),
-        ...(b.inputEnvelope?.sourceIds ?? []),
-        ...b.updates.flatMap((d) => d.sourceIds),
-      ].every((s) => sourceSet.has(s)) &&
-      [
-        ...(b.inputEnvelope?.pageIds ?? []),
-        ...(b.contextDependencyIds ?? []),
-        ...b.updates.filter((d) => d.baseVersion > 0).map((d) => d.id),
-      ].every((p) => pageSet.has(p))
-    );
-  });
+  const result: Feedback[] = [];
+  for (const row of rows.rows) {
+    const batch = row.data as Rejected;
+    if (
+      batch.requestAuthorizationPending ||
+      !(
+        batch.snapshots.some((s) => sourceIds.includes(s.id)) ||
+        batch.updates.some((d) => relevantPageIds.includes(d.id))
+      )
+    )
+      continue;
+    try {
+      const envelope = await feedbackEnvelope(db, ctx, state, batch);
+      result.push({
+        batchId: row.id,
+        batch,
+        envelope,
+        reason:
+          batch.reviewFeedback?.reason ?? "이전 검토에서 반려됨 (사유 미기록)",
+      });
+    } catch (error) {
+      // Suppress the entire rejected prose/reason, never just a link identifier.
+      if (!(
+        error instanceof Error &&
+        ["NOT_FOUND", "FORBIDDEN", "STALE_VERSION"].includes(error.message)
+      ))
+        throw error;
+    }
+  }
   if (result.length > 100) throw Error("MODEL_CONTEXT_LIMIT");
-  return result.map((row) => ({
-    batchId: row.id,
-    batch: row.data as Rejected,
-    reason:
-      (row.data as Rejected).reviewFeedback?.reason ??
-      "이전 검토에서 반려됨 (사유 미기록)",
-  }));
+  return result;
 }
 export function assertChangedAfterRejection(
   previous: Awaited<ReturnType<typeof rejectedFeedback>>,

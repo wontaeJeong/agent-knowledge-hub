@@ -504,3 +504,9 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - 검증: Node24 `npm run check` 통과(웹173, import16 및 기존 Node/evaluation·251개 요구사항·서버 타입·빌드·HTTP smoke). PostgreSQL·실제 OIDC/모델 HTTP·MCP SDK 계보 회귀와 기존 답변 환류/권한/워크플로/정련/내구 작업 회귀를 실행한다. 최종 native 수치는 PR 검증 기록을 따른다. 실제 Chromium 1440/390 크기와 가로 넘침 검사, 합성 서버 데이터 캡처를 [증거](pr-assets/roadmap-knowledge-lineage/README.md)에 보관한다.
 - 남은 조건: 합성 loopback은 실제 사내 모델의 의미 품질·독립 실행 검증·지식 효과·운영 수용이 아니다. 의미상 반복 제안/상충 해석의 정답성은 모델 평가와 사람 검토가 필요하다. 모델 피드백·사람 편집 이력 각100개 및 기존 컨텍스트/작업 예산 초과는 명시적으로 중단한다. Task 6의 질문 주제/현재·과거 범위·조건 컨텍스트는 별도 PR 대상이다.
 - 추가 검증 발견(미해결): screenshot pool6의 병렬 인증 GET에서401/세션 폐기를 관찰했고 임시 PG 계측이 identity projection advisory7203101의SQLSTATE40P01을 확인했다(연결 timeout0건). Task5에서 auth/identity/network 경로를 바꾸지는 않았다. [요약](pr-assets/roadmap-knowledge-lineage/auth-deadlock.json)·실수 기록과 별도 검토 인계를 따르며 pool20 캡처 통과를 해결로 표시하지 않는다.
+
+### 2026-11-16 — Task 5 PR52 P1 권한/계보 재검토 보완
+- 독립 검토가 재현한 과거 반려안 외부 링크 누락을 수정했다. `rejectedFeedback`은 제안의 모든 기존 대상·외부 링크·과거/파생 원본·상위 문서에 현재 권한을 적용하고 전체 envelope를 반환한다. 하나라도 거부되면 본문/이유/ID 전체를 제외한다. 일반 편입은 이 전체 envelope를 고정하고, 답변 편입은 원래 답변 envelope 안에 완전히 포함되는 피드백만 허용한다. 전송 직전/커밋 직전 범위를 재검사한다.
+- 새 파일 `server/runtime/lineage-feedback.test.ts`에서 실제 DB/모델 입력과 실제 HTTP provider를 사용해 페이지/하위 페이지/원본/정책 철회·전송 직전 철회·응답 후 철회·답변 범위·제안 로컬 새 링크를 검증한다. 최초11개 동작 RED를 확인한 뒤 수정했다. 최종 검사 결과는 PR52와 인계 파일을 따른다.
+- 같은 변경 집합의 새 페이지 링크와 과거 결정 이력을 보존하되 현재 종합 페이지 선택·원본 공개 상한·모델 정책을 넓히지 않는다. 기존 auth deadlock 수정은 별도 PR이다.
+- P1 최종 검증: 리뷰어 원래 실제 PG 재현은 빈 feedback으로 수정 확인. 집중15개(링크/원본/정책 철회와 실제 provider HTTP 포함), 관련 native6파일110개, `npm run check` 웹178/import16/251 요구사항·서버 타입·빌드·HTTP smoke 통과. 로그 `/private/tmp/akh-lineage-feedback-{red,green,final-focused,regression,check,proof-green}.log`. 제품 UI 변경이 없어 기존 캡처를 보존했다.

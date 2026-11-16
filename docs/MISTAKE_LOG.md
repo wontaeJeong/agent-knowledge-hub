@@ -543,3 +543,12 @@
 - 사실/근거: 브라우저 fixture pool6에서 `/session`200 후 병렬 `/pages`, `/model`, `/changesets`, `/spaces`, `/sources`, `/jobs`401과 세션 폐기를 관찰했다. 임시 PG 계측이 `SELECT pg_advisory_xact_lock(7203101)`에서 SQLSTATE `40P01` / deadlock detected / 약1004ms를 수집했다. 이 실행의 연결 timeout은0건이다. 따라서 단순 pool starvation 가설은 이 관측을 설명하지 않는다. [안전한 요약](pr-assets/roadmap-knowledge-lineage/auth-deadlock.json).
 - 원인: 세션 검증/identity projection 잠금 순서의 정확한 cycle은 미확정이다. 최근 실행에는 session advisory7203110, identity_session_activity, access_group_members projection이 포함됐다. Task5는 이 인증/identity 함수를 바꾸지 않았으며 새 network/reauth를 트랜잭션에 추가하지 않았다.
 - 조치/상태: 독립 검토자에게 원본 합성 로그와 임시 계측을 전달했다. UI 캡처는 networkidle 대기와 별도 pool20 설정으로 수행하지만 이것을 제품 수정·원인 반증으로 간주하지 않는다. 실제 앱의 기본 pool 및 worker 병렬 조건을 포함한 별도 원인 분석/동시성 회귀가 필요하다. 인증/CSRF/권한 검사를 완화하지 않는다. **미해결**.
+
+### 2026-11-16 — PR52 검토 P1: 반려안의 외부 링크 의존성 누락
+- 사실/영향: 독립 검토에서 현재 권한을 잃은 링크 페이지를 가진 과거 오프라인 반려안을 검토 큐는 숨기지만 새 `rejectedFeedback`은 모델로 보낼 수 있음을 실제 PostgreSQL로 확인했다. 본문/사유/링크 ID가 전송 envelope의 ACL·정책 범위 밖에 남는 도입 결함이었다. 실제 사내 자료가 전송됐다는 증거는 없다.
+- 원인: 기존 snapshots/sourceIds/inputEnvelope/대상 페이지를 확인하면서 제안의 `updates.links`와 그 전체 파생 의존성은 빠뜨렸다. 답변 피드백의 부분 집합 검사도 같은 누락을 이어받았다.
+- 조치: 제안 외부 링크·기존 대상·원본/이전 컨텍스트·과거 파생/원본·상위 문서 전체에 현재 권한을 적용하고 별도 envelope를 고정한다. 누락/철회 시 피드백 전체를 제외한다. 일반 편입은 전체 영향 envelope를 합치고, 답변 편입은 원래 답변 envelope 안의 완전한 피드백만 쓴다. 전송 직전/저장 직전 모두 재검사한다.
+- 검증: 새 실제 DB/모델 입력/실제 provider HTTP 회귀11개가 수정 전 RED(노출/빈 envelope/금지 전송), 수정 후 GREEN이었다. 리뷰어의 원래 임시 재현도 빈 feedback이 되는지 다시 실행한다. 답변 철회·제안 내부 새 페이지 회귀와 전체 필수 검사/관련 native 결과는 후속 PR 기록을 따른다.
+- 상태: 수정 검증, 독립 재검토 필요. 기존 별도 auth deadlock은 이 수정에 포함하지 않는다.
+- 회귀 fixture 보정: 처음 새 오프라인 제안에서 서로 다른 공개 범위를 직접 연결하려 해 canonical `VALIDATION_FAILED`를 받았다. 해당 금지를 완화하지 않고 동일 범위에서 만든 과거/보관 링크로 동작 RED를 확인했다. 이후 분류 범위가 바뀐 legacy 반려안은 별도 합성 DB 이관 시나리오로 확인했다.
+- 최종 검증: reviewer 임시 PostgreSQL 재현은 `rejectedVisible:false, feedback:[], visiblePages:["topic"]`로 바뀌었다. 새 집중 회귀15개, 관련 native6파일110개와 `npm run check`(웹178/import16/251 요구사항·서버 타입·빌드·HTTP smoke) 통과. native6파일 실행 뒤 추가한 legacy 분류 회귀를 포함해 집중15개를 다시 실행했다. auth deadlock은 별도 미해결 기록을 유지한다.

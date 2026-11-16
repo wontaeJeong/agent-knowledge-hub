@@ -468,6 +468,8 @@ export class RuntimeService {
         let decisions: Awaited<ReturnType<typeof humanDecisions>> = [];
         let feedback: Awaited<ReturnType<typeof rejectedFeedback>> = [];
         let dependencyIds: string[] = [];
+        let recommendationIds: string[] = [];
+        let recheckFeedback: ((db: PoolClient) => Promise<void>) | undefined;
         let inputEnvelope: InputEnvelope | undefined;
         let policyCheck: ((db: PoolClient) => Promise<void>) | undefined;
         if (mode === "model") {
@@ -486,14 +488,15 @@ export class RuntimeService {
           const contextPages = state.pages.filter(
             (p) => p.scope === sources[0]!.scope && eligible.has(p.id),
           );
-          dependencyIds = contextPages.map((p) => p.id);
+          recommendationIds = contextPages.map((p) => p.id);
+          dependencyIds = recommendationIds;
           feedback = await transaction(this.pool, ctx.workspaceId, (db) =>
             rejectedFeedback(db, ctx, state, dependencyIds, sourceIds),
           );
           dependencyIds = [
             ...new Set([
               ...dependencyIds,
-              ...feedback.flatMap((f) => f.batch.inputEnvelope?.pageIds ?? []),
+              ...feedback.flatMap((f) => f.envelope.pageIds),
             ]),
           ];
           const corrections = await transaction(
@@ -505,10 +508,7 @@ export class RuntimeService {
             c.original.id,
             c.replacement.id,
           ]);
-          const feedbackSources = feedback.flatMap((f) => [
-            ...f.batch.snapshots.map((s) => s.id),
-            ...(f.batch.inputEnvelope?.sourceIds ?? []),
-          ]);
+          const feedbackSources = feedback.flatMap((f) => f.envelope.sourceIds);
           inputEnvelope = await transaction(this.pool, ctx.workspaceId, (db) =>
             captureEnvelope(db, ctx, state, dependencyIds, [
               ...new Set([
@@ -545,7 +545,22 @@ export class RuntimeService {
               inputEnvelope,
               evaluationGuard.rules,
             );
-          const modelOptions = {
+          recheckFeedback = async (db) => {
+            const fresh = await rejectedFeedback(
+              db,
+              ctx,
+              state,
+              recommendationIds,
+              sourceIds,
+            );
+            if (
+              digest(fresh) !== digest(feedback) ||
+              digest(await humanDecisions(db, ctx, dependencyIds)) !==
+                digest(decisions)
+            )
+              throw Error("STALE_VERSION");
+          };
+          const modelOptions: ModelOptions = {
             ...execution?.modelOptions,
             ...(evaluationGuard
               ? {
@@ -571,6 +586,13 @@ export class RuntimeService {
                 (state as State & { serverPersonalSpace?: boolean })
                   .serverPersonalSpace,
               ) && sources.every((s) => s?.scope === "private"),
+          };
+          const beforeTransmission = modelOptions.beforeTransmission;
+          modelOptions.beforeTransmission = async (endpoint) => {
+            await beforeTransmission?.(endpoint);
+            await transaction(this.pool, ctx.workspaceId, (db) =>
+              recheckFeedback!(db),
+            );
           };
           const binding = await bindModelTransmission(
             this.pool,
@@ -664,7 +686,7 @@ export class RuntimeService {
               if (inputEnvelope)
                 await assertEnvelope(db, ctx, fresh, inputEnvelope);
               if (digest(fresh) !== fingerprint) throw Error("STALE_VERSION");
-              for (const id of dependencyIds)
+              for (const id of recommendationIds)
                 if (!(await currentRecommendation(db, ctx, id)))
                   throw Error("STALE_VERSION");
             });
@@ -720,22 +742,9 @@ export class RuntimeService {
                     ctx.workspaceId,
                     updates,
                   );
-                  if (
-                    digest(await humanDecisions(db, ctx, dependencyIds)) !==
-                    digest(decisions)
-                  )
-                    throw Error("STALE_VERSION");
-                  const freshFeedback = await rejectedFeedback(
-                    db,
-                    ctx,
-                    state,
-                    dependencyIds,
-                    sourceIds,
-                  );
-                  if (digest(freshFeedback) !== digest(feedback))
-                    throw Error("STALE_VERSION");
+                  await recheckFeedback?.(db);
                   assertChangedAfterRejection(
-                    freshFeedback,
+                    feedback,
                     updates,
                     sources as Source[],
                   );
@@ -749,7 +758,7 @@ export class RuntimeService {
                     "changeset.propose",
                   );
                 if (mode === "model")
-                  for (const id of dependencyIds)
+                  for (const id of recommendationIds)
                     if (!(await currentRecommendation(db, ctx, id)))
                       throw Error("STALE_VERSION");
                 await execution?.proposalCreated(db, result, updates);
@@ -1129,6 +1138,38 @@ export class RuntimeService {
       const sources = state.sources.filter((s) =>
         envelope.sourceIds.includes(s.id),
       );
+      const feedback = await transaction(this.pool, ctx.workspaceId, (db) =>
+        rejectedFeedback(db, ctx, state, envelope.pageIds, envelope.sourceIds),
+      );
+      const selectAnswerFeedback = (items: typeof feedback) =>
+        items.filter(
+          (f) =>
+            f.envelope.sourceIds.every((id) =>
+              envelope.sourceIds.includes(id),
+            ) &&
+            f.envelope.pageIds.every((id) => envelope.pageIds.includes(id)),
+        );
+      const answerFeedback = selectAnswerFeedback(feedback);
+      const decisions = await transaction(this.pool, ctx.workspaceId, (db) =>
+        humanDecisions(db, ctx, envelope.pageIds),
+      );
+      const recheckAnswerFeedback = async (db: PoolClient) => {
+        const fresh = selectAnswerFeedback(
+          await rejectedFeedback(
+            db,
+            ctx,
+            state,
+            envelope.pageIds,
+            envelope.sourceIds,
+          ),
+        );
+        if (
+          digest(fresh) !== digest(answerFeedback) ||
+          digest(await humanDecisions(db, ctx, envelope.pageIds)) !==
+            digest(decisions)
+        )
+          throw Error("STALE_VERSION");
+      };
       const binding = await bindModelTransmission(
         this.pool,
         ctx,
@@ -1139,30 +1180,16 @@ export class RuntimeService {
           workspaceId: ctx.workspaceId,
           principalId: ctx.principalId,
           beforeTransmission: async () =>
-            transaction(this.pool, ctx.workspaceId, checkRecommendations),
+            transaction(this.pool, ctx.workspaceId, async (db) => {
+              await checkRecommendations(db);
+              await recheckAnswerFeedback(db);
+            }),
           privatePersonalSpace:
             Boolean(
               (state as State & { serverPersonalSpace?: boolean })
                 .serverPersonalSpace,
             ) && sources.every((s) => s.scope === "private"),
         },
-      );
-      const feedback = await transaction(this.pool, ctx.workspaceId, (db) =>
-        rejectedFeedback(db, ctx, state, envelope.pageIds, envelope.sourceIds),
-      );
-      // Feedback is usable only when every influencing source/page is already in the pinned answer envelope.
-      const answerFeedback = feedback.filter(
-        (f) =>
-          [
-            ...f.batch.snapshots.map((s) => s.id),
-            ...(f.batch.inputEnvelope?.sourceIds ?? []),
-          ].every((s) => envelope.sourceIds.includes(s)) &&
-          (f.batch.inputEnvelope?.pageIds ?? []).every((p) =>
-            envelope.pageIds.includes(p),
-          ),
-      );
-      const decisions = await transaction(this.pool, ctx.workspaceId, (db) =>
-        humanDecisions(db, ctx, envelope.pageIds),
       );
       const data = await this.model(
         "ingest",
@@ -1250,20 +1277,7 @@ export class RuntimeService {
           requestAuthorizationPending: Boolean(ctx.authorization),
           onCreated: async (db) => {
             await binding.recheck(db);
-            if (
-              digest(await humanDecisions(db, ctx, envelope.pageIds)) !==
-              digest(decisions)
-            )
-              throw Error("STALE_VERSION");
-            const freshFeedback = await rejectedFeedback(
-              db,
-              ctx,
-              state,
-              envelope.pageIds,
-              envelope.sourceIds,
-            );
-            if (digest(freshFeedback) !== digest(feedback))
-              throw Error("STALE_VERSION");
+            await recheckAnswerFeedback(db);
             await assertUnprotectedModelTargets(db, ctx.workspaceId, updates);
             if (ctx.authorization || ctx.credentialId)
               await assertFeature(
