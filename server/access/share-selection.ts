@@ -97,14 +97,14 @@ export async function previewShareSelection(
     if (d.includeDescendants) {
       const rows = (
         await db.query(
-          "WITH RECURSIVE tree(id,path) AS(SELECT $2::text,ARRAY[$2::text] UNION ALL SELECT s.page_id,t.path||s.page_id FROM workflow_document_state s JOIN tree t ON s.parent_id=t.id WHERE s.workspace_id=$1 AND s.state<>'trash' AND NOT(s.page_id=ANY(t.path)) AND cardinality(t.path)<51) SELECT id FROM tree WHERE id<>$2 ORDER BY id LIMIT 51",
+          "WITH RECURSIVE tree(id,path) AS(SELECT $2::text,ARRAY[$2::text] UNION ALL SELECT s.page_id,t.path||s.page_id FROM workflow_document_state s JOIN tree t ON s.parent_id=t.id WHERE s.workspace_id=$1 AND s.state<>'trash' AND NOT(s.page_id=ANY(t.path)) AND cardinality(t.path)<51) SELECT id FROM tree WHERE id<>$2 ORDER BY id",
           [ctx.workspaceId, d.rootPageId],
         )
       ).rows;
-      if (rows.length > 49) throw Error("SHARE_SELECTION_LIMIT");
       for (const r of rows) {
         try {
           items.push(await snapshot(a, db, ctx, r.id, d.principalId));
+          if (items.length > 50) throw Error("SHARE_SELECTION_LIMIT");
         } catch (e) {
           if (!(
             e instanceof Error && ["NOT_FOUND", "FORBIDDEN"].includes(e.message)

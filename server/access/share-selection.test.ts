@@ -235,3 +235,46 @@ test("native sharing preview and selection keep OIDC, CSRF and current source ce
     await f.pool.end();
   }
 });
+test("unshareable hidden descendants do not reveal a count threshold or block root sharing", async () => {
+  const f = await fixture();
+  try {
+    await adoptFixture(f.pool, f.workspaceId);
+    await f.pool.query(
+      "UPDATE access_grants SET role='admin' WHERE workspace_id=$1 AND principal_id='editor'",
+      [f.workspaceId],
+    );
+    for (let n = 0; n < 50; n++) {
+      const id = "hidden-" + n;
+      await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)", [
+        f.workspaceId,
+        id,
+      ]);
+      await f.pool.query(
+        "INSERT INTO pages(workspace_id,id,data) SELECT workspace_id,$2,data||jsonb_build_object('id',$2::text) FROM pages WHERE workspace_id=$1 AND id='topic'",
+        [f.workspaceId, id],
+      );
+      await f.pool.query(
+        "INSERT INTO versions SELECT workspace_id,$2,number,data FROM versions WHERE workspace_id=$1 AND page_id='topic'",
+        [f.workspaceId, id],
+      );
+      await f.pool.query(
+        "INSERT INTO resource_readers VALUES($1,'page',$2,'editor')",
+        [f.workspaceId, id],
+      );
+      await f.pool.query(
+        "INSERT INTO workflow_document_state(workspace_id,page_id,parent_id,state,revision,data) VALUES($1,$2,'topic','active',1,'{}')",
+        [f.workspaceId, id],
+      );
+    }
+    const a = new AccessService(f.pool);
+    const p = await a.previewShareSelection(f.editor, {
+      rootPageId: "topic",
+      includeDescendants: true,
+      principalId: "reader",
+    });
+    expect(p.items.map((i) => i.pageId)).toEqual(["topic"]);
+    expect(JSON.stringify(p)).not.toContain("hidden-");
+  } finally {
+    await f.pool.end();
+  }
+});

@@ -512,3 +512,8 @@
 - Initial missing preview methods failed as expected. First implementation tests used writer role, which correctly lacked share.manage; test explicitly grants admin and production authorization stays strict. NativeOIDC/CSRF and current source revocation then pass.
 - During roadmap integration, PR30 merge was rejected by strict required check after main advanced; updated branch, verified finalCI and merged24550c5. A later merge command used an abbreviated expectedSHA and was rejected422 without mutation; subsequent merges use40-character SHAs only.
 - Search/discovery documentation conflicts preserve both records and re-run checks; no reset/clean/discard used.
+
+### 2026-11-16 - Hidden descendant threshold review fix
+- Independent review found the raw descendant limit ran before actor/recipient checks, so hidden or unshareable children could block a root-only preview and reveal a threshold.
+- Added50 unshareable descendant regression; it failed SHARE_SELECTION_LIMIT before the fix. Removed raw row count threshold and enforce50 only after complete current-ACL/input checks. Native5tests now pass.
+- Recursion remains cycle-safe and bounded to50levels; large-space performance is not claimed. No hidden title/count is returned.
