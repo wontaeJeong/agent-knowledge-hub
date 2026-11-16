@@ -596,7 +596,18 @@ export class ContentRetentionService {
     return this.run(ctx, (db) => granular.previewPruning(db, ctx, input));
   }
   async planPruning(ctx: Context, input: unknown) {
-    return this.run(ctx, (db) => granular.planPruning(db, ctx, input));
+    try { return await this.run(ctx, (db) => granular.planPruning(db, ctx, input)); }
+    catch (error) {
+      if (error instanceof Error && error.message === "RETENTION_SELECTION_BLOCKED")
+        await this.run(ctx, async db => {
+          const d=z.object({selection:z.unknown(),previewHash:z.string().regex(/^[a-f0-9]{64}$/),policyRevision:z.number().int().nonnegative()}).strict().parse(input);
+          const selection=granular.selectionSchema.parse({selection:d.selection}).selection;
+          const current=await granular.previewPruning(db,ctx,{selection});
+          await db.query("INSERT INTO content_retention_receipts(workspace_id,id,preview_hash,policy_revision,status,actor,details) VALUES($1,$2,$3,$4,'blocked',$5,$6)",[ctx.workspaceId,randomUUID(),d.previewHash,d.policyRevision,ctx.principalId,{code:"RETENTION_SELECTION_BLOCKED",selection,reasons:current.records.map(r=>({selection:r.selection,reasons:r.reasons})),allCopiesErased:false}]);
+          await appendOperationalAudit(db,ctx,{operation:"retention.pruning.blocked"});
+        });
+      throw error;
+    }
   }
   async reviewPruning(ctx: Context, input: unknown) {
     return this.run(ctx, (db) => granular.reviewPruning(db, ctx, input));

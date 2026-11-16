@@ -33,7 +33,7 @@
 ## 검증과 현재 한계
 
 - Node 24에서 전체 `npm run check`: 소스/스크립트·가져오기·평가·251개 요구사항·서버 타입·빌드·정적 HTTP smoke. 기존 큰 번들 경고는 남았다.
-- 새 PostgreSQL 회귀 21개: 실제 삭제/현재 head 보존/다른 작성자 보존, 독립 승인/권한 철회/정책 변경, 공유·법적 보존·스냅샷·다운로드·불명 참조, 실제 합성 CAS 파일 제거/영수증, signed ledger 복원 및 현재 hold 충돌, DB 재생성 fence, 기존 최소 기간 보호.
+- 새 PostgreSQL 회귀 22개: 실제 삭제/현재 head 보존/다른 작성자 보존, 독립 승인/권한 철회/정책 변경, 공유·법적 보존·스냅샷·다운로드·불명 참조, 실제 합성 CAS 파일 제거/영수증, signed ledger 복원 및 현재 hold 충돌, DB 재생성 fence, 기존 최소 기간 보호.
 - 별도 실제 OIDC UserInfo·세션·CSRF HTTP 시험 1개가 인증/독립 검토/실행/typed DB 효과와 미인증·CSRF·철회를 확인한다. 전체 retention과 erasure/복구 격리/저장 그래프/첨부 lifecycle 회귀도 실행했다.
 - 실제 Chromium 1440×1100, 390×1000의 현재 개별 선택/미리보기 화면을 [증거](../pr-assets/granular-retention/README.md)에 남겼다. 모바일 가로 넘침은 없었다. 브라우저 fixture만 pool 24이며 운영 리소스/기본 pool은 변경하지 않았다. 기준 통합 브랜치의 알려진 전체 App 동시 인증 bootstrap 문제는 pool 6에서 재현됐고 pool 24 재시도에서도 간헐적으로 나타났다. PR 54의 독립 인증 수정과 조합한 최종 전체 App 인수는 별도다. 순차 native HTTP 시험은 기본 fixture pool 6에서 통과했다.
 

@@ -233,6 +233,40 @@ test.each(["head", "shared", "hold", "opaque", "snapshot"])(
     ).rejects.toThrow("RETENTION_SELECTION_BLOCKED");
   },
 );
+test("a legal-hold blocked selection request leaves an explicit scoped blocked receipt", async () => {
+  const selected = await attachment();
+  await f.pool.query(
+    "INSERT INTO operations_legal_holds(workspace_id,id,resource_kind,resource_id,placed_by) VALUES($1,'selected-hold','source','source-a','fixture-owner')",
+    [f.workspaceId],
+  );
+  const preview = await service.previewPruning(actor(), {
+    selection: [selected],
+  });
+  await expect(
+    service.planPruning(actor(), {
+      selection: [selected],
+      previewHash: preview.hash,
+      policyRevision: preview.policyRevision,
+    }),
+  ).rejects.toThrow("RETENTION_SELECTION_BLOCKED");
+  const receipt = (
+    await f.pool.query(
+      "SELECT status,details FROM content_retention_receipts WHERE workspace_id=$1",
+      [f.workspaceId],
+    )
+  ).rows[0];
+  expect(receipt).toMatchObject({
+    status: "blocked",
+    details: {
+      code: "RETENTION_SELECTION_BLOCKED",
+      selection: [
+        { kind: "attachment-version", slotId: "file-slot", revision: 1 },
+      ],
+      allCopiesErased: false,
+    },
+  });
+});
+
 test("postapproval policy, hold and graph changes invalidate deletion; reviewer revocation cannot reuse approval", async () => {
   const selected = await attachment(),
     p = await plan([selected]);
