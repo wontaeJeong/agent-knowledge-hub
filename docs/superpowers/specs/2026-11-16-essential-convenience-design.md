@@ -6,7 +6,7 @@
 
 사용자가 지식을 찾고, 읽고, 작성하고, 다시 방문하고, 필요한 검토를 처리하는 동선을 완성한다. Agent-native Ingest → Query → Lint → 재편입과 사람의 위키 사용 경험을 함께 유지한다. 편의기능은 기존 원본 접근 상한·발행 검토·계보·삭제 정책을 통과하는 동일한 서비스 경로를 사용한다.
 
-확인 기준은 main `52188289e16201c8a5c424cd6152d430dc223771`과 PR #30의 통합 변경이다. `src/App.tsx`의 로컬 데모와 `src/operational/`의 인증된 운영 앱을 구분했다. 251개 기존 요구사항의 수·우선순위·수용 기준을 변경하지 않는다. 아래 `UXC-01`~`UXC-10`은 이 설계의 작업 식별자이며 기존 요구사항 수에 더하지 않는다.
+확인 기준은 main `52188289e16201c8a5c424cd6152d430dc223771`과 PR #30의 통합 변경이다. 문서 갱신 시 PR #30은 main `24550c5a477d4855e85ea723c39034edc8a9e6ed`에 병합됐음을 확인했다. `src/App.tsx`의 로컬 데모와 `src/operational/`의 인증된 운영 앱을 구분했다. 251개 기존 요구사항의 수·우선순위·수용 기준을 변경하지 않는다. 아래 `UXC-01`~`UXC-10`은 이 설계의 작업 식별자이며 기존 요구사항 수에 더하지 않는다.
 
 참조: [North Star](../../LLM_WIKI_CORE.md), [현재 현황](../../CURRENT_STATUS.md), [요구사항 정비 기준](../../requirements/MAINTENANCE.md), [기준 요구사항](../../requirements/requirements.md), [PR 운영](../../PR_WORKFLOW.md).
 
@@ -160,6 +160,7 @@ GET/POST `/convenience/views`, PATCH/DELETE `/convenience/views/:id`로 본인�
 | #45 일괄 편집 | `server/workflows/bulk.ts`, `BulkEditor.tsx`, 최대 50건/10분 preview·항목별 CAS/부분 결과 | UXC-09의 속성 폼·정본 속성/발행 버전 연결·영속 재시작/중복 방지. 50건/10분 계약을 유지하고 별도 100건/5분 API를 만들지 않음 |
 | #46 검색 경로 통합 | 에이전트/쿠키 MCP와 ScopedSearch의 현재/과거·scope·cursor 검사 | UXC-03의 전역 사람용 검색·quick-open·필터 UI·IME/키보드. 공통 검색을 다시 구현하지 않음 |
 | #47 문서 탐색 | `document-navigation.tsx`의 DocumentBody/PersonalDocuments/RelatedDocuments/LinkCompletion과 workflow navigation/link search | UXC-02의 구독 목록·페이지화/정렬, UXC-07의 안정 참조/발행 인덱스·페이지화, UXC-08의 버전 고정 안정 문단/코드 복사. 기존 목차·본문 검색·백링크를 재개발하지 않음 |
+| #48 구독·알림 이벤트 | 기존 collaboration worker의 공간/유형 구독·발행/검토/실패 outbox·수신자 처리 | UXC-01의 전역 벨·미읽음/보관/일괄 읽음·수신 순번 경계와 UXC-02 구독 목록. 별도 이벤트/outbox/메일 엔진을 만들지 않음 |
 
 ## 인수 기준과 검증
 

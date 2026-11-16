@@ -50,7 +50,7 @@
 
 ## 기존·진행 중 코드 재사용
 
-[설계안의 PR 재사용 표](../specs/2026-11-16-essential-convenience-design.md#동시에-진행된-pr의-재사용-경계)를 먼저 확인한다. #45의 `bulkPreview/bulkApply`·`BulkEditor`, #46의 공통 ScopedSearch, #47의 `DocumentBody/PersonalDocuments/RelatedDocuments/LinkCompletion`을 기준으로 **남은 계약만 구현**한다. 각 Task의 새 파일은 필요한 확장 책임만 맡거나 기존 컴포넌트에 위임한다. 같은 역할의 화면·서버를 나란히 유지하지 않는다. 병합이 아직 안 됐으면 해당 PR을 선행으로 삼고 cherry-pick으로 다른 PR의 소유 변경을 중복 게시하지 않는다.
+[설계안의 PR 재사용 표](../specs/2026-11-16-essential-convenience-design.md#동시에-진행된-pr의-재사용-경계)를 먼저 확인한다. #45의 `bulkPreview/bulkApply`·`BulkEditor`, #46의 공통 ScopedSearch, #47의 `DocumentBody/PersonalDocuments/RelatedDocuments/LinkCompletion`, #48의 scoped subscription/outbox/recipient 처리 경로를 기준으로 **남은 계약만 구현**한다. 각 Task의 새 파일은 필요한 확장 책임만 맡거나 기존 컴포넌트에 위임한다. 같은 역할의 화면·서버를 나란히 유지하지 않는다. 병합이 아직 안 됐으면 해당 PR을 선행으로 삼고 cherry-pick으로 다른 PR의 소유 변경을 중복 게시하지 않는다.
 
 ## Task 1: 사용자 메뉴와 호환 경로
 
@@ -68,7 +68,7 @@
 
 **Files:** Create `server/migrations/117-user-inbox.sql`, `server/collaboration/inbox.ts`, `inbox.test.ts`, `src/operational/convenience/NotificationBell.tsx`, `NotificationInbox.tsx`, `inbox-client.ts`, `inbox.test.tsx`; Modify `server/collaboration/http.ts`, `service.ts`, `types.ts`, `server/workflows/service.ts`, `server/publication.ts`, `server/jobs/service.ts`, `server/workflows/governance/service.ts`, `src/operational/notifications.tsx`, `ConsoleShell.tsx`.
 
-**Interfaces:** Consumes current event/worker/preference and authorized target services. Produces `InboxService.list(ctx:Context,input:InboxQuery):Promise<InboxPage>`, `setState(ctx,id,input):Promise<InboxItem>`, `readAll(ctx,{boundary,mutationId}):Promise<{updated:number}>`, `recordInboxEvent(db:PoolClient,event:InboxEvent):Promise<void>`. DTOs, targets, limits and endpoint paths are fixed in UXC-01.
+**Interfaces:** Consumes current event/worker/preference and authorized target services, including PR #48 scoped subscriptions and durable outbox. Extend those existing events instead of creating a parallel event/worker engine. Produces `InboxService.list(ctx:Context,input:InboxQuery):Promise<InboxPage>`, `setState(ctx,id,input):Promise<InboxItem>`, `readAll(ctx,{boundary,mutationId}):Promise<{updated:number}>`, `recordInboxEvent(db:PoolClient,event:InboxEvent):Promise<void>`. DTOs, targets, limits and endpoint paths are fixed in UXC-01.
 
 - [ ] Add database failures for duplicate source events, pending creator transaction vs read-all boundary, delayed outbox delivery, mark-unread after read-all, archive/restore, target ACL/session revocation, job-without-page, legacy row backfill and actor/workspace separation. Add UI failures for 5-item preview, filtering, focus-preserving refresh and multiple-tab stale responses.
 - [ ] Run `node scripts/test-server.mjs server/collaboration/inbox.test.ts` with a disposable `TEST_DATABASE_URL`, and `npx vitest run src/operational/convenience/inbox.test.tsx`; verify the intended red state.
