@@ -282,7 +282,7 @@ export async function secureRestoredDatabase(
       }
     }
     if (ledger.version === 2) {
-      for (const workspaceId of new Set((ledger.erasedArtifacts ?? []).filter(a => ["draft","published-version","source-snapshot"].includes(a.artifact_kind)).map(a => a.workspace_id)))
+      for (const workspaceId of new Set((ledger.erasedArtifacts ?? []).filter(a => ["draft","published-version","source-snapshot","attachment-version","runtime-answer","runtime-job"].includes(a.artifact_kind)).map(a => a.workspace_id)))
         if ((await quarantine.query("SELECT 1 FROM workspaces WHERE id=$1",[workspaceId])).rowCount)
           await replayRetentionTombstones(quarantine, workspaceId);
     }

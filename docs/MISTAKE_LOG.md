@@ -700,3 +700,12 @@
 - 확인된 원인/영향: migration120은 requestAuthorizationPending 검토 배치에도 동일 review:id:hash 이벤트를 만들고, event projection은 checkedBatch의 NOT_FOUND를 처리 완료로 소비한다. 후속 releaseAuthorizedResult가 pending 플래그를 지워도 같은 키의 이벤트 삽입이 충돌해 실제 검토 알림이 영구 누락될 수 있다. 실제 사용자 데이터 영향은 확인하지 않았다.
 - 조치/후속 작업: 권한 확정 전 capture/projection을 지연하고 staged scan→승인 release→재scan에서 정확히1건, 승인 실패에서는0건인 회귀가 필요하다. 내부 링크 계보 수정과 별도이며 이번 변경에 이벤트 수정은 포함하지 않았다.
 - 상태: 미해결. 원격 PR 리뷰에 경로를 기록했으며 통합 main 발행 전 해결·독립 재검증이 필요하다.
+
+### 2026-11-17 — Task 11 검증 fixture와 영수증 화면 보완
+
+- 맥락: LIF-005/VER-012 개별 삭제·이력 정리 개발. 실제 사용자 자료/운영 DB 삭제는 수행하지 않았다.
+- 사실과 원인: 첫 새 시험에서 legacy `access` 모듈을 canonical `access/index`로 오인하고 API 메서드/버전 필드를 잘못 사용해 fixture가 실패했다. canonical API와 schema를 확인한 뒤 수정하고 실제 미구현 메서드/원장 유형의 RED를 확인했다. 동일 합성 CAS 해시를 여러 workspace에 재사용해 정상 shared-reference 보호가 시험끼리 충돌했으며 workspace별 합성 해시로 분리했다. 계획의 의도 행을 자기 참조로 읽어 승인 해시가 바뀌는 경로를 실제 시험으로 찾아, 정확한 SQL schema를 고정한 typed intent만 제품 근거와 구별했다.
+- 검증 환경: 초기 sandbox `npm test`는 기존 소켓 시험 10개가 EPERM으로 실패했다. 허용된 로컬 소켓 권한으로 재실행해 통과했다. 관리 worktree 도구 입력 필드 추정/첫 fetch 권한 오류와 자동 편집 assertion 실패는 상태 확인 후 올바른 스키마/권한/실제 파일 내용에 맞춰 수정했다. 오류를 제품 성공으로 표시하지 않았다.
+- 브라우저 사실: 기준 브랜치 App bootstrap에서 pool 6의 동시 인증 후 세션 폐기를 재현했고 fixture pool 24에서도 최종 reviewer 재진입이 간헐적으로 실패했다. pool 24는 캡처용 합성 fixture에만 적용했으며 운영 설정은 바꾸지 않았다. 별도 PR 54가 다루는 알려진 인증 문제로 전달했다. 해당 반복의 완료 assertion은 실패로 남기고 현재 선택/미리보기 캡처만 최종 증거로 사용한다.
+- UI 보완: 앞선 실제 합성 실행은 완료됐지만 상위 보존 영수증 수가 0에 머물렀다. 실행 후 상위 영수증 재조회를 연결하고 callback을 제거하면 실패/복원하면 통과하는 실제 React 상태 회귀를 확인했다. Playwright의 확인창 중단/지연 응답은 화면과 저장 파일을 다시 확인했으며 미확인 완료를 주장하지 않았다.
+- 상태/검증: 새 DB 회귀 21개, 실제 OIDC/CSRF HTTP 흐름, 전체 check 및 보존/법정 삭제/격리/저장/첨부 회귀를 통과했다. 실제 운영 인수와 PR 54를 포함한 최종 App 재검증은 별도다. 최소 보존 기간과 직접 replay gate의 누락은 RED로 재현 후 수정했다.

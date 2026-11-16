@@ -4,7 +4,7 @@ import { releasedImportTables, releasedImportProjection } from "../operations/re
 // The same storage/product graph classes as operations erasure, including immutable
 // histories and released private imports. Unknown/new classes are never deleted.
 const productTables = new Set([
-  "sources","pages","versions","batches","requests","publications","approvals",
+  "content_retention_plans","sources","pages","versions","batches","requests","publications","approvals",
   "workflow_access_requests","workflow_activity","workflow_comments","workflow_document_state","workflow_draft_recovery_grants","workflow_draft_revision_history","workflow_draft_save_mutations","workflow_drafts","workflow_events","workflow_notifications","workflow_preferences","workflow_source_state","workflow_subscriptions","workflow_templates",
   "runtime_answers","runtime_execution_grants","runtime_jobs","runtime_lints","runtime_request_traces",
   "agent_api_keys","agent_device_clients","agent_device_grants","agent_key_audit","agent_key_requests","agent_outcomes","agent_personal_pages","agent_personal_revisions","agent_requests","agent_review_signals",
@@ -68,6 +68,7 @@ export async function inventory(
   // configuration metadata, never product content or resource lineage. Freeze
   // the exact SQL-visible schema: a future content column must fail closed.
   const compatibleControls: Record<string, string[]> = {
+    content_retention_plans: ["workspace_id:text:NO","id:text:NO","requested_by:text:NO","selection:jsonb:NO","preview_hash:text:NO","policy_revision:integer:NO","state:text:NO","reviewed_by:text:YES","review_hash:text:YES","receipt:jsonb:YES","created_at:timestamp with time zone:NO","expires_at:timestamp with time zone:NO"],
     legacy_compat_memberships: ["workspace_id:text:NO","principal_id:text:NO","role:text:NO","subject:text:NO","revoked:boolean:NO","captured_at:timestamp with time zone:NO"],
     legacy_compat_installation: ["singleton:boolean:NO","installation_id:uuid:NO","import_key_fingerprint:text:YES"],
     legacy_compat_manifest_imports: ["manifest_hash:text:NO","backup_hash:text:NO","key_fingerprint:text:NO","captured_at:timestamp with time zone:NO","issued_at:timestamp with time zone:NO","imported_at:timestamp with time zone:NO"],

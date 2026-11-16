@@ -540,6 +540,7 @@ export class OperationsService {
           )
         ).rows;
         let removed = 0;
+        const removedHashes = new Set<string>();
         for (const { sha256 } of candidates) {
           if (await hashHasLiveReference(db, sha256)) continue;
           // Exclusive global gate also prevents a new deduplicated reference racing physical removal.
@@ -547,6 +548,7 @@ export class OperationsService {
           // Keep immutable metadata/FK history as the deletion receipt; content is inaccessible.
           // Backup manifests exclude explicitly deleted parent references, so erased bytes are not required.
           removed++;
+          removedHashes.add(sha256);
         }
         const finalized: { id: string; previewHash: string }[] = [];
         const pending = (
@@ -610,8 +612,41 @@ export class OperationsService {
           );
           finalized.push({ id, previewHash: receipt.preview_hash });
         }
+        const finalizedPruning: string[] = [];
+        const pruning = (
+          await db.query(
+            `SELECT r.id,r.preview_hash,r.details FROM content_retention_receipts r JOIN content_retention_plans p ON p.workspace_id=r.workspace_id AND p.receipt->>'id'=r.id WHERE r.workspace_id=$1 AND r.actor=$2 AND p.requested_by=$2 AND p.state='executed' AND r.status='blocked' AND r.details->>'errorCode'='PHYSICAL_BLOB_PURGE_REQUIRED'`,
+            [ctx.workspaceId, ctx.principalId],
+          )
+        ).rows;
+        for (const receipt of pruning) {
+          const hashes = (
+            await db.query(
+              "SELECT DISTINCT value AS hash FROM operations_erased_artifacts a CROSS JOIN LATERAL jsonb_array_elements_text(a.hashes) WHERE a.workspace_id=$1 AND a.approved_by=$2 AND a.preview_hash=$3",
+              [ctx.workspaceId, ctx.principalId, receipt.preview_hash],
+            )
+          ).rows;
+          if (!hashes.length || hashes.some((r) => !removedHashes.has(r.hash)))
+            continue;
+          const details = {
+            ...receipt.details,
+            status: "completed",
+            physicalPurgePending: 0,
+            errorCode: null,
+            allCopiesErased: false,
+          };
+          await db.query(
+            "UPDATE content_retention_receipts SET status='completed',details=$3 WHERE workspace_id=$1 AND id=$2",
+            [ctx.workspaceId, receipt.id, details],
+          );
+          await db.query(
+            "UPDATE content_retention_plans SET receipt=$3 WHERE workspace_id=$1 AND receipt->>'id'=$2 AND state='executed'",
+            [ctx.workspaceId, receipt.id, details],
+          );
+          finalizedPruning.push(receipt.id);
+        }
         await this.append(db, ctx, { operation: "content.blob-purge" });
-        return { removed, finalized, allCopiesErased: false };
+        return { removed, finalized, finalizedPruning, allCopiesErased: false };
       },
       true,
     );

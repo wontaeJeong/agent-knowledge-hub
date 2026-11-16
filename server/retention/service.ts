@@ -1,3 +1,4 @@
+import * as granular from "./granular";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -71,7 +72,11 @@ export class ContentRetentionService {
     readonly options: {
       clock?: () => number;
       /** Trusted host service guard: checks current directory/service admission and operational enablement. Never a browser identity. */
-      workerGuard?: (db: PoolClient, workspaceId: string, ctx?: Context) => Promise<boolean>;
+      workerGuard?: (
+        db: PoolClient,
+        workspaceId: string,
+        ctx?: Context,
+      ) => Promise<boolean>;
       serviceName?: string;
     } = {},
   ) {
@@ -79,12 +84,16 @@ export class ContentRetentionService {
   }
   private async run<T>(ctx: Context, work: (db: PoolClient) => Promise<T>) {
     await ctx.authorization?.revalidate();
-    const result = await retentionTransaction(this.pool, ctx.workspaceId, async (db) => {
-      await membership(db, ctx);
-      await ctx.authorization?.assertSession(db);
-      await this.authorize(db, ctx, "space.admin");
-      return work(db);
-    });
+    const result = await retentionTransaction(
+      this.pool,
+      ctx.workspaceId,
+      async (db) => {
+        await membership(db, ctx);
+        await ctx.authorization?.assertSession(db);
+        await this.authorize(db, ctx, "space.admin");
+        return work(db);
+      },
+    );
     await ctx.authorization?.revalidate();
     return result;
   }
@@ -137,7 +146,12 @@ export class ContentRetentionService {
         [workspaceId],
       )
     ).rows;
-    const shares = (await db.query("SELECT page_id,version FROM access_shares WHERE workspace_id=$1",[workspaceId])).rows;
+    const shares = (
+      await db.query(
+        "SELECT page_id,version FROM access_shares WHERE workspace_id=$1",
+        [workspaceId],
+      )
+    ).rows;
     const classHolds = (
       await db.query(
         "SELECT content_class FROM content_retention_holds WHERE workspace_id=$1 ORDER BY content_class",
@@ -173,47 +187,98 @@ export class ContentRetentionService {
       const days = current.policy[kind];
       const reasons: string[] = [];
       if (!current.policy.enabled) reasons.push("POLICY_DISABLED");
-      if (kind === "drafts" && current.policy.draftOwners && !current.policy.draftOwners.includes(String(row.data.owner_id))) reasons.push("OWNER_OUTSIDE_POLICY");
+      if (
+        kind === "drafts" &&
+        current.policy.draftOwners &&
+        !current.policy.draftOwners.includes(String(row.data.owner_id))
+      )
+        reasons.push("OWNER_OUTSIDE_POLICY");
       if (days === null) reasons.push("RETAIN_FOREVER");
       else if (!Number.isFinite(age)) reasons.push("AGE_UNAVAILABLE");
       else if (age < days * 86400000) reasons.push("NOT_DUE");
       const resource =
         kind === "sourceVersions"
-          ? { kind: "source" as const, id: row.table === "storage_snapshots" ? String(row.data.source_id) : id }
+          ? {
+              kind: "source" as const,
+              id:
+                row.table === "storage_snapshots"
+                  ? String(row.data.source_id)
+                  : id,
+            }
           : kind === "publishedVersions"
             ? { kind: "page" as const, id: String(row.data.page_id) }
             : undefined;
-      const dependencies = row.table === "storage_snapshots" ? rows.filter(r => {
-        if (r === row || (r.table === "sources" && r.data.id === row.data.source_id) || (r.table === "storage_snapshots" && r.data.source_id === row.data.source_id) || (r.table === "storage_blobs" && r.data.parent_kind === "source" && r.data.parent_id === row.data.source_id && (r.data.id === row.data.blob_id || r.data.sha256 !== row.data.content_hash))) return false;
-        return contains(r.data, String(row.data.source_id)) || contains(r.data, String(row.data.blob_id)) || contains(r.data, String(row.data.content_hash));
-      }) : kind === "publishedVersions" ? rows.filter((r) => {
-        if (r === row) return false;
-        if (r.table === "pages" && r.data.id === row.data.page_id) return false;
-        if (r.table === "versions" && r.data.page_id === row.data.page_id) return contains(r.data.data, String(row.data.page_id));
-        return contains(r.data, String(row.data.page_id));
-      }) : resource
-        ? selectErasureRows(rows, resource).filter((r) => r !== row)
-        : rows.filter((r) => {
-            if (r === row) return false;
-            if (kind === "drafts" && unknownPrivateReference(r)) return true;
-            if (kind === "drafts" && ["board_posts","board_comments","question_turns","question_feedback","agent_outcomes","agent_personal_pages","agent_personal_revisions","agent_requests","imports"].includes(r.table)) return true;
-            // These copies belong to this exact private draft and are retired in the
-            // same transaction, not independent retained consumers. Keep them in the
-            // graph for source/history protection and lawful erasure discovery.
-            if (
-              kind === "drafts" &&
-              r.data.owner_id === row.data.owner_id &&
-              (([
-                "workflow_draft_revision_history",
-                "workflow_draft_save_mutations",
-              ].includes(r.table) &&
-                r.data.draft_id === id) ||
-                (r.table === "workflow_draft_recovery_grants" &&
-                  (r.data.binding as { id?: string })?.id === id))
-            )
-              return false;
-            return contains(r.data, id);
-          });
+      const dependencies =
+        row.table === "storage_snapshots"
+          ? rows.filter((r) => {
+              if (
+                r === row ||
+                (r.table === "sources" && r.data.id === row.data.source_id) ||
+                (r.table === "storage_snapshots" &&
+                  r.data.source_id === row.data.source_id) ||
+                (r.table === "storage_blobs" &&
+                  r.data.parent_kind === "source" &&
+                  r.data.parent_id === row.data.source_id &&
+                  (r.data.id === row.data.blob_id ||
+                    r.data.sha256 !== row.data.content_hash))
+              )
+                return false;
+              return (
+                contains(r.data, String(row.data.source_id)) ||
+                contains(r.data, String(row.data.blob_id)) ||
+                contains(r.data, String(row.data.content_hash))
+              );
+            })
+          : kind === "publishedVersions"
+            ? rows.filter((r) => {
+                if (r === row) return false;
+                if (r.table === "pages" && r.data.id === row.data.page_id)
+                  return false;
+                if (
+                  r.table === "versions" &&
+                  r.data.page_id === row.data.page_id
+                )
+                  return contains(r.data.data, String(row.data.page_id));
+                return contains(r.data, String(row.data.page_id));
+              })
+            : resource
+              ? selectErasureRows(rows, resource).filter((r) => r !== row)
+              : rows.filter((r) => {
+                  if (r === row) return false;
+                  if (kind === "drafts" && unknownPrivateReference(r))
+                    return true;
+                  if (
+                    kind === "drafts" &&
+                    [
+                      "board_posts",
+                      "board_comments",
+                      "question_turns",
+                      "question_feedback",
+                      "agent_outcomes",
+                      "agent_personal_pages",
+                      "agent_personal_revisions",
+                      "agent_requests",
+                      "imports",
+                    ].includes(r.table)
+                  )
+                    return true;
+                  // These copies belong to this exact private draft and are retired in the
+                  // same transaction, not independent retained consumers. Keep them in the
+                  // graph for source/history protection and lawful erasure discovery.
+                  if (
+                    kind === "drafts" &&
+                    r.data.owner_id === row.data.owner_id &&
+                    (([
+                      "workflow_draft_revision_history",
+                      "workflow_draft_save_mutations",
+                    ].includes(r.table) &&
+                      r.data.draft_id === id) ||
+                      (r.table === "workflow_draft_recovery_grants" &&
+                        (r.data.binding as { id?: string })?.id === id))
+                  )
+                    return false;
+                  return contains(r.data, id);
+                });
       const legal =
         classHolds.some((h) => h.content_class === kind) ||
         holds.some((h) =>
@@ -228,27 +293,124 @@ export class ContentRetentionService {
       if (legal) reasons.push("LEGAL_HOLD");
       if (dependencies.length) reasons.push("RETAINED_REFERENCE");
       if (kind === "publishedVersions") {
-        const pageId = String(row.data.page_id), version = Number(row.data.number);
-        if (!/^[a-zA-Z0-9_-]{1,100}$/.test(pageId) || !Number.isSafeInteger(version)) reasons.push("UNKNOWN_IDENTITY");
-        if (rows.some(r => r.table === "versions" && r.data.page_id === pageId && Number(r.data.number) > version) === false) reasons.push("CURRENT_VERSION");
-        if (shares.some(s => s.page_id === pageId && s.version === version)) reasons.push("RETAINED_REFERENCE");
-        if (rows.some(r => unknownPrivateReference(r) || r.table === "board_posts" || r.table === "board_comments" || (["question_turns","question_feedback","agent_outcomes","agent_personal_pages","agent_personal_revisions","agent_requests"].includes(r.table) && !contains(r.data, pageId)))) reasons.push("UNKNOWN_REFERENCE");
+        const pageId = String(row.data.page_id),
+          version = Number(row.data.number);
+        if (
+          !/^[a-zA-Z0-9_-]{1,100}$/.test(pageId) ||
+          !Number.isSafeInteger(version)
+        )
+          reasons.push("UNKNOWN_IDENTITY");
+        if (
+          rows.some(
+            (r) =>
+              r.table === "versions" &&
+              r.data.page_id === pageId &&
+              Number(r.data.number) > version,
+          ) === false
+        )
+          reasons.push("CURRENT_VERSION");
+        if (shares.some((s) => s.page_id === pageId && s.version === version))
+          reasons.push("RETAINED_REFERENCE");
+        if (
+          rows.some(
+            (r) =>
+              unknownPrivateReference(r) ||
+              r.table === "board_posts" ||
+              r.table === "board_comments" ||
+              ([
+                "question_turns",
+                "question_feedback",
+                "agent_outcomes",
+                "agent_personal_pages",
+                "agent_personal_revisions",
+                "agent_requests",
+              ].includes(r.table) &&
+                !contains(r.data, pageId)),
+          )
+        )
+          reasons.push("UNKNOWN_REFERENCE");
       } else if (row.table === "storage_snapshots") {
-        const sourceId=String(row.data.source_id), blobId=String(row.data.blob_id), hash=String(row.data.content_hash);
-        if (!/^[a-zA-Z0-9_-]{1,100}$/.test(sourceId) || !/^[a-f0-9]{64}$/.test(hash)) reasons.push("UNKNOWN_IDENTITY");
-        const newer=rows.some(r => r.table === "storage_snapshots" && r.data.source_id === sourceId && (new Date(String(r.data.created_at)).getTime() > new Date(String(row.data.created_at)).getTime() || (r.data.created_at === row.data.created_at && String(r.data.id) > String(row.data.id))));
+        const sourceId = String(row.data.source_id),
+          blobId = String(row.data.blob_id),
+          hash = String(row.data.content_hash);
+        if (
+          !/^[a-zA-Z0-9_-]{1,100}$/.test(sourceId) ||
+          !/^[a-f0-9]{64}$/.test(hash)
+        )
+          reasons.push("UNKNOWN_IDENTITY");
+        const newer = rows.some(
+          (r) =>
+            r.table === "storage_snapshots" &&
+            r.data.source_id === sourceId &&
+            (new Date(String(r.data.created_at)).getTime() >
+              new Date(String(row.data.created_at)).getTime() ||
+              (r.data.created_at === row.data.created_at &&
+                String(r.data.id) > String(row.data.id))),
+        );
         if (!newer) reasons.push("CURRENT_VERSION");
-        const blob=(await db.query("SELECT parent_kind,parent_id,sha256 FROM storage_blobs WHERE workspace_id=$1 AND id=$2",[workspaceId,blobId])).rows[0];
-        if (!blob || blob.parent_kind !== "source" || blob.parent_id !== sourceId || blob.sha256 !== hash) reasons.push("UNKNOWN_REFERENCE");
-        const live=(await db.query(`SELECT 1 FROM storage_attachment_slots WHERE workspace_id=$1 AND head_id=$2 UNION ALL SELECT 1 FROM storage_attachment_versions WHERE workspace_id=$1 AND blob_id=$2 UNION ALL SELECT 1 FROM storage_attachment_links WHERE workspace_id=$1 AND blob_id=$2 UNION ALL SELECT 1 FROM storage_tickets WHERE workspace_id=$1 AND blob_id=$2 AND NOT revoked UNION ALL SELECT 1 FROM storage_snapshots WHERE workspace_id=$1 AND blob_id=$2 AND id<>$3 LIMIT 1`,[workspaceId,blobId,id])).rowCount;
-        if (live || storage.some((ref: {sha256:string;owner_id:string}) => ref.sha256===hash && ref.owner_id!==sourceId)) reasons.push("RETAINED_REFERENCE");
-        if (rows.some(r => unknownPrivateReference(r) || r.table === "board_posts" || r.table === "board_comments" || (["question_turns","question_feedback","agent_outcomes","agent_personal_pages","agent_personal_revisions","agent_requests"].includes(r.table) && !contains(r.data,sourceId)))) reasons.push("UNKNOWN_REFERENCE");
-      } else if (kind !== "drafts") reasons.push("IMMUTABLE_HISTORY_REQUIRES_REVIEWED_PRUNING");
+        const blob = (
+          await db.query(
+            "SELECT parent_kind,parent_id,sha256 FROM storage_blobs WHERE workspace_id=$1 AND id=$2",
+            [workspaceId, blobId],
+          )
+        ).rows[0];
+        if (
+          !blob ||
+          blob.parent_kind !== "source" ||
+          blob.parent_id !== sourceId ||
+          blob.sha256 !== hash
+        )
+          reasons.push("UNKNOWN_REFERENCE");
+        const live = (
+          await db.query(
+            `SELECT 1 FROM storage_attachment_slots WHERE workspace_id=$1 AND head_id=$2 UNION ALL SELECT 1 FROM storage_attachment_versions WHERE workspace_id=$1 AND blob_id=$2 UNION ALL SELECT 1 FROM storage_attachment_links WHERE workspace_id=$1 AND blob_id=$2 UNION ALL SELECT 1 FROM storage_tickets WHERE workspace_id=$1 AND blob_id=$2 AND NOT revoked UNION ALL SELECT 1 FROM storage_snapshots WHERE workspace_id=$1 AND blob_id=$2 AND id<>$3 LIMIT 1`,
+            [workspaceId, blobId, id],
+          )
+        ).rowCount;
+        if (
+          live ||
+          storage.some(
+            (ref: { sha256: string; owner_id: string }) =>
+              ref.sha256 === hash && ref.owner_id !== sourceId,
+          )
+        )
+          reasons.push("RETAINED_REFERENCE");
+        if (
+          rows.some(
+            (r) =>
+              unknownPrivateReference(r) ||
+              r.table === "board_posts" ||
+              r.table === "board_comments" ||
+              ([
+                "question_turns",
+                "question_feedback",
+                "agent_outcomes",
+                "agent_personal_pages",
+                "agent_personal_revisions",
+                "agent_requests",
+              ].includes(r.table) &&
+                !contains(r.data, sourceId)),
+          )
+        )
+          reasons.push("UNKNOWN_REFERENCE");
+      } else if (kind !== "drafts")
+        reasons.push("IMMUTABLE_HISTORY_REQUIRES_REVIEWED_PRUNING");
       records.push({
         kind,
         id,
-        ...(kind === "publishedVersions" ? { pageId: String(row.data.page_id), version: Number(row.data.number) } : {}),
-        ...(row.table === "storage_snapshots" ? {sourceId:String(row.data.source_id),blobId:String(row.data.blob_id),contentHash:String(row.data.content_hash)} : {}),
+        ...(kind === "publishedVersions"
+          ? {
+              pageId: String(row.data.page_id),
+              version: Number(row.data.number),
+            }
+          : {}),
+        ...(row.table === "storage_snapshots"
+          ? {
+              sourceId: String(row.data.source_id),
+              blobId: String(row.data.blob_id),
+              contentHash: String(row.data.content_hash),
+            }
+          : {}),
         ...(kind === "drafts"
           ? {
               ownerId: String(row.data.owner_id),
@@ -295,17 +457,42 @@ export class ContentRetentionService {
   async previewRetention(ctx: Context) {
     return this.run(ctx, (db) => this.preview(db, ctx.workspaceId));
   }
-  private async assertCandidateAccess(db: PoolClient, ctx: Context | undefined, preview: Awaited<ReturnType<ContentRetentionService["preview"]>>) {
-    const eligible = preview.records.filter(r=>r.eligible);
-    if (!ctx && eligible.length) throw Error("RETENTION_RESOURCE_IDENTITY_REQUIRED");
-    const rows = eligible.some(r=>r.kind === "drafts") ? await inventory(db, ctx!.workspaceId) : [];
+  private async assertCandidateAccess(
+    db: PoolClient,
+    ctx: Context | undefined,
+    preview: Awaited<ReturnType<ContentRetentionService["preview"]>>,
+  ) {
+    const eligible = preview.records.filter((r) => r.eligible);
+    if (!ctx && eligible.length)
+      throw Error("RETENTION_RESOURCE_IDENTITY_REQUIRED");
+    const rows = eligible.some((r) => r.kind === "drafts")
+      ? await inventory(db, ctx!.workspaceId)
+      : [];
     for (const r of eligible) {
       if (r.kind === "drafts") {
         if (!ctx) throw Error("RETENTION_RESOURCE_IDENTITY_REQUIRED");
-        const copies = rows.filter(x => x.data.owner_id === r.ownerId && ((x.table === "workflow_drafts" && x.data.id === r.id) || (["workflow_draft_revision_history", "workflow_draft_save_mutations"].includes(x.table) && x.data.draft_id === r.id) || (x.table === "workflow_draft_recovery_grants" && (x.data.binding as {id?:string})?.id === r.id)));
-        const pending: string[] = [], sources = new Set<string>();
+        const copies = rows.filter(
+          (x) =>
+            x.data.owner_id === r.ownerId &&
+            ((x.table === "workflow_drafts" && x.data.id === r.id) ||
+              ([
+                "workflow_draft_revision_history",
+                "workflow_draft_save_mutations",
+              ].includes(x.table) &&
+                x.data.draft_id === r.id) ||
+              (x.table === "workflow_draft_recovery_grants" &&
+                (x.data.binding as { id?: string })?.id === r.id)),
+        );
+        const pending: string[] = [],
+          sources = new Set<string>();
         for (const copy of copies) {
-          const data = (copy.data.data ?? copy.data.result ?? copy.data.binding) as {pageId?:string;sourceIds?:string[];dependencyVersions?:Record<string,number>};
+          const data = (copy.data.data ??
+            copy.data.result ??
+            copy.data.binding) as {
+            pageId?: string;
+            sourceIds?: string[];
+            dependencyVersions?: Record<string, number>;
+          };
           if (data?.pageId) pending.push(data.pageId);
           for (const id of data?.sourceIds ?? []) sources.add(id);
           pending.push(...Object.keys(data?.dependencyVersions ?? {}));
@@ -315,25 +502,58 @@ export class ContentRetentionService {
           const id = pending.pop()!;
           if (seen.has(id)) continue;
           seen.add(id);
-          await authorizeActionDb(db,ctx,"knowledge.read",{kind:"page",id});
-          const versions=rows.filter(x=>x.table==="versions" && x.data.page_id===id);
+          await authorizeActionDb(db, ctx, "knowledge.read", {
+            kind: "page",
+            id,
+          });
+          const versions = rows.filter(
+            (x) => x.table === "versions" && x.data.page_id === id,
+          );
           if (!versions.length) throw Error("NOT_FOUND");
           for (const version of versions) {
-            await authorizeActionDb(db,ctx,"knowledge.read",{kind:"page",id,version:Number(version.data.number)});
-            const data=version.data.data as {sourceIds?:string[];pageIds?:string[];provenance?:{sourceIds?:string[];pageIds?:string[]};dependencyVersions?:Record<string,number>};
-            for (const source of [...(data.sourceIds ?? []),...(data.provenance?.sourceIds ?? [])]) sources.add(source);
-            pending.push(...(data.pageIds ?? []),...(data.provenance?.pageIds ?? []),...Object.keys(data.dependencyVersions ?? {}));
+            await authorizeActionDb(db, ctx, "knowledge.read", {
+              kind: "page",
+              id,
+              version: Number(version.data.number),
+            });
+            const data = version.data.data as {
+              sourceIds?: string[];
+              pageIds?: string[];
+              provenance?: { sourceIds?: string[]; pageIds?: string[] };
+              dependencyVersions?: Record<string, number>;
+            };
+            for (const source of [
+              ...(data.sourceIds ?? []),
+              ...(data.provenance?.sourceIds ?? []),
+            ])
+              sources.add(source);
+            pending.push(
+              ...(data.pageIds ?? []),
+              ...(data.provenance?.pageIds ?? []),
+              ...Object.keys(data.dependencyVersions ?? {}),
+            );
           }
         }
-        for (const id of sources) await authorizeActionDb(db,ctx,"knowledge.read",{kind:"source",id});
+        for (const id of sources)
+          await authorizeActionDb(db, ctx, "knowledge.read", {
+            kind: "source",
+            id,
+          });
       }
       if (r.kind === "publishedVersions" && r.pageId && r.version) {
         if (!ctx) throw Error("RETENTION_RESOURCE_IDENTITY_REQUIRED");
-        await authorizeActionDb(db,ctx,"knowledge.read",{kind:"page",id:r.pageId,version:r.version});
+        await authorizeActionDb(db, ctx, "knowledge.read", {
+          kind: "page",
+          id: r.pageId,
+          version: r.version,
+        });
       }
       if (r.kind === "sourceVersions" && r.sourceId) {
         if (!ctx) throw Error("RETENTION_RESOURCE_IDENTITY_REQUIRED");
-        await authorizeActionDb(db,ctx,"knowledge.read",{kind:"source",id:r.sourceId});
+        await authorizeActionDb(db, ctx, "knowledge.read", {
+          kind: "source",
+          id: r.sourceId,
+        });
       }
     }
   }
@@ -343,20 +563,57 @@ export class ContentRetentionService {
     actor: string,
     preview: Awaited<ReturnType<ContentRetentionService["preview"]>>,
   ) {
-    let deleted = 0, physicalPurgePending = 0;
+    let deleted = 0,
+      physicalPurgePending = 0;
     for (const r of preview.records.filter((r) => r.eligible)) {
-      if (r.kind === "sourceVersions" && r.sourceId && r.blobId && r.contentHash) {
-        await db.query("INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,'source-snapshot',$2,$3,$4,$5) ON CONFLICT DO NOTHING",[workspaceId,`${r.sourceId}/${r.contentHash}`,JSON.stringify([r.contentHash]),preview.hash,actor]);
-        const removed=await db.query("DELETE FROM storage_snapshots WHERE workspace_id=$1 AND id=$2 AND blob_id=$3 RETURNING id",[workspaceId,r.id,r.blobId]);
+      if (
+        r.kind === "sourceVersions" &&
+        r.sourceId &&
+        r.blobId &&
+        r.contentHash
+      ) {
+        await db.query(
+          "INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,'source-snapshot',$2,$3,$4,$5) ON CONFLICT DO NOTHING",
+          [
+            workspaceId,
+            `${r.sourceId}/${r.contentHash}`,
+            JSON.stringify([r.contentHash]),
+            preview.hash,
+            actor,
+          ],
+        );
+        const removed = await db.query(
+          "DELETE FROM storage_snapshots WHERE workspace_id=$1 AND id=$2 AND blob_id=$3 RETURNING id",
+          [workspaceId, r.id, r.blobId],
+        );
         if (!removed.rowCount) throw Error("RETENTION_PREVIEW_STALE");
-        await db.query("DELETE FROM storage_tickets WHERE workspace_id=$1 AND blob_id=$2 AND revoked",[workspaceId,r.blobId]);
-        if (!(await db.query("DELETE FROM storage_blobs WHERE workspace_id=$1 AND id=$2 RETURNING id",[workspaceId,r.blobId])).rowCount) throw Error("RETENTION_PREVIEW_STALE");
-        deleted++; physicalPurgePending++; continue;
+        await db.query(
+          "DELETE FROM storage_tickets WHERE workspace_id=$1 AND blob_id=$2 AND revoked",
+          [workspaceId, r.blobId],
+        );
+        if (
+          !(
+            await db.query(
+              "DELETE FROM storage_blobs WHERE workspace_id=$1 AND id=$2 RETURNING id",
+              [workspaceId, r.blobId],
+            )
+          ).rowCount
+        )
+          throw Error("RETENTION_PREVIEW_STALE");
+        deleted++;
+        physicalPurgePending++;
+        continue;
       }
       if (r.kind === "publishedVersions") {
         const artifactId = `${r.pageId}/${r.version}`;
-        await db.query("INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,'published-version',$2,'[]',$3,$4) ON CONFLICT DO NOTHING", [workspaceId,artifactId,preview.hash,actor]);
-        const removed = await db.query("DELETE FROM versions WHERE workspace_id=$1 AND page_id=$2 AND number=$3 RETURNING number",[workspaceId,r.pageId,r.version]);
+        await db.query(
+          "INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,'published-version',$2,'[]',$3,$4) ON CONFLICT DO NOTHING",
+          [workspaceId, artifactId, preview.hash, actor],
+        );
+        const removed = await db.query(
+          "DELETE FROM versions WHERE workspace_id=$1 AND page_id=$2 AND number=$3 RETURNING number",
+          [workspaceId, r.pageId, r.version],
+        );
         if (!removed.rowCount) throw Error("RETENTION_PREVIEW_STALE");
         deleted++;
         continue;
@@ -386,7 +643,10 @@ export class ContentRetentionService {
     }
     const receipt = {
       id: randomUUID(),
-      status: deleted && !physicalPurgePending ? ("completed" as const) : ("blocked" as const),
+      status:
+        deleted && !physicalPurgePending
+          ? ("completed" as const)
+          : ("blocked" as const),
       deleted,
       physicalPurgePending,
       allCopiesErased: false,
@@ -430,7 +690,7 @@ export class ContentRetentionService {
           throw Error("STALE_VERSION");
         if (preview.hash !== d.previewHash)
           throw Error("RETENTION_PREVIEW_STALE");
-        await this.assertCandidateAccess(db,ctx,preview);
+        await this.assertCandidateAccess(db, ctx, preview);
         return this.execute(db, ctx.workspaceId, ctx.principalId, preview);
       });
     } catch (e) {
@@ -522,16 +782,30 @@ export class ContentRetentionService {
   }
   /** Only a host-configured service guard may call this on the worker's already
    * fenced transaction. No network, second client or nested transaction. */
-  async executeDurable(db: PoolClient, ctx: Context, expectedPolicyRevision: number) {
-    if (!ctx.credentialId || !this.options.workerGuard || !(await this.options.workerGuard(db,ctx.workspaceId,ctx)))
+  async executeDurable(
+    db: PoolClient,
+    ctx: Context,
+    expectedPolicyRevision: number,
+  ) {
+    if (
+      !ctx.credentialId ||
+      !this.options.workerGuard ||
+      !(await this.options.workerGuard(db, ctx.workspaceId, ctx))
+    )
       throw Error("RETENTION_WORKER_NOT_AUTHORIZED");
-    const current=await this.current(db,ctx.workspaceId);
-    if (!current.policy.enabled || current.revision!==expectedPolicyRevision) throw Error("RETENTION_POLICY_CHANGED");
-    const gate=(await db.query("SELECT 1 FROM pg_locks WHERE locktype='advisory' AND pid=pg_backend_pid() AND granted AND classid=0 AND objid=$1 AND mode='ExclusiveLock'",[MUTATION_GATE])).rowCount;
+    const current = await this.current(db, ctx.workspaceId);
+    if (!current.policy.enabled || current.revision !== expectedPolicyRevision)
+      throw Error("RETENTION_POLICY_CHANGED");
+    const gate = (
+      await db.query(
+        "SELECT 1 FROM pg_locks WHERE locktype='advisory' AND pid=pg_backend_pid() AND granted AND classid=0 AND objid=$1 AND mode='ExclusiveLock'",
+        [MUTATION_GATE],
+      )
+    ).rowCount;
     if (!gate) throw Error("RETENTION_EXCLUSIVE_GATE_REQUIRED");
-    const preview=await this.preview(db,ctx.workspaceId);
-    await this.assertCandidateAccess(db,ctx,preview);
-    return this.execute(db,ctx.workspaceId,ctx.principalId,preview);
+    const preview = await this.preview(db, ctx.workspaceId);
+    await this.assertCandidateAccess(db, ctx, preview);
+    return this.execute(db, ctx.workspaceId, ctx.principalId, preview);
   }
   /** Host's existing periodic coordinator calls this; no daemon, OS service or fake privileged user. */
   async retentionTick(workspaceId: string) {
@@ -552,7 +826,7 @@ export class ContentRetentionService {
         policyRevision = current.revision;
         const preview = await this.preview(db, workspaceId);
         previewHash = preview.hash;
-        await this.assertCandidateAccess(db,undefined,preview);
+        await this.assertCandidateAccess(db, undefined, preview);
         return this.execute(db, workspaceId, this.options.serviceName, preview);
       });
     } catch (e) {
@@ -590,6 +864,62 @@ export class ContentRetentionService {
         )
       ).rows,
     }));
+  }
+  async previewPruning(ctx: Context, input: unknown) {
+    return this.run(ctx, (db) => granular.previewPruning(db, ctx, input));
+  }
+  async planPruning(ctx: Context, input: unknown) {
+    return this.run(ctx, (db) => granular.planPruning(db, ctx, input));
+  }
+  async reviewPruning(ctx: Context, input: unknown) {
+    return this.run(ctx, (db) => granular.reviewPruning(db, ctx, input));
+  }
+  async executePruning(ctx: Context, input: unknown) {
+    let admitted = false;
+    try {
+      return await this.run(ctx, async (db) => {
+        admitted = true;
+        return granular.executePruning(db, ctx, input);
+      });
+    } catch (error) {
+      if (admitted)
+        await this.run(ctx, async (db) => {
+          const d = z
+            .object({
+              planId: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+              previewHash: z.string().regex(/^[a-f0-9]{64}$/),
+            })
+            .strict()
+            .safeParse(input);
+          if (!d.success) return;
+          const plan = (
+            await db.query(
+              "SELECT policy_revision FROM content_retention_plans WHERE workspace_id=$1 AND id=$2 AND requested_by=$3",
+              [ctx.workspaceId, d.data.planId, ctx.principalId],
+            )
+          ).rows[0];
+          if (!plan) return;
+          const code =
+            error instanceof Error && /^[A-Z_]+$/.test(error.message)
+              ? error.message
+              : "RETENTION_EXECUTION_FAILED";
+          await db.query(
+            "INSERT INTO content_retention_receipts(workspace_id,id,preview_hash,policy_revision,status,actor,details) VALUES($1,$2,$3,$4,'failed',$5,$6)",
+            [
+              ctx.workspaceId,
+              randomUUID(),
+              d.data.previewHash,
+              plan.policy_revision,
+              ctx.principalId,
+              { planId: d.data.planId, code, allCopiesErased: false },
+            ],
+          );
+        });
+      throw error;
+    }
+  }
+  async listPruning(ctx: Context) {
+    return this.run(ctx, (db) => granular.listPruning(db, ctx));
   }
   async replayRetirements(db: PoolClient, workspaceId: string) {
     return replayRetentionTombstones(db, workspaceId);

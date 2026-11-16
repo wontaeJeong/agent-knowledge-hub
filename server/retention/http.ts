@@ -7,6 +7,10 @@ export const retentionErrorStatuses: Record<string, number> = {
   RECOVERY_POLICY_CHANGED: 409,
   RECOVERY_GRANT_BOUND: 429,
   RETENTION_PREVIEW_STALE: 409,
+  RETENTION_REVIEW_REQUIRED: 409,
+  INDEPENDENT_REVIEW_REQUIRED: 403,
+  RETENTION_SELECTION_BLOCKED: 409,
+  RETENTION_PLAN_EXPIRED: 409,
   RETENTION_GRAPH_BOUND: 503,
   RETENTION_GRAPH_UNSUPPORTED: 503,
   RETENTION_WORKER_NOT_AUTHORIZED: 403,
@@ -49,6 +53,16 @@ export async function handleRetentionRoute(
       result = await services.retention.previewRetention(ctx);
     } else if (method === "POST" && path === "/api/v1/retention/execute")
       result = await services.retention.executeRetention(ctx, body);
+    else if (method === "GET" && path === "/api/v1/retention/pruning")
+      result = await services.retention.listPruning(ctx);
+    else if (method === "POST" && path === "/api/v1/retention/pruning/preview")
+      result = await services.retention.previewPruning(ctx, body);
+    else if (method === "POST" && path === "/api/v1/retention/pruning/plans")
+      result = await services.retention.planPruning(ctx, body);
+    else if (method === "POST" && path === "/api/v1/retention/pruning/review")
+      result = await services.retention.reviewPruning(ctx, body);
+    else if (method === "POST" && path === "/api/v1/retention/pruning/execute")
+      result = await services.retention.executePruning(ctx, body);
     else if (method === "GET" && path === "/api/v1/retention/receipts")
       result = await services.retention.receipts(ctx);
     else return false;

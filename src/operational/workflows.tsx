@@ -1,3 +1,4 @@
+import { GranularRetentionPanel } from "./granular-retention";
 import { BulkEditor } from "./BulkEditor";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
@@ -1725,7 +1726,7 @@ export function WorkflowPanel({
       )}
       <NotificationPreferences api={api} perform={action} />
       {can("space.admin") && (
-        <RetentionPanel key={`${principalId}:${spaceId}`} api={api} />
+        <RetentionPanel key={`${principalId}:${spaceId}`} api={api} principalId={principalId} />
       )}
     </section>
   );
@@ -1792,7 +1793,7 @@ function RetentionReferences({
     </details>
   );
 }
-export function RetentionPanel({ api }: { api: OperationalApi }) {
+export function RetentionPanel({ api, principalId }: { api: OperationalApi; principalId?: string }) {
   const [settings, setSettings] = useState<{
     revision: number;
     policy: RetentionPolicy;
@@ -2055,6 +2056,7 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
           </Button>
         </section>
       )}
+      <GranularRetentionPanel api={api} principalId={principalId} onExecuted={async () => { const history=await api.get<{items: typeof receipts}>("/retention/receipts");setReceipts(history.items);setReceiptPage(0);}} />
       <details>
         <summary>실제 보존 실행 영수증 {receipts.length}건</summary>
         {pageItems(receipts, receiptPage).map((r) => (

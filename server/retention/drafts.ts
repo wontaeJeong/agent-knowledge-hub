@@ -1,3 +1,4 @@
+import { replayGranularPruning } from "./granular";
 import type { PoolClient } from "pg";
 import type { Context } from "../service";
 import { fingerprint } from "../provenance";
@@ -29,6 +30,7 @@ export async function replayRetentionTombstones(
 ) {
   const gate=(await db.query("SELECT 1 FROM pg_locks WHERE locktype='advisory' AND pid=pg_backend_pid() AND granted AND classid=0 AND objid=822025 AND mode='ExclusiveLock'")).rowCount;
   if (!gate) throw Error("RETENTION_EXCLUSIVE_GATE_REQUIRED");
+  await replayGranularPruning(db, workspaceId);
   const retired = (await db.query(`SELECT v.page_id,v.number FROM versions v JOIN operations_erased_artifacts a ON a.workspace_id=v.workspace_id AND a.artifact_kind='published-version' AND a.artifact_id=v.page_id||'/'||v.number::text WHERE v.workspace_id=$1`,[workspaceId])).rows;
   if (retired.length) {
     const all = await inventory(db, workspaceId);

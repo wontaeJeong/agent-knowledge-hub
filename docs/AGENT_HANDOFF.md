@@ -1,5 +1,12 @@
 # 에이전트 인계
 
+## 2026-11-17 Task 11 개별 삭제·이력 정리
+
+- 요구사항: LIF-005, VER-012. 새 선택 유형은 `attachment-version`/`runtime-answer`/`runtime-job`이며 기존 source/page/workspace 법정 삭제와 초안/발행본/원본 보존은 유지한다. Owner의 preview-bound 요청과 작성자/요청자 외 Admin의 독립 검토, 실행 전 현재 ACL/과거 원본/정책/참조 재검사, 원자적 tombstone·영수증·실패 기록을 연결했다.
+- 변경 파일: `server/retention/{granular,service,http,inventory,drafts}.ts`, `server/operations/{service,recovery}.ts`, migration `131-granular-retention.sql`, `src/operational/{granular-retention,workflows}.tsx`와 인접 회귀. 새 테이블은 typed inventory의 정확한 SQL schema 계약으로 분류하며 미분류/추가 본문은 차단한다. 새 원장 유형은 기존 signed recovery replay 및 DB INSERT/UPDATE fence에 연결한다.
+- 검증: Node 24 전체 `npm run check`(251개 요구사항, 타입/빌드/smoke 포함), 실제 PostgreSQL 새 granular 21개·OIDC/CSRF HTTP 1개·보존/법정 삭제/복구/공통 CAS/첨부 lifecycle 회귀. 임시 무공유 DB와 합성 CAS 파일만 사용했다. 실제 Chromium 1440/390에서 선택/미리보기와 가로 넘침 없음 확인. 본문/비밀/실자료를 화면 근거에 넣지 않았다.
+- 한계: [구현/운영 경계](implementation/2026-11-17-granular-retention.md), [화면 환경](pr-assets/granular-retention/README.md). 수동 선택과 기존 설정의 최소 기간을 지키며 새 자동 삭제 기본값/daemon/서비스/운영 리소스 증설은 없다. 현재 Lint·질문 스레드·append-only 정련·가져오기/내보내기·색인 등은 임의 새 삭제 유형으로 승격하지 않는다. 기존 법정 삭제/보존 그래프에 남으며 unknown refs는 차단한다. CAS 물리 정리 전 `blocked`, 외부 사본까지 `allCopiesErased=true`를 주장하지 않는다. 큰 공간과 100건 초과 granular recovery 분할은 후속 조건이다. 최종 App 전체 동시 인증은 PR 54와 조합 인수가 필요하다.
+
 ## 2026-11-16 문서 표시·이미지 첨부 — 로드맵 Task 3
 
 - 독립 리뷰의 Important 2건을 회귀로 재현해 수정했다. Sharp가 APNG의 pages를 생략하므로 실제 PNG 청크 경계를 검사해 acTL/fcTL/fdAT·손상/종료 뒤 데이터를 거부한다. 유효한 2프레임 합성 APNG는 실제 런타임에서415로 거부되고 blob 메타데이터가 생기지 않는다. 수식/다이어그램 세대와 별개인 이미지 요청 토큰은 새 선택·닫기·컨텍스트/언마운트에서 갱신하며 늦은 성공이 최신 권한 거부를 덮지 못한다. 대기 중 닫기도 지원한다. 이미지 object URL은 생성하지 않는다. 새 codec/React deferred/native HTTP 회귀 및 최종 전체 검사 결과는 화면 증거 README를 따른다.
