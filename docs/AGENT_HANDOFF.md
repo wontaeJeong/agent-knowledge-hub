@@ -28,6 +28,29 @@
 - PR #45 독립 검토에서 apply 직후 `onChanged` → App.load의 `dataReady=false` → WorkflowPanel unmount로 결과/복구 토큰이 사라지는 경계를 확인했다. 적용 응답 뒤 자동 부모 갱신을 제거하고, 결과·실패 대상 선택·같은 토큰 재확인을 보존한 뒤 사용자가 명시적으로 목록을 새로고침하게 했다. 명시적 갱신은 결과 화면을 닫는다.
 - TDD: 실제 호스트와 같은 unmount 경계 회귀가 수정 전 `NOT_PROCESSED` 대신 호스트 로딩 문구를 받아 실패했다. 수정 후 BulkEditor 3시험과 전체 `npm run check` 통과. scope/API 전환과 401/403의 보호 상태 비우기를 유지했다. 독립 재검토에서 중요 차단 결함을 발견하지 않았다.
 - [1440/390 화면 및 재현](pr-assets/bulk/README.md): 실제 컴포넌트/CSS와 합성 API, 부분 결과·재확인·명시적 갱신 및 pageerror 0 확인. 서버 기능은 바꾸지 않았고 전체 DB/최종 CI는 PR의 마지막 커밋 검사를 따른다.
+## 2026-11-17 C1 최종 전체 검토 호환 수정 (#49 / PR #63)
+
+- 수정 기준 `3f3e63f`. 실제 `AccessPanel`이 생성하는 `/?app=1&space=...#share-...`를 독립 share 위치로 보존했다. 인증 전 로그인 복귀와 인증 후 기존 `/shares/:id`의 현재 수신자·문서·원본 계보 재인가 조회 및 고정 본문 표시를 연결했다. document 없는 comment와 모순 조합은 거절한다.
+- `knowledge.read` 멤버의 개인 API 키·장치 연결 메뉴를 별도 ‘내 도구’ 그룹에 복구했다. 검토 평가는 `changeset.approve`와 현재 검토 자격으로 판단한다. 기존 화면의 관리자 전용 부분과 서버 인가는 바꾸지 않았다. preview의 메뉴·history 취소·상태 정리 주소는 `preview=1`을 유지해 재열기에도 합성 모드다.
+- RED7실패/79통과 → GREEN86통과, 보강 포함5파일95통과. 최종 Node24 check: frontend255/Node48/import16/evaluation41, 요구사항251·서버 타입/build/smoke 통과. 메뉴 캡처를 갱신하고 Reader/Writer/Maintain 실제 렌더3장을 추가해 총15장·pageerror0. [최종 로그/화면](pr-assets/convenience-navigation/README.md). 실제 운영 SSO/DB 인수 및 별도 main 통합 한계는 유지한다.
+
+
+## 2026-11-17 C1 1차 검토 수정 (#49)
+
+- `b7d7cd3`의 history 복귀가 URL 공간만 바꾸고 API 공간은 유지하는 문제를 재현했다. 공통 미저장 경고를 통과한 뒤 outer workspace key를 먼저 전환·재마운트하고, 새 API에서만 복원된 정확한 대상을 해석한다. 실제 Back/Forward와 충돌 작업 ID, 취소한 Back, 이전 공간의 지연 응답 회귀를 추가했다.
+- 기존 boards/refinement 진입을 `knowledge.read` 메뉴에 복구했다. 각 화면의 변경·승인·Lint 컨트롤은 기존 capability 검사를 유지한다. `section=tasks` 없이 쓰인 targetKind/targetId는 한쪽·양쪽·빈 값 모두 오류이며 로그인 복귀에서 조용히 버리지 않는다.
+- RED10실패/64통과 → GREEN74통과. 최종 Node24 `npm run check` 1회 통과: frontend240/Node48/import16/evaluation41, 요구사항251, 서버 타입/build/smoke. 기존 8장 재확인 및 복구 메뉴 4장 추가, 총12장·pageerror0. [현재 증거](pr-assets/convenience-navigation/README.md). 별도 main 통합과 실제 운영 인수 한계는 그대로 남는다.
+
+
+## 2026-11-17 C1 사용자 메뉴와 호환 경로 (#49)
+
+- 범위: capability 기반 기본/개인/도구/관리 메뉴와 모바일 상단 검색·새 문서·기존 알림 진입, 검증된 `section/draft/view/version/anchor/targetKind/targetId` 계약과 동일 앱 로그인 복귀를 연결했다. 문서·댓글·공유·기존 탭 URL과 계정/세션 화면을 유지한다. UX-001/003/004/006, SHR-001~003, REV-001/002, ACL-008, IAM-004/005/009의 관련 이동 경계를 보강하며 기존 251개 수용 기준/상태를 바꾸지 않는다.
+- 정확한 검토/작업/접근 요청은 ID를 초기 선택 props로 전달하고 현재 인가된 응답으로 다시 확인한다. `/changesets`와 governance access-inbox는 canonical 서비스에서 LIMIT 없는 전체 인가 목록임을 확인했으며 30번째 대상을 회귀 검증했다. 작업은 기존 `/jobs-v2/:id`와 telemetry를 사용한다. 삭제/거부/철회는 일반 오류이며 다른 작업으로 대체하지 않는다. 현재 서버에서 철회 검토는 rejected로 저장되므로 rejected review deep link도 일반 오류로 처리한다.
+- 변경 파일: `src/operational/convenience/{types,route,Navigation,ReviewSelection}`와 시험, `App`, `ConsoleShell`, `console`, `api`, `jobs`, `governance`, `workflows`. 계정/공간/세션 변경 시 대상과 보호 상태를 비우고, 문서 편집의 기존 미저장 조건을 메뉴·브라우저 종료 경고에도 연결했다. 안전한 기존 공간 전환 탭은 유지한다.
+- 검증: Node24.22.2 `npm run check` 통과 — frontend 47파일/230시험, Node48, import16, evaluation41, 요구사항251, 서버 타입검사, build, static HTTP smoke. RED→GREEN 기록과 실제 1440/390 light/dark 8장·키보드·capability 조합 확인은 [증거](pr-assets/convenience-navigation/README.md) 및 작업 보고서에 있다.
+- 한계/인계: UXC-01~10의 공통 이동 기반만 이번 범위다. 새 개인 목록·검색·작성·일반 작업함·저장 보기와 버전/문단 위치의 실제 화면은 후속 작업 전까지 명시적 미연결 상태다. 모델 호출·지식 효과·실제 SSO/DB/운영 인수를 검증한 변경이 아니다. BASE `51129cb`에서 구현했으며 별도 세션의 #44/#59 main 통합 후 충돌 해결·재검증과 독립 검토가 필요하다. push/PR/merge는 이 작업 에이전트가 수행하지 않았다.
+
+
 ## 2026-11-16 필수 편의기능 설계와 구현 플랜
 
 - 사용자 요청: 열린 PR 병합과, 검토한 필수 편의기능 10개 전체의 설계·플랜 작성. 이 문서 PR은 후속 제품 코드 구현을 포함하지 않는다. [설계](superpowers/specs/2026-11-16-essential-convenience-design.md)와 [플랜](superpowers/plans/2026-11-16-essential-convenience.md)에 기존 요구사항·현재 경로·API/저장/권한·인수 기준·12개 PR 의존성을 연결했다. 기준 251개 요구사항과 보호 문서의 의미를 바꾸지 않았다.

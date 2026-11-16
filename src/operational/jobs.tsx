@@ -188,7 +188,9 @@ export function JobsPanel({
   capabilities,
   executionIdentities = [],
   onExpired,
+  initialJobId,
 }: {
+  initialJobId?: string;
   api: OperationalApi;
   capabilities: string[];
   executionIdentities?: ExecutionIdentity[];
@@ -259,7 +261,28 @@ export function JobsPanel({
   useEffect(() => {
     void refresh().catch(failure);
   }, [refresh, failure]);
+  const [targetRevision, setTargetRevision] = useState(0);
+  const [targetResult, setTargetResult] = useState<{ id: string; job?: Job; error?: string }>();
+  useEffect(() => {
+    let active = true;
+    setTargetResult(undefined);
+    setSelected(null);
+    setUsage([]);
+    if (!initialJobId || !canRead) return;
+    void Promise.all([
+      api.get<Job>(`/jobs-v2/${encodeURIComponent(initialJobId)}`),
+      api.get<{ items: Usage[] }>(`/jobs-v2/${encodeURIComponent(initialJobId)}/telemetry`),
+    ]).then(([job, telemetry]) => {
+      if (!active) return;
+      if (job.id !== initialJobId) throw Error("TARGET_MISMATCH");
+      setTargetResult({ id: initialJobId, job });
+      setSelected(job.id);
+      setUsage(telemetry.items);
+    }).catch(() => { if (active) setTargetResult({ id: initialJobId, error: "대상이 없거나 현재 접근할 수 없습니다." }); });
+    return () => { active = false; };
+  }, [api, canRead, initialJobId, targetRevision]);
   const perform = async (action: () => Promise<void>) => {
+    if (initialJobId) { setTargetResult(undefined); setSelected(null); setUsage([]); }
     setBusy(true);
     setError("");
     try {
@@ -268,10 +291,14 @@ export function JobsPanel({
     } catch (e) {
       failure(e);
     } finally {
+      if (initialJobId) setTargetRevision(revision => revision + 1);
       setBusy(false);
     }
   };
   if (!canRead) return null;
+  if (initialJobId && (!targetResult || targetResult.id !== initialJobId)) return <p role="status">작업 대상을 확인하고 있습니다.</p>;
+  if (initialJobId && targetResult?.error) return <p role="alert">{targetResult.error}</p>;
+  const visibleJobs = initialJobId ? targetResult?.job ? [targetResult.job] : [] : jobs;
   const split = (value: string) => [
     ...new Set(value.split(/[,\s]+/).filter(Boolean)),
   ];
@@ -308,7 +335,7 @@ export function JobsPanel({
             </tr>
           </thead>
           <tbody>
-            {jobs.map((j) => (
+            {visibleJobs.map((j) => (
               <tr key={j.id}>
                 <td>
                   {j.id}
@@ -424,8 +451,8 @@ export function JobsPanel({
           </tbody>
         </table>
       </div>
-      {!jobs.length && <p>표시할 작업이 없습니다.</p>}
-      <div className="op-actions">
+      {!visibleJobs.length && <p>표시할 작업이 없습니다.</p>}
+      {!initialJobId && <div className="op-actions">
         <Button
           disabled={busy || offset === 0}
           onClick={() => setOffset(Math.max(0, offset - 25))}
@@ -438,7 +465,7 @@ export function JobsPanel({
         >
           다음 25건
         </Button>
-      </div>
+      </div>}
       {selected && (
         <section aria-label="선택한 작업의 실제 사용량">
           <h3>실행 근거 · {selected}</h3>

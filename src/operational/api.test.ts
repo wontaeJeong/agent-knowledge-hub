@@ -158,7 +158,7 @@ describe("operational client boundary", () => {
     ).toBe("/?app=1&space=team-one&document=topic#comment-c1");
     expect(resumeWorkspaceLink("/?app=1&space=team-one&document=topic#workflows"))
       .toBe("/?app=1&space=team-one&document=topic#workflows");
-    expect(resumeWorkspaceLink("/?app=1&space=team-one#workflows")).toBeNull();
+    expect(resumeWorkspaceLink("/?app=1&space=team-one#workflows")).toBe("/?app=1&space=team-one#workflows");
     for (const value of [
       "https://attacker.test/?app=1",
       "//attacker.test/?app=1",
@@ -168,6 +168,19 @@ describe("operational client boundary", () => {
       "/?app=1&space=team&document=../secrets",
     ])
       expect(resumeWorkspaceLink(value)).toBeNull();
+  });
+  it("login return allowlist preserves exact convenience tasks and discovery", () => {
+    for (const kind of ["review", "job", "access-request"]) {
+      const href = `/?app=1&space=team&section=tasks&targetKind=${kind}&targetId=target-26`;
+      expect(resumeWorkspaceLink(href)).toBe(href);
+    }
+    expect(resumeWorkspaceLink("/?app=1&space=team#discovery")).toBe("/?app=1&space=team#discovery");
+    expect(resumeWorkspaceLink("/?app=1&space=team&section=compose&draft=d1")).toBe("/?app=1&space=team&section=compose&draft=d1");
+    expect(resumeWorkspaceLink("/?app=1&section=tasks&targetKind=job&targetId=x")).toBeNull();
+    expect(resumeWorkspaceLink("/?app=1&space=team&section=tasks&targetKind=job")).toBeNull();
+    expect(resumeWorkspaceLink("/?app=1&space=team&document=p&draft=d")).toBeNull();
+    expect(resumeWorkspaceLink("/\\attacker.test/?app=1&space=team&section=home")).toBeNull();
+    expect(resumeWorkspaceLink("/?app=1&space=team&section=search&q=private-text&return=https://attacker.test")).toBe("/?app=1&space=team&section=search");
   });
   it("binds selected space to every API call without accepting a client principal", async () => {
     const spaces: string[] = [];
@@ -250,4 +263,16 @@ describe("operational client boundary", () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
+});
+
+describe("orphan task login-return validation", () => {
+  it.each(["targetKind=job", "targetId=j1", "targetKind=job&targetId=j1", "targetKind="])("rejects rather than discards %s", query => {
+    expect(resumeWorkspaceLink(`/?app=1&space=team&${query}`)).toBeNull();
+  });
+});
+
+it("retains canonical standalone share login returns while rejecting document-less comments", () => {
+  expect(resumeWorkspaceLink("/?app=1&space=team#share-s1")).toBe("/?app=1&space=team#share-s1");
+  expect(resumeWorkspaceLink("/?app=1&space=team#comment-c1")).toBeNull();
+  expect(resumeWorkspaceLink("/?app=1&space=team&section=home#share-s1")).toBeNull();
 });
