@@ -222,7 +222,14 @@ export async function scanEventsDb(
   );
   const events = (
     await db.query(
-      "SELECT *,created_at::text AS subscription_cutoff FROM collaboration_events WHERE projected_at IS NULL ORDER BY created_at,id LIMIT 100 FOR UPDATE SKIP LOCKED",
+      // Old releases may have enqueued a private staged review. Defer it before
+      // recipient checks so NOT_FOUND cannot permanently consume that event.
+      `SELECT e.*,e.created_at::text AS subscription_cutoff FROM collaboration_events e
+       WHERE e.projected_at IS NULL AND NOT EXISTS (
+         SELECT 1 FROM batches b WHERE e.kind='change-review-request'
+          AND b.workspace_id=e.workspace_id AND b.id=e.resource_id
+          AND b.data->>'requestAuthorizationPending'='true'
+       ) ORDER BY e.created_at,e.id LIMIT 100 FOR UPDATE OF e SKIP LOCKED`,
     )
   ).rows;
   let count = 0;
