@@ -660,6 +660,8 @@
 - 상태: 로컬 수정·검증됨. 독립 재리뷰와 최종 CI/통합이 남으며 회사 운영 인수를 뜻하지 않는다.
 - 같은 문서 갱신 시 한국어를 포함한 Python stdin이 인코딩 오류로 실패하여 CURRENT_STATUS만 갱신되지 않았다. UTF-8 임시 행 파일을 ASCII Python 코드에서 명시 인코딩으로 읽어 적용하고 실제 행 존재를 확인했다. 코드·테스트 결과는 영향받지 않았다.
 - 최종 영향 회귀 재실행에서 multi-request native HTTP 시험이 Vitest 기본 5초에 도달해 실패했다(5006ms, 다른 14파일은 통과). 앞선 격리/전체 실행과 재실행에서 기능 assertion은 통과했으며, 20초의 명시적 integration-test deadline에서는 10시험 전부 완료했다. 공유 검증 부하가 지연 원인이라는 판단은 가설로 유지한다. 제품 타임아웃·정책·SLO를 변경하지 않고 이 종단 시험만 20초로 명시한 뒤 최종 전체 회귀를 다시 실행한다.
+### 2026-11-17 - Lineage PR base mismatch
+- PR52 originally targeted main while other featurePRs targeted the approved integration branch. Its exact reviewed/CI-green head was locally integrated0c84ee8 before detecting the mismatch, so a later base update was rejected422 for no new commits. Added a verification note and retargeted before its explicit PR merge; final CI still required. No source changes were discarded or falsely marked merged.
 ### 2026-11-16 - Presentation and navigation renderer overlap
 - Separate PRs both owned published-body rendering. Taking navigation alone would preserve its earlier DOMPurify renderer, allowing remote img and omitting configured math/image preview behavior. Taking Markdown alone would lose outline/find. Added a failing integration regression, then composed safe Markdown under navigation without replacing its event-bound DOM. Targeted16 and fullcheck passed; independent review remains required.
 ### 2026-11-16 - Integration scheduling and native filter correction
