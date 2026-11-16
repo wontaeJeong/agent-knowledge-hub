@@ -6,6 +6,8 @@ import { RuntimeService } from "../runtime/knowledge";
 import { createRuntimeHandler } from "../runtime/http";
 import { OidcAuth, sessionHash } from "../runtime/auth";
 
+// This case performs 34 sequential HTTP requests with live local OIDC and DB gates.
+// Keep a case-local integration budget; individual application timeouts still apply.
 test("authenticated native navigation, completion and personal lists remove revoked source titles", async () => {
   const f = await fixture();
   await adoptFixture(f.pool, f.workspaceId);
@@ -243,4 +245,4 @@ test("authenticated native navigation, completion and personal lists remove revo
     await new Promise<void>((resolve) => provider.close(() => resolve()));
     await f.pool.end();
   }
-});
+}, 20000);

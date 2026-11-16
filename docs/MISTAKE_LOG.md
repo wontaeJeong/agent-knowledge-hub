@@ -1,5 +1,23 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — 확장된 navigation HTTP 시험의 기본 5초 예산 초과
+
+- 맥락/관련 PR: PR #62 head `7387484`, CI run [43898200490/job133407397086](https://github.com/wontaeJeong/agent-knowledge-hub/actions/runs/43898200490/job/133407397086). 2026-11-16 15:47 UTC에 `server/workflows/navigation-http.test.ts:9`의 단일 시험이 5005ms에 `Test timed out in 5000ms`로 실패했다. 다른 서버 125파일과 staged 알림 신규 16시험(4017ms)은 통과했으나 해당 CI 실행 전체를 통과로 취급하지 않는다.
+- 사실과 원인: PR #56이 completion → draft → submit 및 여러 URL 형태/회수 검사를 같은 native HTTP 사례에 추가해 34개 순차 HTTP 요청을 수행하게 됐지만 기본 5초 예산은 그대로였다. 승인된 통합 기준 `a98a542`를 해당 worktree에 병합하고 lockfile이 일치하는 의존성을 사용해 수정 전 로컬에서도 5002ms timeout을 재현했다. 성공/실패나 보안 assertion 실패로 바꾸지 않는다.
+- 진단: 임시 per-route/fixture/teardown 계측에서 전체 사례 4193.95ms와 3952.36ms, fixture 317.51/319.36ms, 개별 요청 최대 230/252ms, teardown 각각 0.43ms/1.26ms였다. 모든 기대 status/회수 assertion을 끝냈고 DB deadlock/lock-timeout 오류는 없었다. 이 실행은 누적 HTTP/인가 작업과 5초 경계의 환경별 변동을 뒷받침하며 모든 환경의 교착 부재를 입증하지는 않는다. 진단 계측은 최종 코드에서 제거했다.
+- 조치: 해당 단일 시험의 Vitest 예산만 20초로 지정한다. 본문·요청·모든 권한/계보 assertion과 production DB/HTTP/인가 timeout은 그대로 유지한다. 전역 timeout이나 제품 동작은 변경하지 않는다.
+- 검증/상태: 원래 CI 실패 및 로컬 RED를 보존했다. 최종 코드의 native staged 16·lineage 30·navigation 1시험(파일 전체 3.96초)과 Node 24.22.2 전체 `npm run check`(프런트 213, Node 48, import 16, 평가 41, 요구사항 251, 서버 타입·빌드·smoke)가 통과했다. 동일 본문 비교로 모든 기존 assertion의 보존을 확인했다. 최종 SHA·추가 원격 CI는 같은 PR의 후속 보고서를 따른다. 이 시험 예산 수정은 기존 `7387484`의 독립 승인과 별도로 재검토한다.
+
+### 2026-11-17 — 기존 리뷰의 staged 검토 알림 소실 미해결 수정
+
+- 맥락/관련 PR: PR #48 리뷰 5921247928 및 5921544871은 최종 요청 인가 해제 전 이벤트가 영구 소비되는 문제를 이미 보고했다. 이후 head에서도 미해결로 남았으며 이번 별도 수정은 새로운 최초 발견으로 표시하지 않는다. PR #56의 링크 계보 문제와 분리한다.
+- 사실과 영향: migration 120은 비공개 staging 변경안의 리뷰 이벤트를 생성했다. 스캐너가 `NOT_FOUND`를 정상 거부로 처리하고 `projected_at`을 기록한 뒤 최종 해제는 같은 키의 `ON CONFLICT DO NOTHING`에 막혀 검토 가능 알림이 사라졌다. 실제 PostgreSQL 재현에서 직접 제안과 RuntimeService 최종 인가 barrier가 해제 전에 이벤트를 만드는 것을 확인했다. 운영 자료에서 발생한 건수는 확인하지 않았다.
+- 원인: private staging 결과의 수명주기와 트랜잭션 outbox의 ready 시점을 맞추지 않았고, 이전 미해결 리뷰를 완료 여부와 연결하지 못했다.
+- 조치 및 재발 방지: 적용된 migration 120은 수정하지 않고 additive 130에서 실제 해제 때 이벤트를 생성/재큐잉한다. scanner는 old staged 이벤트를 소비하지 않는다. 현재 pending/model/hash에 한정한 기존 이벤트의 보수적 복구는 원래 구독 시각을 유지하며, 과거 해제/수신 이력을 추정하지 않는다. 정확한 복구 대상·제약은 AGENT_HANDOFF의 같은 날짜 항목에 기록했다.
+- 작업 중 검증 실패: 첫 upgrade 시험은 여러 pending 변경안이 같은 페이지를 수정하게 만들어 기존 중복 방지에 `VALIDATION_FAILED`로 거부됐다. 독립 fixture로 분리했다. stale 해시를 만드는 fixture UPDATE는 정상 트리거의 새 revision 이벤트도 만들므로 해당 새 이벤트를 fixture에서 분리하여 역사 이벤트 복구 범위만 검사했다. 초기 없는 migration 파일 오류를 넘어서기 위해 기존 120과 같은 함수 동작을 담은 무변경 130으로 재실행했고, 의미 있는 8개 RED를 확인한 뒤 실제 수정했다. 첫 branch 생성은 sandbox 메타데이터 쓰기 제한으로 실패했고 승인된 escalation으로 지정 worktree에서만 재시도했다.
+- 검증: 16개 신규 PostgreSQL 회귀 및 실제 migration runner/retry 통과. 전체 `npm run check`와 관련 DB 14파일 123시험 통과. 소스·검토자 현재 권한 회수, 최종 인가 실패의 batch cleanup/알림0, 롤백/동시 scan/고정 ID를 확인했다. UI 변경은 없으며 운영 DB 부하·사내 운영 인수는 미실행이다.
+- 상태/후속 작업: 로컬 회귀 검증 완료, 별도 수정 PR의 새 독립 검토와 최종 원격 CI 대기. 기존 리뷰 스레드를 확인 없이 해결 처리하지 않는다.
+
 ### 2026-11-16 — APNG 프레임 누락과 최신 이미지 응답 경합
 - 맥락: 문서 이미지 첨부의 독립 리뷰. 195바이트 합성 2프레임 APNG와 실제 React deferred promise로 두 문제를 재현했다.
 - 사실/영향/원인: Sharp 메타데이터에 APNG pages가 없어 단일 프레임으로 간주했고, 원본 바이트를 받은 브라우저는 검증되지 않은 추가 프레임을 표시했다. 이미지 요청은 컨텍스트 세대만 비교하여 최근 권한 거부 후 예전 성공이 이미지를 복구할 수 있었다. 최초 구현·집중 시험이 이 입력과 완료 순서를 놓쳤다.
