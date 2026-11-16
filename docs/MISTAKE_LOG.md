@@ -1,5 +1,13 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — 확장된 navigation HTTP 시험의 기본 5초 예산 초과
+
+- 맥락/관련 PR: PR #62 head `7387484`, CI run [43898200490/job133407397086](https://github.com/wontaeJeong/agent-knowledge-hub/actions/runs/43898200490/job/133407397086). 2026-11-16 15:47 UTC에 `server/workflows/navigation-http.test.ts:9`의 단일 시험이 5005ms에 `Test timed out in 5000ms`로 실패했다. 다른 서버 125파일과 staged 알림 신규 16시험(4017ms)은 통과했으나 해당 CI 실행 전체를 통과로 취급하지 않는다.
+- 사실과 원인: PR #56이 completion → draft → submit 및 여러 URL 형태/회수 검사를 같은 native HTTP 사례에 추가해 34개 순차 HTTP 요청을 수행하게 됐지만 기본 5초 예산은 그대로였다. 승인된 통합 기준 `a98a542`를 해당 worktree에 병합하고 lockfile이 일치하는 의존성을 사용해 수정 전 로컬에서도 5002ms timeout을 재현했다. 성공/실패나 보안 assertion 실패로 바꾸지 않는다.
+- 진단: 임시 per-route/fixture/teardown 계측에서 전체 사례 4193.95ms와 3952.36ms, fixture 317.51/319.36ms, 개별 요청 최대 230/252ms, teardown 각각 0.43ms/1.26ms였다. 모든 기대 status/회수 assertion을 끝냈고 DB deadlock/lock-timeout 오류는 없었다. 이 실행은 누적 HTTP/인가 작업과 5초 경계의 환경별 변동을 뒷받침하며 모든 환경의 교착 부재를 입증하지는 않는다. 진단 계측은 최종 코드에서 제거했다.
+- 조치: 해당 단일 시험의 Vitest 예산만 20초로 지정한다. 본문·요청·모든 권한/계보 assertion과 production DB/HTTP/인가 timeout은 그대로 유지한다. 전역 timeout이나 제품 동작은 변경하지 않는다.
+- 검증/상태: 원래 CI 실패 및 로컬 RED를 보존했다. 최종 코드의 native staged 16·lineage 30·navigation 1시험(파일 전체 3.96초)과 Node 24.22.2 전체 `npm run check`(프런트 213, Node 48, import 16, 평가 41, 요구사항 251, 서버 타입·빌드·smoke)가 통과했다. 동일 본문 비교로 모든 기존 assertion의 보존을 확인했다. 최종 SHA·추가 원격 CI는 같은 PR의 후속 보고서를 따른다. 이 시험 예산 수정은 기존 `7387484`의 독립 승인과 별도로 재검토한다.
+
 ### 2026-11-17 — 기존 리뷰의 staged 검토 알림 소실 미해결 수정
 
 - 맥락/관련 PR: PR #48 리뷰 5921247928 및 5921544871은 최종 요청 인가 해제 전 이벤트가 영구 소비되는 문제를 이미 보고했다. 이후 head에서도 미해결로 남았으며 이번 별도 수정은 새로운 최초 발견으로 표시하지 않는다. PR #56의 링크 계보 문제와 분리한다.

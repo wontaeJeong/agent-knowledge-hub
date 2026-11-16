@@ -1,5 +1,11 @@
 # 에이전트 인계
 
+## 2026-11-17 PR #62 native navigation HTTP 시험 예산 보완
+
+- PR #62 `7387484`의 staged 알림 수정은 독립 리뷰 16시험에서 승인됐지만, 최종 CI run `43898200490`/job `133407397086`의 기존 navigation HTTP 시험은 5000ms 예산을 5005ms에 초과했다. staged 16시험을 포함한 다른 125서버 파일 통과가 이 CI 실패를 상쇄하지 않는다.
+- 승인된 현재 통합 `a98a542`를 fix worktree에 병합해 PR #56의 최신 source closure와 함께 검사한다. matching lockfile 의존성에서 원래 사례의 5002ms timeout을 재현했다. 해당 단일 사례는 34개 순차 native HTTP 요청으로 인증·문서 탐색·completion·draft·submit·URL 형태·현재 원본 회수를 검사한다. 임시 진단에서는 전체 4193.95/3952.36ms, teardown 0.43/1.26ms로 종료됐고 개별 요청 최대 230/252ms였다. 누적 작업 예산의 부족을 확인했으며 전역/제품 timeout을 늘리지 않는다.
+- 변경은 `server/workflows/navigation-http.test.ts`의 해당 사례 20초 예산과 이 기록뿐이다. 모든 요청/상태/권한·계보 assertion을 유지하고 진단 계측은 제거했다. 관련 CLB-005/ACL-007/008/CORE-008의 staged 알림 수정과 EDT-007/REV-003 원본 회귀를 함께 재검증하며 의미 품질/운영 인수 주장은 하지 않는다. 최종 native 재실행은 staged 16·lineage 30·navigation 1시험이 통과했고 navigation 파일 전체는 3.96초였다. Node 24.22.2 전체 `npm run check`도 통과했다(프런트 213, Node 48, import 16, 평가 41, 요구사항 251, 서버 타입·빌드·smoke). 추가 독립 검토와 최종 원격 CI는 PR 후속 기록을 따른다.
+
 ## 2026-11-17 최종 요청 인가 전후의 검토 알림 소실 수정
 
 - CLB-004/005, ACL-007/008, REV-003/004, JOB-002 및 CORE-008 관련. PR #48의 [리뷰 5921247928](https://github.com/wontaeJeong/agent-knowledge-hub/pull/48#pullrequestreview-5921247928)과 [후속 리뷰 5921544871](https://github.com/wontaeJeong/agent-knowledge-hub/pull/48#pullrequestreview-5921544871)에 이미 지적됐으나 미해결로 남았던 staged-authorization 알림 누락을 별도 수정한다. PR #56의 링크 계보 보완과 별개다.
