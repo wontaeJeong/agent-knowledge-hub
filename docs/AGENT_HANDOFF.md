@@ -502,6 +502,42 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - 후속 “머지” 요청에 따라 기능 PR #32~43을 squash 순서로 통합한다. 요구사항 범위는 변경하지 않으며 기존 PR #30은 별도다.
 - 각 기능의 격리 worktree에서 현재 main 및 선행 기능을 보존하고 최종 head의 필수 CI를 확인한다. 절차·검증과 제약은 [병합 기록](superpowers/plans/2026-11-14-product-merge.md)을 참조한다.
 
+## 2026-11-16 Task 1a — Unified scoped search
+
+- Requirements: SRH-002/003/004/005/007, CORE-009/010 search integration. AgentService, ScopedSearch, cookie MCP and runtime HTTP share strict filters, actual historical bodies, current ACL and credential ceilings. Agent legacy offset DTO remains, with signed cursors and explicit historical metadata status. Unknown history is never filled from current title/conditions.
+- Default search/context uses canonical currentRecommendation, excluding active+replacementId, archived and future-effective pages. Explicit history/read stays available and is not described as current recommendation.
+- [API decisions, North Star invariants and remaining limits](implementation/2026-11-16-unified-search.md). Semantic selection and index operations are separate following units; no whole-requirement or company model quality/agent-performance acceptance claim.
+- Verified Task1a: final Node24 `npm run check` passed (src172 + Node48 + imports16 + evaluation41, requirements251, server typecheck, build/static HTTP smoke). Native PostgreSQL17 per-file runner passed 10 files/68 tests; final changed-search rerun passed 3 files/24 tests after cookie DTO compatibility mapping. No model/provider calls or semantic quality claim in this unit.
+## 2026-11-16 — Task 8: subscriptions and event notifications (CLB-004–006)
+
+- Isolated native worktree branch `feat/roadmap-notifications-20261116`, based on `5218828`; feature contract: [notification API and boundaries](superpowers/specs/2026-11-16-notifications-contract.md).
+- Migration 120, `server/collaboration/events.ts`, collaboration service/HTTP/worker and canonical publication review gate connect current category/space subscriptions to transactional publication/review/final-job-failure events and explicit lifecycle expiry. Document comments join these subscriptions. The notification panel exposes subscription changes, event meaning and per-recipient processing; the lifecycle panel exposes reason/CAS-bound UTC expiry.
+- Current active identity, canonical review qualification, current subscriptions and all input/source ancestry are checked before content and again by existing digest finalization. Event IDs deduplicate retries/overlapping subscriptions; internal envelopes never enter DTOs. Failure notices stay with the explicit human actor/current service sponsor. Owner status cannot bypass source ACLs.
+- New tables are classified in retention inventory; category names stay in PostgreSQL, subscription configuration is removed during workspace erasure/recovery, and typed outbox/notification references join the existing erasure graph.
+- Validation: `npm run check`; isolated PostgreSQL 17 tests for retention compatibility/product erasure, collaboration, event flow, review races, workflows, runtime collaboration host and new subscription HTTP host; notification/expiry React interaction tests. [Actual 1440/390 Chromium screenshots and fixture conditions](pr-assets/roadmap-notifications/README.md). Final command evidence and commit are recorded in the feature PR.
+- Limits: topic means current `Page.category`; historical events are not backfilled; event projection requires the configured existing dispatcher. Expiry is a notification deadline, not an automatic deletion or a new recommendation policy. External directory/email gateway and company operations acceptance were not exercised; no external message was sent. Semantic quality/downstream business effects remain evaluation targets.
+
+### Task 8 independent review N1 follow-up
+
+- The publication outbox stores its originating batch in `resource_id`. Corrected erasure lineage to treat both publication and pending-review resource IDs as batch references, preserving the separate publication target page edge.
+- Added failing-first exported graph selection regression and native PostgreSQL source-scoped execute/recovery replay regressions. They ensure source → batch → event → notification cleanup reaches an event whose target page is independently retained; the retained page title remains intact. No migration or UI change.
+- Validation: `npm run check` plus targeted erasure graph/product/DB, collaboration events and native subscription HTTP regressions, recorded in the PR follow-up and task report. Independent review and integration branch CI remain separate from these local checks.
+
 ## 2026-11-16 — 탐색 대시보드 최신 통합 검증
 - PR30을 main5218828과 통합했다. 원래 인계·실수 기록을 보존하고 discovery GET과 최신 인증 me 경로를 함께 유지했다.
 - Node24 npm run check 통과. PostgreSQL17 격리 DB discovery/runtime/access 3파일37개 통과. 실제 Chromium1440/390 합성 명시 미리보기와 document overflow 없음 확인, docs/pr-assets/discovery에 캡처. 실제 회사 품질/대규모/운영 인수는 미검증이다.
+
+## 2026-11-16 문서 탐색과 개인 목록
+
+- EDT-007/010, SRH-009/010: `server/workflows/service.ts`, `http.ts`, `src/operational/document-navigation.tsx`, `workflows.tsx`, `styles.css`에 현재 ACL의 링크 후보·백링크·태그 관계(각 20건), 목차·코드/표 검색 위치 이동, 기존 즐겨찾기·최근 API 기반 목록과 개인 초안 링크 완성을 연결했다. 기존 구독 버튼·서버 활동 저장을 재사용한다.
+- [API·판단·현재 한계](design/2026-11-16-document-navigation.md), [실제 1440/390 화면](pr-assets/roadmap-navigation/README.md). North Star의 인간 검토·연결된 재사용을 개선하며 본문·원본·ACL·발행 상태를 자동 변경하지 않는다. 의미 유사도·지식 품질·업무 성과 효과는 미측정이다.
+- 검증: TDD로 없는 탐색 API·자동완성·삽입 전 권한 철회·코드 예시 백링크 오인 회귀의 실패를 확인하고 수정 후 통과했다. native HTTP에서 OIDC UserInfo·DB 세션·CSRF·현재 원본 ACL 철회 후 탐색/자동완성/개인 목록 제목 제거를 검증했다. Node 24 전체 `npm run check`와 PostgreSQL17 전체 workflow 서버 8파일 회귀를 통과했다. 프런트 178시험, import 16시험, Node/평가·요구사항251·서버 타입·빌드·smoke 포함이며 운영 인수는 아니다.
+- 제약: 현재 권한은 요청·포커스 복귀·60초 주기로 재검사하며 권한 변경 실시간 푸시는 포함하지 않는다. 서버는 기존 전체 상태 조회로 ACL을 계산하므로 큰 공간의 부하 시험이 필요하다. 같은 태그를 관련 문서로 표시하며 SRH-009 주제/공간 구독 확대와 실제 사내 인수는 별도다.
+
+### PR #47 독립 리뷰 후 링크 삽입 입력 보존 수정
+
+- `LinkCompletion`의 지연 권한 응답이 최신 삽입 콜백을 사용하고, `WorkflowPanel`이 현재 초안/계정 바인딩과 활성 자동 저장 편집기의 최신 본문을 사용해 대기 중 입력을 보존하도록 수정했다. EDT-007과 초안 저장 경계에 해당한다. 기존 요청 세대/대상 철회 검사는 유지한다.
+- `src/operational/navigation-draft.test.tsx`에서 과거 콜백 호출·실제 편집창의 입력 유실 RED를 확인한 뒤 수정했다. React 입력과 실제 DraftAutosave→OperationalApi의 합성 저장소에 동일한 최신 본문·링크가 남는 통합 회귀를 포함한다. 전체 `npm run check`(프런트180)와 native 인증 HTTP 탐색·CSRF·원본 철회 회귀를 재통과했다. 시각 변경은 없어 기존 캡처를 유지한다.
+
+### Task3/Task2 integration safety
+- Resolved overlapping published-body UI by using the shared safe Markdown renderer inside DocumentBody navigation. Outline/find decorate existing DOM without replacing authenticated attachment handlers. Math/SVG/control/status nodes are excluded from text marking. An integration regression failed on an external img before the change; safe image/math/find/preview and existing navigation/draft tests16 now pass. Fullcheck passed; actual integrated screenshots and scoped independent review follow.

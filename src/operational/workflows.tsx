@@ -1,6 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
 import { Markdown, type ImagePreview, presentationFormats } from "../ui/Markdown";
+import {
+  DocumentBody,
+  PersonalDocuments,
+  RelatedDocuments,
+  LinkCompletion,
+} from "./document-navigation";
 import { StoragePanel } from "./storage";
 import { Button } from "../ui/primitives";
 import type { Page } from "../domain/types";
@@ -33,6 +39,7 @@ interface DocumentDetail {
     parent_id: string | null;
     data: {
       protected?: boolean;
+      effectiveUntil?: string | null;
       reason?: string;
       properties?: Record<string, string>;
     };
@@ -385,6 +392,7 @@ export function WorkflowPanel({
   const [historyPage, setHistoryPage] = useState(0);
   const [parent, setParent] = useState("");
   const [properties, setProperties] = useState("{}");
+  const [expiry,setExpiry]=useState("");
   const [editingComment, setEditingComment] = useState<{
     id: string;
     content: string;
@@ -684,6 +692,7 @@ export function WorkflowPanel({
               );
           }
           setParent(d.settings.parent_id ?? "");
+          setExpiry(d.settings.data.effectiveUntil?.slice(0,16)??"");
           setProperties(
             JSON.stringify(d.settings.data.properties ?? {}, null, 2),
           );
@@ -816,6 +825,15 @@ export function WorkflowPanel({
           </Button>
         </section>
       )}
+      {spaceId && (
+        <PersonalDocuments
+          key={identityScope}
+          api={api}
+          spaceId={spaceId}
+          refreshKey={`${selected}:${notice}:${detail?.page.versions.at(-1)?.number}`}
+          onError={fail}
+        />
+      )}
       <label>
         문서 선택
         <select
@@ -849,9 +867,23 @@ export function WorkflowPanel({
           )}
           <details open>
             <summary>현재 발행본 본문 · v{latest.number}</summary>
-            <Markdown text={latest.content} readAttachment={readAttachment} />
+            <DocumentBody
+              key={`${selected}:${latest.number}`}
+              content={latest.content}
+              readAttachment={readAttachment}
+            />
             <details><summary>지원하는 문서 형식</summary><p>{presentationFormats}</p></details>
           </details>
+          {spaceId && (
+            <RelatedDocuments
+              key={`${identityScope}:${selected}`}
+              api={api}
+              spaceId={spaceId}
+              pageId={selected}
+              version={latest.number}
+              onError={fail}
+            />
+          )}
           <StoragePanel
             key={`${spaceId}:${selected}`}
             api={api}
@@ -935,6 +967,27 @@ export function WorkflowPanel({
               </Button>
             )}
           </div>
+          {draft && spaceId && (
+            <LinkCompletion
+              key={`${identityScope}:${selected}:${draft.id}`}
+              api={api}
+              spaceId={spaceId}
+              onError={fail}
+              onInsert={(markdown) => {
+                const editor = autosave.current;
+                if (
+                  !editor ||
+                  editor.draft.id !== draft.id ||
+                  previousIdentity.current !== identityScope
+                )
+                  return;
+                // Authorization may finish after more typing; append to the active editor.
+                const next = `${editor.content}\n${markdown}`;
+                setContent(next);
+                editor.edit(next);
+              }}
+            />
+          )}
           {draft && (
             <form
               onSubmit={(e) => {
@@ -1238,6 +1291,34 @@ export function WorkflowPanel({
           {manage && (
             <details>
               <summary>문서 수명주기</summary>
+              {can("knowledge.protect") && (
+                <>
+                  <label>
+                    유효기간 종료 (UTC)
+                    <input
+                      type="datetime-local"
+                      value={expiry}
+                      disabled={busy}
+                      onChange={(e) => setExpiry(e.target.value)}
+                    />
+                  </label>
+                  <p>설정한 시각이 지나면 구독자에게 만료 알림을 생성합니다. 빈 값은 종료 시각 미설정입니다.</p>
+                  <Button
+                    disabled={busy || !reason.trim()}
+                    onClick={() => action(async () => {
+                      await api.post(`${pagePath}/state`, {
+                        expectedRevision: detail.settings.revision,
+                        effectiveUntil: expiry ? new Date(expiry + "Z").toISOString() : null,
+                        reason,
+                      });
+                      await refreshDocument();
+                      setNotice("유효기간을 저장했습니다.");
+                    })}
+                  >
+                    유효기간 저장
+                  </Button>
+                </>
+              )}
               <div className="op-actions">
                 <Button
                   disabled={busy || !reason.trim()}
