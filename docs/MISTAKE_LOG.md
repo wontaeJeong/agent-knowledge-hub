@@ -519,6 +519,29 @@
 - 검증: 최종 수정의 PostgreSQL 17 관련 9파일과 전체 `npm run check` 통과. 잘못 지정한 `legacy-compat.test.ts` 필터는 실행 전 거부됐으며 실제 `legacy-compatibility.test.ts`로 수정해 실행했다. 원격 최종 CI를 다시 통과해야 병합한다.
 - 남은 제약: 기존 final guard/directory gate 경합의 더 넓은 잠금 순서는 별도 재현·검토 대상이다. 이번 검증을 모든 동시성 문제의 해결로 표시하지 않는다.
 
+### 2026-11-16 — Independent search eligibility and schema construction
+- Context: Task 1a canonical search integration.
+- Impact/cause: agent search duplicated eligibility logic, omitted replacementId and per-resource authorizer checks, and searched only current body in history mode. Five new native regressions failed before changes. Canonical ScopedSearch/currentRecommendation now owns retrieval.
+- Implementation error: using omit on a refined Zod object caused an import failure; explicitly mapping its shape fixed construction. Canonical search rejected unadopted fixtures; explicit adoptFixture setup fixed test identities without weakening production authorization. Existing historical expectation incorrectly used current effectiveFrom; it now expects unknown historical metadata.
+- Verification: five new search regressions, one native cookie MCP regression and nine existing agent regressions passed. Broader final checks are recorded in handoff. Actual company model and operational acceptance remain unverified.
+### 2026-11-16 — Notification expiry clock ordering and capability fixture
+- Context: Task 8 CLB-004–006 in isolated `feat/roadmap-notifications-20261116`.
+- Observed impact: an expiry regression intermittently produced no notification when comparing DB subscription timestamps with the application clock; no production data or external message was involved. A later UI fixture omitted the protection capability required by the canonical lifecycle API and failed after controls were correctly gated.
+- Cause: two clocks (and initially different timestamp precision) were used for event/subscription ordering. The UI fixture represented lifecycle access without the separate protected-setting capability.
+- Correction: use DB `clock_timestamp()` and exact timestamp text (preserving PostgreSQL microseconds across the JS boundary) for outbox/subscription ordering, while the injectable clock controls deadline evaluation and delivery windows. Discover candidates from subscriptions/explicit job responsibility, then use current canonical authorization. Align the UI fixture and actual controls with both required capabilities.
+- Validation: the initially failing expiry DB regression and protected-setting UI interaction now pass; event retry/current-category/source-revocation/native HTTP/final-digest gates are covered. Intentional TDD red runs for missing subscription/event/processing/expiry controls were observed before those implementations; these were expected missing-feature failures.
+- Additional discovery regression: resource authorization ceilings must be checked alongside stored reader ACLs before listing category names; the new source-denial regression failed first and now passes through the shared authorized envelope gate.
+- Integration discovery: the new durable tables initially failed the existing retention inventory gate. Added explicit classifications/private target hashing and subscription deletion under reviewed erasure, with graph lineage and a failing-first regression; generic target redaction would violate the space target CHECK or collide across topic keys.
+- Status: corrected locally; actual company directory/gateway and production acceptance remain separate. Final regression evidence is attached to the feature PR.
+
+### 2026-11-16 — Publication outbox lineage used a page kind for a batch ID
+- Context: independent review N1 of Task 8, PR #48.
+- Observed impact: source-only selection reached the originating batch but omitted the publication event and linked notification when their target page had no independently selected edge. Event rows contain identifiers; no body disclosure was established.
+- Cause: the erasure mapper grouped publication with page-scoped expiry although migration 120 stores `NEW.batch_id` for publication `resource_id`.
+- Correction: publication and review request map to batch; expiry keeps page and job failure keeps job. Regression tests use the exported graph selector and actual source-scoped deletion plus trusted recovery replay, retaining an independent target page.
+- Validation: all three new assertions failed before the production fix and passed after it; initial native fixture setup also required its existing resources FK row. Full project and affected native regressions are recorded in the PR follow-up report. No schema/UI change or external delivery.
+- Status: corrected locally; independent re-review/integration CI still required before merge.
+
 ### 2026-11-16 — 탐색 PR 최신 main 통합
 - 사실/원인: 오래된 PR30과 최근 기능 병합 사이에서 인계·실수 기록과 HTTP me 경로 충돌이 발생했다.
 - 조치: 양쪽 기록을 보존하고 현재 me 처리 뒤에 discovery GET을 연결했다. 검증은 후속 실행 결과에 기록한다.
@@ -529,3 +552,18 @@
 - Reproduced with two actual auth/protected transactions and observed pg_blocking_pids. Central gate acquisition now orders directory serialization before row locks across shared transaction entrypoints; direct OperationsService shared SQL and callback/switch-space were covered.
 - Transient backend faults preserve session while denying the request503. Fixture's first second-test attempt reused a global session hash and failed unique-key; changed synthetic hash to workspace-specific. No production session was affected.
 - The central gate lengthens global serialized sections; initialApp1/DB1 behavior is validated, throughput improvement is not claimed.
+### 2026-11-16 — 문서 탐색 검증 환경과 합성 fixture 수정
+
+- 맥락: EDT-007/010, SRH-009/010 기능 worktree.
+- 사실/영향: 최초 기본 검사에서 sandbox의 localhost 바인딩 EPERM으로 HTTP 시험 10건이 실패했다. 예전 로컬 PG 포트는 종료돼 ECONNREFUSED가 났다. 신규 DB fixture는 pages의 명시적 data 컬럼 없이 INSERT하여 not-null 오류가 났으며, 작성 화면 캡처는 recovery 권한 API에 빈 목록 fixture를 반환해 바인딩 검사로 초안이 닫혀 타임아웃됐다. 인계 문서 갱신용 Python stdin의 인코딩 오류도 발생해 UTF-8 heredoc 작성으로 전환했다. 제품 상태나 원격 배포는 변경하지 않았다.
+- 원인/조치: 도구 권한·환경과 API별 fixture 계약 확인이 부족했다. 권한 있는 실행에서 localhost 회귀를 재실행하고 공유 disposable PostgreSQL17의 파일별 UUID DB 실행기를 사용했다. INSERT 컬럼을 명시하고 recovery의 실제 명시적 403 응답을 fixture에 사용했다. 제품 인증·바인딩 검사를 완화하지 않았다.
+- 검증: 환경/fixture 문제 수정 후 신규 기능의 의도한 RED를 확인했다. 자동완성·삽입 전 철회·Markdown 코드 오인 회귀는 실제 실패 후 수정했고 targeted green, native 인증 HTTP green, 실제 Chromium 1440/390 캡처 성공·pageerror 0건을 확인했다. 최종 전체 `npm run check`와 workflow 서버 8파일 회귀도 통과했다.
+- 상태: 수정·검증됨. 실제 회사 자료·디렉터리·부하 시험은 미실행이다.
+
+### 2026-11-16 — 링크 삽입 권한 재검사 중 작성 입력 유실
+
+- 맥락: PR #47 독립 리뷰, EDT-007 및 개인 초안 자동 저장 경로.
+- 확인된 원인/영향: 링크 대상의 현재 권한을 재검사하는 Promise가 과거 `onInsert` 콜백과 본문을 보관했다. 응답을 기다리는 동안 계속 입력하면 이전 본문에 링크를 붙여 화면과 자동 저장에서 새 입력을 잃었다. 실제 사용자 데이터 영향은 확인하지 않았으며 합성 편집창으로 재현했다.
+- 조치: 링크 응답은 최신 커밋된 삽입 콜백을 사용한다. WorkflowPanel은 현재 초안·계정 바인딩을 확인하고 활성 DraftAutosave의 현재 본문에 추가한 동일 값을 React 입력과 자동 저장에 전달한다. 기존 대상/요청 세대·권한 철회 검사를 유지한다.
+- 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
+- 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.

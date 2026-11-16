@@ -689,3 +689,118 @@ test("trash with no configured grace has no invented deadline and restore requir
   await expect(restricted.setDocumentState(f.ctx,'topic',{expectedRevision:1,state:'active',restoreParentId:'target',reason:'복구'})).rejects.toThrow('FORBIDDEN');
   expect((await f.pool.query("SELECT state,parent_id FROM workflow_document_state WHERE workspace_id=$1 AND page_id='topic'",[f.workspaceId])).rows[0]).toEqual({state:'trash',parent_id:null});
 });
+
+
+test("navigation and completion are bounded, versioned and recheck source ACL on every read", async () => {
+  for (let i = 0; i < 24; i++) {
+    const id = `related-${String(i).padStart(2, "0")}`;
+    await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)", [
+      f.workspaceId,
+      id,
+    ]);
+    await f.pool.query(
+      "INSERT INTO resource_readers VALUES($1,'page',$2,'editor')",
+      [f.workspaceId, id],
+    );
+    await f.pool.query(
+      "INSERT INTO pages(workspace_id,id,data) VALUES($1,$2,$3)",
+      [
+        f.workspaceId,
+        id,
+        { ...page, id, title: `연관 ${i}`, links: ["topic"] },
+      ],
+    );
+    await f.pool.query("INSERT INTO versions VALUES($1,$2,1,$3)", [
+      f.workspaceId,
+      id,
+      page.versions[0],
+    ]);
+  }
+  const navigation = await service.navigation(f.editor, "topic");
+  expect(navigation.version).toBe(1);
+  expect(navigation.backlinks).toHaveLength(20);
+  expect(navigation.truncated.backlinks).toBe(true);
+  expect(navigation.backlinks[0]).toMatchObject({
+    id: "related-00",
+    title: "연관 0",
+  });
+  expect((await service.linkSearch(f.reader, { query: "연관" })).items).toEqual(
+    [],
+  );
+  expect(
+    (await service.linkSearch(f.editor, { query: "연관" })).items,
+  ).toHaveLength(20);
+  await expect(
+    service.linkSearch(f.editor, { query: "x".repeat(201) }),
+  ).rejects.toThrow();
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='related-00' AND principal_id='editor'",
+    [f.workspaceId],
+  );
+  expect(
+    (await service.navigation(f.editor, "topic")).backlinks.some(
+      (p) => p.id === "related-00",
+    ),
+  ).toBe(false);
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='editor'",
+    [f.workspaceId],
+  );
+  await expect(service.navigation(f.editor, "topic")).rejects.toThrow(
+    "NOT_FOUND",
+  );
+  expect((await service.linkSearch(f.editor, { query: "연관" })).items).toEqual(
+    [],
+  );
+});
+
+test("native workflow navigation routes expose only current authorized metadata", async () => {
+  let result: unknown;
+  const handled = await handleWorkflowRoute(
+    {
+      method: "GET",
+      path: "/api/v1/workflows/pages/topic/navigation",
+      body: {},
+      ctx: f.editor,
+      send: (_status, data) => {
+        result = data;
+      },
+    },
+    service,
+  );
+  expect(handled).toBe(true);
+  expect(result).toMatchObject({ pageId: "topic", version: 1, backlinks: [] });
+  expect(
+    await handleWorkflowRoute(
+      {
+        method: "POST",
+        path: "/api/v1/workflows/links/search",
+        body: { query: "주제" },
+        ctx: f.editor,
+        send: (_status, data) => {
+          result = data;
+        },
+      },
+      service,
+    ),
+  ).toBe(true);
+  expect(result).toMatchObject({
+    items: [{ id: "topic", title: "주제", version: 1 }],
+  });
+});
+
+test("navigation follows generated same-space links, ignores code examples and excludes trashed neighbors",async()=>{
+ for(const [id,content] of [['real',`[주제](/?app=1&space=${f.workspaceId}&document=topic)`],['example',`\`[주제](/?app=1&space=${f.workspaceId}&document=topic)\``],['other','[주제](/?app=1&space=another&document=topic)']]){
+ await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)",[f.workspaceId,id]);
+ await f.pool.query("INSERT INTO resource_readers VALUES($1,'page',$2,'editor')",[f.workspaceId,id]);
+ await f.pool.query("INSERT INTO pages(workspace_id,id,data) VALUES($1,$2,$3)",[f.workspaceId,id,{...page,id,links:[],title:id,tags:['공유 태그']}]);
+ await f.pool.query("INSERT INTO versions VALUES($1,$2,1,$3)",[f.workspaceId,id,{...page.versions[0],content}]);
+ }
+ await f.pool.query("UPDATE pages SET data=jsonb_set(data,'{tags}','[\"공유 태그\"]') WHERE workspace_id=$1 AND id='topic'",[f.workspaceId]);
+ const neighborhood=await service.navigation(f.editor,'topic');
+ expect(neighborhood.backlinks.map(p=>p.id)).toEqual(['real']);
+ expect(neighborhood.related.map(p=>p.id)).toEqual(['example','other']);
+ await service.setDocumentState(f.ctx,'topic',{expectedRevision:0,state:'trash',reason:'탐색 제외'});
+ await expect(service.navigation(f.editor,'topic')).rejects.toThrow('NOT_FOUND');
+ expect((await service.linkSearch(f.editor,{query:'주제'})).items).toEqual([]);
+});
