@@ -576,7 +576,7 @@ export function JobsPanel({
             </details>
           )}
           <details open={editing ? true : undefined}>
-            <summary>Daily / Weekly 일정 만들기</summary>
+            <summary>Daily / Weekly / Monthly 일정 만들기</summary>
             <form
               onSubmit={(e) => {
                 e.preventDefault();

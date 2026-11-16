@@ -122,13 +122,6 @@ async function claimsFor(
 ): Promise<ClaimProjection[]> {
   const pages = new Set(state.pages.map((p) => p.id)),
     sources = new Set(state.sources.map((s) => s.id));
-  const all = (
-    await db.query(
-      "SELECT data FROM refinement_evidence WHERE workspace_id=$1",
-      [ctx.workspaceId],
-    )
-  ).rows.map((r) => r.data as Evidence);
-  const byId = new Map(all.map((e) => [e.id, e]));
   const rows = (
     await db.query(
       "SELECT data FROM refinement_claims WHERE workspace_id=$1 AND data->>'pageId'=ANY($2::text[]) ORDER BY id LIMIT 101",
@@ -136,6 +129,26 @@ async function claimsFor(
     )
   ).rows;
   if (rows.length > 100) throw Error("INPUT_LIMIT");
+  const byId = new Map<string, Evidence>();
+  let pending = [
+    ...new Set(rows.flatMap(({ data }: { data: Claim }) => data.evidenceIds)),
+  ];
+  for (let depth = 0; pending.length; depth++) {
+    if (depth >= 100 || byId.size + pending.length > 1000)
+      throw Error("INPUT_LIMIT");
+    // Fetch only explicitly referenced, authorized source ancestry. Unrelated
+    // private evidence never enters this maintenance context or its budget.
+    const found = (
+      await db.query(
+        "SELECT data FROM refinement_evidence WHERE workspace_id=$1 AND id=ANY($2::text[]) AND (data->>'sourceId' IS NULL OR data->>'sourceId'=ANY($3::text[])) LIMIT 1001",
+        [ctx.workspaceId, pending, [...sources]],
+      )
+    ).rows.map(({ data }) => data as Evidence);
+    for (const evidence of found) byId.set(evidence.id, evidence);
+    pending = [
+      ...new Set(found.flatMap((evidence) => evidence.parentIds)),
+    ].filter((id) => !byId.has(id));
+  }
   const result: ClaimProjection[] = [];
   for (const { data: c } of rows as { data: Claim }[]) {
     const ancestors = new Map<string, Evidence>(),
@@ -143,12 +156,8 @@ async function claimsFor(
     const visit = (id: string): boolean => {
       if (ancestors.has(id)) return true;
       const e = byId.get(id);
-      if (
-        !e ||
-        visiting.has(id) ||
-        visiting.size >= 100 ||
-        (e.sourceId && !sources.has(e.sourceId))
-      )
+      if (visiting.size >= 100) throw Error("INPUT_LIMIT");
+      if (!e || visiting.has(id) || (e.sourceId && !sources.has(e.sourceId)))
         return false;
       if (!e.sourceId && !e.parentIds.length) return false;
       visiting.add(id);

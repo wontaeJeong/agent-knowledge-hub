@@ -536,3 +536,51 @@ it("monthly unknown metering never becomes zero-cost trend or automatic policy m
     status: "incomplete-measurement",
   });
 });
+
+it("weekly evidence ancestry limits fail explicitly before silently dropping supported claims", async () => {
+  const f = await setup();
+  const nodes = Array.from({ length: 101 }, (_, n) => ({
+    id: `depth_${n}`,
+    kind: "claim",
+    sourceId: source.id,
+    sourceVersion: digest(source),
+    parentIds: n ? [`depth_${n - 1}`] : [],
+    assertedAt: storedClaim.assertedAt,
+    verifiedAt: null,
+    recordedAt: storedClaim.recordedAt,
+    recordedBy: "editor",
+    root: "source-a",
+    conditions: storedClaim.conditions,
+  }));
+  for (const evidence of nodes)
+    await f.pool.query("INSERT INTO refinement_evidence VALUES($1,$2,$3)", [
+      f.workspaceId,
+      evidence.id,
+      evidence,
+    ]);
+  await f.pool.query("INSERT INTO refinement_claims VALUES($1,'deep',$2)", [
+    f.workspaceId,
+    { ...storedClaim, id: "deep", evidenceIds: ["depth_100"] },
+  ]);
+  const row = await f.run("weekly");
+  expect(row.status).toBe("dead");
+  expect(row.error_code).toBe("INPUT_LIMIT");
+  expect(row.result).toBeNull();
+});
+
+it("weekly schedule admission fails closed for a missing link dependency", async () => {
+  const f = await setup();
+  await f.pool.query(
+    "UPDATE pages SET data=jsonb_set(data,'{links}','[\"missing-target\"]') WHERE workspace_id=$1",
+    [f.workspaceId],
+  );
+  await expect(f.schedule("weekly")).rejects.toThrow("NOT_FOUND");
+  expect(
+    (
+      await f.pool.query(
+        "SELECT count(*)::int n FROM batches WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows[0].n,
+  ).toBe(0);
+});
