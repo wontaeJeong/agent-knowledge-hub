@@ -265,3 +265,40 @@ test("partial commit receipts survive a later target failure and remaining targe
   for (const id of ["topic", "second", "third"])
     expect((await service.document(f.ctx, id)).settings.revision).toBe(1);
 });
+
+test("terminal identity revocation withholds accumulated receipts until authorized reconciliation", async () => {
+  const {adoptFixture}=await import("../test-support");await adoptFixture(f.pool,f.workspaceId);
+  const preview = await service.bulkPreview(f.ctx, {
+    pageIds: ["topic"],
+    operation: { kind: "archive" },
+    reason: "identity revocation",
+  });
+  const apply = service.setDocumentState.bind(service);
+  let revoked = false;
+  service.setDocumentState = async (
+    ...args: Parameters<typeof service.setDocumentState>
+  ) => {
+    const r = await apply(...args);
+    revoked = true;
+    return r;
+  };
+  const ctx = {
+    ...f.ctx,
+    authorization: {
+      revalidate: async () => {
+        if (revoked) throw Error("UNAUTHENTICATED");
+      },
+      assertSession: async () => {
+        if (revoked) throw Error("UNAUTHENTICATED");
+      },
+    },
+  } as unknown as typeof f.ctx;
+  await expect(
+    service.bulkApply(ctx, { token: preview.token }),
+  ).rejects.toThrow("UNAUTHENTICATED");
+  revoked = false;
+  service.setDocumentState = apply;
+  expect(
+    (await service.bulkApply(ctx, { token: preview.token })).items[0],
+  ).toMatchObject({ status: "applied", revision: 1 });
+});

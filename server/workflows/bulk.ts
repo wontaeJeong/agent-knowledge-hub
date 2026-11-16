@@ -184,6 +184,17 @@ export async function bulkApply(
     } catch (e) {
       if (
         e instanceof Error &&
+        [
+          "UNAUTHENTICATED",
+          "FORBIDDEN",
+          "AUTHENTICATION_REQUIRED",
+          "SESSION_EXPIRED",
+          "IDENTITY_INACTIVE",
+        ].includes(e.message)
+      )
+        throw e;
+      if (
+        e instanceof Error &&
         ["STALE_VERSION", "VALIDATION_FAILED"].includes(e.message)
       )
         items.push({ id: i.id, status: "failed" as const, code: e.message });
@@ -203,5 +214,22 @@ export async function bulkApply(
       }
     }
   }
+  await ctx.authorization?.revalidate();
+  for (const outcome of items) {
+    if (outcome.status !== "applied") continue;
+    const original = value.items.find((i) => i.id === outcome.id)!;
+    await transaction(service.pool, ctx.workspaceId, async (db) => {
+      await membership(db, ctx);
+      await ctx.authorization?.assertSession(db);
+      await service.authorize(
+        db,
+        ctx,
+        original.patch?.state ? "lifecycle.manage" : "knowledge.protect",
+        { kind: "page", id: outcome.id },
+      );
+    });
+    await service.document(ctx, outcome.id);
+  }
+  await ctx.authorization?.revalidate();
   return { items };
 }
