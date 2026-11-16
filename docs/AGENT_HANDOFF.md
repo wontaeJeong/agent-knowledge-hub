@@ -1,5 +1,18 @@
 # 에이전트 인계
 
+## 2026-11-16 문서 표시·이미지 첨부 — 로드맵 Task 3
+
+- 독립 리뷰의 Important 2건을 회귀로 재현해 수정했다. Sharp가 APNG의 pages를 생략하므로 실제 PNG 청크 경계를 검사해 acTL/fcTL/fdAT·손상/종료 뒤 데이터를 거부한다. 유효한 2프레임 합성 APNG는 실제 런타임에서415로 거부되고 blob 메타데이터가 생기지 않는다. 수식/다이어그램 세대와 별개인 이미지 요청 토큰은 새 선택·닫기·컨텍스트/언마운트에서 갱신하며 늦은 성공이 최신 권한 거부를 덮지 못한다. 대기 중 닫기도 지원한다. 이미지 object URL은 생성하지 않는다. 새 codec/React deferred/native HTTP 회귀 및 최종 전체 검사 결과는 화면 증거 README를 따른다.
+- EDT-001/008/009. `src/ui/Markdown.tsx`와 운영 문서·질문·고정 인용 및 기존 데모의 공통 읽기 경로를 연결했다. 원본 Markdown 표/코드/내부 링크를 다시 직렬화하지 않고, 로컬 KaTeX MathML과 엄격한 Mermaid flowchart/sequenceDiagram을 표시한다. 외부 이미지·HTML 실행·다이어그램 설정/콜백은 차단한다.
+- `server/storage/content.ts`, `service.ts`, `attachments.ts`, `file-read.ts`, `routes.ts`와 `src/operational/storage.tsx`에서 PNG/JPEG/WebP 업로드·이미지 미리보기·불변 버전 교체와 검토 연결을 지원한다. 5 MiB/400만 화소/4096px/정지 이미지 제한, 전체 픽셀 디코딩, 현재 ACL·원본 상한·고정 공유·디코딩 뒤 재검사·철회를 적용한다. 기존 CAS·스냅샷·보존/물리 삭제 게이트를 재사용하며 공개 파일 저장소는 없다.
+- 지원 형식·API·원본/발행/평가 경계는 [문서 표시 계약](DOCUMENT_PRESENTATION.md). 이미지 구조 검사는 바이러스/근거 검증이 아니며 PDF 변환·추출·미리보기, SVG/GIF와 임의 Mermaid 확장은 미지원이다. 지식/에이전트 성과는 측정하지 않았다.
+- 검증: Node24 전체 `npm run check`, 파일별 격리 PostgreSQL17의 storage/erasure 회귀 및 OIDC 세션·CSRF를 지나는 이미지 HTTP 검사를 실행했다. 실제 Chromium/React/서버/합성 OIDC·DB의 1440/390 문서·첨부 캡처와 업로드→미리보기→교체→원본 ACL 철회 후 차단, 외부 요청0/브라우저 오류0 근거는 [화면 증거](pr-assets/roadmap-presentation/README.md). 최종 실행 수와 PR 검토 상태는 해당 증거에 기록한다. 회사 SSO/실제 자료 운영 인수는 수행하지 않았다.
+## 2026-11-16 일괄 결과의 호스트 재조회 경계 수정
+
+- PR #45 독립 검토에서 apply 직후 `onChanged` → App.load의 `dataReady=false` → WorkflowPanel unmount로 결과/복구 토큰이 사라지는 경계를 확인했다. 적용 응답 뒤 자동 부모 갱신을 제거하고, 결과·실패 대상 선택·같은 토큰 재확인을 보존한 뒤 사용자가 명시적으로 목록을 새로고침하게 했다. 명시적 갱신은 결과 화면을 닫는다.
+- TDD: 실제 호스트와 같은 unmount 경계 회귀가 수정 전 `NOT_PROCESSED` 대신 호스트 로딩 문구를 받아 실패했다. 수정 후 BulkEditor 3시험과 전체 `npm run check` 통과. scope/API 전환과 401/403의 보호 상태 비우기를 유지했다. 독립 재검토에서 중요 차단 결함을 발견하지 않았다.
+- [1440/390 화면 및 재현](pr-assets/bulk/README.md): 실제 컴포넌트/CSS와 합성 API, 부분 결과·재확인·명시적 갱신 및 pageerror 0 확인. 서버 기능은 바꾸지 않았고 전체 DB/최종 CI는 PR의 마지막 커밋 검사를 따른다.
+
 ## 2026-11-14 병합 CI의 동시 인증 회귀 수정
 
 - 사용자 후속 요청으로 기능 PR #32~43의 병합이 승인됐다. #37 최종 CI `43601746148`에서 같은 세션의 동시 인증 갱신이 shared row lock을 UPDATE로 승격하면서 교착됐고 유효 세션이 폐기됐다. IAM-004/005/009, QNA-005와 관련된다.
@@ -494,12 +507,30 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - 후속 “머지” 요청에 따라 기능 PR #32~43을 squash 순서로 통합한다. 요구사항 범위는 변경하지 않으며 기존 PR #30은 별도다.
 - 각 기능의 격리 worktree에서 현재 main 및 선행 기능을 보존하고 최종 head의 필수 CI를 확인한다. 절차·검증과 제약은 [병합 기록](superpowers/plans/2026-11-14-product-merge.md)을 참조한다.
 
+## 2026-11-16 - SHR-007 fixed descendant sharing preview
+- Added authenticated shares/preview and shares/selection plus an actual AccessPanel flow. The ten-minute actor/workspace/credential-bound signed preview lists currently accessible fixed versions for one recipient. Selection creates all shares atomically after current actor/source/recipient checks and policy CAS. Future children never auto-join; moved/changed selected pages require a new preview. Existing individual/group fixed-link path remains available.
+- No document/source audience expansion is performed: recipient must currently read the complete input ancestry. Maximum50 selected pages; snapshots are fixed to current versions and restart requires a new preview.
+- Node24 npm run check, UI scope-clearing regression and PostgreSQL nativeOIDC/CSRF/forgery/descendant/source-revocation regressions4 pass. Actual1440/390 component screenshots under docs/pr-assets/share-selection use synthetic API; corporate acceptance is separate.
 ## 2026-11-16 Task 1a — Unified scoped search
 
 - Requirements: SRH-002/003/004/005/007, CORE-009/010 search integration. AgentService, ScopedSearch, cookie MCP and runtime HTTP share strict filters, actual historical bodies, current ACL and credential ceilings. Agent legacy offset DTO remains, with signed cursors and explicit historical metadata status. Unknown history is never filled from current title/conditions.
 - Default search/context uses canonical currentRecommendation, excluding active+replacementId, archived and future-effective pages. Explicit history/read stays available and is not described as current recommendation.
 - [API decisions, North Star invariants and remaining limits](implementation/2026-11-16-unified-search.md). Semantic selection and index operations are separate following units; no whole-requirement or company model quality/agent-performance acceptance claim.
 - Verified Task1a: final Node24 `npm run check` passed (src172 + Node48 + imports16 + evaluation41, requirements251, server typecheck, build/static HTTP smoke). Native PostgreSQL17 per-file runner passed 10 files/68 tests; final changed-search rerun passed 3 files/24 tests after cookie DTO compatibility mapping. No model/provider calls or semantic quality claim in this unit.
+
+## 2026-11-16 Task1b - configured semantic retrieval
+
+- Requirements: SRH-001/002/003/004/005/007 and CORE-009/010 implementation scope. Actual model selection over the complete authorized filtered corpus (up to100 versions, without lexical prefilter), exact quote checks, canonical historical metadata and current source/dependency checks. Durable budgets, actual telemetry and current result-read authorization remain enforced.
+- Connected authenticated REST, agent/cookie MCP and web mode admit/poll real jobs; unconfigured/policy/budget/limit/invalid-output cases remain failures. No answer/wiki/publication effect. [API, North Star decisions and limits](implementation/2026-11-16-semantic-search.md), [1440/390 browser evidence](pr-assets/semantic-search/README.md).
+- Company semantic quality, external CLI interoperability, large-wiki performance and downstream utility remain unverified acceptance; native provider replies are synthetic. Index freshness/rebuild is separate Task1c.
+- Validation Task1b: final Node24 npm run check passed (src173, Node48, imports16, evaluation41, requirements251, server typecheck, build/static HTTP smoke). PostgreSQL17 per-file isolated broad regression passed15 files/154 tests; final semantic11-test isolated rerun passed after malformed-schema repair. Browser1440/390 success/failure screenshots are explicitly synthetic UI evidence.
+
+### Task1b review corrections - semantic retry and key collisions
+
+- Stored job kind and sealed semantic payload are checked before accessing snapshotHash. Reusing an ordinary query/lint key returns IDEMPOTENCY_CONFLICT and creates no additional job/model call.
+- Web semantic search releases its key when job progress definitively reports dead/cancelled, allowing identical-filter retry to create a fresh job. Unknown admission, network interruption and poll timeout retain the original key to prevent duplicate uncertain jobs. No layout changed; existing screenshot evidence remains applicable to presentation.
+- Added native query/lint collision RED regressions and UI dead/cancelled/new-key plus admission-network/poll-network/poll-timeout/same-key checks. Final command/results recorded below after execution.
+- Review-fix validation: final Node24 npm run check passed (src178, Node48, imports16, evaluation41, requirements251, server typecheck, build/static smoke). Isolated PostgreSQL17 runtime52 plus semantic13 tests passed; UI semantic6 passed. Both terminal retry and uncertain same-key cases are executed regressions. git diff --check clean.
 ## 2026-11-16 — Task 8: subscriptions and event notifications (CLB-004–006)
 
 - Isolated native worktree branch `feat/roadmap-notifications-20261116`, based on `5218828`; feature contract: [notification API and boundaries](superpowers/specs/2026-11-16-notifications-contract.md).
@@ -514,11 +545,28 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - The publication outbox stores its originating batch in `resource_id`. Corrected erasure lineage to treat both publication and pending-review resource IDs as batch references, preserving the separate publication target page edge.
 - Added failing-first exported graph selection regression and native PostgreSQL source-scoped execute/recovery replay regressions. They ensure source → batch → event → notification cleanup reaches an event whose target page is independently retained; the retained page title remains intact. No migration or UI change.
 - Validation: `npm run check` plus targeted erasure graph/product/DB, collaboration events and native subscription HTTP regressions, recorded in the PR follow-up and task report. Independent review and integration branch CI remain separate from these local checks.
+## 2026-11-16 — EDT-012 다중 문서 편집
+- 서버 서명된 10분 유효 미리보기를 사용자·공간·자격증명에 고정하고 최대50문서의 태그 교체·상위 이동·보관을 현재 ACL과 metadata CAS로 적용한다. 문서별 성공/실패/제외를 반환하고 실패 대상만 새 미리보기로 재시도한다. 기존 검토/발행 본문과 권한은 변경하지 않는다.
+- 실제 운영 WorkflowPanel에 연결했으며 합성 API 브라우저1440/390 캡처는 docs/pr-assets/bulk. Node24 npm run check, 실제 PostgreSQL17의 도메인/네이티브 OIDC·CSRF·HTTP회귀4개, UI2개 통과. 서버 재시작 뒤 미리보기는 다시 생성해야 한다. 실제 사내 인수·지식 성과는 별도다.
+
+- EDT-012 review fixes: canonical Page.tags/search metadata now agree. Atomic per-target workflow_events receipts support same-preview reconciliation after response loss. Unknown/unprocessed outcomes remain visible; current authorization is required to read a receipt. Preview validity is ten minutes and restart requires new preview; company acceptance remains separate.
 
 ## 2026-11-16 — 탐색 대시보드 최신 통합 검증
 - PR30을 main5218828과 통합했다. 원래 인계·실수 기록을 보존하고 discovery GET과 최신 인증 me 경로를 함께 유지했다.
 - Node24 npm run check 통과. PostgreSQL17 격리 DB discovery/runtime/access 3파일37개 통과. 실제 Chromium1440/390 합성 명시 미리보기와 document overflow 없음 확인, docs/pr-assets/discovery에 캡처. 실제 회사 품질/대규모/운영 인수는 미검증이다.
 
+### 2026-11-16 — Task 5 일반 편입 주장 계보·검토 피드백
+- 요구사항: KNO-002~006/013/014. 일반 편입 후보를 정확한 원본 위치/fingerprint와 조건·기간·예외에 결합하여 배치에 보관하고, 검토 발행 트랜잭션에서 주장/근거/상충 요청을 저장한다. 반려·사람의 발행 수정·보호 이유는 다음 모델 입력에 고정하며 같은 원본·같은 제안 반복은 차단한다. 원본 정정은 불변 원본/주장을 보존하면서 영향을 받은 발행 버전의 재검토와 미발행 승인 무효화에 연결한다.
+- 변경 파일: `server/runtime/{knowledge,ingest-lineage,model,http,errors}.ts`, `server/publication.ts`, `server/refinement/service.ts`, `server/workflows/service.ts`, `src/operational/{App,review-rejection,refinement}.tsx`, 관련 CSS/회귀. 기존 저장소를 사용하며 migration 추가 없음.
+- 검증: Node24 `npm run check` 통과(웹173, import16 및 기존 Node/evaluation·251개 요구사항·서버 타입·빌드·HTTP smoke). PostgreSQL·실제 OIDC/모델 HTTP·MCP SDK 계보 회귀와 기존 답변 환류/권한/워크플로/정련/내구 작업 회귀를 실행한다. 최종 native 수치는 PR 검증 기록을 따른다. 실제 Chromium 1440/390 크기와 가로 넘침 검사, 합성 서버 데이터 캡처를 [증거](pr-assets/roadmap-knowledge-lineage/README.md)에 보관한다.
+- 남은 조건: 합성 loopback은 실제 사내 모델의 의미 품질·독립 실행 검증·지식 효과·운영 수용이 아니다. 의미상 반복 제안/상충 해석의 정답성은 모델 평가와 사람 검토가 필요하다. 모델 피드백·사람 편집 이력 각100개 및 기존 컨텍스트/작업 예산 초과는 명시적으로 중단한다. Task 6의 질문 주제/현재·과거 범위·조건 컨텍스트는 별도 PR 대상이다.
+- 추가 검증 발견(미해결): screenshot pool6의 병렬 인증 GET에서401/세션 폐기를 관찰했고 임시 PG 계측이 identity projection advisory7203101의SQLSTATE40P01을 확인했다(연결 timeout0건). Task5에서 auth/identity/network 경로를 바꾸지는 않았다. [요약](pr-assets/roadmap-knowledge-lineage/auth-deadlock.json)·실수 기록과 별도 검토 인계를 따르며 pool20 캡처 통과를 해결로 표시하지 않는다.
+
+### 2026-11-16 — Task 5 PR52 P1 권한/계보 재검토 보완
+- 독립 검토가 재현한 과거 반려안 외부 링크 누락을 수정했다. `rejectedFeedback`은 제안의 모든 기존 대상·외부 링크·과거/파생 원본·상위 문서에 현재 권한을 적용하고 전체 envelope를 반환한다. 하나라도 거부되면 본문/이유/ID 전체를 제외한다. 일반 편입은 이 전체 envelope를 고정하고, 답변 편입은 원래 답변 envelope 안에 완전히 포함되는 피드백만 허용한다. 전송 직전/커밋 직전 범위를 재검사한다.
+- 새 파일 `server/runtime/lineage-feedback.test.ts`에서 실제 DB/모델 입력과 실제 HTTP provider를 사용해 페이지/하위 페이지/원본/정책 철회·전송 직전 철회·응답 후 철회·답변 범위·제안 로컬 새 링크를 검증한다. 최초11개 동작 RED를 확인한 뒤 수정했다. 최종 검사 결과는 PR52와 인계 파일을 따른다.
+- 같은 변경 집합의 새 페이지 링크와 과거 결정 이력을 보존하되 현재 종합 페이지 선택·원본 공개 상한·모델 정책을 넓히지 않는다. 기존 auth deadlock 수정은 별도 PR이다.
+- P1 최종 검증: 리뷰어 원래 실제 PG 재현은 빈 feedback으로 수정 확인. 집중15개(링크/원본/정책 철회와 실제 provider HTTP 포함), 관련 native6파일110개, `npm run check` 웹178/import16/251 요구사항·서버 타입·빌드·HTTP smoke 통과. 로그 `/private/tmp/akh-lineage-feedback-{red,green,final-focused,regression,check,proof-green}.log`. 제품 UI 변경이 없어 기존 캡처를 보존했다.
 ## 2026-11-16 문서 탐색과 개인 목록
 
 - EDT-007/010, SRH-009/010: `server/workflows/service.ts`, `http.ts`, `src/operational/document-navigation.tsx`, `workflows.tsx`, `styles.css`에 현재 ACL의 링크 후보·백링크·태그 관계(각 20건), 목차·코드/표 검색 위치 이동, 기존 즐겨찾기·최근 API 기반 목록과 개인 초안 링크 완성을 연결했다. 기존 구독 버튼·서버 활동 저장을 재사용한다.
@@ -540,3 +588,7 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - [판단·API·한계](design/2026-11-16-export-import-roundtrip.md). North Star의 연결된 근거·검토·발행·재편입 순환을 보존하기 위한 변경이며 품질/업무 성과 향상은 미평가다. 새 migration·서비스·Pod·UI는 없고 1노드/앱1/DB1 초기 구성을 유지한다.
 - 검증: TDD의 v2 미지원·속성/실제 트리 미복원 RED와 기본 부모·selective 이력·미변경 속성 drift·새 첨부 부모/복수 revision·slot 없는 스냅샷·remap 이력 누락을 재현했다. canonical 첨부 hook을 제거하면 승인 후 scan/head 변경 회귀 2건이 잘못 발행됨을 확인한 후 hook 복구로 차단했다. 실제 native HTTP/격리 PostgreSQL은 DB 세션·loopback OIDC UserInfo·CSRF·원본/부모자식/속성/이력·첨부2버전·독립 승인·원자 발행·재시도·현재 원본 ACL 철회를 실행한다. 최종 Node24 `npm run check`와 영향 범위 native PostgreSQL 15파일108시험의 결과는 PR/작업 보고서에 기록한다.
 - 제약: 같은 workspace의 허용 아카이브만 지원한다. v1은 종전 content-proposal 호환이며 v2의 속성 복원 보장이 소급 적용되지 않는다. 5MiB/100문서·원본·blob/20제안문서 및 bounded history 제한을 초과하면 거부한다. 과거 이력은 inspect/re-export 가능한 미검증 근거이며 현재 버전 목록의 확정 발행본으로 나타내지 않는다. 실제 회사 IdP/기밀 자료·모델 품질·대규모 부하·운영 인수는 미검증이다. UI 변경이 없어 새 화면 캡처는 없다.
+### Task3/Task2 integration safety
+- Resolved overlapping published-body UI by using the shared safe Markdown renderer inside DocumentBody navigation. Outline/find decorate existing DOM without replacing authenticated attachment handlers. Math/SVG/control/status nodes are excluded from text marking. An integration regression failed on an external img before the change; safe image/math/find/preview and existing navigation/draft tests16 now pass. Fullcheck passed; actual integrated screenshots and scoped independent review follow.
+
+- Task3/Task2 final base integration: Node24 npmruncheck passed, native presentation-http/navigation-http/bulk3files passed, actual Chromium1440/390 safe-renderer navigation fixture passed outline4/find1/math/diagram/preview with external0/errors0/overflowfalse. Synthetic component input/reader is explicit in capture README; original actualOIDC/runtime/DB flow remains separately evidenced.

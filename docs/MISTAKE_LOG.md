@@ -1,5 +1,23 @@
 # 실수와 교훈 기록
 
+### 2026-11-16 — APNG 프레임 누락과 최신 이미지 응답 경합
+- 맥락: 문서 이미지 첨부의 독립 리뷰. 195바이트 합성 2프레임 APNG와 실제 React deferred promise로 두 문제를 재현했다.
+- 사실/영향/원인: Sharp 메타데이터에 APNG pages가 없어 단일 프레임으로 간주했고, 원본 바이트를 받은 브라우저는 검증되지 않은 추가 프레임을 표시했다. 이미지 요청은 컨텍스트 세대만 비교하여 최근 권한 거부 후 예전 성공이 이미지를 복구할 수 있었다. 최초 구현·집중 시험이 이 입력과 완료 순서를 놓쳤다.
+- 조치: PNG의 서명·실제 청크 길이/종료를 순회하며 모든 APNG 애니메이션 청크를 거부한다. 원본 보존·400만 화소 제한은 유지한다. 이미지별 요청 토큰을 모든 선택/닫기/컨텍스트/언마운트에서 갱신하고 다이어그램 세대와 분리했다. 대기 중 닫기도 늦은 응답을 무효화한다. data URL만 사용하므로 미회수 object URL은 없다.
+- 검증/상태: codec 및 실제 OIDC/CSRF HTTP에서 APNG 승인 문제가 RED→GREEN, 메타데이터 생성0. 손상 청크·정상 PNG/JPEG/WebP·불활성 청크 문자열 구분을 검사했다. 실제 React의 최신 거부/역순 응답/닫기/컨텍스트·언마운트 회귀 RED→GREEN. 최종 전체 검사와 실제 대기 중 닫기 화면 결과는 PR 증거 README에 기록한다. 사내 운영 인수는 미실행이다.
+
+### 2026-11-16 — 문서 표시의 정제·화면 상태와 검증 요약 수정
+- 맥락: EDT-001/008/009 이미지·수식·Mermaid 구현. 모든 자료와 계정은 합성이다.
+- 사실/원인: 첫 이미지 연결 fixture에서 원본 부모의 명시 pageId를 빠뜨려 기존 보호 규칙이 거부했다. 집중 실행의 마지막 두 파일만 보고 전체가 통과했다고 부모 에이전트에 보고했으나 전체 로그에서 lifecycle 실패를 확인해 즉시 정정했다. 이 검사는 정상 차단이며 정책을 약화하지 않았다.
+- 추가 실패: 실제 런타임 검사에서 INVALID_IMAGE 오류 매핑 누락이 일반503으로 나타났다. 브라우저에서는 화살표 포함 data 속성이 정제되어 Mermaid가 표시되지 않았고, MathML annotation 문자열이 중복 표시됐다. 기존 업로드의 전체 문서 재조회는 첨부 목록을 초기화했다. DOM/HTTP 증거로 각 원인을 재현했다.
+- 조치: 명시 대상 fixture, 안전한415 매핑, 단순 마커와 정제된 코드 본문을 읽는 다이어그램 처리, 비표시 TeX annotation 제거, 업로드의 로컬 목록 갱신과 늦은 응답 컨텍스트 검사를 적용했다. 보안 정제와 원본/권한 경계는 유지했다. 허용 SVG는 외부 스타일 없이 로컬 CSS로 읽을 수 있게 표시한다.
+- 검증/상태: 관련 서버·클라이언트 회귀 RED→GREEN. 실제 Chromium에서 수식/다이어그램/업로드/이미지/교체/현재 ACL 차단, 1440/390 캡처, 외부 요청0·브라우저 오류0을 확인했다. 마지막 전체 검사와 저장/삭제 회귀 결과는 PR 증거에 기록한다. 사내 운영 인수는 미실행이다.
+### 2026-11-16 — 일괄 결과가 실제 호스트 재조회에서 사라짐
+
+- 사실/원인: BulkEditor 단독 시험은 onChanged를 no-op으로 사용해 통과했으나 실제 App.load는 dataReady를 내려 패널을 unmount한다. apply 후 결과와 같은 토큰 재확인 상태가 즉시 소실됐다. 합성 fixture/독립 코드 검토로 확인했으며 운영 자료 영향은 확인하지 않았다.
+- 조치: 적용 직후 부모 자동 갱신 대신 명시적 ‘결과 확인 후 문서 목록 새로고침’을 제공한다. 호스트 unmount 경계 시험은 수정 전 실패, 수정 후 통과했다. 명시적 갱신 이후의 결과 보존은 제공하지 않는다.
+- 검증: 프런트 회귀 3건·전체 기본 검사·1440/390 실제 컴포넌트 화면·동일 토큰 재확인·독립 재검토. 최종 원격 CI는 해당 PR head 기준으로 확인한다.
+
 ### 2026-11-14 — 기능 완성 설계의 복구·보존 범위 보완
 - 맥락: 운영 고도화를 제외한 추가 기능의 PR 분리 설계.
 - 사실과 영향: 초안 P9에 삭제/철회는 있었지만 사용자 휴지통 복구 시험이 빠졌고, 보존 배치 제외 표현이 제품 보존 실행까지 제외하는 것으로 읽힐 수 있었다. 코드 변경 전에 독립 설계 검토에서 발견했다.
@@ -519,11 +537,35 @@
 - 검증: 최종 수정의 PostgreSQL 17 관련 9파일과 전체 `npm run check` 통과. 잘못 지정한 `legacy-compat.test.ts` 필터는 실행 전 거부됐으며 실제 `legacy-compatibility.test.ts`로 수정해 실행했다. 원격 최종 CI를 다시 통과해야 병합한다.
 - 남은 제약: 기존 final guard/directory gate 경합의 더 넓은 잠금 순서는 별도 재현·검토 대상이다. 이번 검증을 모든 동시성 문제의 해결로 표시하지 않는다.
 
+### 2026-11-16 - Share preview authorization fixtures and merge checks
+- Initial missing preview methods failed as expected. First implementation tests used writer role, which correctly lacked share.manage; test explicitly grants admin and production authorization stays strict. NativeOIDC/CSRF and current source revocation then pass.
+- During roadmap integration, PR30 merge was rejected by strict required check after main advanced; updated branch, verified finalCI and merged24550c5. A later merge command used an abbreviated expectedSHA and was rejected422 without mutation; subsequent merges use40-character SHAs only.
+- Search/discovery documentation conflicts preserve both records and re-run checks; no reset/clean/discard used.
+
+### 2026-11-16 - Hidden descendant threshold review fix
+- Independent review found the raw descendant limit ran before actor/recipient checks, so hidden or unshareable children could block a root-only preview and reveal a threshold.
+- Added50 unshareable descendant regression; it failed SHARE_SELECTION_LIMIT before the fix. Removed raw row count threshold and enforce50 only after complete current-ACL/input checks. Native5tests now pass.
+- Recursion remains cycle-safe and bounded to50levels; large-space performance is not claimed. No hidden title/count is returned.
 ### 2026-11-16 — Independent search eligibility and schema construction
 - Context: Task 1a canonical search integration.
 - Impact/cause: agent search duplicated eligibility logic, omitted replacementId and per-resource authorizer checks, and searched only current body in history mode. Five new native regressions failed before changes. Canonical ScopedSearch/currentRecommendation now owns retrieval.
 - Implementation error: using omit on a refined Zod object caused an import failure; explicitly mapping its shape fixed construction. Canonical search rejected unadopted fixtures; explicit adoptFixture setup fixed test identities without weakening production authorization. Existing historical expectation incorrectly used current effectiveFrom; it now expects unknown historical metadata.
 - Verification: five new search regressions, one native cookie MCP regression and nine existing agent regressions passed. Broader final checks are recorded in handoff. Actual company model and operational acceptance remain unverified.
+
+### 2026-11-16 - Semantic integration and test isolation
+- Context: Task1b actual configured semantic retrieval. Four native RED tests exposed the missing durable query variant; later HTTP404 and UI interaction failures exposed missing entry points. Added sealed payloads and connected routes/tools/UI.
+- Automated insertion initially placed worker execution inside validateScope (undefined value/e); typecheck/native failures exposed it. Moved execution to the worker handler, preserving read-only admission. The real three-call HTTP/MCP test exceeded default5s timeout; gave that specific IO test30s. Fixed a test expecting error_code rather than the existing job error field. Malformed provider schema produced generic EXECUTION_FAILED; a RED regression now requires MODEL_INVALID.
+- Test command mistake: malformed-output RED once ran direct Vitest against the coordinator test-only base URL instead of scripts/test-server.mjs. It migrated base and created one synthetic workspace. No reset/truncate/drop or production access. Parent informed; base left untouched as admin anchor until owned test-container cleanup after all work. All later DB runs use UUID per-file runner databases exclusively. Never run direct DB Vitest on a shared base, even for a filtered test.
+- Browser worktree screenshots were rejected by allowed-root policy; captured to allowed ignored output and copied evidence. Ambiguous selectors were rejected; corrected and recaptured actual unconfigured state. Rejected captures are not success evidence.
+- Final validation is recorded in handoff/report. Provider replies and UI data are synthetic; no company quality or production acceptance claim.
+
+### 2026-11-16 - Semantic idempotency variant and terminal retry review findings
+- Context: independent PR51 review found two Important defects in3636d48.
+- Cause/impact: replay construction dereferenced the stored semantic seal before checking its kind/variant, so a key belonging to ordinary query/lint caused TypeError instead of IDEMPOTENCY_CONFLICT. The browser cleared its search key only on success, so confirmed dead/cancelled jobs remained the target of identical retries indefinitely.
+- Reproduction: two new native query/lint regressions observed the TypeError. Two UI interaction regressions observed identical request keys after dead/cancelled. Uncertain admission/network/poll timeout cases explicitly preserve keys.
+- Fix: guard stored kind and validate semantic seal before replay; release browser key only on observed terminal failure/cancellation.
+- Test correction: the first timeout fixture advanced Date.now on the first arbitrary call, which React consumed. It now advances at the actual pending API response. The existing real provider/identity/budget test crossed the default5s timeout during concurrent native runs; semantic native file now has a30s real-IO timeout. Neither was hidden as a pass.
+- Verification: six UI regressions passed after the fix; final native/full-check results are in handoff and task report. Presentation unchanged, so no new screenshot claim.
 ### 2026-11-16 — Notification expiry clock ordering and capability fixture
 - Context: Task 8 CLB-004–006 in isolated `feat/roadmap-notifications-20261116`.
 - Observed impact: an expiry regression intermittently produced no notification when comparing DB subscription timestamps with the application clock; no production data or external message was involved. A later UI fixture omitted the protection capability required by the canonical lifecycle API and failed after controls were correctly gated.
@@ -541,12 +583,51 @@
 - Correction: publication and review request map to batch; expiry keeps page and job failure keeps job. Regression tests use the exported graph selector and actual source-scoped deletion plus trusted recovery replay, retaining an independent target page.
 - Validation: all three new assertions failed before the production fix and passed after it; initial native fixture setup also required its existing resources FK row. Full project and affected native regressions are recorded in the PR follow-up report. No schema/UI change or external delivery.
 - Status: corrected locally; independent re-review/integration CI still required before merge.
+### 2026-11-16 — 다중 문서 편집 회귀와 화면 검증
+- 미구현 bulkPreview/bulkApply를 호출하는 도메인 회귀3건이 예상대로 실패한 뒤 구현으로 통과했다.
+- 첫 독립 화면 캡처에서 앱 shell CSS 클래스가 없어 스타일이 적용되지 않은 검증 harness 문제를 확인했다. 실제 앱의 전역CSS와 shell 클래스를 사용해1440/390 캡처를 다시 생성했다. 제품 런타임의 CSS누락은 아니며 합성 화면임을 명시했다.
+- 미리보기 위조·다른사용자·권한철회·CAS 재시도·CSRF를 도메인과 인증HTTP에서 확인했다.
+
+### 2026-11-16 - Bulk editing independent review fixes
+- Review found that tags changed a property string rather than canonical Page.tags, and unexpected errors after partial commits discarded results.
+- Added a failing canonical-tag regression, then updated Page.tags inside the metadata transaction. ScopedSearch tag filtering is verified.
+- Added per-preview/per-target workflow_events receipts atomically with mutations. A response lost after commit is unconfirmed until the same preview reconciles the receipt, without duplicating the metadata revision.
+- The first search regression needed adoptFixture because canonical authorization correctly rejected missing legacy evidence. Production authorization was not relaxed.
+- A documentation append command failed with source encoding error; retried ASCII source. No product data was affected. Node24 npm run check and native bulk5/workflows25 tests pass; scoped independent re-review follows.
 
 ### 2026-11-16 — 탐색 PR 최신 main 통합
 - 사실/원인: 오래된 PR30과 최근 기능 병합 사이에서 인계·실수 기록과 HTTP me 경로 충돌이 발생했다.
 - 조치: 양쪽 기록을 보존하고 현재 me 처리 뒤에 discovery GET을 연결했다. 검증은 후속 실행 결과에 기록한다.
 - 상태: 통합 검증 중.
 
+### 2026-11-16 — 일반 편입의 후보 누락과 검토 이유 환류 공백
+- 맥락/관련 PR: remaining-roadmap Task 5. 기존 일반 모델 Ingest는 답변 재편입과 달리 반환 candidates를 버렸고 반려 사유/발행된 사람 편집 이유를 다음 입력에 전달하지 않았다. 원본 정정도 영향 주장 재검토를 생성하지 않았다.
+- 사실과 영향: 새 실제 PostgreSQL 회귀에서 후보 부재, 동일 반려안 재생성, 정정 요청 부재가 RED였고 사람의 편집/보호 이유 부재도 확인했다. 코드 경로 공백이며 실제 사내 정보 유출/운영 데이터 영향은 확인되지 않았다.
+- 조치: 공통 정확한 원본 후보 바인딩, 발행 연결, 반려/수정/보호 이유 입력 및 저장 직전 재검사, 정정 버전별 영향 요청과 승인 무효화를 추가했다. 원본·과거 주장·검증 상태는 변경하지 않는다.
+- 검증: `server/runtime/lineage.test.ts`, 실제 loopback HTTP/OIDC/MCP의 `lineage-http.test.ts`와 관련 회귀. 전체 품질·업무 효과는 미검증이며 별도 평가 대상이다.
+- 상태/후속 작업: 연결 회귀 검증, 최종 CI/독립 검토는 해당 PR 기록을 따른다.
+
+### 2026-11-16 — Task 5 검증 도구/fixture 오류
+- 사실과 영향: 구현 중 pg 결과에 `.rows` 대신 배열 메서드를 호출한 오류, 새 React 테스트의 전역 타입 누락으로 최초 서버 회귀/전체 빌드가 실패했다. 실제 MCP SDK가 throw하는 오류를 `isError` 응답으로 가정한 통합 테스트도 실패했다. 모두 임시 DB/격리 worktree에서 발견했고 최종 결과를 통과로 숨기지 않았다.
+- 조치/검증: pg 결과·React 전역 타입·실제 SDK 오류 assertion을 수정했다. 추가 보호 fixture도 테이블 확장 칼럼에 의존한 VALUES 대신 명시 칼럼으로 바꾸고 동작 부재 RED를 확인했다. 최종 `npm run check`와 연결 회귀를 다시 실행했다.
+- 화면 검증: 처음 `BrowserContext.newPage`에 viewport 옵션을 잘못 주어 두 파일이 기본1280 크기로 생성됐다. `page.setViewportSize`와 실제 폭 assertion으로 수정하고 1440/390으로 다시 캡처했다. 캡처 도중 한 번 로딩 timeout이 있었으며 동시 재빌드에 의한 assets 교체 가능성은 가설이다. 빌드 종료 후 단독 재실행은 통과했고 문서 폭을 검증했다.
+- 상태/후속 작업: 수정 검증. 캡처는 빌드 종료 후 실행하며 Playwright API가 실제 적용한 크기를 assertion으로 확인한다.
+- 추가 화면 검증: 정련 패널의 실제 POST는 동적 웹 origin을 사용하지만 첫 캡처 fixture는 HTTP 시험용 `http://localhost`로만 CSRF를 설정했다. 정련 초기 조회가 완료되지 않아 캡처가 timeout됐다. 제품 CSRF를 완화하지 않고 별도 웹 handler의 OIDC/CSRF origin을 실제 listen URL과 맞췄다.
+- 모바일 정정 화면에서 긴 `correction_*` 요청 ID 제목이390px 화면을457px로 늘리는 실제 overflow를 검출했다. 정련 제목의 줄바꿈을 적용하고 같은 실제 브라우저 너비 assertion으로 재검증한다. 기존 화면의 긴 ID 표현 문제이며 데이터/권한 변경은 없다.
+
+### 2026-11-16 — 브라우저 병렬 인증 조회의 기존 deadlock (미해결)
+- 사실/근거: 브라우저 fixture pool6에서 `/session`200 후 병렬 `/pages`, `/model`, `/changesets`, `/spaces`, `/sources`, `/jobs`401과 세션 폐기를 관찰했다. 임시 PG 계측이 `SELECT pg_advisory_xact_lock(7203101)`에서 SQLSTATE `40P01` / deadlock detected / 약1004ms를 수집했다. 이 실행의 연결 timeout은0건이다. 따라서 단순 pool starvation 가설은 이 관측을 설명하지 않는다. [안전한 요약](pr-assets/roadmap-knowledge-lineage/auth-deadlock.json).
+- 원인: 세션 검증/identity projection 잠금 순서의 정확한 cycle은 미확정이다. 최근 실행에는 session advisory7203110, identity_session_activity, access_group_members projection이 포함됐다. Task5는 이 인증/identity 함수를 바꾸지 않았으며 새 network/reauth를 트랜잭션에 추가하지 않았다.
+- 조치/상태: 독립 검토자에게 원본 합성 로그와 임시 계측을 전달했다. UI 캡처는 networkidle 대기와 별도 pool20 설정으로 수행하지만 이것을 제품 수정·원인 반증으로 간주하지 않는다. 실제 앱의 기본 pool 및 worker 병렬 조건을 포함한 별도 원인 분석/동시성 회귀가 필요하다. 인증/CSRF/권한 검사를 완화하지 않는다. **미해결**.
+
+### 2026-11-16 — PR52 검토 P1: 반려안의 외부 링크 의존성 누락
+- 사실/영향: 독립 검토에서 현재 권한을 잃은 링크 페이지를 가진 과거 오프라인 반려안을 검토 큐는 숨기지만 새 `rejectedFeedback`은 모델로 보낼 수 있음을 실제 PostgreSQL로 확인했다. 본문/사유/링크 ID가 전송 envelope의 ACL·정책 범위 밖에 남는 도입 결함이었다. 실제 사내 자료가 전송됐다는 증거는 없다.
+- 원인: 기존 snapshots/sourceIds/inputEnvelope/대상 페이지를 확인하면서 제안의 `updates.links`와 그 전체 파생 의존성은 빠뜨렸다. 답변 피드백의 부분 집합 검사도 같은 누락을 이어받았다.
+- 조치: 제안 외부 링크·기존 대상·원본/이전 컨텍스트·과거 파생/원본·상위 문서 전체에 현재 권한을 적용하고 별도 envelope를 고정한다. 누락/철회 시 피드백 전체를 제외한다. 일반 편입은 전체 영향 envelope를 합치고, 답변 편입은 원래 답변 envelope 안의 완전한 피드백만 쓴다. 전송 직전/저장 직전 모두 재검사한다.
+- 검증: 새 실제 DB/모델 입력/실제 provider HTTP 회귀11개가 수정 전 RED(노출/빈 envelope/금지 전송), 수정 후 GREEN이었다. 리뷰어의 원래 임시 재현도 빈 feedback이 되는지 다시 실행한다. 답변 철회·제안 내부 새 페이지 회귀와 전체 필수 검사/관련 native 결과는 후속 PR 기록을 따른다.
+- 상태: 수정 검증, 독립 재검토 필요. 기존 별도 auth deadlock은 이 수정에 포함하지 않는다.
+- 회귀 fixture 보정: 처음 새 오프라인 제안에서 서로 다른 공개 범위를 직접 연결하려 해 canonical `VALIDATION_FAILED`를 받았다. 해당 금지를 완화하지 않고 동일 범위에서 만든 과거/보관 링크로 동작 RED를 확인했다. 이후 분류 범위가 바뀐 legacy 반려안은 별도 합성 DB 이관 시나리오로 확인했다.
+- 최종 검증: reviewer 임시 PostgreSQL 재현은 `rejectedVisible:false, feedback:[], visiblePages:["topic"]`로 바뀌었다. 새 집중 회귀15개, 관련 native6파일110개와 `npm run check`(웹178/import16/251 요구사항·서버 타입·빌드·HTTP smoke) 통과. native6파일 실행 뒤 추가한 legacy 분류 회귀를 포함해 집중15개를 다시 실행했다. auth deadlock은 별도 미해결 기록을 유지한다.
 ### 2026-11-16 — 문서 탐색 검증 환경과 합성 fixture 수정
 
 - 맥락: EDT-007/010, SRH-009/010 기능 worktree.
@@ -573,3 +654,17 @@
 - 상태: 로컬 수정·검증됨. 독립 재리뷰와 최종 CI/통합이 남으며 회사 운영 인수를 뜻하지 않는다.
 - 같은 문서 갱신 시 한국어를 포함한 Python stdin이 인코딩 오류로 실패하여 CURRENT_STATUS만 갱신되지 않았다. UTF-8 임시 행 파일을 ASCII Python 코드에서 명시 인코딩으로 읽어 적용하고 실제 행 존재를 확인했다. 코드·테스트 결과는 영향받지 않았다.
 - 최종 영향 회귀 재실행에서 multi-request native HTTP 시험이 Vitest 기본 5초에 도달해 실패했다(5006ms, 다른 14파일은 통과). 앞선 격리/전체 실행과 재실행에서 기능 assertion은 통과했으며, 20초의 명시적 integration-test deadline에서는 10시험 전부 완료했다. 공유 검증 부하가 지연 원인이라는 판단은 가설로 유지한다. 제품 타임아웃·정책·SLO를 변경하지 않고 이 종단 시험만 20초로 명시한 뒤 최종 전체 회귀를 다시 실행한다.
+### 2026-11-16 - Presentation and navigation renderer overlap
+- Separate PRs both owned published-body rendering. Taking navigation alone would preserve its earlier DOMPurify renderer, allowing remote img and omitting configured math/image preview behavior. Taking Markdown alone would lose outline/find. Added a failing integration regression, then composed safe Markdown under navigation without replacing its event-bound DOM. Targeted16 and fullcheck passed; independent review remains required.
+### 2026-11-16 - Integration scheduling and native filter correction
+- Started the presentation merge before its final CI inspection, then cancelled only that uncommitted merge to integrate the already-CI-green bulk PR first. No committed or external changes were discarded. The presentation remote was already ff769e8; the initial stale-ref suspicion was incorrect.
+- A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.
+### 2026-11-16 - Semantic search integration MCP inventory
+- Native integration runtime tools/list correctly advertised knowledge_semantic_search but the pre-existing exact tool inventory expectation omitted it. This caused one assertion failure; the13 semantic provider tests passed. Updated the authenticated inventory expectation to the connected reviewed feature, preserving the explicit prohibition on approval tools. No production behavior changed.
+
+- The first integration capture omitted shared token/shell styles and was replaced after inspecting the real screenshot. Final captures use tokens.css, operational-app/op-main/op-panel; only the final1440/390 evidence is retained.
+
+- Independent integration re-review found pending Mermaid source was marked as text then asynchronously replaced by SVG, leaving a stale find count. Controlled deferred-Mermaid regression reproduced marks0/status1. Excluded the entire pending/resolved diagram container, matching the existing SVG exclusion; regular code/table search remains supported.
+
+### 2026-11-17 - Roundtrip integration dependency cache
+- Root base merge added reviewed presentation dependencies but reused an older node_modules symlink. Integrated frontend imports failed to resolve KaTeX/Mermaid before tests could run. Repointed only the root-owned untracked dependency symlink to the matching presentation installation and reran required checks; no product code or existing work was removed.

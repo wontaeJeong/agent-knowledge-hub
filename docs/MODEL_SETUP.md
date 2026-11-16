@@ -24,3 +24,7 @@ http://127.0.0.1:8080/#/compile 에서 시작한다. 모델 키가 필요 없다
 테스트의 로컬 가짜 OpenAI 호환 서버로 정책·요청 전달·JSON 오류·업스트림 실패·키 비노출을 검사한다. 이는 실제 사내 모델의 품질·GPU·프록시·CA·인증 호환성을 검증한 결과가 아니다. 해당 모델에 연결한 뒤 익명화한 업무 평가셋으로 종합 품질과 오류 누적을 평가해야 한다.
 
 이 실행기는 localhost에만 바인딩한다. SSO·서버 ACL·지속 DB·감사 보호·무인 스케줄러가 없으므로 사내 운영 서버로 노출하지 않는다. 실제 사내 자료를 사용하기 전 전체 요구사항의 출시 게이트를 충족한다.
+
+## Authenticated semantic search (2026-11-16)
+
+Operational server semantic search is separate from the older local demo above. It uses existing AGENT_KNOWLEDGE_HUB_LLM_BASE_URL, MODEL, ALLOW_TRANSMISSION=true, optional server API key and DESTINATION_ID (all with the same AGENT_KNOWLEDGE_HUB_LLM_ prefix). Require an active registered destination and explicit influencing-source grants for purpose query. A durable query worker and existing budgets/feature policy are mandatory; URL/model alone is not authorization. Web semantic mode and MCP tools expose actual queued/running/succeeded/failed state. No vector service is required. [Contract and remaining acceptance](implementation/2026-11-16-semantic-search.md).

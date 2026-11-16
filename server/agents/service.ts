@@ -7,6 +7,7 @@ import {
   currentRecommendation,
   type RuntimeService,
 } from "../runtime/knowledge";
+import { semanticSearchRequest } from "../questions/semantic";
 import { ScopedSearch, searchFilters } from "../questions/search";
 import type { Source, Page } from "../../src/domain/types";
 import { current, draftOf } from "../../src/domain/wiki";
@@ -68,6 +69,7 @@ const personalPage = z
   .strict();
 export const agentInputs = {
   wiki_search: searchInput,
+  wiki_semantic_search: semanticSearchRequest,
   wiki_read: z
     .object({
       page_id: id,
@@ -123,6 +125,11 @@ export class AgentService {
       outcomeId: string,
     ) => Promise<{ imported: string[]; acknowledged?: string[] }>,
     searcher?: ScopedSearch,
+    readonly submitSemantic?: (
+      ctx: Context,
+      filters: unknown,
+      key: string,
+    ) => Promise<unknown>,
   ) {
     this.searcher = searcher ?? new ScopedSearch(pool, { runtime, authorize });
   }
@@ -271,6 +278,11 @@ export class AgentService {
       lifecycle,
       currentRecommendation: await currentRecommendation(db, ctx, p.id),
     };
+  }
+  async semanticSearch(ctx: Context, input: unknown) {
+    const data = semanticSearchRequest.parse(input);
+    if (!this.submitSemantic) throw Error("SEMANTIC_SEARCH_NOT_CONFIGURED");
+    return this.submitSemantic(ctx, data.filters, data.idempotency_key);
   }
   async search(ctx: Context, input: unknown) {
     const q = searchInput.parse(input);

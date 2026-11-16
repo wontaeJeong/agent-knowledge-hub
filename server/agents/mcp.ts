@@ -12,6 +12,8 @@ import { agentInputs, type AgentService } from "./service";
 import type { Context } from "../service";
 import type { RuntimeJobsBridge } from "../jobs/runtime";
 const descriptions = {
+  wiki_semantic_search:
+    "구성된 모델로 현재 권한의 지식을 검색하는 지속 작업을 접수합니다. 상태와 실패를 별도로 확인합니다.",
   wiki_search: "현재 권한의 발행 지식을 버전·적용 조건과 함께 검색합니다.",
   wiki_read: "현재 ACL로 고정 버전·문단·근거·예외를 읽습니다.",
   wiki_get_context:
@@ -30,6 +32,8 @@ export async function callAgentTool(
   input: unknown,
 ) {
   switch (name) {
+    case "wiki_semantic_search":
+      return agents.semanticSearch(ctx, input);
     case "wiki_search":
       return agents.search(ctx, input);
     case "wiki_read":
