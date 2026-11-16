@@ -69,6 +69,7 @@ import {
   verifyDevice,
   decideDevice,
 } from "../agent-credentials";
+import { semanticSearchRequest } from "../questions/semantic";
 import { QuestionsService } from "../questions/service";
 import { handleQuestionRoute } from "../questions/http";
 import {
@@ -438,6 +439,19 @@ export function createRuntimeHandler(options: {
           return;
         return send(404, { code: "NOT_FOUND", requestId });
       }
+      if (path === "/api/v1/search/semantic" && req.method === "POST") {
+        if (agent) throw Error("FORBIDDEN");
+        if (!options.jobs) throw Error("SEMANTIC_SEARCH_NOT_CONFIGURED");
+        const data = semanticSearchRequest.parse(body);
+        const receipt = await options.jobs.submitInteractive(
+          ctx,
+          "query",
+          { semanticSearch: data.filters, mode: "model" },
+          data.idempotency_key,
+        );
+        await recordJobTrace(options.pool, ctx, requestId, "query", receipt.id);
+        return send(202, { ...receipt, requestId });
+      }
       if (path.startsWith("/api/v1/questions/")) {
         // Neither credential type has a verified ceiling for private threads yet.
         if (credential || agent) throw Error("FORBIDDEN");
@@ -797,6 +811,15 @@ export function createRuntimeHandler(options: {
               options.refinement!.importAgentSignals(ctx, { outcomeId: id })
           : undefined,
         questions.searcher,
+        options.jobs
+          ? (ctx, filters, key) =>
+              options.jobs!.submitInteractive(
+                ctx,
+                "query",
+                { semanticSearch: filters, mode: "model" },
+                key,
+              )
+          : undefined,
       );
       if (path === "/api/v1/agent/mcp" && req.method === "POST")
         return await handleAgentMcp(req, res, body, agents, ctx, options.jobs);
@@ -828,7 +851,15 @@ export function createRuntimeHandler(options: {
       )
         return;
       if (path === "/mcp" && req.method === "POST")
-        return await handleMcp(req, res, body, service, ctx, options.jobs, questions.searcher);
+        return await handleMcp(
+          req,
+          res,
+          body,
+          service,
+          ctx,
+          options.jobs,
+          questions.searcher,
+        );
       if (req.method === "GET") {
         const storedAnswer = path.match(/^\/api\/v1\/answers\/([^/]+)$/);
         if (storedAnswer)
@@ -1022,6 +1053,19 @@ export function createRuntimeHandler(options: {
               .parse(body);
             return send(200, await service.triage(ctx, batchId, b.label));
           }
+          if (action[2] === "reject") {
+            const { hash, reason } = approvalInput
+              .extend({
+                reason: z
+                  .string()
+                  .trim()
+                  .min(1)
+                  .max(2000)
+                  .default("사유 미기록"),
+              })
+              .parse(body);
+            return send(200, await service.reject(ctx, batchId, hash, reason));
+          }
           const { hash } = approvalInput.parse(body);
           if (action[2] === "publish") {
             const key = z
@@ -1034,8 +1078,6 @@ export function createRuntimeHandler(options: {
               await service.core.publish(ctx, batchId, hash, key),
             );
           }
-          if (action[2] === "reject")
-            return send(200, await service.reject(ctx, batchId, hash));
           const approved = await service.core.approve(ctx, batchId, hash);
           return send(200, {
             id: batchId,
