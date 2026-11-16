@@ -637,3 +637,8 @@
 - A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.
 ### 2026-11-16 - Semantic search integration MCP inventory
 - Native integration runtime tools/list correctly advertised knowledge_semantic_search but the pre-existing exact tool inventory expectation omitted it. This caused one assertion failure; the13 semantic provider tests passed. Updated the authenticated inventory expectation to the connected reviewed feature, preserving the explicit prohibition on approval tools. No production behavior changed.
+
+### 2026-11-17 - Additional collector actual-host verification
+- Default OpenCode CLI log path was sandbox-denied; isolated XDG roots fixed the local capture environment. The first temporary server printed its own ephemeral password; restarted with redirected local logs and never copied credentials/host metadata into fixtures. Only synthetic inputs with resume:false were used.
+- Expected missing-version/schema RED preceded implementation. Parameterizing the existing HTTP case reused its global synthetic session token and violated its PK; made the token workspace-specific without weakening authentication.
+- Actual installed-host GET then disproved the stubbed message-path assumption: pending synthetic input returned404 there and appeared in the session inbox. Added transport-mismatch RED cases and a bounded selected-inbox adapter. Final36 native tests and fullcheck passed. Corporate installation/semantic effectiveness are not inferred from capture or synthetic TLS tests.

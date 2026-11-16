@@ -39,6 +39,11 @@ export const collectorSupport = [
     installationApproved: false,
     coverage: "disabled: no trusted artifact-to-session binding is available",
   },
+  {
+    tool: "opencode", version: "2.3.0", format: "api.synthetic-message",
+    available: false, fixture: "opencode-2.3.0-synthetic.json", installationApproved: false,
+    coverage: "caller payload disabled; configured trusted host/session collection supports this captured format",
+  },
 ] as const;
 const timestamp = z.number().int().positive().max(8640000000000000);
 const timing = z
@@ -134,8 +139,9 @@ export function collectArtifact(
 ) {
   if (
     options.tool !== "opencode" ||
-    options.version !== "2.2.2" ||
-    !["api.synthetic-message", "api.assistant-message"].includes(options.format)
+    !["2.2.2", "2.3.0"].includes(options.version) ||
+    !["api.synthetic-message", "api.assistant-message"].includes(options.format) ||
+    (options.version === "2.3.0" && options.format !== "api.synthetic-message")
   )
     throw Error("UNSUPPORTED_COLLECTOR_VERSION");
   if (Buffer.byteLength(JSON.stringify(input)) > MAX_BYTES)
@@ -233,7 +239,7 @@ export function collectArtifact(
       sha256: sha256(bytes),
       content,
       tool: "opencode",
-      toolVersion: "2.2.2",
+      toolVersion: options.version,
       kind: tools
         ? statements
           ? "mixed-artifact"
@@ -264,7 +270,7 @@ export function collectArtifact(
     sha256: sha256(bytes),
     content: d.payload.text,
     tool: "opencode",
-    toolVersion: "2.2.2",
+    toolVersion: options.version,
     kind: "author-statement",
     verification: "unverified",
     occurredAt: new Date(d.time.created).toISOString(),

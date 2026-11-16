@@ -22,7 +22,7 @@ const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
   for (const fn of cleanup.splice(0).reverse()) await fn();
 });
-async function setup() {
+async function setup(toolVersion = "2.2.2") {
   const f = await fixture();
   cleanup.push(() => f.pool.end());
   await f.pool.query(
@@ -41,7 +41,7 @@ async function setup() {
   );
   const artifact = JSON.parse(
     await readFile(
-      new URL("./fixtures/opencode-2.2.2-synthetic.json", import.meta.url),
+      new URL(`./fixtures/opencode-${toolVersion}-synthetic.json`, import.meta.url),
       "utf8",
     ),
   );
@@ -53,19 +53,24 @@ async function setup() {
     subject: "synthetic-editor",
     label: "Synthetic personal host",
     baseUrl: "https://collector.invalid",
-    versionPath: "/version",
+    versionPath: toolVersion === "2.3.0" ? "/api/info" : "/version",
+    ...(toolVersion === "2.3.0" ? { version: toolVersion } : {}),
     authorization: "Bearer synthetic-only",
     allowedSessionIds: [artifact.data.sessionID],
     excludedSessionIds: [],
     excludedText: [],
   };
   const requests: string[] = [];
-  let version = "2.2.2";
+  let version = toolVersion;
   let onArtifact: undefined | (() => Promise<unknown>);
   const read = async (url: URL) => {
     requests.push(url.href);
-    if (url.pathname === "/version") return { version };
+    if (url.pathname === config.versionPath) return { version };
     await onArtifact?.();
+    if (toolVersion === "2.3.0") {
+      if (url.pathname !== `/api/session/${artifact.data.sessionID}/inbox`) throw Error("ACTUAL_API_PATH_MISMATCH");
+      return { data: [artifact.data] };
+    }
     return artifact;
   };
   const collector = new TrustedArtifactCollector(storage, [config], read);
@@ -110,8 +115,8 @@ test("fetches exactly the approved selected artifact into one private unverified
     tool: "opencode@2.2.2",
   });
 });
-test("unapproved sessions and unsupported changed provider version create no source", async () => {
-  const f = await setup();
+test.each(["2.2.2", "2.3.0"])("unapproved sessions and unsupported changed provider version create no source %s", async (toolVersion) => {
+  const f = await setup(toolVersion);
   const count = async () =>
     Number(
       (
@@ -299,8 +304,8 @@ test("assistant selection omits reasoning and tool inputs, rejects incomplete re
     "ARTIFACT_INCOMPLETE",
   );
 });
-test("real HTTP and UserInfo protect selected collection with cookie, CSRF and current connection revision", async () => {
-  const f = await setup();
+test.each(["2.2.2", "2.3.0"])("real HTTP %s and UserInfo protect selected collection with cookie, CSRF and current connection revision", async (toolVersion) => {
+  const f = await setup(toolVersion);
   const provider = createServer((_req, res) => {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ sub: "synthetic-editor", groups: ["editor"] }));
@@ -318,7 +323,7 @@ test("real HTTP and UserInfo protect selected collection with cookie, CSRF and c
     "synthetic",
   );
   oidc.allowInsecureRequests(config);
-  const token = "synthetic-http-token";
+  const token = "synthetic-http-token-" + f.workspaceId;
   await f.pool.query(
     "INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,expires_at,subject,access_token) VALUES($1,$2,'editor','synthetic-csrf',now()+interval '1 hour','synthetic-editor','synthetic-access')",
     [sessionHash(token), f.workspaceId],
@@ -414,8 +419,8 @@ test("same host artifact deduplicates across renewed bindings but a different se
     ).id,
   ).not.toBe(a.id);
 });
-test("real bounded TLS transport fetches configured host bytes and refuses redirects, encoding and oversized bodies", async () => {
-  const f = await setup(),
+test.each(["2.2.2", "2.3.0"])("real bounded TLS %s transport fetches configured host bytes and refuses redirects, encoding and oversized bodies", async (toolVersion) => {
+  const f = await setup(toolVersion),
     { cert, key } = testTlsCertificate();
   let mode = "ok";
   let artifactRequests = 0;
@@ -438,10 +443,11 @@ test("real bounded TLS transport fetches configured host bytes and refuses redir
       res.end("{}");
       return;
     }
-    if (req.url === "/version") res.end(JSON.stringify({ version: "2.2.2" }));
+    if (req.url === f.config.versionPath) res.end(JSON.stringify({ version: toolVersion }));
     else {
       artifactRequests++;
-      res.end(JSON.stringify(f.artifact));
+      if (toolVersion === "2.3.0" && req.url !== `/api/session/${f.input.sessionId}/inbox`) { res.writeHead(404); res.end("{}"); return; }
+      res.end(JSON.stringify(toolVersion === "2.3.0" ? { data: [f.artifact.data] } : f.artifact));
     }
   });
   await new Promise<void>((r) => provider.listen(0, "127.0.0.1", r));
@@ -583,4 +589,33 @@ test("erasure applied during remote fetch is rechecked before source and snapsho
   await expect(f.collector.collect(f.editor,"personal-host",f.input)).rejects.toThrow("ERASURE_WRITES_FENCED");
   expect(f.requests).toHaveLength(3);
   expect((await f.pool.query("SELECT (SELECT count(*) FROM sources WHERE workspace_id=$1)::int AS sources,(SELECT count(*) FROM storage_snapshots WHERE workspace_id=$1)::int AS snapshots",[f.workspaceId])).rows[0]).toEqual(before);
+});
+
+test("2.3.0 refuses uncaptured assistant format before network and changed version after artifact", async () => {
+  const f = await setup("2.3.0");
+  await expect(f.collector.collect(f.editor, "personal-host", { ...f.input, format: "api.assistant-message" })).rejects.toThrow("UNSUPPORTED_COLLECTOR_VERSION");
+  expect(f.requests).toHaveLength(0);
+  f.setHook(async () => { f.setVersion("2.2.2"); });
+  await expect(f.collector.collect(f.editor, "personal-host", f.input)).rejects.toThrow("UNSUPPORTED_COLLECTOR_VERSION");
+  expect((await f.pool.query("SELECT count(*)::int AS n FROM sources WHERE workspace_id=$1 AND data->>'tool'='opencode@2.3.0'", [f.workspaceId])).rows[0].n).toBe(0);
+});
+
+test.each(["unselected", "wrong-session", "duplicate", "missing", "over-limit"])("2.3.0 pending inbox selection %s preserves source isolation", async (variant) => {
+  const f = await setup("2.3.0");
+  let entries: unknown[] = [f.artifact.data, { ...f.artifact.data, id: "msg_unselected", payload: { text: "UNSELECTED_PRIVATE" } }];
+  if (variant === "wrong-session") entries = [{ ...f.artifact.data, sessionID: "ses_other" }];
+  if (variant === "duplicate") entries = [f.artifact.data, f.artifact.data];
+  if (variant === "missing") entries = [];
+  if (variant === "over-limit") entries = Array.from({ length: 101 }, (_, i) => ({ ...f.artifact.data, id: "msg_other" + i }));
+  const read = async (url: URL) => url.pathname === f.config.versionPath ? { version: "2.3.0" } : { data: entries };
+  const c = new TrustedArtifactCollector(f.storage, [{ ...f.config, id: "pending-isolation" }], read);
+  await c.initialize();
+  if (variant === "unselected") {
+    const result = await c.collect(f.editor, "pending-isolation", f.input);
+    const stored = (await f.pool.query("SELECT data FROM sources WHERE workspace_id=$1 AND id=$2", [f.workspaceId, result.id])).rows[0].data;
+    expect(stored.content).toBe(f.artifact.data.payload.text); expect(JSON.stringify(stored)).not.toContain("UNSELECTED_PRIVATE");
+  } else {
+    await expect(c.collect(f.editor, "pending-isolation", f.input)).rejects.toThrow();
+    expect((await f.pool.query("SELECT count(*)::int AS n FROM sources WHERE workspace_id=$1 AND data->>'tool'='opencode@2.3.0'", [f.workspaceId])).rows[0].n).toBe(0);
+  }
 });
