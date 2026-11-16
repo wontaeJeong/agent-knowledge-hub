@@ -3,7 +3,7 @@ import { transaction } from "../database";
 import { membership, audit } from "../repository";
 import { assertEnvelope } from "../provenance";
 import { authorizeInTransaction } from "../access/index";
-import { answerOutput, id as identifier } from "../runtime/schema";
+import { queryScope, answerOutput, id as identifier } from "../runtime/schema";
 import type { RuntimeService } from "../runtime/knowledge";
 import type { Context } from "../service";
 
@@ -54,6 +54,16 @@ export async function readStoredAnswer(
       question: data.question,
       mode: data.mode,
       at: data.at,
+      ...(data.queryScope
+        ? {
+            workspaceId: ctx.workspaceId,
+            queryScope: queryScope.parse(data.queryScope),
+            temporalMode: data.queryScope.historical
+              ? "documented-history-not-current-recommendation"
+              : "current-recommendation",
+            asOf: data.asOf ?? null,
+          }
+        : {}),
     };
   });
   await ctx.authorization?.revalidate();

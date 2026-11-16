@@ -20,7 +20,7 @@ import { assertJobFeatures } from "../policy/features";
 import { sourcePolicyHash } from "../policy/model";
 import { RuntimeService, type RuntimeExecution } from "../runtime/knowledge";
 import { modelConfig, MODEL_CONTRACT_VERSION } from "../runtime/model";
-import { ingestInput, queryInput } from "../runtime/schema";
+import { type QueryScope, ingestInput, queryInput } from "../runtime/schema";
 import { JobService, parseJobInput, type JobOptions } from "./service";
 import { JobWorker } from "./worker";
 import { ContentRetentionService } from "../retention/service";
@@ -1092,6 +1092,8 @@ export function createRuntimeJobs(
         payload.question as string,
         payload.mode as "offline" | "model",
         e,
+        undefined,
+        payload.scope as QueryScope | undefined,
       );
     else if (input.kind === "lint" && payload.semantic === true) {
       if (!options.semanticLint) throw Error("SEMANTIC_LINT_NOT_CONFIGURED");

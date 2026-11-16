@@ -608,3 +608,12 @@
 
 ### 2026-11-16 - Semantic search integration MCP inventory
 - Native integration runtime tools/list correctly advertised knowledge_semantic_search but the pre-existing exact tool inventory expectation omitted it. This caused one assertion failure; the13 semantic provider tests passed. Updated the authenticated inventory expectation to the connected reviewed feature, preserving the explicit prohibition on approval tools. No production behavior changed.
+
+### 2026-11-17 — Task 6 범위/컨텍스트 연결과 검증 발견
+- 맥락: QNA-004/CORE-010, isolated question-scope worktree. 최초 동작 RED는 query scope 거부/무시, 현재 버전 대신 과거 버전 선택 불가, 실제 provider의 주장 예외 누락이었다. 통합 prerequisite 문서/CSS 충돌은 양쪽 내용을 보존했다.
+- 구현 중 발견: 새 컨텍스트가 기존 project/environment 필터를 처음 누락했고, 과거 claim validity를 발행 기간 종료일로 평가해 기록 시점과 혼동했다. 각각 동작 RED로 확인한 뒤 필터를 유지하고 역사 버전 기록 시점 기준으로 수정했다. 같은 발행 트랜잭션의 claim 기록이 버전보다 수 ms 늦어 제외되는 경계도 RED를 확인하고 exact originBatchId 결합만 허용했다. 뒤늦은 일반 claim은 계속 과거로 투사하지 않는다.
+- 저장 답변 재조회가 scope/asOf를 버려 실제 브라우저의 결과 범위 표시가 사라졌다. 인증 HTTP 재조회 RED를 추가하고 기존 전체 envelope 검사를 유지한 채 선택 범위 필드를 반환한다. 실제 모델 평가 가드도 새 전체 page DTO를 이전 네 필드 hash와 비교해 maintenance를 incomplete로 만들었다. 원래 id/title/version/content 비교를 명시하고 전체 입력의 holdout 격리·원본/규칙 검사를 보존했다. 평가 회귀 재실행은 통과했으며 의미 품질 효과를 뜻하지 않는다.
+- 시험/도구 오류: 최초 합성 모델 시험에 전송 설정/인증 capability가 빠져 fixture 오류가 났고, 빈 근거에서 기존 MODEL_TRANSMISSION_DENIED를 성공 prompt로 잘못 기대했다. 설정/현재 정책을 명시하고 거부 시 provider 0회를 검사했다. 편집 스크립트가 answer 메타데이터를 ingest 블록에 삽입하고 함수 인자를 한 곳 남긴 오류와 UI 상태 타입 누락은 타입 검사로 검출·수정했다. 전체 CSS 포맷 변경은 기존 스타일을 보존하고 새 규칙만 남겼다.
+- 화면 시험: select label의 option 텍스트 포함과 두 질문 textarea의 동명 때문에 첫 locator/submit 검증이 실패했다. 명시적인 접근성 이름과 실제 대상 placeholder를 사용했다. 이후 저장 답변 DTO 누락을 위와 같이 제품 경계에서 수정했다. 별도 기존 pool6 인증 동시성 문제를 우회하는 pool20 합성 캡처는 그 문제의 수정/반증으로 보고하지 않는다.
+- 검증/상태: 새 회귀의 의도한 RED와 수정 후 재검증 로그는 작업 보고서/PR을 따른다. native 평가 실행에서 pg 동시 client.query deprecation 경고도 관찰했다. 이 단위에서 그 기존 경고의 원인을 확정하거나 해결했다고 표시하지 않는다. 회사 원문·계정/키·실제 외부 배포 영향은 확인되지 않았다.
+- 최종 재검증: `npm run check` 웹195/import16/251 요구사항·서버 타입·빌드·smoke 통과. 넓은 native23파일203통과/평가1실패를 숨기지 않고 수정 후 최종3파일11개로 재검증했다(scope8/인증HTTP·MCP·provider·durable·실제브라우저2/평가1). 최종 캡처1440/390에서 역사 질문 제출·보호된 저장 답변 재조회·선택 범위 표시·overflow 검사가 통과했다. 기존 pg 경고/별도 인증 문제는 이 단위의 해결로 기록하지 않는다.

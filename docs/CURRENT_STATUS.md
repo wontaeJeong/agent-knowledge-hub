@@ -81,3 +81,8 @@ EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행�
 - Web semantic search releases its key when job progress definitively reports dead/cancelled, allowing identical-filter retry to create a fresh job. Unknown admission, network interruption and poll timeout retain the original key to prevent duplicate uncertain jobs. No layout changed; existing screenshot evidence remains applicable to presentation.
 - Added native query/lint collision RED regressions and UI dead/cancelled/new-key plus admission-network/poll-network/poll-timeout/same-key checks. Final command/results recorded below after execution.
 - Review-fix validation: final Node24 npm run check passed (src178, Node48, imports16, evaluation41, requirements251, server typecheck, build/static smoke). Isolated PostgreSQL17 runtime52 plus semantic13 tests passed; UI semantic6 passed. Both terminal retry and uncertain same-key cases are executed regressions. git diff --check clean.
+
+### 2026-11-17 — Task 6 질문 범위와 컨텍스트
+- QNA-004/CORE-010: 웹 질문의 주제·현재/과거 발행 기록·UTC 기간 선택이 실제 REST/cookie MCP query와 durable 실행에 연결된다. agent REST/MCP `wiki_get_context`도 같은 범위와 적용 주장/예외/유효 기간을 예산 내에서 제공한다. 결과와 저장 답변 재조회에 선택 범위·조회 시각을 남긴다.
+- 현재 권고와 과거 기록을 구별하고 과거 미기록 속성을 현재 속성으로 채우지 않는다. 기록 기간과 사실 유효 기간은 별개다. 전체 주장 계보가 현재 ACL·선택 원본 envelope 안에 있어야 하며 전송/저장 시 재검사한다. 알려진 조건 일치도 의미상 진실·독립 실행 검증을 보증하지 않는다.
+- [정확한 API·기간·예산·한계](implementation/2026-11-16-question-scope.md), [합성 인증 브라우저 증거](pr-assets/roadmap-question-scope/README.md). 기존 251개 요구사항의 운영 검증 상태는 올리지 않는다. 실제 사내 모델/의미 품질/업무 성과/대규모 부하와 기존 별도 인증 동시성 이슈는 이 단위의 검증 범위가 아니다.

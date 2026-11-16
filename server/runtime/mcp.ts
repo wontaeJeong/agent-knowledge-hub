@@ -105,16 +105,10 @@ export async function handleMcp(
       io: "input",
     }),
     knowledge_search: z.toJSONSchema(mcpSearchInput, { io: "input" }),
-    knowledge_query: {
-      type: "object",
-      properties: {
-        question: { type: "string" },
-        mode: { enum: ["offline", "model"] },
-        idempotency_key: { type: "string", maxLength: 200 },
-      },
-      required: ["question", "mode"],
-      additionalProperties: false,
-    },
+    knowledge_query: z.toJSONSchema(
+      queryInput.extend({ idempotency_key: requestKey }),
+      { io: "input" },
+    ),
     knowledge_ingest: {
       type: "object",
       properties: {
@@ -325,7 +319,14 @@ export async function handleMcp(
               data,
               jobKey("query", idempotency_key),
             )
-          : await service.query(ctx, data.question, data.mode);
+          : await service.query(
+              ctx,
+              data.question,
+              data.mode,
+              undefined,
+              undefined,
+              data.scope,
+            );
         break;
       }
       case "knowledge_ingest": {

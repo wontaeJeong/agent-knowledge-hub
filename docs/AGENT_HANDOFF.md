@@ -556,3 +556,10 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 
 - `LinkCompletion`의 지연 권한 응답이 최신 삽입 콜백을 사용하고, `WorkflowPanel`이 현재 초안/계정 바인딩과 활성 자동 저장 편집기의 최신 본문을 사용해 대기 중 입력을 보존하도록 수정했다. EDT-007과 초안 저장 경계에 해당한다. 기존 요청 세대/대상 철회 검사는 유지한다.
 - `src/operational/navigation-draft.test.tsx`에서 과거 콜백 호출·실제 편집창의 입력 유실 RED를 확인한 뒤 수정했다. React 입력과 실제 DraftAutosave→OperationalApi의 합성 저장소에 동일한 최신 본문·링크가 남는 통합 회귀를 포함한다. 전체 `npm run check`(프런트180)와 native 인증 HTTP 탐색·CSRF·원본 철회 회귀를 재통과했다. 시각 변경은 없어 기존 캡처를 유지한다.
+
+### 2026-11-17 — Task 6 질문 범위와 실제 컨텍스트
+- 요구사항: QNA-004, CORE-010. 인증 공간 안의 주제(문서 분류)·현재/과거 발행 기록·UTC 기간·환경 조건을 선택하며, 실제 query provider/REST/cookie MCP와 agent REST/MCP 컨텍스트에 연결한다. 기본 현재 권고와 기존 메서드 인자/필터·작업 예산·멱등 키를 유지한다.
+- 변경: `server/questions/scope.ts`, runtime schema/knowledge/model/http/mcp, agents/service, jobs/runtime, refinement/service, workflows/answers, evaluation/run과 웹 질문 범위 컴포넌트. 고정 버전·원본 상한의 주장/전체 예외·유효 기간을 전달하고 전송/저장 직전 재검사한다. 과거 속성 미기록과 적용 조건/유효 시점 미확인은 unknown이며 현재 속성으로 보충하지 않는다. 같은 원자적 발행의 주장은 originBatchId로 구별한다.
+- [API·시간·예산·North Star 판단·제약](implementation/2026-11-16-question-scope.md), [1440/390 실제 인증 화면](pr-assets/roadmap-question-scope/README.md). 모델 계약은 `2026-11-17-question-scope-v1`; 기존 모델 작업은 원래 계약 신선도 검사를 따른다. 마이그레이션/추가 Pod 없음.
+- 검증: scope/실제 HTTP·OIDC/CSRF·provider·두 MCP·durable replay·철회·예산 회귀와 Node24 전체 필수 검사를 실행한다. 최종 수치는 해당 PR과 작업 보고서에 기록한다. 실제 사내 의미 품질·대규모 비용/지연·지식 효과·운영 인수는 미검증이다.
+- Task 6 최종 검증: Node24 `npm run check` 통과(웹195, import16, Node/evaluation·251 요구사항·서버 타입·빌드·HTTP smoke). 최종 집중 native 3파일11개 통과(scope8, 실제 인증/provider/MCP/durable/브라우저2, policy-bound 모델 평가1). 더 넓은 native23파일에서203개 통과/평가1개 실패를 확인했고, 해당 평가 가드 수정 뒤 위 최종 회귀로 재통과했다. 이전 scope7에서 최종8로 확장했다. 평가의 pg 동시 client.query deprecation 경고와 별도 pool6 인증 이슈는 미해결 기록을 보존한다. 실제 1440/390 역사 질문 제출·저장 답변 재조회·가로 넘침 검사는 통과했다. 독립 리뷰·원격 CI는 PR에서 별도로 확인한다.

@@ -89,7 +89,7 @@ export class ScopedSearch {
     readonly pool: Pool,
     readonly options: {
       authorize: QuestionAuthorizer;
-      runtime: RuntimeService;
+      runtime: Pick<RuntimeService, "view">;
       versionMetadata?: MetadataReader;
     },
   ) {}
@@ -138,6 +138,7 @@ export class ScopedSearch {
     ctx: Context,
     raw: unknown = {},
     legacyOffset = 0,
+    all = false,
   ) {
     z.number().int().min(0).max(100000).parse(legacyOffset);
     const filters = searchFilters.parse(raw);
@@ -299,8 +300,8 @@ export class ScopedSearch {
           )
             continue;
           if (
-            (filters.periodFrom && at < filters.periodFrom) ||
-            (filters.periodTo && at > filters.periodTo)
+            (filters.periodFrom && Date.parse(at) < Date.parse(filters.periodFrom)) ||
+            (filters.periodTo && Date.parse(at) > Date.parse(filters.periodTo))
           )
             continue;
           if (
@@ -373,7 +374,7 @@ export class ScopedSearch {
     const accessible = old
       ? items.filter((i) => compare(key(i), old.last) > 0)
       : items;
-    const page = accessible.slice(legacyOffset, legacyOffset + filters.limit);
+    const page = all ? accessible : accessible.slice(legacyOffset, legacyOffset + filters.limit);
     const nextCursor =
       accessible.length > legacyOffset + filters.limit
         ? this.encode({
