@@ -1,5 +1,11 @@
 # 실수와 교훈 기록
 
+### 2026-11-16 — 일괄 결과가 실제 호스트 재조회에서 사라짐
+
+- 사실/원인: BulkEditor 단독 시험은 onChanged를 no-op으로 사용해 통과했으나 실제 App.load는 dataReady를 내려 패널을 unmount한다. apply 후 결과와 같은 토큰 재확인 상태가 즉시 소실됐다. 합성 fixture/독립 코드 검토로 확인했으며 운영 자료 영향은 확인하지 않았다.
+- 조치: 적용 직후 부모 자동 갱신 대신 명시적 ‘결과 확인 후 문서 목록 새로고침’을 제공한다. 호스트 unmount 경계 시험은 수정 전 실패, 수정 후 통과했다. 명시적 갱신 이후의 결과 보존은 제공하지 않는다.
+- 검증: 프런트 회귀 3건·전체 기본 검사·1440/390 실제 컴포넌트 화면·동일 토큰 재확인·독립 재검토. 최종 원격 CI는 해당 PR head 기준으로 확인한다.
+
 ### 2026-11-14 — 기능 완성 설계의 복구·보존 범위 보완
 - 맥락: 운영 고도화를 제외한 추가 기능의 PR 분리 설계.
 - 사실과 영향: 초안 P9에 삭제/철회는 있었지만 사용자 휴지통 복구 시험이 빠졌고, 보존 배치 제외 표현이 제품 보존 실행까지 제외하는 것으로 읽힐 수 있었다. 코드 변경 전에 독립 설계 검토에서 발견했다.
@@ -541,6 +547,17 @@
 - Correction: publication and review request map to batch; expiry keeps page and job failure keeps job. Regression tests use the exported graph selector and actual source-scoped deletion plus trusted recovery replay, retaining an independent target page.
 - Validation: all three new assertions failed before the production fix and passed after it; initial native fixture setup also required its existing resources FK row. Full project and affected native regressions are recorded in the PR follow-up report. No schema/UI change or external delivery.
 - Status: corrected locally; independent re-review/integration CI still required before merge.
+### 2026-11-16 — 다중 문서 편집 회귀와 화면 검증
+- 미구현 bulkPreview/bulkApply를 호출하는 도메인 회귀3건이 예상대로 실패한 뒤 구현으로 통과했다.
+- 첫 독립 화면 캡처에서 앱 shell CSS 클래스가 없어 스타일이 적용되지 않은 검증 harness 문제를 확인했다. 실제 앱의 전역CSS와 shell 클래스를 사용해1440/390 캡처를 다시 생성했다. 제품 런타임의 CSS누락은 아니며 합성 화면임을 명시했다.
+- 미리보기 위조·다른사용자·권한철회·CAS 재시도·CSRF를 도메인과 인증HTTP에서 확인했다.
+
+### 2026-11-16 - Bulk editing independent review fixes
+- Review found that tags changed a property string rather than canonical Page.tags, and unexpected errors after partial commits discarded results.
+- Added a failing canonical-tag regression, then updated Page.tags inside the metadata transaction. ScopedSearch tag filtering is verified.
+- Added per-preview/per-target workflow_events receipts atomically with mutations. A response lost after commit is unconfirmed until the same preview reconciles the receipt, without duplicating the metadata revision.
+- The first search regression needed adoptFixture because canonical authorization correctly rejected missing legacy evidence. Production authorization was not relaxed.
+- A documentation append command failed with source encoding error; retried ASCII source. No product data was affected. Node24 npm run check and native bulk5/workflows25 tests pass; scoped independent re-review follows.
 
 ### 2026-11-16 — 탐색 PR 최신 main 통합
 - 사실/원인: 오래된 PR30과 최근 기능 병합 사이에서 인계·실수 기록과 HTTP me 경로 충돌이 발생했다.
@@ -562,3 +579,7 @@
 - 조치: 링크 응답은 최신 커밋된 삽입 콜백을 사용한다. WorkflowPanel은 현재 초안·계정 바인딩을 확인하고 활성 DraftAutosave의 현재 본문에 추가한 동일 값을 React 입력과 자동 저장에 전달한다. 기존 대상/요청 세대·권한 철회 검사를 유지한다.
 - 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
 - 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
+
+### 2026-11-16 - Integration scheduling and native filter correction
+- Started the presentation merge before its final CI inspection, then cancelled only that uncommitted merge to integrate the already-CI-green bulk PR first. No committed or external changes were discarded. The presentation remote was already ff769e8; the initial stale-ref suspicion was incorrect.
+- A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.

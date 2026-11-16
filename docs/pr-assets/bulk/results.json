@@ -1,0 +1,13 @@
+{
+  "environment": "macOS Chromium actual BulkEditor with synthetic API; preview and partial failure",
+  "result": [
+    {
+      "width": 1440,
+      "scrollWidth": 1440
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390
+    }
+  ]
+}

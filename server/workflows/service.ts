@@ -1,3 +1,4 @@
+import { bulkPreview, bulkApply } from "./bulk";
 import {
   beginVersionMetadataChange,
   finishVersionMetadataChange,
@@ -81,6 +82,7 @@ const docSchema = z
     restoreParentId: id.nullable().optional(),
     restoreTitle: z.string().trim().min(1).max(300).optional(),
     reason: z.string().trim().min(1).max(2000),
+    tags: z.array(z.string().trim().min(1).max(100)).max(30).optional(),
     properties: z.record(z.string().max(100), z.string().max(2000)).optional(),
     reviewDue: z.iso.datetime().nullable().optional(),
     effectiveFrom: z.iso.datetime().nullable().optional(),
@@ -200,6 +202,12 @@ export class WorkflowService {
     )
       throw Error("NOT_FOUND");
     return p;
+  }
+  bulkPreview(ctx: Context, input: unknown) {
+    return bulkPreview(this, ctx, input);
+  }
+  bulkApply(ctx: Context, input: unknown) {
+    return bulkApply(this, ctx, input);
   }
   async drafts(ctx: Context) {
     return this.run(ctx, "draft.write", undefined, async (db) => {
@@ -677,7 +685,12 @@ export class WorkflowService {
       },
     );
   }
-  async setDocumentState(ctx: Context, pageId: string, input: unknown) {
+  async setDocumentState(
+    ctx: Context,
+    pageId: string,
+    input: unknown,
+    bulkReceiptId?: string,
+  ) {
     const d = docSchema.parse(input);
     return this.run(
       ctx,
@@ -714,6 +727,19 @@ export class WorkflowService {
         } else await this.page(db, ctx, pageId);
         for (const sid of current(p).sourceIds)
           await requireRead(db, ctx, "source", sid);
+        if (bulkReceiptId) {
+          const saved = await db.query(
+            "SELECT data FROM workflow_events WHERE workspace_id=$1 AND id=$2 AND principal_id=$3 AND kind='bulk.apply' AND resource_id=$4",
+            [ctx.workspaceId, bulkReceiptId, ctx.principalId, pageId],
+          );
+          if (saved.rowCount)
+            return {
+              id: pageId,
+              revision: Number(saved.rows[0].data.revision),
+              state: r.rows[0]?.state ?? "active",
+              parentId: r.rows[0]?.parent_id ?? null,
+            };
+        }
         if ((r.rows[0]?.revision ?? 0) !== d.expectedRevision)
           throw Error("STALE_VERSION");
         const restoring = r.rows[0]?.state === "trash" && d.state === "active";
@@ -774,6 +800,7 @@ export class WorkflowService {
           state: ___,
           restoreParentId: ____,
           restoreTitle: _____,
+          tags: ______,
           ...settings
         } = d;
         const next = { ...(r.rows[0]?.data ?? {}), ...settings };
@@ -878,6 +905,11 @@ export class WorkflowService {
               );
             }
         }
+        if (d.tags !== undefined)
+          await db.query(
+            "UPDATE pages SET data=jsonb_set(data,'{tags}',$3::jsonb) WHERE workspace_id=$1 AND id=$2",
+            [ctx.workspaceId, pageId, JSON.stringify([...new Set(d.tags)])],
+          );
         await finishVersionMetadataChange(
           db,
           ctx,
@@ -886,6 +918,17 @@ export class WorkflowService {
           this.authorize,
         );
         await audit(db, ctx, "page.lifecycle", pageId);
+        if (bulkReceiptId)
+          await db.query(
+            "INSERT INTO workflow_events(workspace_id,id,principal_id,kind,resource_id,data) VALUES($1,$2,$3,'bulk.apply',$4,$5)",
+            [
+              ctx.workspaceId,
+              bulkReceiptId,
+              ctx.principalId,
+              pageId,
+              { revision: d.expectedRevision + 1 },
+            ],
+          );
         return {
           id: pageId,
           revision: d.expectedRevision + 1,
