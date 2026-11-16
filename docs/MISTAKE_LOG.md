@@ -1,5 +1,13 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — 확장된 navigation HTTP 시험의 기본 5초 예산 초과
+
+- 맥락/관련 PR: PR #62 head `7387484`, CI run [43898200490/job133407397086](https://github.com/wontaeJeong/agent-knowledge-hub/actions/runs/43898200490/job/133407397086). 2026-11-16 15:47 UTC에 `server/workflows/navigation-http.test.ts:9`의 단일 시험이 5005ms에 `Test timed out in 5000ms`로 실패했다. 다른 서버 125파일과 staged 알림 신규 16시험(4017ms)은 통과했으나 해당 CI 실행 전체를 통과로 취급하지 않는다.
+- 사실과 원인: PR #56이 completion → draft → submit 및 여러 URL 형태/회수 검사를 같은 native HTTP 사례에 추가해 34개 순차 HTTP 요청을 수행하게 됐지만 기본 5초 예산은 그대로였다. 승인된 통합 기준 `a98a542`를 해당 worktree에 병합하고 lockfile이 일치하는 의존성을 사용해 수정 전 로컬에서도 5002ms timeout을 재현했다. 성공/실패나 보안 assertion 실패로 바꾸지 않는다.
+- 진단: 임시 per-route/fixture/teardown 계측에서 전체 사례 4193.95ms와 3952.36ms, fixture 317.51/319.36ms, 개별 요청 최대 230/252ms, teardown 각각 0.43ms/1.26ms였다. 모든 기대 status/회수 assertion을 끝냈고 DB deadlock/lock-timeout 오류는 없었다. 이 실행은 누적 HTTP/인가 작업과 5초 경계의 환경별 변동을 뒷받침하며 모든 환경의 교착 부재를 입증하지는 않는다. 진단 계측은 최종 코드에서 제거했다.
+- 조치: 해당 단일 시험의 Vitest 예산만 20초로 지정한다. 본문·요청·모든 권한/계보 assertion과 production DB/HTTP/인가 timeout은 그대로 유지한다. 전역 timeout이나 제품 동작은 변경하지 않는다.
+- 검증/상태: 원래 CI 실패 및 로컬 RED를 보존했다. 최종 코드의 native staged 16·lineage 30·navigation 1시험(파일 전체 3.96초)과 Node 24.22.2 전체 `npm run check`(프런트 213, Node 48, import 16, 평가 41, 요구사항 251, 서버 타입·빌드·smoke)가 통과했다. 동일 본문 비교로 모든 기존 assertion의 보존을 확인했다. 최종 SHA·추가 원격 CI는 같은 PR의 후속 보고서를 따른다. 이 시험 예산 수정은 기존 `7387484`의 독립 승인과 별도로 재검토한다.
+
 ### 2026-11-16 — APNG 프레임 누락과 최신 이미지 응답 경합
 - 맥락: 문서 이미지 첨부의 독립 리뷰. 195바이트 합성 2프레임 APNG와 실제 React deferred promise로 두 문제를 재현했다.
 - 사실/영향/원인: Sharp 메타데이터에 APNG pages가 없어 단일 프레임으로 간주했고, 원본 바이트를 받은 브라우저는 검증되지 않은 추가 프레임을 표시했다. 이미지 요청은 컨텍스트 세대만 비교하여 최근 권한 거부 후 예전 성공이 이미지를 복구할 수 있었다. 최초 구현·집중 시험이 이 입력과 완료 순서를 놓쳤다.
@@ -725,3 +733,9 @@
 - Correction: preserve the base's `searchDb` transaction signature and all structural/ACL/history/cursor checks, replace only literal body candidate SQL with the native indexed helper, retain both independent202 API branches and both job flows. Existing kind-first + semantic-seal replay guard, model policy/reservation/usage checks and fixed operator/Admin/session index capability remain. No failed resolution was committed and no business data or migration was changed.
 - Environment: unprivileged process inspection returned EPERM while checking long-running native tests; runner output and final exit status are used as evidence instead. Dependency symlink changed only after byte-identical package-lock verification against the approved base dependencies. No product assertion failure observed at this stage; final test results are in handoff/report.
 - Validation: full Node24 npm run check passed (src216); combined UUID-isolated native index/semantic/jobs/retention/MCP/ordinary query/policy/release regressions passed20 files/212 tests, exit0. Independent merge-scope review and remote CI remain separate.
+
+
+### 2026-11-17 — approved navigation test budget extracted into index branch
+
+- Parent requested the reviewed f08058f case-local budget after handing off a98 integration. Its documentation conflicted because PR62 production/migration130 records are absent from the index branch. Preserved only f08058f's added historical test-budget sections and all existing index records, and explicitly kept PR62 production changes separate. No existing record was discarded or represented as merged.
+- Resulting navigation HTTP file is byte-identical to f08058f. Fresh UUID-isolated native1 test passed (file8.28s with concurrent fullcheck); final Node24 npm run check again passed frontend216, Node48, imports16, evaluation41, requirements251, server types/build/static smoke. Existing large-chunk build warning remains. Production and global timeouts are unchanged; no product assertion failure occurred. The earlier20-file/212-test native integration pass and new test-budget validation are separate evidence.
