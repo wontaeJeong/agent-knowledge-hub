@@ -110,9 +110,10 @@ export async function captureEnvelope(
   const envelope: InputEnvelope = {
     pageIds: [...pages].sort(),
     sourceIds: [...sources].sort(),
-    pages: {},
-    sources: {},
-    acl: {},
+    // Resource IDs may be __proto__; every input must remain an own hash key.
+    pages: Object.create(null),
+    sources: Object.create(null),
+    acl: Object.create(null),
   };
   for (const id of envelope.pageIds) {
     envelope.pages[id] = fingerprint(state.pages.find((p) => p.id === id)!);

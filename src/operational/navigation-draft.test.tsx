@@ -98,11 +98,15 @@ test("pending insertion invokes the committed current draft callback", async () 
   }
 });
 
-test("typing while insertion authorization is pending survives in the actual editor and persisted autosave", async () => {
+test.each([false, true])("typing while insertion authorization is pending survives in the actual editor and persisted autosave (save in flight: %s)", async (saveInFlight) => {
+  let finishInitialSave!: () => void;
   let resolveInsertion!: (response: Response) => void;
   let searches = 0;
+  let candidateVersion = 1;
+  let templateInput: Record<string, unknown> | undefined;
   let persisted = "";
   let persistedRevision = 0;
+  let persistedDependencies: unknown;
   const response = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), {
       status,
@@ -148,7 +152,11 @@ test("typing while insertion authorization is pending survives in the actual edi
           return new Promise<Response>((resolve) => {
             resolveInsertion = resolve;
           });
-        return response(candidates);
+        return response({items:[{...candidates.items[0],version:candidateVersion}]});
+      }
+      if (path === "/workflows/templates" && init.method === "POST") {
+        templateInput = JSON.parse(String(init.body));
+        return response({code:"SOURCE_SCOPE_CONFLICT"},409);
       }
       if (path === "/workflows/drafts" && init.method === "POST") {
         const {
@@ -159,7 +167,12 @@ test("typing while insertion authorization is pending survives in the actual edi
         if (expectedRevision !== persistedRevision)
           return response({ code: "STALE_VERSION" }, 409);
         persisted = draft.content;
+        persistedDependencies = draft.dependencyVersions;
         persistedRevision++;
+        if (saveInFlight && expectedRevision === 0)
+          return new Promise<Response>((resolve) => {
+            finishInitialSave = () => resolve(response({ ...draft, revision: 1 }));
+          });
         return response({ ...draft, revision: persistedRevision });
       }
       return response({ items: [] });
@@ -200,18 +213,38 @@ test("typing while insertion authorization is pending survives in the actual edi
       "textarea[rows='14']",
     )!;
     expect(editor.disabled).toBe(false);
+    if (saveInFlight)
+      await act(async () =>
+        editor.dispatchEvent(new FocusEvent("focusout", { bubbles: true })),
+      );
     await change(editor, "original with new edits");
     await act(async () => resolveInsertion(response(candidates)));
     const expected =
       "original with new edits\n[Target](/?app=1&space=space&document=target)";
     expect(editor.value).toBe(expected);
+    if (saveInFlight) await act(async () => finishInitialSave());
     // Focus loss flushes the real DraftAutosave coordinator through OperationalApi.
     await act(async () =>
       editor.dispatchEvent(new FocusEvent("focusout", { bubbles: true })),
     );
     expect(persisted).toBe(expected);
-    expect(persistedRevision).toBe(1);
+    expect(persistedDependencies).toEqual({ target: 1 });
+    expect(persistedRevision).toBe(saveInFlight ? 2 : 1);
     expect(node.textContent).toContain("서버에 저장됨");
+    candidateVersion = 2;
+    await act(async () => completion.querySelector("form")!.dispatchEvent(
+      new Event("submit", {bubbles:true,cancelable:true}),
+    ));
+    await act(async () => button(completion,"Target · 링크 삽입").click());
+    expect(editor.value).toBe(expected);
+    await act(async () => editor.dispatchEvent(new FocusEvent("focusout",{bubbles:true})));
+    expect(persistedDependencies).toEqual({target:1});
+    await act(async () => button(node,"템플릿으로 저장").click());
+    expect(templateInput).toMatchObject({
+      sourceDraftId: expect.any(String), sourceDraftRevision: persistedRevision,
+      originPageId:"topic", content:expected,
+    });
+
   } finally {
     await act(async () => root.unmount());
   }

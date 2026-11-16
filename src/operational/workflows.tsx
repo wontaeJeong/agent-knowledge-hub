@@ -490,12 +490,21 @@ export function WorkflowPanel({
       original,
       async (input, signal) => {
         try {
-          return await draftRequest<PrivateDraft>(
+          const saved = await draftRequest<PrivateDraft>(
             api,
             "/workflows/drafts",
             input,
             signal,
           );
+          // A completion can finish while this save is pending. Retain its binding
+          // for the next autosave along with the coordinator's newer editor text.
+          return {
+            ...saved,
+            dependencyVersions: {
+              ...saved.dependencyVersions,
+              ...instance.draft.dependencyVersions,
+            },
+          };
         } catch (e) {
           if (
             active &&
@@ -975,7 +984,7 @@ export function WorkflowPanel({
               api={api}
               spaceId={spaceId}
               onError={fail}
-              onInsert={(markdown) => {
+              onInsert={(markdown, target) => {
                 const editor = autosave.current;
                 if (
                   !editor ||
@@ -984,7 +993,23 @@ export function WorkflowPanel({
                 )
                   return;
                 // Authorization may finish after more typing; append to the active editor.
+                const retained = editor.draft.dependencyVersions;
+                if (
+                  retained &&
+                  Object.hasOwn(retained, target.id) &&
+                  retained[target.id] !== target.version
+                )
+                  throw Error(
+                    "이 초안의 기존 링크 기준 버전이 변경되었습니다. 새 초안에서 다시 검토하세요.",
+                  );
                 const next = `${editor.content}\n${markdown}`;
+                editor.draft = {
+                  ...editor.draft,
+                  dependencyVersions: {
+                    ...editor.draft.dependencyVersions,
+                    [target.id]: target.version,
+                  },
+                };
                 setContent(next);
                 editor.edit(next);
               }}
@@ -1130,12 +1155,15 @@ export function WorkflowPanel({
                 disabled={busy}
                 onClick={() =>
                   action(async () => {
+                    const saved = await flushDraft();
                     await api.post("/workflows/templates", {
                       id: crypto.randomUUID(),
                       expectedRevision: 0,
-                      title: draft.title,
-                      content,
-                      originPageId: selected,
+                      title: saved.title,
+                      content: saved.content,
+                      originPageId: saved.pageId,
+                      sourceDraftId: saved.id,
+                      sourceDraftRevision: saved.revision,
                     });
                     setNotice(
                       "개인 템플릿으로 저장했습니다. 원본 권한을 계속 따릅니다.",
