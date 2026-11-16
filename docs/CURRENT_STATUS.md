@@ -48,3 +48,10 @@
 
 - P9 보존 리뷰 후속: 복구 재생에서 원본 법적 보류·비공개 참조·최신 스냅샷을 보수적으로 보호하고 초안의 현재 및 이력 계보에 대한 실행 자격증명의 접근을 재검사한다. CAS 물리 purge와 실제 운영 정책 검증은 남아 있다.
 - P7/P9 integration: applied workspace erasure receipts, including physical-purge-pending states, fence trusted collection before outbound requests and at final commit. Legal-hold and failed preflight alone are not treated as completed erasure. Verified with synthetic PostgreSQL 17, native HTTP and local TLS; external physical deletion and production operation remain separate.
+
+## 2026-11-16 Task 1a — Unified scoped search
+
+- Requirements: SRH-002/003/004/005/007, CORE-009/010 search integration. AgentService, ScopedSearch, cookie MCP and runtime HTTP share strict filters, actual historical bodies, current ACL and credential ceilings. Agent legacy offset DTO remains, with signed cursors and explicit historical metadata status. Unknown history is never filled from current title/conditions.
+- Default search/context uses canonical currentRecommendation, excluding active+replacementId, archived and future-effective pages. Explicit history/read stays available and is not described as current recommendation.
+- [API decisions, North Star invariants and remaining limits](implementation/2026-11-16-unified-search.md). Semantic selection and index operations are separate following units; no whole-requirement or company model quality/agent-performance acceptance claim.
+- Verified Task1a: final Node24 `npm run check` passed (src172 + Node48 + imports16 + evaluation41, requirements251, server typecheck, build/static HTTP smoke). Native PostgreSQL17 per-file runner passed 10 files/68 tests; final changed-search rerun passed 3 files/24 tests after cookie DTO compatibility mapping. No model/provider calls or semantic quality claim in this unit.
