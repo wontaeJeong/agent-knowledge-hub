@@ -21,7 +21,7 @@ const identifier = z.string().min(1).max(200);
 const integer = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const jobSchema = z
   .object({
-    kind: z.enum(["ingest", "query", "lint", "daily", "weekly", "index", "retention"]),
+    kind: z.enum(["ingest", "query", "lint", "daily", "weekly", "monthly", "index", "retention"]),
     key: identifier,
     payload: z.record(z.string(), z.unknown()),
     pageIds: z.array(identifier).max(200),
@@ -51,7 +51,9 @@ const scheduleSchema = z
   .object({
     key: identifier,
     expectedRevision: z.number().int().min(0).optional(),
-    cadence: z.enum(["daily", "weekly"]),
+    cadence: z.enum(["daily", "weekly", "monthly"]),
+    dayOfMonth: z.number().int().min(1).max(31).optional(),
+    invalidDay: z.enum(["clamp", "skip"]).optional(),
     time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
     timezone: z.string().min(1).max(100),
     weekday: z.number().int().min(0).max(6).optional(),
@@ -1338,8 +1340,9 @@ export class JobService {
       throw Error("INPUT_LIMIT");
     const spec = scheduleSchema.parse(JSON.parse(serialized));
     nextOccurrence(spec, this.clock());
-    if (!["daily", "weekly", "lint", "ingest", "index", "retention"].includes(spec.job.kind))
+    if (!["daily", "weekly", "monthly", "lint", "ingest", "index", "retention"].includes(spec.job.kind))
       throw Error("INVALID_SCHEDULE_KIND");
+    if (["daily", "weekly", "monthly"].includes(spec.job.kind) && spec.cadence !== spec.job.kind) throw Error("INVALID_SCHEDULE_KIND");
     if (spec.identity.workspaceId !== ctx.workspaceId)
       throw Error("SCOPE_CONFLICT");
     if (
@@ -1577,8 +1580,8 @@ export class JobService {
             at = nextOccurrence(spec, now);
             due = [];
             if (spec.catchup !== "skip") {
-              let recent = nextOccurrence(spec, new Date(+now - 8 * 86400000));
-              for (let i = 0; i < 10 && +recent <= +now; i++) {
+              let recent = nextOccurrence(spec, new Date(+now - (spec.cadence === "monthly" ? 370 : 8) * 86400000));
+              for (let i = 0; i < (spec.cadence === "monthly" ? 13 : 10) && +recent <= +now; i++) {
                 due.push(recent);
                 recent = nextOccurrence(spec, recent);
               }

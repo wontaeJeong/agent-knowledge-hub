@@ -675,6 +675,20 @@
 ### 2026-11-16 - Integration scheduling and native filter correction
 - Started the presentation merge before its final CI inspection, then cancelled only that uncommitted merge to integrate the already-CI-green bulk PR first. No committed or external changes were discarded. The presentation remote was already ff769e8; the initial stale-ref suspicion was incorrect.
 - A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.
+
+### 2026-11-17 — Task 7 캘린더 조회·체크포인트와 검증 환경
+
+- 맥락: MGR-003/004 주간·월간 유지관리 worktree. 초기 baseline runtime 52시험 중 `an omitted response model is unknown...` 1건이 기본 5초 제한으로 시간 초과됐다. 전체 jobs 재실행에서는 runtime 52/52, 총115시험이 통과했다. 근거 없이 원인을 제품 결함으로 확정하거나 실패를 생략하지 않았다.
+- 발견/영향: 최초 월간 장기 보충 구현은 분 단위로 수년을 순회해 신규 회귀가 5초를 초과했다. 주간 제안 commit 직후 실패를 주입하자 재시도가 기존 effect와 충돌해 VALIDATION_FAILED가 됐다. 잘못된 월간 누락 정책은 HTTP에서 503으로 표시됐다. 모두 합성 데이터에서 재현했고 실제 운영 자료/원격 상태 변경은 없다.
+- 조치: 월간은 최대14개 실제 달력 날짜를 조회한다. 주간 입력·모델·제안·결과를 각각 고정하고 기존 제안/모델 응답을 재사용한다. 명시한 일정 오류 코드를 400으로 매핑한다. 동작 회귀의 RED 후 GREEN을 확인했다. 신규 DB fixture의 pages INSERT 컬럼/리소스 FK 순서 오류도 수정했다. DB는 파일별 UUID 실행기로만 격리했다.
+- 브라우저: 실제 pool6 초기 화면의 병렬 인증 갱신 후 세션이 폐기되는 기존 auth lock-order 문제가 재현됐다. 승인된 별도 인증 수정이 있는 독립 검증 worktree에서만 화면을 재검증하고 provenance를 기록한다. Task7 기능 브랜치에 인증 변경을 섞지 않는다. 첫 Playwright 보조 탭은 다른 공유 컨텍스트의 종료 영향도 있어 이후 독립 context를 사용한다.
+- 상태: 캘린더·제안 재시도·HTTP 오류·계보·unknown meter 회귀 통과. 최종 검증·독립 리뷰·원격 CI와 화면 근거는 PR 기록을 따른다. 실제 회사 모델 의미 품질과 운영 인수는 미검증이다.
+
+- Task7 추가 자체 검토: 전체 공간의 evidence 테이블을 읽던 경로와 깊은 계보를 조용히 생략하던 경계를 발견했다. 101단계 계보 회귀가 잘못된 succeeded를 반환하는 RED를 확인하고, 선택 주장에 참조된 현재 source ceiling의 evidence만 제한 조회하고 깊이/총수 초과는 INPUT_LIMIT로 실패하도록 수정했다. 별도 auth 검증 worktree의 충돌 해소 정규식도 파일 끝부분을 잘라 테스트 변환 실패를 냈다. 원본 feature commit의 전체 문서/errors에 승인된 auth 항목만 다시 더해 복구하고 server typecheck 후 재실행했다. 기능 worktree와 실제 자료는 영향이 없다.
+
+- Task7의 누락 링크 진단 가설 시험은 유지관리 진입 전에 정본 ACL의 의존 상한 검사에서 NOT_FOUND로 차단됐다. 이를 Weekly 진단의 결함으로 오인해 권한 검사를 넓히지 않고, 일정 admission이 누락 의존성을 안전하게 차단하는 회귀로 정리했다.
+
+- Task7 최종 커밋/push 결합 명령은 자동 승인 검토에서 원격 목적지와 민감 payload 권한이 불명확하다는 사유로 실행 전 거부됐다. 우회 실행하지 않고 기존 origin과 연결된 GitHub 저장소 메타데이터, 정확한 변경 목록·합성 화면 범위를 읽기 전용으로 확인했다. 실제 외부 전송 여부와 후속 승인/차단 상태는 PR 인계에 남긴다.
 ### 2026-11-16 - Semantic search integration MCP inventory
 - Native integration runtime tools/list correctly advertised knowledge_semantic_search but the pre-existing exact tool inventory expectation omitted it. This caused one assertion failure; the13 semantic provider tests passed. Updated the authenticated inventory expectation to the connected reviewed feature, preserving the explicit prohibition on approval tools. No production behavior changed.
 
@@ -718,3 +732,11 @@
 - 확인된 원인/영향: migration120은 requestAuthorizationPending 검토 배치에도 동일 review:id:hash 이벤트를 만들고, event projection은 checkedBatch의 NOT_FOUND를 처리 완료로 소비한다. 후속 releaseAuthorizedResult가 pending 플래그를 지워도 같은 키의 이벤트 삽입이 충돌해 실제 검토 알림이 영구 누락될 수 있다. 실제 사용자 데이터 영향은 확인하지 않았다.
 - 조치/후속 작업: 권한 확정 전 capture/projection을 지연하고 staged scan→승인 release→재scan에서 정확히1건, 승인 실패에서는0건인 회귀가 필요하다. 내부 링크 계보 수정과 별도이며 이번 변경에 이벤트 수정은 포함하지 않았다.
 - 상태: 미해결. 원격 PR 리뷰에 경로를 기록했으며 통합 main 발행 전 해결·독립 재검증이 필요하다.
+
+### 2026-11-17 — Task7 통합된 모델 후보 계약 누락
+
+- 맥락/사실: PR60 독립 리뷰 A에서 이미 통합된 모든-ingest `candidates` 계약과 Weekly strict 출력 스키마가 달라, 유효한 비어 있는 후보까지 실패함을 확인했다. Weekly는 후보/변경 이유를 canonical `propose`에 전달하지도 않았다. 이전 기록에서 통합 위험을 적은 것은 연결 구현·검증을 대신하지 못했다. 실제 회사 자료에 적용한 사실은 없다.
+- 원인: 이전 고정 기준의 후보 없는 모델 fixture를 사용했고 공통 prompt/schema/binder/배치/발행 경로를 함께 검사하지 않았다. 실제 provider형 HTTP 회귀에서 유효/빈 후보가 EXECUTION_FAILED, invalid 인용·원본·대상도 공통 binder 검증 이전에 실패하는 RED 5건을 확인했다.
+- 조치: 요청된 통합 기준 `7791a75`를 병합하며 semantic query 및 후보 prompt와 양쪽 문서를 보존했다. Weekly는 공통 후보 스키마와 exact source binder를 사용하고 후보·이유를 승인 해시가 있는 canonical 배치에 보존한다. strict unknown 필드를 무작정 버리거나 prompt 계약을 축소하지 않았다. 정확한 고정 원본 텍스트·조건·예외·기간·불확실성·미검증 상태·현재 권한·producer·예산을 유지한다.
+- 검증: 교정 후 실제 HTTP 모델→후보→독립 승인/원자 발행→버전2 주장/정확한 근거, no-change, 잘못된 인용·범위·철회, 승인 후 후보/이유 해시 변조와 발행 전 철회를 포함한20/20 회귀가 통과했다. 최종 전체 검사와 넓은 native 회귀 결과는 PR/후속 기록을 따른다. 독립 재리뷰·최종 CI·사내 운영 수용과 의미 품질은 별도다.
+- Task7 검토 A 교정 검증 완료: 통합 기준과 자체 수정 후 전체 `npm run check`(source215/Node48/import16/evaluation41/251요구사항/types/build/smoke), jobs·정련·lineage15파일224시험이 모두 exit0이었다. 실제로 존재하지만 실행 서비스에 읽기 권한이 없는 동일 공간 원본의 텍스트가 모델 입력에 포함되지 않으며 후보가 거부되는 강화 시험까지 유지관리20/20을 재통과했다. 독립 재리뷰·원격 최종 CI는 미완료로 남긴다.

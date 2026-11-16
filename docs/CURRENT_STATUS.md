@@ -76,6 +76,11 @@ EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행�
 - [API decisions, North Star invariants and remaining limits](implementation/2026-11-16-unified-search.md). Semantic selection and index operations are separate following units; no whole-requirement or company model quality/agent-performance acceptance claim.
 - Verified Task1a: final Node24 `npm run check` passed (src172 + Node48 + imports16 + evaluation41, requirements251, server typecheck, build/static HTTP smoke). Native PostgreSQL17 per-file runner passed 10 files/68 tests; final changed-search rerun passed 3 files/24 tests after cookie DTO compatibility mapping. No model/provider calls or semantic quality claim in this unit.
 
+## 2026-11-17 Task 7 — 주간 지식 유지관리·월간 운영 검토
+
+MGR-003/004와 관련 MGR-005/006의 운영 일정 API/worker/UI를 연결했다. Weekly는 Daily와 분리되어 기존 발행본·명시 주장·적용 조건·예외·시간·연결의 구조 검토 목록 또는 실제 설정 모델의 여러 문서 변경 제안을 만든다. Monthly는 확인된 업무 담당자/미확인 상태, 선택 문서의 보존 분류·정책·법적 보류, 실행 서비스 주체의 해당 공간 두 달 실측 비용 비교를 제안만 한다. 소유권·권한·정책 변경이나 폐기를 수행하지 않는다. 월간 현지 날짜·말일 clamp/skip·윤년·휴일·DST·누락 실행·동일 회차 및 제안 중복 방지를 기존 durable queue에 연결했다. [계약·North Star 판단·검증·한계](implementation/2026-11-16-maintenance-cycles.md). 합성 HTTP 모델 및 PostgreSQL/OIDC 회귀는 실제 의미 품질·운영 인수가 아니다. 혼합 원본 범위는 분리 승인한 일정이 필요하고 비용은 다른 사용자의 사적 사용량을 포함하지 않는다.
+
+- Task7 실제 화면: [1440/390 캡처와 검증 commit/환경](pr-assets/roadmap-maintenance/README.md). 별도 승인 auth 수정이 적용된 native 검증 worktree의 실제 pool6/OIDC/HTTP에서 월간 일정 저장→정본 재조회와 가로 overflow 없음·pageerror 0을 확인했다. 최종 기능 프런트 소스는 동일하며 인증 수정은 별도다.
 ## 2026-11-16 Task1b - configured semantic retrieval
 
 - Requirements: SRH-001/002/003/004/005/007 and CORE-009/010 implementation scope. Actual model selection over the complete authorized filtered corpus (up to100 versions, without lexical prefilter), exact quote checks, canonical historical metadata and current source/dependency checks. Durable budgets, actual telemetry and current result-read authorization remain enforced.
@@ -89,3 +94,5 @@ EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행�
 - Web semantic search releases its key when job progress definitively reports dead/cancelled, allowing identical-filter retry to create a fresh job. Unknown admission, network interruption and poll timeout retain the original key to prevent duplicate uncertain jobs. No layout changed; existing screenshot evidence remains applicable to presentation.
 - Added native query/lint collision RED regressions and UI dead/cancelled/new-key plus admission-network/poll-network/poll-timeout/same-key checks. Final command/results recorded below after execution.
 - Review-fix validation: final Node24 npm run check passed (src178, Node48, imports16, evaluation41, requirements251, server typecheck, build/static smoke). Isolated PostgreSQL17 runtime52 plus semantic13 tests passed; UI semantic6 passed. Both terminal retry and uncertain same-key cases are executed regressions. git diff --check clean.
+
+- 2026-11-17 PR60 검토 A 보완: Weekly도 통합된 일반 ingest와 동일한 후보 스키마/원본 인용 binder를 사용하고 후보·변경 이유를 canonical 검토 해시에 보존한다. 독립 발행에서 새 버전의 미검증 주장·근거로 연결하며 invalid quote/out-of-scope 및 현재 원본 철회는 실패한다. 전체 고정 원본 텍스트가 허용된 모델 문맥에 들어가며 모델이 source version/검증 상태를 정하지 않는다. 무변경 응답과 기존 권한/예산을 유지한다. [수정·검증 기록](implementation/2026-11-16-maintenance-cycles.md).
