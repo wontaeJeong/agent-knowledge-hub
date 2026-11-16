@@ -131,7 +131,7 @@ export function createRuntimeHandler(options: {
       options.jobs!.submitInteractive(ctx, "query", payload, key),
     );
   const retention = {
-    recovery: new DraftRecoveryService(options.pool),
+    recovery: new DraftRecoveryService(options.pool, Date.now, options.origin),
     retention: new ContentRetentionService(
       options.pool,
       authorizeInTransaction,
@@ -908,7 +908,12 @@ export function createRuntimeHandler(options: {
       if (
         await handleWorkflowRoute(
           { method: req.method ?? "GET", path, body, ctx, send },
-          new WorkflowService(options.pool, service, authorizeInTransaction),
+          new WorkflowService(
+            options.pool,
+            service,
+            authorizeInTransaction,
+            options.origin,
+          ),
         )
       )
         return;

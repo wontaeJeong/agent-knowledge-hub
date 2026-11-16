@@ -323,7 +323,7 @@ export function LinkCompletion({
 }: {
   api: OperationalApi;
   spaceId: string;
-  onInsert: (markdown: string) => void;
+  onInsert: (markdown: string, target: { id: string; version: number }) => void;
   onError: (error: unknown) => void;
 }) {
   const [query, setQuery] = useState(""),
@@ -433,7 +433,8 @@ export function LinkCompletion({
                         );
                       const title = current.title.replace(/[\\[\]]/g, "\\$&");
                       currentInsert.current(
-                        `[${title}](${documentHref(spaceId, item.id)})`,
+                        `[${title}](${documentHref(spaceId, current.id)})`,
+                        { id: current.id, version: current.version },
                       );
                     })
                     .catch((error) => {
