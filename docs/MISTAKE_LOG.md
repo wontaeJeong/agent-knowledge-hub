@@ -524,6 +524,21 @@
 - Impact/cause: agent search duplicated eligibility logic, omitted replacementId and per-resource authorizer checks, and searched only current body in history mode. Five new native regressions failed before changes. Canonical ScopedSearch/currentRecommendation now owns retrieval.
 - Implementation error: using omit on a refined Zod object caused an import failure; explicitly mapping its shape fixed construction. Canonical search rejected unadopted fixtures; explicit adoptFixture setup fixed test identities without weakening production authorization. Existing historical expectation incorrectly used current effectiveFrom; it now expects unknown historical metadata.
 - Verification: five new search regressions, one native cookie MCP regression and nine existing agent regressions passed. Broader final checks are recorded in handoff. Actual company model and operational acceptance remain unverified.
+
+### 2026-11-16 - Semantic integration and test isolation
+- Context: Task1b actual configured semantic retrieval. Four native RED tests exposed the missing durable query variant; later HTTP404 and UI interaction failures exposed missing entry points. Added sealed payloads and connected routes/tools/UI.
+- Automated insertion initially placed worker execution inside validateScope (undefined value/e); typecheck/native failures exposed it. Moved execution to the worker handler, preserving read-only admission. The real three-call HTTP/MCP test exceeded default5s timeout; gave that specific IO test30s. Fixed a test expecting error_code rather than the existing job error field. Malformed provider schema produced generic EXECUTION_FAILED; a RED regression now requires MODEL_INVALID.
+- Test command mistake: malformed-output RED once ran direct Vitest against the coordinator test-only base URL instead of scripts/test-server.mjs. It migrated base and created one synthetic workspace. No reset/truncate/drop or production access. Parent informed; base left untouched as admin anchor until owned test-container cleanup after all work. All later DB runs use UUID per-file runner databases exclusively. Never run direct DB Vitest on a shared base, even for a filtered test.
+- Browser worktree screenshots were rejected by allowed-root policy; captured to allowed ignored output and copied evidence. Ambiguous selectors were rejected; corrected and recaptured actual unconfigured state. Rejected captures are not success evidence.
+- Final validation is recorded in handoff/report. Provider replies and UI data are synthetic; no company quality or production acceptance claim.
+
+### 2026-11-16 - Semantic idempotency variant and terminal retry review findings
+- Context: independent PR51 review found two Important defects in3636d48.
+- Cause/impact: replay construction dereferenced the stored semantic seal before checking its kind/variant, so a key belonging to ordinary query/lint caused TypeError instead of IDEMPOTENCY_CONFLICT. The browser cleared its search key only on success, so confirmed dead/cancelled jobs remained the target of identical retries indefinitely.
+- Reproduction: two new native query/lint regressions observed the TypeError. Two UI interaction regressions observed identical request keys after dead/cancelled. Uncertain admission/network/poll timeout cases explicitly preserve keys.
+- Fix: guard stored kind and validate semantic seal before replay; release browser key only on observed terminal failure/cancellation.
+- Test correction: the first timeout fixture advanced Date.now on the first arbitrary call, which React consumed. It now advances at the actual pending API response. The existing real provider/identity/budget test crossed the default5s timeout during concurrent native runs; semantic native file now has a30s real-IO timeout. Neither was hidden as a pass.
+- Verification: six UI regressions passed after the fix; final native/full-check results are in handoff and task report. Presentation unchanged, so no new screenshot claim.
 ### 2026-11-16 — Notification expiry clock ordering and capability fixture
 - Context: Task 8 CLB-004–006 in isolated `feat/roadmap-notifications-20261116`.
 - Observed impact: an expiry regression intermittently produced no notification when comparing DB subscription timestamps with the application clock; no production data or external message was involved. A later UI fixture omitted the protection capability required by the canonical lifecycle API and failed after controls were correctly gated.
@@ -590,3 +605,6 @@
 - 조치: 링크 응답은 최신 커밋된 삽입 콜백을 사용한다. WorkflowPanel은 현재 초안·계정 바인딩을 확인하고 활성 DraftAutosave의 현재 본문에 추가한 동일 값을 React 입력과 자동 저장에 전달한다. 기존 대상/요청 세대·권한 철회 검사를 유지한다.
 - 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
 - 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
+
+### 2026-11-16 - Semantic search integration MCP inventory
+- Native integration runtime tools/list correctly advertised knowledge_semantic_search but the pre-existing exact tool inventory expectation omitted it. This caused one assertion failure; the13 semantic provider tests passed. Updated the authenticated inventory expectation to the connected reviewed feature, preserving the explicit prohibition on approval tools. No production behavior changed.
