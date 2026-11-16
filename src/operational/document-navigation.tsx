@@ -51,7 +51,7 @@ export function DocumentBody({ content, readAttachment }: { content: string; rea
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
       const node = walker.currentNode as Text;
-      if (node.parentElement?.closest("math,svg,button,figure,[role=status],.markdown-help")) continue;
+      if (node.parentElement?.closest("math,svg,[data-diagram],button,figure,[role=status],.markdown-help")) continue;
       nodes.push(node);
     }
     let matches = 0;
