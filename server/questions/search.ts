@@ -16,6 +16,11 @@ import {
 import type { QuestionAuthorizer } from "./service";
 export type SearchMetadata = {
   title?: string;
+  summary?: string;
+  effectiveFrom?: string | null;
+  verification?: string;
+  scope?: string;
+  replacementId?: string | null;
   type?: string;
   businessOwner?: string;
   tags?: string[];
@@ -120,7 +125,8 @@ export class ScopedSearch {
       throw Error("STALE_CURSOR");
     }
   }
-  async search(ctx: Context, raw: unknown = {}) {
+  async search(ctx: Context, raw: unknown = {}, legacyOffset = 0) {
+    z.number().int().min(0).max(100000).parse(legacyOffset);
     const filters = searchFilters.parse(raw);
     const { cursor, ...query } = filters;
     await ctx.authorization?.revalidate();
@@ -181,6 +187,15 @@ export class ScopedSearch {
       );
       for (const page of state.pages) {
         try {
+          const recommendation = await currentRecommendation(db, ctx, page.id);
+          // Explicit lifecycle filters inspect a current snapshot; ordinary search recommends only valid current knowledge.
+          if (
+            !filters.historical &&
+            !recommendation &&
+            filters.archived !== true &&
+            (filters.state === undefined || filters.state === "active")
+          )
+            continue;
           await this.options.authorize(db, ctx, "knowledge.read", {
             kind: "page",
             id: page.id,
@@ -232,6 +247,11 @@ export class ScopedSearch {
             const historicalMetadata: SearchMetadata | null = snapshot
               ? {
                   title: snapshot.title,
+                  summary: snapshot.summary,
+                  effectiveFrom: snapshot.workflowData?.effectiveFrom ?? null,
+                  verification: snapshot.status,
+                  scope: snapshot.scope,
+                  replacementId: snapshot.workflowData?.replacementId ?? null,
                   type: snapshot.category,
                   tags: snapshot.tags,
                   state: snapshot.lifecycle,
@@ -261,9 +281,11 @@ export class ScopedSearch {
             if (
               filters.query &&
               !matches.has(`${page.id}:${version.number}`) &&
-              !metadata?.title
-                ?.toLocaleLowerCase()
-                .includes(filters.query.toLocaleLowerCase())
+              ![metadata?.title, metadata?.summary].some((value) =>
+                value
+                  ?.toLocaleLowerCase()
+                  .includes(filters.query.toLocaleLowerCase()),
+              )
             )
               continue;
             if (
@@ -325,7 +347,7 @@ export class ScopedSearch {
               historical: filters.historical,
               currentRecommendation: filters.historical
                 ? false
-                : await currentRecommendation(db, ctx, page.id),
+                : recommendation,
               href: `/api/v1/pages/${encodeURIComponent(page.id)}/versions/${version.number}`,
             });
           }
@@ -344,9 +366,9 @@ export class ScopedSearch {
       const accessible = old
         ? items.filter((i) => compare(key(i), old.last) > 0)
         : items;
-      const page = accessible.slice(0, filters.limit);
+      const page = accessible.slice(legacyOffset, legacyOffset + filters.limit);
       const nextCursor =
-        accessible.length > filters.limit
+        accessible.length > legacyOffset + filters.limit
           ? this.encode({
               scope,
               revision,
@@ -368,6 +390,17 @@ export class ScopedSearch {
     const properties = (flag?.data.properties ?? {}) as Record<string, unknown>;
     return {
       title: page.title,
+      summary: page.summary,
+      effectiveFrom:
+        typeof flag?.data.effectiveFrom === "string"
+          ? flag.data.effectiveFrom
+          : null,
+      verification: page.status,
+      scope: page.scope,
+      replacementId:
+        typeof flag?.data.replacementId === "string"
+          ? flag.data.replacementId
+          : null,
       type: page.category,
       businessOwner: owner?.owner_id,
       tags: page.tags,

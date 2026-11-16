@@ -3,7 +3,11 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { transaction } from "../database";
 import type { Context } from "../service";
-import type { RuntimeService } from "../runtime/knowledge";
+import {
+  currentRecommendation,
+  type RuntimeService,
+} from "../runtime/knowledge";
+import { ScopedSearch, searchFilters } from "../questions/search";
 import type { Source, Page } from "../../src/domain/types";
 import { current, draftOf } from "../../src/domain/wiki";
 import { membership, requireRead, loadState, audit } from "../repository";
@@ -36,11 +40,11 @@ const sourceRefs = z.array(sourceRef).max(100);
 const versionRef = z
   .object({ page_id: id, version: z.number().int().positive() })
   .strict();
+const { historical: _historical, ...searchShape } = searchFilters.shape;
 const searchInput = z
   .object({
+    ...searchShape,
     query: z.string().trim().min(1).max(2000),
-    project: z.string().max(200).optional(),
-    environment: z.string().max(200).optional(),
     limit: z.number().int().min(1).max(100).default(20),
     offset: z.number().int().min(0).max(100000).default(0),
     include_history: z.boolean().default(false),
@@ -109,6 +113,7 @@ type Complete = (
 
 /** Same domain services as web. The injected authorizer is mandatory, including bearer scope. */
 export class AgentService {
+  readonly searcher: ScopedSearch;
   constructor(
     readonly pool: Pool,
     readonly runtime: RuntimeService,
@@ -117,7 +122,10 @@ export class AgentService {
       ctx: Context,
       outcomeId: string,
     ) => Promise<{ imported: string[]; acknowledged?: string[] }>,
-  ) {}
+    searcher?: ScopedSearch,
+  ) {
+    this.searcher = searcher ?? new ScopedSearch(pool, { runtime, authorize });
+  }
   private async run<T>(
     ctx: Context,
     action: string,
@@ -254,7 +262,6 @@ export class AgentService {
     );
     const props = row.rows[0]?.data.properties ?? {};
     const lifecycle = row.rows[0]?.state ?? "active";
-    const effectiveFrom = row.rows[0]?.data.effectiveFrom ?? null;
     return {
       project: typeof props.project === "string" ? props.project : null,
       environment:
@@ -262,62 +269,46 @@ export class AgentService {
       effectiveFrom: row.rows[0]?.data.effectiveFrom ?? null,
       reviewDue: row.rows[0]?.data.reviewDue ?? null,
       lifecycle,
-      currentRecommendation:
-        lifecycle === "active" &&
-        (effectiveFrom === null ||
-          (typeof effectiveFrom === "string" &&
-            Number.isFinite(Date.parse(effectiveFrom)) &&
-            Date.parse(effectiveFrom) <= Date.now())),
+      currentRecommendation: await currentRecommendation(db, ctx, p.id),
     };
   }
   async search(ctx: Context, input: unknown) {
     const q = searchInput.parse(input);
-    return this.run(ctx, "knowledge.read", async (db) => {
-      const { state } = await this.runtime.view(db, ctx),
-        items = [];
-      const terms = q.query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
-      for (const p of state.pages) {
-        const hay = (
-          p.title +
-          " " +
-          p.summary +
-          " " +
-          current(p).content
-        ).toLocaleLowerCase();
-        const score = terms.filter((t) => hay.includes(t)).length;
-        if (!score) continue;
-        const conditions = await this.metadata(db, ctx, p);
-        if (!q.include_history && !conditions.currentRecommendation) continue;
-        if (q.project && conditions.project && conditions.project !== q.project)
-          continue;
-        if (
-          q.environment &&
-          conditions.environment &&
-          conditions.environment !== q.environment
-        )
-          continue;
-        items.push({
-          id: p.id,
-          title: p.title,
-          summary: p.summary,
-          version: current(p).number,
-          conditions,
-          verification: p.status,
-          score,
-        });
-      }
-      items.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
-      const slice = items
-        .slice(q.offset, q.offset + q.limit)
-        .map(({ score: _, ...p }) => p);
-      return {
-        schemaVersion: "1.0",
-        items: slice,
-        nextOffset:
-          q.offset + q.limit < items.length ? q.offset + q.limit : null,
-      };
-    });
+    const { include_history, offset, ...filters } = q;
+    if (filters.cursor && offset) throw Error("INVALID_PAGINATION");
+    const result = await this.searcher.search(
+      ctx,
+      { ...filters, historical: include_history },
+      offset,
+    );
+    return {
+      schemaVersion: "1.0",
+      items: result.items.map((item) => ({
+        id: item.pageId,
+        title: item.title,
+        summary: item.metadata?.summary ?? item.content.slice(0, 300),
+        version: item.version,
+        historical: item.historical,
+        conditions: {
+          project: item.metadata?.project ?? null,
+          environment: item.metadata?.environment ?? null,
+          effectiveFrom: item.metadata?.effectiveFrom ?? null,
+          reviewDue: item.metadata?.reviewDate ?? null,
+          lifecycle: item.metadata?.state ?? null,
+          currentRecommendation: item.currentRecommendation,
+        },
+        verification: item.metadata?.verification ?? null,
+        metadata: item.metadata,
+        metadataStatus: item.metadataStatus,
+        unknownMetadataKeys: item.unknownMetadataKeys,
+        href: item.href,
+      })),
+      nextOffset: result.nextCursor ? offset + result.items.length : null,
+      nextCursor: result.nextCursor,
+      asof: result.asof,
+    };
   }
+
   async read(ctx: Context, input: unknown) {
     const q = agentInputs.wiki_read.parse(input);
     return this.run(ctx, "knowledge.read", async (db) => {
@@ -368,7 +359,12 @@ export class AgentService {
           version: 1,
           location: "content",
         })),
-        conditions: await this.metadata(db, ctx, p),
+        conditions: {
+          ...(await this.metadata(db, ctx, p)),
+          currentRecommendation:
+            v.number === current(p).number &&
+            (await currentRecommendation(db, ctx, p.id)),
+        },
         verification: p.status,
         verifiedAt:
           v.number === current(p).number ? (p.verifiedAt ?? null) : null,
@@ -463,7 +459,10 @@ export class AgentService {
   async proposeChange(
     ctx: Context,
     input: unknown,
-    commitGuard?: (db: PoolClient, result: { id: string; hash: string; status: string; published: boolean }) => Promise<void>,
+    commitGuard?: (
+      db: PoolClient,
+      result: { id: string; hash: string; status: string; published: boolean },
+    ) => Promise<void>,
     replayGuard?: (db: PoolClient) => Promise<void>,
   ) {
     const q = agentInputs.wiki_propose_change.parse(input);
@@ -613,7 +612,11 @@ export class AgentService {
       return { ...result, reviewImport: { status: "pending", code } };
     }
   }
-  private async personalAccess(db: PoolClient, ctx: Context, p: Pick<PersonalPage, "sourceRefs" | "upstream" | "links">) {
+  private async personalAccess(
+    db: PoolClient,
+    ctx: Context,
+    p: Pick<PersonalPage, "sourceRefs" | "upstream" | "links">,
+  ) {
     await this.refs(db, ctx, p.sourceRefs);
     for (const ref of p.sourceRefs)
       await this.authorize(db, ctx, "local.copy", {
@@ -631,7 +634,7 @@ export class AgentService {
       );
     }
     for (const linked of p.links)
-      await this.binding(db, ctx, {kind:"page", id:linked}, "local.copy");
+      await this.binding(db, ctx, { kind: "page", id: linked }, "local.copy");
   }
   private async connectorSnapshot(ctx: Context, metadataOnly: boolean) {
     return this.run(ctx, "personal.sync", async (db) => {
@@ -710,10 +713,17 @@ export class AgentService {
       return this.connectorSnapshot(ctx, action === "access");
     }
     if (action === "check-local") {
-      const q = z.object({sourceRefs,links:z.array(id).max(100),upstream:upstream.optional()}).strict().parse(input);
-      return this.run(ctx, "personal.sync", async db => {
+      const q = z
+        .object({
+          sourceRefs,
+          links: z.array(id).max(100),
+          upstream: upstream.optional(),
+        })
+        .strict()
+        .parse(input);
+      return this.run(ctx, "personal.sync", async (db) => {
         await this.personalAccess(db, ctx, q);
-        return {authorized:true};
+        return { authorized: true };
       });
     }
     if (action === "push") {
@@ -807,49 +817,122 @@ export class AgentService {
                 kind: "source" as const,
                 id: r.id,
               })),
-              ...q.page.links.map(id=>({kind:"page" as const,id})),
+              ...q.page.links.map((id) => ({ kind: "page" as const, id })),
             ]);
             return result;
           }),
-        async db => { await this.personalAccess(db, ctx, q.page); },
+        async (db) => {
+          await this.personalAccess(db, ctx, q.page);
+        },
       );
     }
     if (action === "propose-batch") {
-      const q = z.object({
-        id, targetSpaceId: id,
-        selections: z.array(z.object({pageId:id,baseVersion:z.number().int().positive(),personalVersion:z.number().int().positive()}).strict()).min(1).max(20),
-      }).strict().parse(input);
-      if (q.targetSpaceId !== ctx.workspaceId) throw Error("SOURCE_SCOPE_CONFLICT");
-      if (new Set(q.selections.map(s => s.pageId)).size !== q.selections.length) throw Error("VALIDATION_FAILED");
+      const q = z
+        .object({
+          id,
+          targetSpaceId: id,
+          selections: z
+            .array(
+              z
+                .object({
+                  pageId: id,
+                  baseVersion: z.number().int().positive(),
+                  personalVersion: z.number().int().positive(),
+                })
+                .strict(),
+            )
+            .min(1)
+            .max(20),
+        })
+        .strict()
+        .parse(input);
+      if (q.targetSpaceId !== ctx.workspaceId)
+        throw Error("SOURCE_SCOPE_CONFLICT");
+      if (
+        new Set(q.selections.map((s) => s.pageId)).size !== q.selections.length
+      )
+        throw Error("VALIDATION_FAILED");
       const prepare = async (db: PoolClient, lock = false) => {
         await this.authorize(db, ctx, "personal.sync");
-        const {state} = await this.runtime.view(db, ctx);
-        const updates: z.infer<typeof updatesSchema> = [], refs: z.infer<typeof sourceRefs> = [], resources: Binding[] = [];
-        for (const selection of [...q.selections].sort((a,b)=>a.pageId.localeCompare(b.pageId))) {
-          const row = await db.query(`SELECT revision,data FROM agent_personal_pages WHERE workspace_id=$1 AND owner_id=$2 AND id=$3${lock ? " FOR UPDATE" : ""}`,[ctx.workspaceId,ctx.principalId,selection.pageId]);
+        const { state } = await this.runtime.view(db, ctx);
+        const updates: z.infer<typeof updatesSchema> = [],
+          refs: z.infer<typeof sourceRefs> = [],
+          resources: Binding[] = [];
+        for (const selection of [...q.selections].sort((a, b) =>
+          a.pageId.localeCompare(b.pageId),
+        )) {
+          const row = await db.query(
+            `SELECT revision,data FROM agent_personal_pages WHERE workspace_id=$1 AND owner_id=$2 AND id=$3${lock ? " FOR UPDATE" : ""}`,
+            [ctx.workspaceId, ctx.principalId, selection.pageId],
+          );
           if (!row.rowCount) throw Error("NOT_FOUND");
-          if (row.rows[0].revision !== selection.personalVersion) throw Error("STALE_PERSONAL_VERSION");
+          if (row.rows[0].revision !== selection.personalVersion)
+            throw Error("STALE_PERSONAL_VERSION");
           const personal = row.rows[0].data as PersonalPage;
           await this.personalAccess(db, ctx, personal);
           if (!personal.upstream) throw Error("SOURCE_REGISTRATION_REQUIRED");
-          const page = state.pages.find(p=>p.id===personal.upstream!.pageId);
+          const page = state.pages.find(
+            (p) => p.id === personal.upstream!.pageId,
+          );
           if (!page) throw Error("NOT_FOUND");
-          if (current(page).number !== selection.baseVersion || personal.upstream.version !== selection.baseVersion) throw Error("STALE_VERSION");
-          if (updates.some(u=>u.id===page.id)) throw Error("VALIDATION_FAILED");
-          updates.push({...draftOf(page),title:personal.title,content:personal.content,links:personal.links});
+          if (
+            current(page).number !== selection.baseVersion ||
+            personal.upstream.version !== selection.baseVersion
+          )
+            throw Error("STALE_VERSION");
+          if (updates.some((u) => u.id === page.id))
+            throw Error("VALIDATION_FAILED");
+          updates.push({
+            ...draftOf(page),
+            title: personal.title,
+            content: personal.content,
+            links: personal.links,
+          });
           refs.push(...personal.sourceRefs);
-          resources.push({kind:"page",id:page.id},...personal.sourceRefs.map(r=>({kind:"source" as const,id:r.id})),...personal.links.map(id=>({kind:"page" as const,id})));
+          resources.push(
+            { kind: "page", id: page.id },
+            ...personal.sourceRefs.map((r) => ({
+              kind: "source" as const,
+              id: r.id,
+            })),
+            ...personal.links.map((id) => ({ kind: "page" as const, id })),
+          );
         }
-        const uniqueRefs = [...new Map(refs.map(r=>[fingerprint(r),r])).values()];
-        return {updates,source_refs:uniqueRefs,resources};
+        const uniqueRefs = [
+          ...new Map(refs.map((r) => [fingerprint(r), r])).values(),
+        ];
+        return { updates, source_refs: uniqueRefs, resources };
       };
-      return this.mutation(ctx,"personal.propose-batch",q.id,q,"changeset.propose",async complete=>{
-        const prepared=await this.run(ctx,"changeset.propose",db=>prepare(db));
-        return this.proposeChange(ctx,{updates:prepared.updates,source_refs:prepared.source_refs,idempotency_key:`personal-batch-${fingerprint([ctx.workspaceId,ctx.principalId,q])}`},async(db,result)=>{
-          const current=await prepare(db,true);
-          await complete(db,result,current.resources);
-        }, async db=>{await prepare(db);});
-      },async db=>{await prepare(db);});
+      return this.mutation(
+        ctx,
+        "personal.propose-batch",
+        q.id,
+        q,
+        "changeset.propose",
+        async (complete) => {
+          const prepared = await this.run(ctx, "changeset.propose", (db) =>
+            prepare(db),
+          );
+          return this.proposeChange(
+            ctx,
+            {
+              updates: prepared.updates,
+              source_refs: prepared.source_refs,
+              idempotency_key: `personal-batch-${fingerprint([ctx.workspaceId, ctx.principalId, q])}`,
+            },
+            async (db, result) => {
+              const current = await prepare(db, true);
+              await complete(db, result, current.resources);
+            },
+            async (db) => {
+              await prepare(db);
+            },
+          );
+        },
+        async (db) => {
+          await prepare(db);
+        },
+      );
     }
     if (action === "propose") {
       const q = z

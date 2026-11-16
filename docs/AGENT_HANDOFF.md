@@ -1,5 +1,11 @@
 # 에이전트 인계
 
+## 2026-11-16 일괄 결과의 호스트 재조회 경계 수정
+
+- PR #45 독립 검토에서 apply 직후 `onChanged` → App.load의 `dataReady=false` → WorkflowPanel unmount로 결과/복구 토큰이 사라지는 경계를 확인했다. 적용 응답 뒤 자동 부모 갱신을 제거하고, 결과·실패 대상 선택·같은 토큰 재확인을 보존한 뒤 사용자가 명시적으로 목록을 새로고침하게 했다. 명시적 갱신은 결과 화면을 닫는다.
+- TDD: 실제 호스트와 같은 unmount 경계 회귀가 수정 전 `NOT_PROCESSED` 대신 호스트 로딩 문구를 받아 실패했다. 수정 후 BulkEditor 3시험과 전체 `npm run check` 통과. scope/API 전환과 401/403의 보호 상태 비우기를 유지했다. 독립 재검토에서 중요 차단 결함을 발견하지 않았다.
+- [1440/390 화면 및 재현](pr-assets/bulk/README.md): 실제 컴포넌트/CSS와 합성 API, 부분 결과·재확인·명시적 갱신 및 pageerror 0 확인. 서버 기능은 바꾸지 않았고 전체 DB/최종 CI는 PR의 마지막 커밋 검사를 따른다.
+
 ## 2026-11-14 병합 CI의 동시 인증 회귀 수정
 
 - 사용자 후속 요청으로 기능 PR #32~43의 병합이 승인됐다. #37 최종 CI `43601746148`에서 같은 세션의 동시 인증 갱신이 shared row lock을 UPDATE로 승격하면서 교착됐고 유효 세션이 폐기됐다. IAM-004/005/009, QNA-005와 관련된다.
@@ -493,6 +499,32 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 ### 2026-11-14 — P1~P10 사용자 승인 병합
 - 후속 “머지” 요청에 따라 기능 PR #32~43을 squash 순서로 통합한다. 요구사항 범위는 변경하지 않으며 기존 PR #30은 별도다.
 - 각 기능의 격리 worktree에서 현재 main 및 선행 기능을 보존하고 최종 head의 필수 CI를 확인한다. 절차·검증과 제약은 [병합 기록](superpowers/plans/2026-11-14-product-merge.md)을 참조한다.
+
+## 2026-11-16 Task 1a — Unified scoped search
+
+- Requirements: SRH-002/003/004/005/007, CORE-009/010 search integration. AgentService, ScopedSearch, cookie MCP and runtime HTTP share strict filters, actual historical bodies, current ACL and credential ceilings. Agent legacy offset DTO remains, with signed cursors and explicit historical metadata status. Unknown history is never filled from current title/conditions.
+- Default search/context uses canonical currentRecommendation, excluding active+replacementId, archived and future-effective pages. Explicit history/read stays available and is not described as current recommendation.
+- [API decisions, North Star invariants and remaining limits](implementation/2026-11-16-unified-search.md). Semantic selection and index operations are separate following units; no whole-requirement or company model quality/agent-performance acceptance claim.
+- Verified Task1a: final Node24 `npm run check` passed (src172 + Node48 + imports16 + evaluation41, requirements251, server typecheck, build/static HTTP smoke). Native PostgreSQL17 per-file runner passed 10 files/68 tests; final changed-search rerun passed 3 files/24 tests after cookie DTO compatibility mapping. No model/provider calls or semantic quality claim in this unit.
+## 2026-11-16 — Task 8: subscriptions and event notifications (CLB-004–006)
+
+- Isolated native worktree branch `feat/roadmap-notifications-20261116`, based on `5218828`; feature contract: [notification API and boundaries](superpowers/specs/2026-11-16-notifications-contract.md).
+- Migration 120, `server/collaboration/events.ts`, collaboration service/HTTP/worker and canonical publication review gate connect current category/space subscriptions to transactional publication/review/final-job-failure events and explicit lifecycle expiry. Document comments join these subscriptions. The notification panel exposes subscription changes, event meaning and per-recipient processing; the lifecycle panel exposes reason/CAS-bound UTC expiry.
+- Current active identity, canonical review qualification, current subscriptions and all input/source ancestry are checked before content and again by existing digest finalization. Event IDs deduplicate retries/overlapping subscriptions; internal envelopes never enter DTOs. Failure notices stay with the explicit human actor/current service sponsor. Owner status cannot bypass source ACLs.
+- New tables are classified in retention inventory; category names stay in PostgreSQL, subscription configuration is removed during workspace erasure/recovery, and typed outbox/notification references join the existing erasure graph.
+- Validation: `npm run check`; isolated PostgreSQL 17 tests for retention compatibility/product erasure, collaboration, event flow, review races, workflows, runtime collaboration host and new subscription HTTP host; notification/expiry React interaction tests. [Actual 1440/390 Chromium screenshots and fixture conditions](pr-assets/roadmap-notifications/README.md). Final command evidence and commit are recorded in the feature PR.
+- Limits: topic means current `Page.category`; historical events are not backfilled; event projection requires the configured existing dispatcher. Expiry is a notification deadline, not an automatic deletion or a new recommendation policy. External directory/email gateway and company operations acceptance were not exercised; no external message was sent. Semantic quality/downstream business effects remain evaluation targets.
+
+### Task 8 independent review N1 follow-up
+
+- The publication outbox stores its originating batch in `resource_id`. Corrected erasure lineage to treat both publication and pending-review resource IDs as batch references, preserving the separate publication target page edge.
+- Added failing-first exported graph selection regression and native PostgreSQL source-scoped execute/recovery replay regressions. They ensure source → batch → event → notification cleanup reaches an event whose target page is independently retained; the retained page title remains intact. No migration or UI change.
+- Validation: `npm run check` plus targeted erasure graph/product/DB, collaboration events and native subscription HTTP regressions, recorded in the PR follow-up and task report. Independent review and integration branch CI remain separate from these local checks.
+## 2026-11-16 — EDT-012 다중 문서 편집
+- 서버 서명된 10분 유효 미리보기를 사용자·공간·자격증명에 고정하고 최대50문서의 태그 교체·상위 이동·보관을 현재 ACL과 metadata CAS로 적용한다. 문서별 성공/실패/제외를 반환하고 실패 대상만 새 미리보기로 재시도한다. 기존 검토/발행 본문과 권한은 변경하지 않는다.
+- 실제 운영 WorkflowPanel에 연결했으며 합성 API 브라우저1440/390 캡처는 docs/pr-assets/bulk. Node24 npm run check, 실제 PostgreSQL17의 도메인/네이티브 OIDC·CSRF·HTTP회귀4개, UI2개 통과. 서버 재시작 뒤 미리보기는 다시 생성해야 한다. 실제 사내 인수·지식 성과는 별도다.
+
+- EDT-012 review fixes: canonical Page.tags/search metadata now agree. Atomic per-target workflow_events receipts support same-preview reconciliation after response loss. Unknown/unprocessed outcomes remain visible; current authorization is required to read a receipt. Preview validity is ten minutes and restart requires new preview; company acceptance remains separate.
 
 ## 2026-11-16 — 탐색 대시보드 최신 통합 검증
 - PR30을 main5218828과 통합했다. 원래 인계·실수 기록을 보존하고 discovery GET과 최신 인증 me 경로를 함께 유지했다.
