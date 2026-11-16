@@ -1,0 +1,68 @@
+.markdown-raster {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 32rem;
+  object-fit: contain;
+}
+.markdown-diagram {
+  overflow: auto;
+  max-width: 100%;
+}
+.markdown-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+.markdown-image {
+  display: inline-block;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid currentColor;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.markdown-help {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+.op-markdown math[display="block"],
+.markdown math[display="block"] {
+  overflow: auto;
+  padding-block: 0.75rem;
+}
+.op-markdown table,
+.markdown table {
+  display: block;
+  max-width: 100%;
+  overflow: auto;
+}
+/* Library style elements are removed. Local rules keep the permitted SVG readable. */
+.markdown-diagram .node rect,
+.markdown-diagram .node circle,
+.markdown-diagram .node ellipse,
+.markdown-diagram .node polygon,
+.markdown-diagram .actor,
+.markdown-diagram .labelBox {
+  fill: var(--color-bg, #f7f4fa);
+  stroke: var(--color-accent, #78469e);
+  stroke-width: 1.5px;
+}
+.markdown-diagram text,
+.markdown-diagram .nodeLabel,
+.markdown-diagram .messageText,
+.markdown-diagram .labelText {
+  fill: var(--color-text, #252636);
+  font: 14px sans-serif;
+}
+.markdown-diagram .flowchart-link,
+.markdown-diagram .actor-line,
+.markdown-diagram .messageLine0,
+.markdown-diagram .messageLine1 {
+  fill: none;
+  stroke: var(--color-text, #252636);
+  stroke-width: 1.5px;
+}
+.markdown-diagram marker path {
+  fill: var(--color-text, #252636);
+  stroke: var(--color-text, #252636);
+}

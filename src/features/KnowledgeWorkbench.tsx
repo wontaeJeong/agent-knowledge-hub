@@ -10,8 +10,7 @@ import {
   Link2,
   FileText,
 } from "lucide-react";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+import { Markdown } from "../ui/Markdown";
 import { Button, Badge, Empty } from "../ui/primitives";
 import type { State, Source } from "../domain/types";
 import { makeId } from "../domain/id";
@@ -61,18 +60,7 @@ const statusNames = {
   rejected: "반려됨",
   conflict: "충돌 · 재실행 필요",
 };
-function Markdown({ text }: { text: string }) {
-  return (
-    <div
-      className="markdown"
-      dangerouslySetInnerHTML={{
-        __html: DOMPurify.sanitize(
-          marked.parse(text, { async: false }) as string,
-        ),
-      }}
-    />
-  );
-}
+
 export function KnowledgeWorkbench({
   state,
   apply,

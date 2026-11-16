@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+import { Markdown, type ImagePreview, presentationFormats } from "../ui/Markdown";
 import { StoragePanel } from "./storage";
 import { Button } from "../ui/primitives";
 import type { Page } from "../domain/types";
@@ -328,6 +327,7 @@ export function WorkflowPanel({
   spaceId?: string;
   initialPageId?: string;
 }) {
+  const readAttachment = useCallback((blobId: string) => api.get<ImagePreview>(`/storage/blobs/${blobId}/preview`), [api]);
   const [selected, setSelected] = useState(initialPageId ?? "");
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -849,14 +849,8 @@ export function WorkflowPanel({
           )}
           <details open>
             <summary>현재 발행본 본문 · v{latest.number}</summary>
-            <div
-              className="op-markdown"
-              dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(
-                  marked.parse(latest.content, { async: false }),
-                ),
-              }}
-            />
+            <Markdown text={latest.content} readAttachment={readAttachment} />
+            <details><summary>지원하는 문서 형식</summary><p>{presentationFormats}</p></details>
           </details>
           <StoragePanel
             key={`${spaceId}:${selected}`}

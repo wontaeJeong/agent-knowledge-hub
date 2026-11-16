@@ -1,0 +1,15 @@
+{
+  "environment": "Chromium; Node24; PostgreSQL17 disposable database; local OIDC userinfo fixture, actual runtime routes/React app",
+  "widths": [
+    1440,
+    390
+  ],
+  "math": true,
+  "mermaid": true,
+  "externalRequests": [],
+  "browserErrors": [],
+  "imagePreview": true,
+  "storageUpload": true,
+  "replacement": true,
+  "currentAclDenial": true
+}
