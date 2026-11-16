@@ -12,6 +12,11 @@
 - 추가 실패: 실제 런타임 검사에서 INVALID_IMAGE 오류 매핑 누락이 일반503으로 나타났다. 브라우저에서는 화살표 포함 data 속성이 정제되어 Mermaid가 표시되지 않았고, MathML annotation 문자열이 중복 표시됐다. 기존 업로드의 전체 문서 재조회는 첨부 목록을 초기화했다. DOM/HTTP 증거로 각 원인을 재현했다.
 - 조치: 명시 대상 fixture, 안전한415 매핑, 단순 마커와 정제된 코드 본문을 읽는 다이어그램 처리, 비표시 TeX annotation 제거, 업로드의 로컬 목록 갱신과 늦은 응답 컨텍스트 검사를 적용했다. 보안 정제와 원본/권한 경계는 유지했다. 허용 SVG는 외부 스타일 없이 로컬 CSS로 읽을 수 있게 표시한다.
 - 검증/상태: 관련 서버·클라이언트 회귀 RED→GREEN. 실제 Chromium에서 수식/다이어그램/업로드/이미지/교체/현재 ACL 차단, 1440/390 캡처, 외부 요청0·브라우저 오류0을 확인했다. 마지막 전체 검사와 저장/삭제 회귀 결과는 PR 증거에 기록한다. 사내 운영 인수는 미실행이다.
+### 2026-11-16 — 일괄 결과가 실제 호스트 재조회에서 사라짐
+
+- 사실/원인: BulkEditor 단독 시험은 onChanged를 no-op으로 사용해 통과했으나 실제 App.load는 dataReady를 내려 패널을 unmount한다. apply 후 결과와 같은 토큰 재확인 상태가 즉시 소실됐다. 합성 fixture/독립 코드 검토로 확인했으며 운영 자료 영향은 확인하지 않았다.
+- 조치: 적용 직후 부모 자동 갱신 대신 명시적 ‘결과 확인 후 문서 목록 새로고침’을 제공한다. 호스트 unmount 경계 시험은 수정 전 실패, 수정 후 통과했다. 명시적 갱신 이후의 결과 보존은 제공하지 않는다.
+- 검증: 프런트 회귀 3건·전체 기본 검사·1440/390 실제 컴포넌트 화면·동일 토큰 재확인·독립 재검토. 최종 원격 CI는 해당 PR head 기준으로 확인한다.
 
 ### 2026-11-14 — 기능 완성 설계의 복구·보존 범위 보완
 - 맥락: 운영 고도화를 제외한 추가 기능의 PR 분리 설계.
@@ -554,6 +559,17 @@
 - Correction: publication and review request map to batch; expiry keeps page and job failure keeps job. Regression tests use the exported graph selector and actual source-scoped deletion plus trusted recovery replay, retaining an independent target page.
 - Validation: all three new assertions failed before the production fix and passed after it; initial native fixture setup also required its existing resources FK row. Full project and affected native regressions are recorded in the PR follow-up report. No schema/UI change or external delivery.
 - Status: corrected locally; independent re-review/integration CI still required before merge.
+### 2026-11-16 — 다중 문서 편집 회귀와 화면 검증
+- 미구현 bulkPreview/bulkApply를 호출하는 도메인 회귀3건이 예상대로 실패한 뒤 구현으로 통과했다.
+- 첫 독립 화면 캡처에서 앱 shell CSS 클래스가 없어 스타일이 적용되지 않은 검증 harness 문제를 확인했다. 실제 앱의 전역CSS와 shell 클래스를 사용해1440/390 캡처를 다시 생성했다. 제품 런타임의 CSS누락은 아니며 합성 화면임을 명시했다.
+- 미리보기 위조·다른사용자·권한철회·CAS 재시도·CSRF를 도메인과 인증HTTP에서 확인했다.
+
+### 2026-11-16 - Bulk editing independent review fixes
+- Review found that tags changed a property string rather than canonical Page.tags, and unexpected errors after partial commits discarded results.
+- Added a failing canonical-tag regression, then updated Page.tags inside the metadata transaction. ScopedSearch tag filtering is verified.
+- Added per-preview/per-target workflow_events receipts atomically with mutations. A response lost after commit is unconfirmed until the same preview reconciles the receipt, without duplicating the metadata revision.
+- The first search regression needed adoptFixture because canonical authorization correctly rejected missing legacy evidence. Production authorization was not relaxed.
+- A documentation append command failed with source encoding error; retried ASCII source. No product data was affected. Node24 npm run check and native bulk5/workflows25 tests pass; scoped independent re-review follows.
 
 ### 2026-11-16 — 탐색 PR 최신 main 통합
 - 사실/원인: 오래된 PR30과 최근 기능 병합 사이에서 인계·실수 기록과 HTTP me 경로 충돌이 발생했다.
@@ -578,3 +594,8 @@
 
 ### 2026-11-16 - Presentation and navigation renderer overlap
 - Separate PRs both owned published-body rendering. Taking navigation alone would preserve its earlier DOMPurify renderer, allowing remote img and omitting configured math/image preview behavior. Taking Markdown alone would lose outline/find. Added a failing integration regression, then composed safe Markdown under navigation without replacing its event-bound DOM. Targeted16 and fullcheck passed; independent review remains required.
+### 2026-11-16 - Integration scheduling and native filter correction
+- Started the presentation merge before its final CI inspection, then cancelled only that uncommitted merge to integrate the already-CI-green bulk PR first. No committed or external changes were discarded. The presentation remote was already ff769e8; the initial stale-ref suspicion was incorrect.
+- A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.
+
+- The first integration capture omitted shared token/shell styles and was replaced after inspecting the real screenshot. Final captures use tokens.css, operational-app/op-main/op-panel; only the final1440/390 evidence is retained.

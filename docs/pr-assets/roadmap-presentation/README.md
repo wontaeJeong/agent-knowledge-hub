@@ -18,3 +18,8 @@
 - `npm audit --omit=dev`는 기존 간접 `hono`·`@hono/node-server`의 moderate2건을 보고했다. 신규 수식·다이어그램 의존성의 권고가 아니며 이번 변경에서 해결했다고 주장하지 않는다.
 
 독립 리뷰의 Important2건(APNG와 응답 경합)은 codec/네이티브 HTTP 및 실제 React deferred 회귀로 RED→GREEN을 확인했다. 유효한2프레임 APNG는415와 메타데이터 생성0, 손상 PNG/정상 PNG·JPEG·WebP/불활성 청크를 구분한다. 최신 권한 거부·역순 A/B·대기 중 닫기·컨텍스트/언마운트를 검사한다. 최종 `npm run check`와 storage/erasure13파일89건, 집중4파일29건 및 실제 Chromium1440/390을 재실행했다. 기존 물리 삭제4파일65건은 첫 구현에서 실행한 증거이며 이번 수정에서 재실행한 결과로 표시하지 않는다. 원격 CI와 최종 리뷰/통합은 별도다.
+
+## Navigation integration capture
+
+- navigation-1440.png and navigation-390.png show actual Chromium with the real DocumentBody + shared Markdown components, explicitly synthetic component text and attachment reader. Native API authorization remains separately verified by presentation-http/navigation-http/bulk tests.
+- Confirmed outline4, table find1, local MathML/Mermaid, preview image and blocked external image. External requests0, pageerrors0, documentoverflowfalse at both widths. navigation-results.json records results. This does not replace the earlier actual OIDC/runtime/DB browser flow.

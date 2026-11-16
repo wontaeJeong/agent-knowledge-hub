@@ -1,0 +1,20 @@
+{
+  "data": "synthetic API fixture; actual BulkEditor and app CSS",
+  "browser": "141.0.7390.37",
+  "results": [
+    {
+      "width": 1440,
+      "partialResultPreserved": true,
+      "recoveryPreserved": true,
+      "explicitHostRefresh": true,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "partialResultPreserved": true,
+      "recoveryPreserved": true,
+      "explicitHostRefresh": true,
+      "pageErrors": []
+    }
+  ]
+}
