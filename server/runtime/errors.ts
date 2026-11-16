@@ -7,6 +7,7 @@ export const extensionErrorStatuses: Readonly<Record<string, number>> =
       ...executionErrorStatuses,
       ...governanceErrorStatuses,
       SEMANTIC_JOB_REQUIRED:409,
+      REJECTED_PROPOSAL_UNCHANGED:409,
       MODEL_TRANSMISSION_DENIED:403,
       FEATURE_DISABLED:403,
       POLICY_RESOURCE_LIMIT:413,

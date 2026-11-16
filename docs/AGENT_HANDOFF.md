@@ -497,3 +497,10 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 ## 2026-11-16 — 탐색 대시보드 최신 통합 검증
 - PR30을 main5218828과 통합했다. 원래 인계·실수 기록을 보존하고 discovery GET과 최신 인증 me 경로를 함께 유지했다.
 - Node24 npm run check 통과. PostgreSQL17 격리 DB discovery/runtime/access 3파일37개 통과. 실제 Chromium1440/390 합성 명시 미리보기와 document overflow 없음 확인, docs/pr-assets/discovery에 캡처. 실제 회사 품질/대규모/운영 인수는 미검증이다.
+
+### 2026-11-16 — Task 5 일반 편입 주장 계보·검토 피드백
+- 요구사항: KNO-002~006/013/014. 일반 편입 후보를 정확한 원본 위치/fingerprint와 조건·기간·예외에 결합하여 배치에 보관하고, 검토 발행 트랜잭션에서 주장/근거/상충 요청을 저장한다. 반려·사람의 발행 수정·보호 이유는 다음 모델 입력에 고정하며 같은 원본·같은 제안 반복은 차단한다. 원본 정정은 불변 원본/주장을 보존하면서 영향을 받은 발행 버전의 재검토와 미발행 승인 무효화에 연결한다.
+- 변경 파일: `server/runtime/{knowledge,ingest-lineage,model,http,errors}.ts`, `server/publication.ts`, `server/refinement/service.ts`, `server/workflows/service.ts`, `src/operational/{App,review-rejection,refinement}.tsx`, 관련 CSS/회귀. 기존 저장소를 사용하며 migration 추가 없음.
+- 검증: Node24 `npm run check` 통과(웹173, import16 및 기존 Node/evaluation·251개 요구사항·서버 타입·빌드·HTTP smoke). PostgreSQL·실제 OIDC/모델 HTTP·MCP SDK 계보 회귀와 기존 답변 환류/권한/워크플로/정련/내구 작업 회귀를 실행한다. 최종 native 수치는 PR 검증 기록을 따른다. 실제 Chromium 1440/390 크기와 가로 넘침 검사, 합성 서버 데이터 캡처를 [증거](pr-assets/roadmap-knowledge-lineage/README.md)에 보관한다.
+- 남은 조건: 합성 loopback은 실제 사내 모델의 의미 품질·독립 실행 검증·지식 효과·운영 수용이 아니다. 의미상 반복 제안/상충 해석의 정답성은 모델 평가와 사람 검토가 필요하다. 모델 피드백·사람 편집 이력 각100개 및 기존 컨텍스트/작업 예산 초과는 명시적으로 중단한다. Task 6의 질문 주제/현재·과거 범위·조건 컨텍스트는 별도 PR 대상이다.
+- 추가 검증 발견(미해결): screenshot pool6의 병렬 인증 GET에서401/세션 폐기를 관찰했고 임시 PG 계측이 identity projection advisory7203101의SQLSTATE40P01을 확인했다(연결 timeout0건). Task5에서 auth/identity/network 경로를 바꾸지는 않았다. [요약](pr-assets/roadmap-knowledge-lineage/auth-deadlock.json)·실수 기록과 별도 검토 인계를 따르며 pool20 캡처 통과를 해결로 표시하지 않는다.

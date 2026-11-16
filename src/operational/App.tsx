@@ -1,3 +1,4 @@
+import { ReviewRejection } from "./review-rejection";
 import {
   lazy,
   Suspense,
@@ -59,6 +60,7 @@ interface PublishedPage {
   replacementId?: string | null;
 }
 interface ChangeSet {
+  reviewFeedback?: { reason: string; recordedBy: string; recordedAt: string };
   evolutionReason?: string;
   candidates?: {
     pageId: string;
@@ -1474,6 +1476,12 @@ function OperationalWorkspace({
                     <small className="op-id">
                       {c.id} · 내용 해시 {c.hash}
                     </small>
+                    {c.reviewFeedback && (
+                      <p>
+                        반려·수정 요청: {c.reviewFeedback.reason} ·{" "}
+                        {c.reviewFeedback.recordedBy}
+                      </p>
+                    )}
                     {c.evolutionReason && (
                       <p>모델의 변경 이유: {c.evolutionReason}</p>
                     )}
@@ -1599,24 +1607,23 @@ function OperationalWorkspace({
                           >
                             승인 집합 발행
                           </Button>
-                          <Button
-                            variant="danger"
+                          <ReviewRejection
+                            key={c.id}
+                            batchId={c.id}
                             disabled={
                               busy ||
                               !["pending", "approved"].includes(c.status)
                             }
-                            onClick={() =>
+                            onReject={(reason) =>
                               perform(async () => {
                                 await api.post(
                                   `/changesets/${encodeURIComponent(c.id)}/reject`,
-                                  { hash: c.hash },
+                                  { hash: c.hash, reason },
                                 );
                                 setNotice("변경 집합을 반려했습니다.");
                               })
                             }
-                          >
-                            반려
-                          </Button>
+                          />
                         </div>
                       )}
                   </article>

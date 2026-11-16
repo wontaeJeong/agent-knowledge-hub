@@ -48,3 +48,9 @@
 
 - P9 보존 리뷰 후속: 복구 재생에서 원본 법적 보류·비공개 참조·최신 스냅샷을 보수적으로 보호하고 초안의 현재 및 이력 계보에 대한 실행 자격증명의 접근을 재검사한다. CAS 물리 purge와 실제 운영 정책 검증은 남아 있다.
 - P7/P9 integration: applied workspace erasure receipts, including physical-purge-pending states, fence trusted collection before outbound requests and at final commit. Legal-hold and failed preflight alone are not treated as completed erasure. Verified with synthetic PostgreSQL 17, native HTTP and local TLS; external physical deletion and production operation remain separate.
+
+### 2026-11-16 — Task 5 일반 편입 계보·검토 환류
+- KNO-002~006/013/014: [일반 편입](../server/runtime/knowledge.ts)도 [공통 후보 바인딩](../server/runtime/ingest-lineage.ts)을 사용해 정확한 원본 fingerprint/위치·조건·유효 기간·예외를 미검증 주장 후보로 저장한다. 승인된 원자적 발행에서만 기존 refinement 주장/근거/상충 요청으로 연결한다. 승인/모델 성공을 독립 실행 검증으로 바꾸지 않는다.
+- 반려 사유·검토자·시각을 저장하고, 전체 현재 ACL의 반려 내용·발행된 사람 수정/보호 이유가 다음 일반 편입/답변 재편입에 전달된다. 동일 원본·동일 내용 재제안은 서버가 차단한다. 원본 정정은 영향 발행 버전/주장별 재검토 요청과 미발행 승인 무효화에 연결되며 원본/이전 주장을 덮어쓰지 않는다.
+- 연결: 기존 REST·MCP·durable Ingest가 같은 RuntimeService를 호출한다. 검토 화면의 반려 사유 입력/이력, 정련 화면의 원본 정정 이유·원본/대체 ID를 표시한다. [설계와 한계](superpowers/specs/2026-11-16-knowledge-lineage-feedback.md), [실제 화면 증거](pr-assets/roadmap-knowledge-lineage/README.md).
+- 검증/경계: 실제 PostgreSQL·loopback 모델/OIDC·MCP SDK·브라우저 회귀이며 실제 사내 모델 의미 품질/독립 업무 증거/운영 수용을 뜻하지 않는다. 정확히 같은 제안의 반복 차단과 의미상 같은 제안의 판단을 구분한다. 피드백 이력/모델 컨텍스트 한도 초과는 명시 오류로 남긴다.

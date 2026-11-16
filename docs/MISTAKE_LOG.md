@@ -523,3 +523,23 @@
 - 사실/원인: 오래된 PR30과 최근 기능 병합 사이에서 인계·실수 기록과 HTTP me 경로 충돌이 발생했다.
 - 조치: 양쪽 기록을 보존하고 현재 me 처리 뒤에 discovery GET을 연결했다. 검증은 후속 실행 결과에 기록한다.
 - 상태: 통합 검증 중.
+
+### 2026-11-16 — 일반 편입의 후보 누락과 검토 이유 환류 공백
+- 맥락/관련 PR: remaining-roadmap Task 5. 기존 일반 모델 Ingest는 답변 재편입과 달리 반환 candidates를 버렸고 반려 사유/발행된 사람 편집 이유를 다음 입력에 전달하지 않았다. 원본 정정도 영향 주장 재검토를 생성하지 않았다.
+- 사실과 영향: 새 실제 PostgreSQL 회귀에서 후보 부재, 동일 반려안 재생성, 정정 요청 부재가 RED였고 사람의 편집/보호 이유 부재도 확인했다. 코드 경로 공백이며 실제 사내 정보 유출/운영 데이터 영향은 확인되지 않았다.
+- 조치: 공통 정확한 원본 후보 바인딩, 발행 연결, 반려/수정/보호 이유 입력 및 저장 직전 재검사, 정정 버전별 영향 요청과 승인 무효화를 추가했다. 원본·과거 주장·검증 상태는 변경하지 않는다.
+- 검증: `server/runtime/lineage.test.ts`, 실제 loopback HTTP/OIDC/MCP의 `lineage-http.test.ts`와 관련 회귀. 전체 품질·업무 효과는 미검증이며 별도 평가 대상이다.
+- 상태/후속 작업: 연결 회귀 검증, 최종 CI/독립 검토는 해당 PR 기록을 따른다.
+
+### 2026-11-16 — Task 5 검증 도구/fixture 오류
+- 사실과 영향: 구현 중 pg 결과에 `.rows` 대신 배열 메서드를 호출한 오류, 새 React 테스트의 전역 타입 누락으로 최초 서버 회귀/전체 빌드가 실패했다. 실제 MCP SDK가 throw하는 오류를 `isError` 응답으로 가정한 통합 테스트도 실패했다. 모두 임시 DB/격리 worktree에서 발견했고 최종 결과를 통과로 숨기지 않았다.
+- 조치/검증: pg 결과·React 전역 타입·실제 SDK 오류 assertion을 수정했다. 추가 보호 fixture도 테이블 확장 칼럼에 의존한 VALUES 대신 명시 칼럼으로 바꾸고 동작 부재 RED를 확인했다. 최종 `npm run check`와 연결 회귀를 다시 실행했다.
+- 화면 검증: 처음 `BrowserContext.newPage`에 viewport 옵션을 잘못 주어 두 파일이 기본1280 크기로 생성됐다. `page.setViewportSize`와 실제 폭 assertion으로 수정하고 1440/390으로 다시 캡처했다. 캡처 도중 한 번 로딩 timeout이 있었으며 동시 재빌드에 의한 assets 교체 가능성은 가설이다. 빌드 종료 후 단독 재실행은 통과했고 문서 폭을 검증했다.
+- 상태/후속 작업: 수정 검증. 캡처는 빌드 종료 후 실행하며 Playwright API가 실제 적용한 크기를 assertion으로 확인한다.
+- 추가 화면 검증: 정련 패널의 실제 POST는 동적 웹 origin을 사용하지만 첫 캡처 fixture는 HTTP 시험용 `http://localhost`로만 CSRF를 설정했다. 정련 초기 조회가 완료되지 않아 캡처가 timeout됐다. 제품 CSRF를 완화하지 않고 별도 웹 handler의 OIDC/CSRF origin을 실제 listen URL과 맞췄다.
+- 모바일 정정 화면에서 긴 `correction_*` 요청 ID 제목이390px 화면을457px로 늘리는 실제 overflow를 검출했다. 정련 제목의 줄바꿈을 적용하고 같은 실제 브라우저 너비 assertion으로 재검증한다. 기존 화면의 긴 ID 표현 문제이며 데이터/권한 변경은 없다.
+
+### 2026-11-16 — 브라우저 병렬 인증 조회의 기존 deadlock (미해결)
+- 사실/근거: 브라우저 fixture pool6에서 `/session`200 후 병렬 `/pages`, `/model`, `/changesets`, `/spaces`, `/sources`, `/jobs`401과 세션 폐기를 관찰했다. 임시 PG 계측이 `SELECT pg_advisory_xact_lock(7203101)`에서 SQLSTATE `40P01` / deadlock detected / 약1004ms를 수집했다. 이 실행의 연결 timeout은0건이다. 따라서 단순 pool starvation 가설은 이 관측을 설명하지 않는다. [안전한 요약](pr-assets/roadmap-knowledge-lineage/auth-deadlock.json).
+- 원인: 세션 검증/identity projection 잠금 순서의 정확한 cycle은 미확정이다. 최근 실행에는 session advisory7203110, identity_session_activity, access_group_members projection이 포함됐다. Task5는 이 인증/identity 함수를 바꾸지 않았으며 새 network/reauth를 트랜잭션에 추가하지 않았다.
+- 조치/상태: 독립 검토자에게 원본 합성 로그와 임시 계측을 전달했다. UI 캡처는 networkidle 대기와 별도 pool20 설정으로 수행하지만 이것을 제품 수정·원인 반증으로 간주하지 않는다. 실제 앱의 기본 pool 및 worker 병렬 조건을 포함한 별도 원인 분석/동시성 회귀가 필요하다. 인증/CSRF/권한 검사를 완화하지 않는다. **미해결**.
