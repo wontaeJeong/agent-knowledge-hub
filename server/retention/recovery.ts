@@ -7,6 +7,12 @@ import { authorizeInTransaction } from "../access";
 import { loadState, membership } from "../repository";
 import { captureEnvelope, fingerprint, versionProvenance } from "../provenance";
 import { assertDraftNotRetired } from "./drafts";
+import {
+  dependencyVersions,
+  mergeDependencyVersions,
+  internalReferenceIds,
+  referenceOrigin,
+} from "../workflows/references";
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const metadata = z.object({
@@ -15,7 +21,7 @@ const metadata = z.object({
   baseVersion: z.number().int().positive(),
   expectedRevision: z.number().int().nonnegative(),
   sourceIds: z.array(id).max(100).default([]),
-  dependencyVersions: z.record(id, z.number().int().positive()).default({}),
+  dependencyVersions: dependencyVersions.default({}),
 });
 const bindingSchema = metadata
   .extend({
@@ -35,10 +41,14 @@ const hash = (v: string) => createHash("sha256").update(v).digest("hex");
  * This opaque binding is not an authentication token and contains no roles/grants.
  */
 export class DraftRecoveryService {
+  readonly origin: string | undefined;
   constructor(
     readonly pool: Pool,
     readonly clock = Date.now,
-  ) {}
+    origin?: string,
+  ) {
+    this.origin = referenceOrigin(origin);
+  }
   private async run<T>(ctx: Context, work: (db: PoolClient) => Promise<T>) {
     await ctx.authorization?.revalidate();
     const result = await transaction(this.pool, ctx.workspaceId, async (db) => {
@@ -63,23 +73,39 @@ export class DraftRecoveryService {
     const page = state.pages.find((p) => p.id === d.pageId);
     if (!page || page.versions.at(-1)?.number !== d.baseVersion)
       throw Error("STALE_VERSION");
-    for (const [id, version] of Object.entries(d.dependencyVersions))
-      if (
-        state.pages.find((p) => p.id === id)?.versions.at(-1)?.number !==
-        version
-      )
-        throw Error("STALE_VERSION");
     const history = (
       await db.query(
         "SELECT data FROM workflow_draft_revision_history WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3 UNION ALL SELECT data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
         [ctx.workspaceId, ctx.principalId, d.id],
       )
     ).rows;
+    let dependencies = mergeDependencyVersions(
+      d.dependencyVersions,
+      ...history.map((r) => r.data.dependencyVersions ?? {}),
+    );
+    for (const row of history)
+      for (const target of internalReferenceIds(
+        row.data.content,
+        ctx.workspaceId,
+        this.origin,
+      )) {
+        const version = state.pages
+          .find((p) => p.id === target)
+          ?.versions.at(-1)?.number;
+        if (!version) throw Error("NOT_FOUND");
+        if (!Object.hasOwn(dependencies, target))
+          dependencies = mergeDependencyVersions(dependencies, {
+            [target]: version,
+          });
+      }
+    for (const [id, version] of Object.entries(dependencies))
+      if (
+        state.pages.find((p) => p.id === id)?.versions.at(-1)?.number !==
+        version
+      )
+        throw Error("STALE_VERSION");
     const historyPages = history
-      .flatMap((r) => [
-        r.data.pageId,
-        ...Object.keys(r.data.dependencyVersions ?? {}),
-      ])
+      .map((r) => r.data.pageId)
       .filter((p): p is string => typeof p === "string");
     const historySources: string[] = history.flatMap(
       (r) => r.data.sourceIds ?? [],
@@ -88,7 +114,7 @@ export class DraftRecoveryService {
       db,
       ctx,
       state,
-      [d.pageId, ...Object.keys(d.dependencyVersions), ...historyPages],
+      [d.pageId, ...Object.keys(dependencies), ...historyPages],
       [...d.sourceIds, ...historySources],
     );
     for (const pageId of envelope.pageIds) {
@@ -118,6 +144,7 @@ export class DraftRecoveryService {
       policies.push({ sourceId, ...p });
     }
     return {
+      dependencyVersions: dependencies,
       lineageHash: fingerprint(envelope),
       policyHash: fingerprint(policies),
     };

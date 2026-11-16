@@ -804,3 +804,207 @@ test("navigation follows generated same-space links, ignores code examples and e
  await expect(service.navigation(f.editor,'topic')).rejects.toThrow('NOT_FOUND');
  expect((await service.linkSearch(f.editor,{query:'주제'})).items).toEqual([]);
 });
+
+async function referenceTarget() {
+  const targetSource = {
+    ...source,
+    id: "target-source",
+    title: "Target evidence",
+  };
+  const target = {
+    ...page,
+    id: "target",
+    title: "Restricted target",
+    links: [],
+  };
+  await f.pool.query(
+    "INSERT INTO resources VALUES($1,'page','target'),($1,'source','target-source')",
+    [f.workspaceId],
+  );
+  for (const principal of ["editor", "reviewer"])
+    await f.pool.query(
+      "INSERT INTO resource_readers VALUES($1,'page','target',$2),($1,'source','target-source',$2)",
+      [f.workspaceId, principal],
+    );
+  await f.pool.query(
+    "INSERT INTO sources(workspace_id,id,data) VALUES($1,'target-source',$2)",
+    [f.workspaceId, targetSource],
+  );
+  await f.pool.query(
+    "INSERT INTO pages(workspace_id,id,data) VALUES($1,'target',$2)",
+    [f.workspaceId, target],
+  );
+  await f.pool.query("INSERT INTO versions VALUES($1,'target',1,$2)", [
+    f.workspaceId,
+    { ...page.versions[0], sourceIds: [targetSource.id] },
+  ]);
+  return `[Restricted target](/?app=1&space=${f.workspaceId}&document=target)`;
+}
+function referenceDraft(content: string, expectedRevision = 0) {
+  return {
+    id: "reference-draft",
+    expectedRevision,
+    title: "Broad A",
+    content,
+    pageId: "topic",
+    baseVersion: 1,
+  };
+}
+
+test("completed narrow B reference is retained on broad A and cannot widen its readers on submit or direct proposal", async () => {
+  const content = await referenceTarget();
+  const candidate = (
+    await service.linkSearch(f.editor, { query: "Restricted target" })
+  ).items[0];
+  expect(candidate).toMatchObject({ id: "target", version: 1 });
+  const saved = await service.saveDraft(f.editor, referenceDraft(content));
+  expect(saved).toMatchObject({ dependencyVersions: { target: 1 } });
+  const stripped = await service.saveDraft(
+    f.editor,
+    referenceDraft("Copied title after removing the URL", 1),
+  );
+  expect(stripped).toMatchObject({ dependencyVersions: { target: 1 } });
+  await expect(
+    service.submitDraft(f.editor, "reference-draft", 2, "review title link"),
+  ).rejects.toThrow("SOURCE_SCOPE_CONFLICT");
+  await expect(
+    service.proposeEdit(f.editor, "topic", {
+      baseVersion: 1,
+      content,
+      reason: "direct API",
+    }),
+  ).rejects.toThrow("SOURCE_SCOPE_CONFLICT");
+  expect(
+    (
+      await f.pool.query(
+        "SELECT number FROM versions WHERE workspace_id=$1 AND page_id='topic'",
+        [f.workspaceId],
+      )
+    ).rows,
+  ).toEqual([{ number: 1 }]);
+});
+
+for (const kind of ["page", "source"] as const) {
+  test(`completed reference rejects ${kind} revocation before initial save`, async () => {
+    const content = await referenceTarget();
+    expect(
+      (await service.linkSearch(f.editor, { query: "target" })).items,
+    ).toHaveLength(1);
+    await f.pool.query(
+      "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind=$2 AND resource_id=$3 AND principal_id='editor'",
+      [f.workspaceId, kind, kind === "page" ? "target" : "target-source"],
+    );
+    await expect(
+      service.saveDraft(f.editor, referenceDraft(content)),
+    ).rejects.toThrow("NOT_FOUND");
+    expect((await service.drafts(f.editor)).items).toEqual([]);
+  });
+  test(`completed reference rejects ${kind} revocation before submit even after metadata is omitted`, async () => {
+    const content = await referenceTarget();
+    await service.saveDraft(f.editor, referenceDraft(content));
+    await service.saveDraft(f.editor, referenceDraft("Copied title", 1));
+    await f.pool.query(
+      "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind=$2 AND resource_id=$3 AND principal_id='editor'",
+      [f.workspaceId, kind, kind === "page" ? "target" : "target-source"],
+    );
+    await expect(
+      service.submitDraft(f.editor, "reference-draft", 2, "review"),
+    ).rejects.toThrow("NOT_FOUND");
+    await expect(
+      service.saveDraft(f.editor, referenceDraft("still copied", 2)),
+    ).rejects.toThrow("NOT_FOUND");
+  });
+}
+
+test("API reference inference excludes code and external spaces and rejects unknown targets without titles", async () => {
+  const link = await referenceTarget();
+  const content = `Example: \`${link}\`\n\n\`\`\`md\n${link}\n\`\`\`\n${link.replace(f.workspaceId, "another-space")}\n[External](https://example.test/?app=1&space=${f.workspaceId}&document=target)`;
+  const saved = await service.saveDraft(f.editor, referenceDraft(content));
+  expect(saved).not.toHaveProperty("dependencyVersions");
+  expect(
+    (
+      await service.proposeEdit(f.editor, "topic", {
+        baseVersion: 1,
+        content,
+        reason: "examples",
+      })
+    ).id,
+  ).toBeTruthy();
+  await expect(
+    service.saveDraft(f.editor, {
+      ...referenceDraft(
+        `[Fake](/?app=1&space=${f.workspaceId}&document=missing)`,
+      ),
+      id: "fake",
+    }),
+  ).rejects.toThrow(/^NOT_FOUND$/);
+});
+
+test("reference target version remains pinned after target advances and source lineage reaches ordinary envelope", async () => {
+  const content = await referenceTarget();
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND principal_id='reader'",
+    [f.workspaceId],
+  );
+  const saved = await service.saveDraft(f.editor, {
+    ...referenceDraft(content),
+    dependencyVersions: { target: 1 },
+  });
+  const proposal = await service.submitDraft(
+    f.editor,
+    "reference-draft",
+    saved.revision,
+    "review",
+  );
+  const row = (
+    await f.pool.query(
+      "SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, proposal.id],
+    )
+  ).rows[0].data;
+  expect(row.contextDependencyIds).toEqual(
+    expect.arrayContaining(["topic", "target"]),
+  );
+  expect(row.inputEnvelope).toMatchObject({
+    pageIds: expect.arrayContaining(["topic", "target"]),
+    sourceIds: expect.arrayContaining(["source-a", "target-source"]),
+    acl: {
+      "page:target": ["editor", "reviewer"],
+      "source:target-source": ["editor", "reviewer"],
+    },
+  });
+  await f.pool.query("INSERT INTO versions VALUES($1,'target',2,$2)", [
+    f.workspaceId,
+    { ...page.versions[0], number: 2, sourceIds: ["target-source"] },
+  ]);
+  const resaved = await service.saveDraft(f.editor, referenceDraft(content, 1));
+  expect(resaved).toMatchObject({ dependencyVersions: { target: 1 } });
+  await expect(
+    service.submitDraft(f.editor, "reference-draft", 2, "stale reference"),
+  ).rejects.toThrow("STALE_VERSION");
+});
+
+test("reference inference retains document IDs that collide with object prototype names", async () => {
+  await referenceTarget();
+  await f.pool.query("INSERT INTO resources VALUES($1,'page','constructor')", [
+    f.workspaceId,
+  ]);
+  await f.pool.query(
+    "INSERT INTO resource_readers VALUES($1,'page','constructor','editor'),($1,'page','constructor','reviewer')",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO pages(workspace_id,id,data) VALUES($1,'constructor',$2)",
+    [f.workspaceId, { ...page, id: "constructor", title: "Restricted target" }],
+  );
+  await f.pool.query("INSERT INTO versions VALUES($1,'constructor',1,$2)", [
+    f.workspaceId,
+    { ...page.versions[0], sourceIds: ["target-source"] },
+  ]);
+  const content = `[Restricted target](/?app=1&space=${f.workspaceId}&document=constructor)`;
+  const saved = await service.saveDraft(f.editor, referenceDraft(content));
+  expect(saved).toMatchObject({ dependencyVersions: { constructor: 1 } });
+  await expect(
+    service.submitDraft(f.editor, "reference-draft", 1, "review"),
+  ).rejects.toThrow("SOURCE_SCOPE_CONFLICT");
+});
