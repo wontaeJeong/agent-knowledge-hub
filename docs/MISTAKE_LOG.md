@@ -676,3 +676,6 @@
 - 사실: 로컬 커밋과 push를 묶은 명령이 실행 전 자동 승인 검토에서 거부됐다. 사유는 GitHub 외부 대상의 소유·신뢰와 정확한 업로드 승인이 이 하위 작업의 신뢰된 사용자 문맥에 확립되지 않아 저장소 내용 반출을 승인할 수 없다는 것이다. 원격 push/PR은 실행되지 않았다.
 - 조치: 차단을 우회하지 않았다. 네트워크가 없는 별도 로컬 커밋으로 검증된 결과를 보존하고 원래 사용자 승인 문맥이 있는 상위 작업에 승인 근거 확인을 요청했다.
 - 검증/상태: 로컬 commit 460de88, npm run check 및 관련 실제 PostgreSQL114개 회귀 통과. 외부 push/PR/CI/독립 리뷰는 아직 미완료다.
+
+### 2026-11-17 - Scheduled publication upload authorization resolved
+- Root inspected the actual trusted user request explicitly authorizing all roadmap PR uploads and merges, verified origin against public GitHub repository1438188423/wontaeJeong/agent-knowledge-hub and connected push permissions, audited exact29 changed paths plus synthetic evidence source/screenshots, and found no credential-pattern matches. The same push was re-reviewed in root context and allowed; no alternate channel or policy bypass was used. Initial blocked attempt remains recorded above.
