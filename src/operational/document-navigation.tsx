@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { Button } from "../ui/primitives";
@@ -325,6 +325,10 @@ export function LinkCompletion({
     [busy, setBusy] = useState(false),
     [searched, setSearched] = useState(false);
   const request = useRef(0);
+  const currentInsert = useRef(onInsert);
+  useLayoutEffect(() => {
+    currentInsert.current = onInsert;
+  }, [onInsert]);
   useEffect(() => {
     const clear = () => {
       request.current++;
@@ -422,7 +426,9 @@ export function LinkCompletion({
                           "문서를 찾을 수 없거나 현재 접근할 수 없습니다.",
                         );
                       const title = current.title.replace(/[\\[\]]/g, "\\$&");
-                      onInsert(`[${title}](${documentHref(spaceId, item.id)})`);
+                      currentInsert.current(
+                        `[${title}](${documentHref(spaceId, item.id)})`,
+                      );
                     })
                     .catch((error) => {
                       if (sequence === request.current) onError(error);

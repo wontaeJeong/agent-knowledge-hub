@@ -967,9 +967,17 @@ export function WorkflowPanel({
               spaceId={spaceId}
               onError={fail}
               onInsert={(markdown) => {
-                const next = `${content}\n${markdown}`;
+                const editor = autosave.current;
+                if (
+                  !editor ||
+                  editor.draft.id !== draft.id ||
+                  previousIdentity.current !== identityScope
+                )
+                  return;
+                // Authorization may finish after more typing; append to the active editor.
+                const next = `${editor.content}\n${markdown}`;
                 setContent(next);
-                autosave.current?.edit(next);
+                editor.edit(next);
               }}
             />
           )}
