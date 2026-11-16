@@ -28,6 +28,8 @@ export async function handleCollaborationRoute(
       .parse(url.searchParams.get("offset") ?? 0);
   if (method === "GET") {
     if (route === "/preferences") return reply(await service.preferences(ctx));
+    if (route === "/subscriptions")
+      return reply(await service.subscriptions(ctx));
     if (route === "/notifications")
       return reply(await service.notifications(ctx, offset));
     if (route === "/deliveries")
@@ -50,6 +52,13 @@ export async function handleCollaborationRoute(
       );
   }
   if (method === "POST") {
+    if (route === "/subscriptions")
+      return reply(await service.subscribe(ctx, body));
+    const processed = route.match(/^\/notifications\/([^/]+)\/process$/);
+    if (processed) {
+      z.object({}).strict().parse(body);
+      return reply(await service.processNotification(ctx, processed[1]));
+    }
     if (route === "/preferences")
       return reply(await service.preferences(ctx, body));
     if (route === "/review-cadence")

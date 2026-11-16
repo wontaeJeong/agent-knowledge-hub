@@ -4,6 +4,13 @@ import { z } from "zod";
 import type { Context } from "../service";
 import { loadState } from "../repository";
 import { captureEnvelope, fingerprint } from "../provenance";
+import {
+  subscriptionMatches,
+  subscriptionsDb,
+  eventContentDb,
+  scanEventsDb,
+  eventDenied,
+} from "./events";
 import { current } from "../../src/domain/wiki";
 import { nextDigest, afterQuietHours, inQuietHours } from "./time";
 import type {
@@ -325,6 +332,73 @@ export class CollaborationService {
     });
     return result;
   }
+  async subscriptions(ctx: Context) {
+    return this.request(ctx, "knowledge.read", (db) =>
+      subscriptionsDb(db, ctx, this.hooks.authorize),
+    );
+  }
+  async subscribe(ctx: Context, input: unknown) {
+    const p = z
+      .discriminatedUnion("scope", [
+        z.object({ scope: z.literal("space"), enabled: z.boolean() }).strict(),
+        z
+          .object({
+            scope: z.literal("topic"),
+            target: z.string().trim().min(1).max(200),
+            enabled: z.boolean(),
+          })
+          .strict(),
+      ])
+      .parse(input);
+    return this.request(ctx, "knowledge.read", async (db) => {
+      const target = p.scope === "topic" ? p.target : "";
+      if (
+        p.enabled &&
+        p.scope === "topic" &&
+        !(await subscriptionsDb(db, ctx, this.hooks.authorize)).topics.includes(
+          target,
+        )
+      )
+        throw Error("NOT_FOUND");
+      if (p.enabled)
+        await db.query(
+          "INSERT INTO collaboration_subscriptions(workspace_id,principal_id,scope,target) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
+          [ctx.workspaceId, ctx.principalId, p.scope, target],
+        );
+      else
+        await db.query(
+          "DELETE FROM collaboration_subscriptions WHERE workspace_id=$1 AND principal_id=$2 AND scope=$3 AND target=$4",
+          [ctx.workspaceId, ctx.principalId, p.scope, target],
+        );
+      return { scope: p.scope, target, enabled: p.enabled };
+    });
+  }
+  async scanEvents() {
+    return this.tx((db) =>
+      scanEventsDb(db, this.hooks, this.origin, this.clock()),
+    );
+  }
+  async processNotification(ctx: Context, notificationId: string) {
+    return this.request(ctx, "knowledge.read", async (db) => {
+      const n = (
+        await db.query(
+          "SELECT * FROM workflow_notifications WHERE workspace_id=$1 AND principal_id=$2 AND id=$3",
+          [ctx.workspaceId, ctx.principalId, id.parse(notificationId)],
+        )
+      ).rows[0];
+      if (!n) throw Error("NOT_FOUND");
+      const p = preferences(
+        (await this.prefRow(db, ctx.workspaceId, ctx.principalId))?.data ?? {},
+      );
+      if (!(await this.eligible(db, ctx, p, [n])).items.length)
+        throw Error("NOT_FOUND");
+      await db.query(
+        "UPDATE workflow_notifications SET processed_at=$4,read_at=coalesce(read_at,$4) WHERE workspace_id=$1 AND principal_id=$2 AND id=$3",
+        [ctx.workspaceId, ctx.principalId, n.id, this.clock()],
+      );
+      return { id: n.id, processed: true };
+    });
+  }
   async syncPlans() {
     return this.tx(async (db) => {
       await this.hooks.assertDispatcher(db);
@@ -480,6 +554,35 @@ export class CollaborationService {
     const fingerprints: unknown[] = [];
     for (const n of events) {
       try {
+        if (n.data.eventId) {
+          if (!p.subscriptions && n.kind !== "job-failure") continue;
+          const event = (
+            await db.query(
+              "SELECT * FROM collaboration_events WHERE workspace_id=$1 AND id=$2",
+              [ctx.workspaceId, n.data.eventId],
+            )
+          ).rows[0];
+          if (!event) continue;
+          const content = await eventContentDb(
+            db,
+            ctx,
+            event,
+            this.hooks,
+            this.origin,
+            this.clock(),
+          );
+          if (!content) continue;
+          fingerprints.push([n.id, event, content.envelope]);
+          const group = groups.get(content.pageId) ?? {
+            pageId: content.pageId,
+            title: content.title,
+            url: content.url,
+            eventIds: [],
+          };
+          group.eventIds.push(n.id);
+          groups.set(content.pageId, group);
+          continue;
+        }
         if (n.kind.startsWith("review-")) {
           const work = await db.query(
             "SELECT document_type,page_id FROM collaboration_review_due_work WHERE workspace_id=$1 AND id=$2 AND assigned_id=$3 AND status IN ('needs-review','needs-assignment','acknowledged')",
@@ -502,14 +605,7 @@ export class CollaborationService {
           ).rows[0];
           if (!c || c.deleted) continue;
           const mention = c.data.mentions?.includes(ctx.principalId),
-            subscription = Boolean(
-              (
-                await db.query(
-                  "SELECT 1 FROM workflow_subscriptions WHERE workspace_id=$1 AND principal_id=$2 AND page_id=$3",
-                  [ctx.workspaceId, ctx.principalId, n.page_id],
-                )
-              ).rowCount,
-            );
+            subscription = await subscriptionMatches(db, ctx, [n.page_id]);
           if (!((mention && p.mentions) || (subscription && p.subscriptions)))
             continue;
         } else if (!n.kind.startsWith("review-") && !p.subscriptions) continue;
@@ -556,7 +652,7 @@ export class CollaborationService {
         }
         group.eventIds.push(n.id);
       } catch (e) {
-        if (!denied(e)) throw e;
+        if (!denied(e) && !eventDenied(e)) throw e;
       }
     }
     return {
@@ -643,6 +739,14 @@ export class CollaborationService {
           events: item.eventIds.map((id) => ({
             id,
             read: Boolean(rows.find((row) => row.id === id)?.read_at),
+            ...(rows.find((row) => row.id === id)?.data.eventId
+              ? {
+                  kind: rows.find((row) => row.id === id)?.kind,
+                  processed: Boolean(
+                    rows.find((row) => row.id === id)?.processed_at,
+                  ),
+                }
+              : {}),
           })),
         })),
         nextOffset: rows.length === 25 ? offset + 25 : null,

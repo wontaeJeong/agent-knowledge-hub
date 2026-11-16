@@ -28,6 +28,7 @@ const tablePattern =
 const identityColumns =
   /^(id|workspace_id|principal_id|owner_id|created_by|recorded_by|reviewed_by|approved_by|actor_id|kind|state|status|operation|role|scope|parent_kind|[a-z_]+_id|[a-z_]+_hash|sha256|mime|provider|model|key|token_hash|mode|category|decision|action|requested_scope|cadence|backend|user_code|document_type|due_cycle|updated_by|applied_by|decision_by|resource_type)$/;
 const referenceKeys: Record<string, string> = {
+  eventId: "collaboration-event",
   threadId: "question-thread",
   thread_id: "question-thread",
   turnId: "question-turn",
@@ -207,7 +208,8 @@ function own(row: ProductRow) {
     id = d.id;
   const result = new Set<string>();
   let kind: string | undefined;
-  if (t === "question_threads") kind = "question-thread";
+  if (t === "collaboration_events") kind = "collaboration-event";
+  else if (t === "question_threads") kind = "question-thread";
   else if (t === "question_turns") kind = "question-turn";
   else if (t === "question_feedback") kind = "question-feedback";
   else if (t === "imports") kind = "released-import";
@@ -227,6 +229,12 @@ function own(row: ProductRow) {
   return result;
 }
 function lineageRefs(row: ProductRow) {
+  if (row.table === "collaboration_events") {
+    const kind = row.data.kind === "job-failure" ? "job" : row.data.kind === "change-review-request" ? "batch" : "page";
+    const result=refs(row.data);
+    if(typeof row.data.resource_id === "string")result.add(`${kind}:${row.data.resource_id}`);
+    return result;
+  }
   if (releasedImportTables.has(row.table))
     return refs({
       ...row.data,
@@ -452,6 +460,13 @@ async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
   }
   return { rows, columns };
 }
+/** Subscription targets can be private category names and form a composite key.
+ * Remove configuration rather than inventing an invalid or colliding target. */
+async function eraseCollaborationSubscription(db: PoolClient, row: ProductRow) {
+  if (row.table !== "collaboration_subscriptions") return false;
+  await db.query("DELETE FROM collaboration_subscriptions WHERE ctid=$1::tid",[row.locator]);
+  return true;
+}
 /** Trusted restore-only replay of independently signed, previously approved deletion records. Never an HTTP input. */
 export async function replayProductErasure(
   db: PoolClient,
@@ -503,7 +518,7 @@ export async function replayProductErasure(
     fingerprint(resources),
   );
   for (const row of selected) {
-    if (await redactReleasedImportRow(db, row)) {
+    if (await eraseCollaborationSubscription(db,row) || await redactReleasedImportRow(db, row)) {
       counts[row.table] = (counts[row.table] ?? 0) + 1;
       continue;
     }
@@ -715,7 +730,7 @@ export async function executeErasure(
         );
         // Privileged append-only refinement redaction happens only inside this explicit, preview-bound operation.
         for (const row of p.selected) {
-          if (await redactReleasedImportRow(db, row)) continue;
+          if (await eraseCollaborationSubscription(db,row) || await redactReleasedImportRow(db, row)) continue;
           const replacements: Record<string, unknown> = {};
           for (const c of p.all.columns.get(row.table) ?? []) {
             if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result") || (row.table === "version_restore_previews" && c.name === "hash")) continue;

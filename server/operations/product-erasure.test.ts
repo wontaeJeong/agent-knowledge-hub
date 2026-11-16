@@ -224,3 +224,11 @@ test.each(['execute','replay'] as const)("%s preserves distinct restore preview 
   const locator=(await f.pool.query("SELECT ctid::text AS locator FROM version_restore_previews WHERE workspace_id=$1 AND hash='preview-one'",[f.workspaceId])).rows[0].locator;
   await expect(f.pool.query("SELECT operations_privileged_product_redaction('version_restore_previews',$1::tid,$2::jsonb)",[locator,JSON.stringify({hash:'changed'})])).rejects.toThrow('ERASURE_IDENTITY_COLUMN_FORBIDDEN');
 });
+test("notification subscriptions and event lineage participate in retention and workspace erasure",async()=>{
+ const f=await setup();const {inventory}=await import('../retention/inventory');
+ await f.pool.query("INSERT INTO collaboration_subscriptions(workspace_id,principal_id,scope,target) VALUES($1,'reader','space',''),($1,'reader','topic','private-category-one'),($1,'reader','topic','private-category-two')",[f.workspaceId]);
+ const db=await f.pool.connect();try{await db.query('BEGIN');const rows=await inventory(db,f.workspaceId);expect(JSON.stringify(rows)).not.toContain('private-category');await db.query('ROLLBACK');}finally{db.release();}
+ const input={scope:'workspace' as const};const preview=await previewErasure(f.service,f.owner,input);
+ expect((await executeErasure(f.service,f.owner,{...input,previewHash:preview.previewHash,confirm:'ERASE_ENTIRE_WORKSPACE'})).status).toBe('completed');
+ expect((await f.pool.query("SELECT 1 FROM collaboration_subscriptions WHERE workspace_id=$1",[f.workspaceId])).rowCount).toBe(0);
+});

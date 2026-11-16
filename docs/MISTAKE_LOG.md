@@ -507,3 +507,13 @@
 - 조치: 새 동시 인증 회귀 2건의 RED를 확인하고 proof refresh 시작에서 세션별 advisory mutex를 잡는다. 최초 exclusive row lock 대안은 독립 리뷰에서 directory gate와 역순 잠금 가능성이 확인돼 채택하지 않았다. fixture는 하나의 기준 시각을 사용한다.
 - 검증: 최종 수정의 PostgreSQL 17 관련 9파일과 전체 `npm run check` 통과. 잘못 지정한 `legacy-compat.test.ts` 필터는 실행 전 거부됐으며 실제 `legacy-compatibility.test.ts`로 수정해 실행했다. 원격 최종 CI를 다시 통과해야 병합한다.
 - 남은 제약: 기존 final guard/directory gate 경합의 더 넓은 잠금 순서는 별도 재현·검토 대상이다. 이번 검증을 모든 동시성 문제의 해결로 표시하지 않는다.
+
+### 2026-11-16 — Notification expiry clock ordering and capability fixture
+- Context: Task 8 CLB-004–006 in isolated `feat/roadmap-notifications-20261116`.
+- Observed impact: an expiry regression intermittently produced no notification when comparing DB subscription timestamps with the application clock; no production data or external message was involved. A later UI fixture omitted the protection capability required by the canonical lifecycle API and failed after controls were correctly gated.
+- Cause: two clocks (and initially different timestamp precision) were used for event/subscription ordering. The UI fixture represented lifecycle access without the separate protected-setting capability.
+- Correction: use DB `clock_timestamp()` and exact timestamp text (preserving PostgreSQL microseconds across the JS boundary) for outbox/subscription ordering, while the injectable clock controls deadline evaluation and delivery windows. Discover candidates from subscriptions/explicit job responsibility, then use current canonical authorization. Align the UI fixture and actual controls with both required capabilities.
+- Validation: the initially failing expiry DB regression and protected-setting UI interaction now pass; event retry/current-category/source-revocation/native HTTP/final-digest gates are covered. Intentional TDD red runs for missing subscription/event/processing/expiry controls were observed before those implementations; these were expected missing-feature failures.
+- Additional discovery regression: resource authorization ceilings must be checked alongside stored reader ACLs before listing category names; the new source-denial regression failed first and now passes through the shared authorized envelope gate.
+- Integration discovery: the new durable tables initially failed the existing retention inventory gate. Added explicit classifications/private target hashing and subscription deletion under reviewed erasure, with graph lineage and a failing-first regression; generic target redaction would violate the space target CHECK or collide across topic keys.
+- Status: corrected locally; actual company directory/gateway and production acceptance remain separate. Final regression evidence is attached to the feature PR.

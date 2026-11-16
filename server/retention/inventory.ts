@@ -14,6 +14,7 @@ const productTables = new Set([
   "board_posts","board_comments","board_reads","identity_emergencies","import_model_calls","model_usage_events","model_source_policies","policy_events","policy_private_import_sources",
   "question_feedback","question_feedback_work","question_threads","question_turns",
   "version_metadata","version_metadata_events","version_restore_applications","version_restore_plans","version_restore_previews","versions_decisions",
+  "collaboration_events","collaboration_subscriptions",
   "collaboration_delivery_events","collaboration_delivery_receipts","collaboration_digest_outbox","collaboration_digest_plans","collaboration_review_cadence","collaboration_review_due_work",
   "governance_business_owners","governance_events","governance_handoffs","governance_review_assignments","governance_type_policies",
 ]);
@@ -29,6 +30,7 @@ export function contains(value: unknown, target: string): boolean {
 /** Keep private bodies/titles inside PostgreSQL. Hash changes into the preview
  * without materializing them in the service or exposing them in a receipt. */
 function privateProjection(table:string):string | undefined {
+  if (table === "collaboration_subscriptions") return `(to_jsonb(t)-'target') || jsonb_build_object('private_payload_sha256',encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex'))`;
   if (table === "versions") return `(to_jsonb(t)-'data') || jsonb_build_object('data',jsonb_build_object('at',t.data->'at','sourceIds',t.data->'sourceIds','pageIds',t.data->'pageIds','provenance',jsonb_build_object('pageIds',t.data->'provenance'->'pageIds','sourceIds',t.data->'provenance'->'sourceIds'),'dependencyVersions',t.data->'dependencyVersions'),'private_payload_sha256',encode(sha256(convert_to(t.data::text,'UTF8')),'hex'))`;
   if (table === "sources") return `(to_jsonb(t)-'data') || jsonb_build_object('data',jsonb_build_object('id',t.data->'id','createdAt',t.data->'createdAt','targetPageId',t.data->'targetPageId','importId',t.data->'importId','importRunId',t.data->'importRunId'),'private_payload_sha256',encode(sha256(convert_to(t.data::text,'UTF8')),'hex'))`;
   if (table === "pages") return `(to_jsonb(t)-'data') || jsonb_build_object('data',jsonb_build_object('id',t.data->'id','links',t.data->'links'),'private_payload_sha256',encode(sha256(convert_to(t.data::text,'UTF8')),'hex'))`;
