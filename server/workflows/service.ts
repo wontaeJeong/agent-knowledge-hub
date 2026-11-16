@@ -5,6 +5,7 @@ import {
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
+import { marked } from "marked";
 import type { Context } from "../service";
 import type { Page } from "../../src/domain/types";
 import { current, draftOf } from "../../src/domain/wiki";
@@ -83,6 +84,7 @@ const docSchema = z
     properties: z.record(z.string().max(100), z.string().max(2000)).optional(),
     reviewDue: z.iso.datetime().nullable().optional(),
     effectiveFrom: z.iso.datetime().nullable().optional(),
+    effectiveUntil: z.iso.datetime().nullable().optional(),
     replacementId: id.nullable().optional(),
     protected: z.boolean().optional(),
   })
@@ -587,6 +589,94 @@ export class WorkflowService {
       },
     );
   }
+  /** Navigation DTOs carry current metadata only. No historical bodies or hidden counts. */
+  private async navigablePages(db: PoolClient, ctx: Context) {
+    const state = await loadState(db, ctx.workspaceId);
+    const visible = await visiblePageIds(db, ctx, state);
+    // visiblePageIds includes current source lineage, ancestor ACLs, cycles and trash.
+    return state.pages
+      .filter((p) => visible.has(p.id))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  }
+  private linkedIds(p: Page, workspaceId: string) {
+    const links = new Set(p.links ?? []);
+    marked.walkTokens(marked.lexer(current(p).content), (token) => {
+      if (token.type !== "link" || !token.href.startsWith("/?")) return;
+      const url = new URL(token.href, "https://workspace.invalid");
+      const target = url.searchParams.get("document");
+      if (
+        url.searchParams.get("app") === "1" &&
+        url.searchParams.get("space") === workspaceId &&
+        target
+      )
+        links.add(target);
+    });
+    return links;
+  }
+
+  async linkSearch(ctx: Context, input: unknown) {
+    const { query } = z
+      .object({ query: z.string().trim().min(1).max(200) })
+      .strict()
+      .parse(input);
+    return this.run(ctx, "knowledge.read", undefined, async (db) => {
+      const matches = (await this.navigablePages(db, ctx)).filter(
+        (p) =>
+          p.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()) ||
+          p.id.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+      );
+      return {
+        items: matches.slice(0, 20).map((p) => ({
+          id: p.id,
+          title: p.title,
+          version: current(p).number,
+        })),
+        truncated: matches.length > 20,
+      };
+    });
+  }
+  async navigation(ctx: Context, pageId: string) {
+    return this.run(
+      ctx,
+      "knowledge.read",
+      { kind: "page", id: pageId },
+      async (db) => {
+        const origin = await this.page(db, ctx, pageId);
+        const candidates = (await this.navigablePages(db, ctx)).filter(
+          (p) => p.id !== pageId,
+        );
+        const outgoing = this.linkedIds(origin, ctx.workspaceId);
+        const links = candidates.filter((p) => outgoing.has(p.id));
+        const backlinks = candidates.filter((p) =>
+          this.linkedIds(p, ctx.workspaceId).has(pageId),
+        );
+        const related = candidates.filter(
+          (p) =>
+            !outgoing.has(p.id) &&
+            !backlinks.some((b) => b.id === p.id) &&
+            origin.tags.some((tag) => p.tags.includes(tag)),
+        );
+        const metadata = (items: Page[]) =>
+          items.slice(0, 20).map((p) => ({
+            id: p.id,
+            title: p.title,
+            version: current(p).number,
+          }));
+        return {
+          pageId,
+          version: current(origin).number,
+          links: metadata(links),
+          backlinks: metadata(backlinks),
+          related: metadata(related),
+          truncated: {
+            links: links.length > 20,
+            backlinks: backlinks.length > 20,
+            related: related.length > 20,
+          },
+        };
+      },
+    );
+  }
   async setDocumentState(ctx: Context, pageId: string, input: unknown) {
     const d = docSchema.parse(input);
     return this.run(
@@ -915,7 +1005,8 @@ export class WorkflowService {
           ],
         );
         const subscribers = await db.query(
-          "SELECT principal_id FROM workflow_subscriptions WHERE workspace_id=$1 AND page_id=$2",
+          `SELECT principal_id FROM workflow_subscriptions WHERE workspace_id=$1 AND page_id=$2
+           UNION SELECT s.principal_id FROM collaboration_subscriptions s WHERE s.workspace_id=$1 AND (s.scope='space' OR s.target IN (SELECT data->>'category' FROM pages WHERE workspace_id=$1 AND id=$2))`,
           [ctx.workspaceId, pageId],
         );
         const recipients = new Set([
@@ -1067,7 +1158,7 @@ export class WorkflowService {
   async notifications(ctx: Context) {
     return this.run(ctx, "knowledge.read", undefined, async (db) => {
       const rows = await db.query(
-        "SELECT id,page_id,version,kind,data,read_at,created_at FROM workflow_notifications WHERE workspace_id=$1 AND principal_id=$2 ORDER BY created_at DESC LIMIT 500",
+        "SELECT id,page_id,version,kind,data,read_at,created_at FROM workflow_notifications WHERE workspace_id=$1 AND principal_id=$2 AND page_id IS NOT NULL AND NOT(data ? 'eventId') ORDER BY created_at DESC LIMIT 500",
         [ctx.workspaceId, ctx.principalId],
       );
       const items = [];

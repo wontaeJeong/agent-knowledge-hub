@@ -239,6 +239,7 @@ test("MCP uses same authenticated filtered views and never exposes approval tool
     "knowledge_import_status",
     "knowledge_import_cancel",
     "knowledge_import_resume",
+    "knowledge_semantic_search",
     "knowledge_search",
     "knowledge_query",
     "knowledge_ingest",
@@ -391,4 +392,17 @@ test("workspace bounds concurrent work instead of creating unlimited model calls
   } finally {
     await fresh.pool.end();
   }
+});
+
+test("discovery HTTP authenticates, validates period, and never caches protected rankings", async () => {
+  expect((await fetch(base + "/api/v1/discovery?days=7")).status).toBe(401);
+  const headers = { Cookie: `akh_session=${sessionToken}` };
+  expect((await fetch(base + "/api/v1/discovery?days=8", {headers})).status).toBe(400);
+  const response = await fetch(base + "/api/v1/discovery?days=7", {headers});
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toContain("no-store");
+  const data = await response.json();
+  expect(data.timezone).toBe("UTC");
+  expect(data.daily).toHaveLength(7);
+  expect(JSON.stringify(data)).not.toContain("access_token");
 });

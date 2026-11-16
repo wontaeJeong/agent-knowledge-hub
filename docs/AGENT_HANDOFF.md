@@ -41,6 +41,15 @@
 - 기준 검사: Node 24.22.2에서 `npm ci`, `npm run check` 통과(프런트/도메인 142, Node 48, import 16, 요구사항 251 매핑, 서버 타입, 빌드, HTTP smoke). 상대 링크 218개·새 문서의 요구사항 ID와 보호 파일 8개의 byte-identical 비교를 확인했다. 정비 후 같은 `npm run check`를 다시 실행해 모두 통과했다. 독립 리뷰·원격 CI는 PR의 최종 커밋 기준으로 확인한다.
 - 제한: 개인 대화·일부 관리 모듈 연결, 안전한 자동 수집, 기존 3역할 호환, 전체 삭제/복구와 실제 사내 품질/운영 인수는 여전히 미완료다. 필수 출시 조건 재분류·첫 업무 선택·부하 목표 확정은 이 정비에서 승인하지 않았다. 로컬 PostgreSQL/실제 모델/브라우저를 새로 실행하지 않았으며 UI 변화가 없어 화면 캡처는 대상이 아니다. 설치에서 발견한 기존 간접 의존성 moderate 2건은 MISTAKE_LOG에 남긴다.
 
+
+## 2026-11-11 지식 탐색·통계 — 부분 구현
+
+- DSC-001~005 및 ACL-008, SRH-003/008/010, QNA-001 관련: `docs/requirements/knowledge-discovery.md`에 트렌딩·인용·권한·집계 정의와 미완료 항목을 기록했다. 현재 권고 대상 중 접근 가능한 발행 문서 연결, 최근 갱신 문서의 연결 순위, 기간별 질문 인용과 일별 그래프를 제공한다. 인용 횟수는 독립 근거나 품질을 뜻하지 않는다.
+- 서버는 `runtime_answers`의 기존 인용과 전체 입력 envelope를 재검사한다. 일반 사용자는 본인 질문 인용, `usage.read_aggregate` 권한자는 접근 가능한 입력의 공간 집계만 본다. 타인의 질문 본문·질문자·접근 불가 연결은 반환하지 않는다. 공통 인용 순위의 공개 집계 정책은 미구현이다. migration 110은 기존 답변 시각 인덱스만 추가한다.
+- 검증: Node 24.22.1 `npm run check` 통과(프런트 147, Node 48, import 16, 요구사항 251, 서버 타입·빌드·HTTP smoke). PostgreSQL 17.6의 격리 DB 기반 지식 탐색·인증 runtime HTTP·접근 제어 3파일 37건 통과. 권한 변경, 비공개 입력, 역할, 대량 데이터 상한 및 동시 요청을 포함한다. 실제 사내 IdP·데이터·운영 및 3만 사용자 부하 평가는 미실행이다.
+- 가용성 경계: 답변 원본 4 MiB·공간 상태 16 MiB, 페이지/버전 개수와 입력 계보 상한, 공간별 단일 집계와 시간 예산은 의도적 임시 제한이다. 접근 불가 자료도 용량에 포함되며 오류·대기시간을 통한 간접 추론 및 공간 간 공정성은 미검증이다. migration 110은 운영 중 쓰기를 차단할 수 있어 유지보수 창이 필요하다.
+- 미해결: 실행 환경에서 Chromium의 소켓 생성이 거부되고 별도 브라우저는 로컬 서버에 연결하지 못해 1440/390px 실제 화면·키보드·캡처를 확보하지 못했다. PR을 초안으로 남기고 화면 증거를 확인해야 한다. 목업 합성 데이터는 운영 계측이 아니다.
+
 ## 2026-11-02 API 키 폐기 시각 표시 — 부분 UI 개선
 
 - IAM-009의 일부: 서버가 이미 반환하는 `revokedAt`을 본인 키 목록과 공간 관리자 목록에 표시한다. 서버 인증·폐기 정책·데이터는 바꾸지 않는다. 전체 요구사항의 운영 수용을 뜻하지 않는다.
@@ -505,3 +514,33 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - Web semantic search releases its key when job progress definitively reports dead/cancelled, allowing identical-filter retry to create a fresh job. Unknown admission, network interruption and poll timeout retain the original key to prevent duplicate uncertain jobs. No layout changed; existing screenshot evidence remains applicable to presentation.
 - Added native query/lint collision RED regressions and UI dead/cancelled/new-key plus admission-network/poll-network/poll-timeout/same-key checks. Final command/results recorded below after execution.
 - Review-fix validation: final Node24 npm run check passed (src178, Node48, imports16, evaluation41, requirements251, server typecheck, build/static smoke). Isolated PostgreSQL17 runtime52 plus semantic13 tests passed; UI semantic6 passed. Both terminal retry and uncertain same-key cases are executed regressions. git diff --check clean.
+## 2026-11-16 — Task 8: subscriptions and event notifications (CLB-004–006)
+
+- Isolated native worktree branch `feat/roadmap-notifications-20261116`, based on `5218828`; feature contract: [notification API and boundaries](superpowers/specs/2026-11-16-notifications-contract.md).
+- Migration 120, `server/collaboration/events.ts`, collaboration service/HTTP/worker and canonical publication review gate connect current category/space subscriptions to transactional publication/review/final-job-failure events and explicit lifecycle expiry. Document comments join these subscriptions. The notification panel exposes subscription changes, event meaning and per-recipient processing; the lifecycle panel exposes reason/CAS-bound UTC expiry.
+- Current active identity, canonical review qualification, current subscriptions and all input/source ancestry are checked before content and again by existing digest finalization. Event IDs deduplicate retries/overlapping subscriptions; internal envelopes never enter DTOs. Failure notices stay with the explicit human actor/current service sponsor. Owner status cannot bypass source ACLs.
+- New tables are classified in retention inventory; category names stay in PostgreSQL, subscription configuration is removed during workspace erasure/recovery, and typed outbox/notification references join the existing erasure graph.
+- Validation: `npm run check`; isolated PostgreSQL 17 tests for retention compatibility/product erasure, collaboration, event flow, review races, workflows, runtime collaboration host and new subscription HTTP host; notification/expiry React interaction tests. [Actual 1440/390 Chromium screenshots and fixture conditions](pr-assets/roadmap-notifications/README.md). Final command evidence and commit are recorded in the feature PR.
+- Limits: topic means current `Page.category`; historical events are not backfilled; event projection requires the configured existing dispatcher. Expiry is a notification deadline, not an automatic deletion or a new recommendation policy. External directory/email gateway and company operations acceptance were not exercised; no external message was sent. Semantic quality/downstream business effects remain evaluation targets.
+
+### Task 8 independent review N1 follow-up
+
+- The publication outbox stores its originating batch in `resource_id`. Corrected erasure lineage to treat both publication and pending-review resource IDs as batch references, preserving the separate publication target page edge.
+- Added failing-first exported graph selection regression and native PostgreSQL source-scoped execute/recovery replay regressions. They ensure source → batch → event → notification cleanup reaches an event whose target page is independently retained; the retained page title remains intact. No migration or UI change.
+- Validation: `npm run check` plus targeted erasure graph/product/DB, collaboration events and native subscription HTTP regressions, recorded in the PR follow-up and task report. Independent review and integration branch CI remain separate from these local checks.
+
+## 2026-11-16 — 탐색 대시보드 최신 통합 검증
+- PR30을 main5218828과 통합했다. 원래 인계·실수 기록을 보존하고 discovery GET과 최신 인증 me 경로를 함께 유지했다.
+- Node24 npm run check 통과. PostgreSQL17 격리 DB discovery/runtime/access 3파일37개 통과. 실제 Chromium1440/390 합성 명시 미리보기와 document overflow 없음 확인, docs/pr-assets/discovery에 캡처. 실제 회사 품질/대규모/운영 인수는 미검증이다.
+
+## 2026-11-16 문서 탐색과 개인 목록
+
+- EDT-007/010, SRH-009/010: `server/workflows/service.ts`, `http.ts`, `src/operational/document-navigation.tsx`, `workflows.tsx`, `styles.css`에 현재 ACL의 링크 후보·백링크·태그 관계(각 20건), 목차·코드/표 검색 위치 이동, 기존 즐겨찾기·최근 API 기반 목록과 개인 초안 링크 완성을 연결했다. 기존 구독 버튼·서버 활동 저장을 재사용한다.
+- [API·판단·현재 한계](design/2026-11-16-document-navigation.md), [실제 1440/390 화면](pr-assets/roadmap-navigation/README.md). North Star의 인간 검토·연결된 재사용을 개선하며 본문·원본·ACL·발행 상태를 자동 변경하지 않는다. 의미 유사도·지식 품질·업무 성과 효과는 미측정이다.
+- 검증: TDD로 없는 탐색 API·자동완성·삽입 전 권한 철회·코드 예시 백링크 오인 회귀의 실패를 확인하고 수정 후 통과했다. native HTTP에서 OIDC UserInfo·DB 세션·CSRF·현재 원본 ACL 철회 후 탐색/자동완성/개인 목록 제목 제거를 검증했다. Node 24 전체 `npm run check`와 PostgreSQL17 전체 workflow 서버 8파일 회귀를 통과했다. 프런트 178시험, import 16시험, Node/평가·요구사항251·서버 타입·빌드·smoke 포함이며 운영 인수는 아니다.
+- 제약: 현재 권한은 요청·포커스 복귀·60초 주기로 재검사하며 권한 변경 실시간 푸시는 포함하지 않는다. 서버는 기존 전체 상태 조회로 ACL을 계산하므로 큰 공간의 부하 시험이 필요하다. 같은 태그를 관련 문서로 표시하며 SRH-009 주제/공간 구독 확대와 실제 사내 인수는 별도다.
+
+### PR #47 독립 리뷰 후 링크 삽입 입력 보존 수정
+
+- `LinkCompletion`의 지연 권한 응답이 최신 삽입 콜백을 사용하고, `WorkflowPanel`이 현재 초안/계정 바인딩과 활성 자동 저장 편집기의 최신 본문을 사용해 대기 중 입력을 보존하도록 수정했다. EDT-007과 초안 저장 경계에 해당한다. 기존 요청 세대/대상 철회 검사는 유지한다.
+- `src/operational/navigation-draft.test.tsx`에서 과거 콜백 호출·실제 편집창의 입력 유실 RED를 확인한 뒤 수정했다. React 입력과 실제 DraftAutosave→OperationalApi의 합성 저장소에 동일한 최신 본문·링크가 남는 통합 회귀를 포함한다. 전체 `npm run check`(프런트180)와 native 인증 HTTP 탐색·CSRF·원본 철회 회귀를 재통과했다. 시각 변경은 없어 기존 캡처를 유지한다.
