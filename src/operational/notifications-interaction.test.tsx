@@ -213,3 +213,85 @@ test("an older failed refresh cannot clear newer authorized results", async () =
   el.remove();
   vi.unstubAllGlobals();
 });
+test("scope subscriptions and processing use authenticated API routes and show event meaning", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const posts: { path: string; body: unknown }[] = [];
+  const api = {
+    get: async (path: string) => {
+      if (path === "/collaboration/preferences")
+        return {
+          revision: 0,
+          mentions: true,
+          subscriptions: true,
+          dailyDigest: false,
+          weeklyDigest: false,
+          timezone: "UTC",
+          dailyAt: "09:00",
+          weeklyAt: "09:00",
+          weeklyDay: 1,
+          quietHours: { enabled: false, start: "22:00", end: "07:00" },
+        };
+      if (path === "/collaboration/subscriptions")
+        return {
+          items: [{ scope: "space", target: "" }],
+          topics: ["기술 설계"],
+        };
+      if (path.startsWith("/collaboration/notifications"))
+        return {
+          items: [
+            {
+              pageId: "job:synthetic",
+              title: "작업 실패",
+              url: "/?app=1&space=space#jobs",
+              events: [
+                {
+                  id: "job-event",
+                  read: false,
+                  kind: "job-failure",
+                  processed: false,
+                },
+              ],
+            },
+          ],
+        };
+      return { items: [] };
+    },
+    post: async (path: string, body: unknown) => {
+      posts.push({ path, body });
+      return {};
+    },
+  } as unknown as OperationalApi;
+  const el = document.createElement("div");
+  document.body.append(el);
+  const root = createRoot(el);
+  await act(async () =>
+    root.render(
+      <NotificationPanel
+        api={api}
+        capabilities={["knowledge.read"]}
+        spaceId="space"
+      />,
+    ),
+  );
+  expect(el.textContent).toContain("주제·공간 구독");
+  const unsubscribe = [...el.querySelectorAll("button")].find(
+    (b) => b.textContent === "공간 구독 해제",
+  )!;
+  await act(async () => unsubscribe.click());
+  expect(posts).toContainEqual({
+    path: "/collaboration/subscriptions",
+    body: { scope: "space", enabled: false },
+  });
+  expect(el.querySelector('a[href="/?app=1&space=space#jobs"]')).not.toBeNull();
+  const process = [...el.querySelectorAll("button")].find(
+    (b) => b.textContent === "처리 완료 표시",
+  )!;
+  await act(async () => process.click());
+  expect(posts).toContainEqual({
+    path: "/collaboration/notifications/job-event/process",
+    body: {},
+  });
+  await act(async () => root.unmount());
+  el.remove();
+  vi.unstubAllGlobals();
+});

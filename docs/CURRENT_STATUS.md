@@ -55,3 +55,15 @@
 - 연결: 기존 REST·MCP·durable Ingest가 같은 RuntimeService를 호출한다. 검토 화면의 반려 사유 입력/이력, 정련 화면의 원본 정정 이유·원본/대체 ID를 표시한다. [설계와 한계](superpowers/specs/2026-11-16-knowledge-lineage-feedback.md), [실제 화면 증거](pr-assets/roadmap-knowledge-lineage/README.md).
 - 검증/경계: 실제 PostgreSQL·loopback 모델/OIDC·MCP SDK·브라우저 회귀이며 실제 사내 모델 의미 품질/독립 업무 증거/운영 수용을 뜻하지 않는다. 정확히 같은 제안의 반복 차단과 의미상 같은 제안의 판단을 구분한다. 피드백 이력/모델 컨텍스트 한도 초과는 명시 오류로 남긴다.
 - PR52 검토 P1 보완: 반려안의 외부 링크·전이/과거 원본·상위 문서 전체를 현재 권한으로 검사하고, 그 완전한 envelope를 모델 전송/저장 시 다시 검증한다. 답변 편입에는 원래 답변 envelope 밖의 피드백을 보내지 않는다. 권한을 잃은 링크 ID만 제거하며 반려 본문을 유지하던 부분 검사는 사용하지 않는다.
+- 2026-11-16 Task 8 (CLB-004–006): current-category/space subscriptions, document comment integration, transactional publication/pending-review/terminal-job-failure outbox, explicit lifecycle expiry and personal processed state are connected to the existing collaboration notification/digest worker and UI. Read/final-send gates reauthorize current identity, whole source context and subscriptions; retries deduplicate. [Exact API/limits](superpowers/specs/2026-11-16-notifications-contract.md) · [synthetic browser evidence](pr-assets/roadmap-notifications/README.md). Local PostgreSQL/native HTTP/React/project checks are distinct from actual directory/gateway and operational acceptance; no semantic quality claim is added.
+
+## 2026-11-16 추가: 문서 탐색과 개인 목록
+
+EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행본 목차·코드/표 본문 검색 위치 이동, 현재 ACL의 내부 링크 자동완성·삽입 전 재검사·한 단계 백링크와 태그 관계, 기존 서버 즐겨찾기/최근 목록을 제공한다. 관계는 펼칠 때 최대 20건씩 조회하며 숨긴 문서 제목·개수는 반환하지 않는다. [설계·API·한계](design/2026-11-16-document-navigation.md)와 [실제 브라우저 1440/390 캡처](pr-assets/roadmap-navigation/README.md)를 따른다. 포커스 복귀/60초 권한 새로 고침은 실시간 푸시 철회를 뜻하지 않는다. 전체 상태 ACL 계산의 대규모 부하 시험·주제/공간 구독 확대·사내 운영 인수·실제 업무 효과는 남는다. 기존 요구사항의 운영 검증 상태는 변경하지 않는다.
+
+## 2026-11-16 Task 1a — Unified scoped search
+
+- Requirements: SRH-002/003/004/005/007, CORE-009/010 search integration. AgentService, ScopedSearch, cookie MCP and runtime HTTP share strict filters, actual historical bodies, current ACL and credential ceilings. Agent legacy offset DTO remains, with signed cursors and explicit historical metadata status. Unknown history is never filled from current title/conditions.
+- Default search/context uses canonical currentRecommendation, excluding active+replacementId, archived and future-effective pages. Explicit history/read stays available and is not described as current recommendation.
+- [API decisions, North Star invariants and remaining limits](implementation/2026-11-16-unified-search.md). Semantic selection and index operations are separate following units; no whole-requirement or company model quality/agent-performance acceptance claim.
+- Verified Task1a: final Node24 `npm run check` passed (src172 + Node48 + imports16 + evaluation41, requirements251, server typecheck, build/static HTTP smoke). Native PostgreSQL17 per-file runner passed 10 files/68 tests; final changed-search rerun passed 3 files/24 tests after cookie DTO compatibility mapping. No model/provider calls or semantic quality claim in this unit.

@@ -370,3 +370,26 @@
 .op-review-rejection { flex: 1 1 100%; min-width: 0; max-width: 48rem; }
 .op-review-rejection label { display: block; }
 .op-review-rejection textarea { display: block; width: 100%; min-height: 6rem; margin: .5rem 0; resize: vertical; }
+.op-document-reader nav ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding-inline-start: 20px;
+  margin: 8px 0 16px;
+}
+.op-document-reader nav li {
+  min-width: 0;
+}
+.op-document-reader mark[aria-current="true"] {
+  outline: 2px solid var(--plum, #623680);
+  outline-offset: 2px;
+}
+.op-document-reader :focus-visible {
+  outline: 2px solid var(--plum, #623680);
+  outline-offset: 3px;
+}
+.op-personal-documents {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 8px 24px;
+}
