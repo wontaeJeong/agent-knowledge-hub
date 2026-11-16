@@ -18,7 +18,15 @@ export async function handleAgentRoute(
   if (path === "/api/v1/connector") {
     const request = z
       .object({
-        action: z.enum(["snapshot", "access", "check-local", "push", "propose", "propose-batch", "proposal"]),
+        action: z.enum([
+          "snapshot",
+          "access",
+          "check-local",
+          "push",
+          "propose",
+          "propose-batch",
+          "proposal",
+        ]),
         input: z.unknown(),
       })
       .strict()
@@ -28,6 +36,7 @@ export async function handleAgentRoute(
   }
   const handlers = {
     search: () => agents.search(ctx, body),
+    "semantic-search": () => agents.semanticSearch(ctx, body),
     read: () => agents.read(ctx, body),
     context: () => agents.context(ctx, body),
     artifacts: () => agents.submitArtifact(ctx, body),
@@ -35,12 +44,16 @@ export async function handleAgentRoute(
     outcomes: () => agents.reportOutcome(ctx, body),
   };
   const route = path.match(
-    /^\/api\/v1\/agent\/(search|read|context|artifacts|changesets|outcomes)$/,
+    /^\/api\/v1\/agent\/(search|semantic-search|read|context|artifacts|changesets|outcomes)$/,
   );
   if (!route) return false;
   const name = route[1] as keyof typeof handlers;
   send(
-    ["artifacts", "changesets", "outcomes"].includes(name) ? 201 : 200,
+    name === "semantic-search"
+      ? 202
+      : ["artifacts", "changesets", "outcomes"].includes(name)
+        ? 201
+        : 200,
     await handlers[name](),
   );
   return true;

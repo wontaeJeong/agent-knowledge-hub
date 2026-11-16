@@ -190,6 +190,9 @@ export class OperationalApi {
         MODEL_CONFIGURATION: "서버의 모델 설정이 올바르지 않습니다.",
         SEARCH_INDEX_NOT_CONFIGURED: "검색 색인 운영 작업이 구성되지 않았습니다.",
         INDEX_SESSION_REQUIRED: "검색 색인 재구축은 현재 플랫폼 운영자·공간 관리자의 로그인 세션이 필요합니다.",
+        SEMANTIC_SEARCH_NOT_CONFIGURED: "의미 검색 모델이나 지속 작업이 구성되지 않았습니다.",
+        SEMANTIC_CORPUS_LIMIT: "의미 검색 후보 한도를 초과했습니다. 유형·태그·기간·환경 필터로 범위를 줄이세요.",
+        MODEL_CONTEXT_LIMIT: "모델 입력 한도를 초과했습니다. 검색 범위를 줄이세요.",
         UNAUTHENTICATED: "세션이 만료되었습니다. 다시 로그인하세요.",
         FORBIDDEN: "이 작업 권한이 없습니다.",
         OFFICIAL_REVIEW_REQUIRED:

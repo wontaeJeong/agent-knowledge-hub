@@ -1,3 +1,4 @@
+import { ReviewRejection } from "./review-rejection";
 import {
   lazy,
   Suspense,
@@ -7,8 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+import { Markdown, type ImagePreview } from "../ui/Markdown";
 import {
   ApiError,
   OperationalApi,
@@ -59,6 +59,7 @@ interface PublishedPage {
   replacementId?: string | null;
 }
 interface ChangeSet {
+  reviewFeedback?: { reason: string; recordedBy: string; recordedAt: string };
   evolutionReason?: string;
   candidates?: {
     pageId: string;
@@ -110,8 +111,6 @@ const AccessManager = lazy(() => import("./AccessManager"));
 const ImportPreview = lazy(() =>
   import("./ImportPreview").then((m) => ({ default: m.ImportPreview })),
 );
-const safeMarkdown = (text: string) =>
-  DOMPurify.sanitize(marked.parse(text, { async: false }));
 function ListPager({
   page,
   count,
@@ -207,6 +206,11 @@ function OperationalWorkspace({
   const api = useMemo<OperationalApi>(
     () => (preview ? new PreviewApi() : new OperationalApi("", spaceId)),
     [preview, spaceId],
+  );
+  const readAttachment = useCallback(
+    (blobId: string) =>
+      api.get<ImagePreview>(`/storage/blobs/${blobId}/preview`),
+    [api],
   );
   const policyApi = useCallback(
     <T,>(path: string, options?: { method: string; body: unknown }) =>
@@ -824,7 +828,13 @@ function OperationalWorkspace({
                 preview={preview}
               />
             )}
-            {tab === "discovery" && dataReady && <DiscoveryDashboard api={api} spaceId={identity.workspaceId} preview={preview} />}
+            {tab === "discovery" && dataReady && (
+              <DiscoveryDashboard
+                api={api}
+                spaceId={identity.workspaceId}
+                preview={preview}
+              />
+            )}
             {tab === "overview" && !dataReady && (
               <section className="op-panel" role="status">
                 <h2>운영 현황을 아직 집계할 수 없습니다</h2>
@@ -1105,11 +1115,9 @@ function OperationalWorkspace({
                           )}
                           <span>{page.summary}</span>
                         </summary>
-                        <div
-                          className="op-markdown"
-                          dangerouslySetInnerHTML={{
-                            __html: safeMarkdown(page.content),
-                          }}
+                        <Markdown
+                          text={page.content}
+                          readAttachment={readAttachment}
                         />
                         <small>
                           페이지 {page.id} · 현재 조회 버전 {page.version}
@@ -1474,6 +1482,12 @@ function OperationalWorkspace({
                     <small className="op-id">
                       {c.id} · 내용 해시 {c.hash}
                     </small>
+                    {c.reviewFeedback && (
+                      <p>
+                        반려·수정 요청: {c.reviewFeedback.reason} ·{" "}
+                        {c.reviewFeedback.recordedBy}
+                      </p>
+                    )}
                     {c.evolutionReason && (
                       <p>모델의 변경 이유: {c.evolutionReason}</p>
                     )}
@@ -1599,24 +1613,23 @@ function OperationalWorkspace({
                           >
                             승인 집합 발행
                           </Button>
-                          <Button
-                            variant="danger"
+                          <ReviewRejection
+                            key={c.id}
+                            batchId={c.id}
                             disabled={
                               busy ||
                               !["pending", "approved"].includes(c.status)
                             }
-                            onClick={() =>
+                            onReject={(reason) =>
                               perform(async () => {
                                 await api.post(
                                   `/changesets/${encodeURIComponent(c.id)}/reject`,
-                                  { hash: c.hash },
+                                  { hash: c.hash, reason },
                                 );
                                 setNotice("변경 집합을 반려했습니다.");
                               })
                             }
-                          >
-                            반려
-                          </Button>
+                          />
                         </div>
                       )}
                   </article>
@@ -1681,11 +1694,9 @@ function OperationalWorkspace({
                     <Badge>
                       {answer.mode === "model" ? "모델 종합" : "발행본 발췌"}
                     </Badge>
-                    <div
-                      className="op-markdown"
-                      dangerouslySetInnerHTML={{
-                        __html: safeMarkdown(answer.content),
-                      }}
+                    <Markdown
+                      text={answer.content}
+                      readAttachment={readAttachment}
                     />
                     <ol>
                       {answer.citations.map((c, i) => (
@@ -1763,11 +1774,9 @@ function OperationalWorkspace({
                       현재 권한을 재확인한 고정 버전입니다. 최신 발행본과 다를
                       수 있습니다.
                     </p>
-                    <div
-                      className="op-markdown"
-                      dangerouslySetInnerHTML={{
-                        __html: safeMarkdown(snapshot.version.content),
-                      }}
+                    <Markdown
+                      text={snapshot.version.content}
+                      readAttachment={readAttachment}
                     />
                   </article>
                 )}

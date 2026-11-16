@@ -1,4 +1,9 @@
 import { SearchIndexService } from "../search/service";
+import {
+  SemanticSearchService,
+  semanticSearchInput,
+  semanticSearchSeal,
+} from "../questions/semantic";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { Pool, PoolClient } from "pg";
@@ -115,6 +120,14 @@ function payloadFor(
       .strict()
       .parse(payload);
   if (kind === "query") {
+    if (payload && typeof payload === "object" && "semanticSearch" in payload)
+      return z
+        .object({
+          semanticSearch: internal ? semanticSearchSeal : semanticSearchInput,
+          mode: z.literal("model"),
+        })
+        .strict()
+        .parse(payload);
     if (payload && typeof payload === "object" && "threadId" in payload) {
       const base = z
         .object({
@@ -190,6 +203,7 @@ export function createRuntimeJobs(
   service: RuntimeService = new RuntimeService(pool),
   options: RuntimeJobsOptions = {},
 ) {
+  const semanticSearch = new SemanticSearchService(pool, service);
   const timeout = Math.min(options.timeoutMs ?? 120000, 3600000),
     maxChanges = options.maxChanges ?? 20;
   const reservation = options.modelReservation ?? {
@@ -438,6 +452,22 @@ export function createRuntimeJobs(
           throw Error("EXECUTION_SCOPE_CONFLICT");
       }
       await authorizeActionDb(db, ctx, actionFor(input.kind));
+      if (input.kind === "query" && payload.semanticSearch) {
+        if (purpose === "schedule")
+          throw Error("SEMANTIC_SCHEDULE_NOT_SUPPORTED");
+        const fresh = await semanticSearch.prepare(
+          db,
+          ctx,
+          payload.semanticSearch,
+        );
+        if (
+          fingerprint([...fresh.pageIds].sort()) !==
+            fingerprint([...input.pageIds].sort()) ||
+          fingerprint([...fresh.sourceIds].sort()) !==
+            fingerprint([...input.sourceIds].sort())
+        )
+          throw Error("EXECUTION_SCOPE_CONFLICT");
+      }
       if (input.kind === "query" && typeof payload.threadId === "string") {
         if (!options.questions) throw Error("QUESTION_JOBS_NOT_CONFIGURED");
         const fresh = await options.questions.prepare(
@@ -551,7 +581,8 @@ export function createRuntimeJobs(
         input.kind !== "retention" &&
         input.kind !== "index" &&
         payload.semantic !== true &&
-        typeof payload.threadId !== "string"
+        typeof payload.threadId !== "string" &&
+        !payload.semanticSearch
       ) {
         const state = (await service.view(db, ctx)).state;
         if (
@@ -656,6 +687,23 @@ export function createRuntimeJobs(
   ): Promise<JobInput> => {
     await authorizeInTransaction(db, ctx, actionFor(kind));
     await authorizeActionDb(db, ctx, "knowledge.read");
+    if (kind === "query" && payload.semanticSearch) {
+      const prepared = await semanticSearch.prepare(
+        db,
+        ctx,
+        payload.semanticSearch,
+      );
+      return {
+        ...settings(
+          kind,
+          { semanticSearch: prepared.payload, mode: "model" },
+          key,
+          requested,
+        ),
+        pageIds: prepared.pageIds,
+        sourceIds: prepared.sourceIds,
+      };
+    }
     if (kind === "query" && typeof payload.threadId === "string") {
       if (!options.questions) throw Error("QUESTION_JOBS_NOT_CONFIGURED");
       const prepared = await options.questions.prepare(db, ctx, payload);
@@ -727,6 +775,8 @@ export function createRuntimeJobs(
       (ctx.credentialId || ctx.agent || !ctx.authorization?.sessionId)
     )
       throw Error("INDEX_SESSION_REQUIRED");
+    if (payload.semanticSearch && !modelConfig().configured)
+      throw Error("SEMANTIC_SEARCH_NOT_CONFIGURED");
     if (payload.semantic === true && !options.semanticLint)
       throw Error("SEMANTIC_LINT_NOT_CONFIGURED");
     if (
@@ -767,8 +817,23 @@ export function createRuntimeJobs(
       ).rows[0];
       if (existing) {
         if (existing.input.kind !== kind) throw Error("IDEMPOTENCY_CONFLICT");
-        const replayPayload =
-          payload.semantic === true
+        let semanticSnapshotHash: string | undefined;
+        if (payload.semanticSearch) {
+          const previous = semanticSearchSeal.safeParse(
+            existing.input.payload?.semanticSearch,
+          );
+          if (!previous.success) throw Error("IDEMPOTENCY_CONFLICT");
+          semanticSnapshotHash = previous.data.snapshotHash;
+        }
+        const replayPayload = payload.semanticSearch
+          ? {
+              mode: "model",
+              semanticSearch: {
+                filters: payload.semanticSearch,
+                snapshotHash: semanticSnapshotHash,
+              },
+            }
+          : payload.semantic === true
             ? { ...payload, prepared: existing.input.payload.prepared }
             : kind === "query" && typeof payload.threadId === "string"
               ? {
@@ -1077,7 +1142,9 @@ export function createRuntimeJobs(
         noModelCalls: true,
       };
     let value: unknown;
-    if (input.kind === "query" && typeof payload.threadId === "string") {
+    if (input.kind === "query" && payload.semanticSearch) {
+      value = await semanticSearch.execute(ctx, payload.semanticSearch, e);
+    } else if (input.kind === "query" && typeof payload.threadId === "string") {
       if (!options.questions) throw Error("QUESTION_JOBS_NOT_CONFIGURED");
       value = await options.questions.execute(
         ctx,

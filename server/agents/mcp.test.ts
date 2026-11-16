@@ -55,6 +55,7 @@ test("actual SDK lists versioned agent tools, rejects identity spoofing and rech
     const tools = await client.listTools();
     expect(tools.tools.map((t) => t.name)).toEqual([
       "wiki_search",
+      "wiki_semantic_search",
       "wiki_read",
       "wiki_get_context",
       "wiki_submit_artifact",

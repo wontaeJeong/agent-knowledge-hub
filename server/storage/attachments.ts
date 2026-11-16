@@ -6,7 +6,7 @@ import { loadState, audit } from "../repository";
 import { captureEnvelope, inheritedProvenance } from "../provenance";
 import { digest } from "../publication";
 import { current, draftOf } from "../../src/domain/wiki";
-import { inspectContent } from "./content";
+import { inspectAttachment, rasterMimes } from "./content";
 import { randomUUID } from "node:crypto";
 import { FileReadAccess } from "./file-read";
 const id = z
@@ -123,18 +123,11 @@ export class AttachmentWorkflow {
   }
   async preview(ctx: Context, slotId: string, revision?: number) {
     const result = await this.download(ctx, slotId, revision);
-    const checked = inspectContent(result.bytes, result.mime, result.filename);
-    if (checked.extraction !== "text") throw Error("UNSUPPORTED_PREVIEW");
-    const text = checked.text ?? "";
-    return {
-      text: text.slice(0, 100000),
-      totalCharacters: text.length,
-      omittedCharacters: Math.max(0, text.length - 100000),
-      mime: result.mime,
-      sha256: result.sha256,
-      render: "plain-text",
-      complete: text.length <= 100000,
-    };
+    const preview = await attachmentPreview(result);
+    // Decoding is async: recheck head/withdrawal/session/current ACL after it too.
+    const now = await this.download(ctx, slotId, revision);
+    if (now.sha256 !== result.sha256) throw Error("STALE_VERSION");
+    return preview;
   }
   async history(ctx: Context, slotId: string, offset = 0) {
     z.number().int().min(0).max(1000000).parse(offset);
@@ -271,7 +264,7 @@ export class AttachmentWorkflow {
         if (current(p.page).number !== input.baseVersion)
           throw Error("STALE_VERSION");
         const label = p.blob.filename.replace(/[\\\[\]()]/g, "_");
-        const markdown = `[${label}](/api/v1/storage/blobs/${p.blob.id})`;
+        const markdown = `${rasterMimes.includes(p.blob.mime) ? "!" : ""}[${label}](/api/v1/storage/blobs/${p.blob.id})`;
         const sourceIds = [
           ...new Set([
             ...current(p.page).sourceIds,
@@ -347,4 +340,41 @@ export class AttachmentWorkflow {
       throw error;
     }
   }
+}
+
+export async function attachmentPreview(result: {
+  bytes: Buffer;
+  mime: string;
+  filename: string;
+  sha256: string;
+}) {
+  const checked = await inspectAttachment(
+    result.bytes,
+    result.mime,
+    result.filename,
+  );
+  if (checked.extraction === "image")
+    return {
+      render: "raster-image" as const,
+      mime: result.mime,
+      sha256: result.sha256,
+      width: checked.width,
+      height: checked.height,
+      base64: result.bytes.toString("base64"),
+      text: "",
+      complete: true,
+      totalCharacters: 0,
+      omittedCharacters: 0,
+    };
+  if (checked.extraction !== "text") throw Error("UNSUPPORTED_PREVIEW");
+  const text = checked.text ?? "";
+  return {
+    text: text.slice(0, 100000),
+    totalCharacters: text.length,
+    omittedCharacters: Math.max(0, text.length - 100000),
+    mime: result.mime,
+    sha256: result.sha256,
+    render: "plain-text" as const,
+    complete: text.length <= 100000,
+  };
 }
