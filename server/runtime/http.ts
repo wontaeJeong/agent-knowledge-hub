@@ -1,3 +1,4 @@
+import { discoveryReport } from "../discovery";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
@@ -850,6 +851,11 @@ export function createRuntimeHandler(options: {
               agent: true,
             },
           );
+        if (path === "/api/v1/discovery") {
+          const days = url.searchParams.get("days") || "7";
+          if (!["7", "14", "30", "90"].includes(days)) throw Error("VALIDATION_FAILED");
+          return send(200, await discoveryReport(options.pool, service, ctx, Number(days) as 7 | 14 | 30 | 90));
+        }
         if (path === "/api/v1/pages")
           return send(200, { items: await service.pages(ctx) });
         if (path === "/api/v1/sources")
