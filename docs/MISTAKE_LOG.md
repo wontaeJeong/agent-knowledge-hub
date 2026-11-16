@@ -525,6 +525,15 @@
 - 검증: 최종 수정의 PostgreSQL 17 관련 9파일과 전체 `npm run check` 통과. 잘못 지정한 `legacy-compat.test.ts` 필터는 실행 전 거부됐으며 실제 `legacy-compatibility.test.ts`로 수정해 실행했다. 원격 최종 CI를 다시 통과해야 병합한다.
 - 남은 제약: 기존 final guard/directory gate 경합의 더 넓은 잠금 순서는 별도 재현·검토 대상이다. 이번 검증을 모든 동시성 문제의 해결로 표시하지 않는다.
 
+### 2026-11-16 - Share preview authorization fixtures and merge checks
+- Initial missing preview methods failed as expected. First implementation tests used writer role, which correctly lacked share.manage; test explicitly grants admin and production authorization stays strict. NativeOIDC/CSRF and current source revocation then pass.
+- During roadmap integration, PR30 merge was rejected by strict required check after main advanced; updated branch, verified finalCI and merged24550c5. A later merge command used an abbreviated expectedSHA and was rejected422 without mutation; subsequent merges use40-character SHAs only.
+- Search/discovery documentation conflicts preserve both records and re-run checks; no reset/clean/discard used.
+
+### 2026-11-16 - Hidden descendant threshold review fix
+- Independent review found the raw descendant limit ran before actor/recipient checks, so hidden or unshareable children could block a root-only preview and reveal a threshold.
+- Added50 unshareable descendant regression; it failed SHARE_SELECTION_LIMIT before the fix. Removed raw row count threshold and enforce50 only after complete current-ACL/input checks. Native5tests now pass.
+- Recursion remains cycle-safe and bounded to50levels; large-space performance is not claimed. No hidden title/count is returned.
 ### 2026-11-16 — Independent search eligibility and schema construction
 - Context: Task 1a canonical search integration.
 - Impact/cause: agent search duplicated eligibility logic, omitted replacementId and per-resource authorizer checks, and searched only current body in history mode. Five new native regressions failed before changes. Canonical ScopedSearch/currentRecommendation now owns retrieval.

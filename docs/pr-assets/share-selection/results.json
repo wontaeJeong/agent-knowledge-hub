@@ -1,0 +1,13 @@
+{
+  "environment": "macOS Chromium; actual ShareSelection/app CSS; synthetic API responses",
+  "result": [
+    {
+      "width": 1440,
+      "scrollWidth": 1440
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import {previewShareSelection,createShareSelection} from "./share-selection";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -854,6 +855,8 @@ export class AccessService {
       return { ok: true };
     });
   }
+  previewShareSelection(ctx: Context, input: unknown){return previewShareSelection(this,ctx,input);}
+  createShareSelection(ctx: Context, input: unknown){return createShareSelection(this,ctx,input);}
   async createShare(ctx: Context, input: unknown) {
     const b = z
       .object({
