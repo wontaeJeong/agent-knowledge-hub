@@ -52,3 +52,10 @@
 ## 2026-11-16 추가: 문서 탐색과 개인 목록
 
 EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행본 목차·코드/표 본문 검색 위치 이동, 현재 ACL의 내부 링크 자동완성·삽입 전 재검사·한 단계 백링크와 태그 관계, 기존 서버 즐겨찾기/최근 목록을 제공한다. 관계는 펼칠 때 최대 20건씩 조회하며 숨긴 문서 제목·개수는 반환하지 않는다. [설계·API·한계](design/2026-11-16-document-navigation.md)와 [실제 브라우저 1440/390 캡처](pr-assets/roadmap-navigation/README.md)를 따른다. 포커스 복귀/60초 권한 새로 고침은 실시간 푸시 철회를 뜻하지 않는다. 전체 상태 ACL 계산의 대규모 부하 시험·주제/공간 구독 확대·사내 운영 인수·실제 업무 효과는 남는다. 기존 요구사항의 운영 검증 상태는 변경하지 않는다.
+
+## 2026-11-16 Task 1a — Unified scoped search
+
+- Requirements: SRH-002/003/004/005/007, CORE-009/010 search integration. AgentService, ScopedSearch, cookie MCP and runtime HTTP share strict filters, actual historical bodies, current ACL and credential ceilings. Agent legacy offset DTO remains, with signed cursors and explicit historical metadata status. Unknown history is never filled from current title/conditions.
+- Default search/context uses canonical currentRecommendation, excluding active+replacementId, archived and future-effective pages. Explicit history/read stays available and is not described as current recommendation.
+- [API decisions, North Star invariants and remaining limits](implementation/2026-11-16-unified-search.md). Semantic selection and index operations are separate following units; no whole-requirement or company model quality/agent-performance acceptance claim.
+- Verified Task1a: final Node24 `npm run check` passed (src172 + Node48 + imports16 + evaluation41, requirements251, server typecheck, build/static HTTP smoke). Native PostgreSQL17 per-file runner passed 10 files/68 tests; final changed-search rerun passed 3 files/24 tests after cookie DTO compatibility mapping. No model/provider calls or semantic quality claim in this unit.

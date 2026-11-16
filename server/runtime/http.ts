@@ -796,6 +796,7 @@ export function createRuntimeHandler(options: {
           ? (ctx, id) =>
               options.refinement!.importAgentSignals(ctx, { outcomeId: id })
           : undefined,
+        questions.searcher,
       );
       if (path === "/api/v1/agent/mcp" && req.method === "POST")
         return await handleAgentMcp(req, res, body, agents, ctx, options.jobs);
@@ -827,7 +828,7 @@ export function createRuntimeHandler(options: {
       )
         return;
       if (path === "/mcp" && req.method === "POST")
-        return await handleMcp(req, res, body, service, ctx, options.jobs);
+        return await handleMcp(req, res, body, service, ctx, options.jobs, questions.searcher);
       if (req.method === "GET") {
         const storedAnswer = path.match(/^\/api\/v1\/answers\/([^/]+)$/);
         if (storedAnswer)

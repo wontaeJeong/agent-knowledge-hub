@@ -519,6 +519,12 @@
 - 검증: 최종 수정의 PostgreSQL 17 관련 9파일과 전체 `npm run check` 통과. 잘못 지정한 `legacy-compat.test.ts` 필터는 실행 전 거부됐으며 실제 `legacy-compatibility.test.ts`로 수정해 실행했다. 원격 최종 CI를 다시 통과해야 병합한다.
 - 남은 제약: 기존 final guard/directory gate 경합의 더 넓은 잠금 순서는 별도 재현·검토 대상이다. 이번 검증을 모든 동시성 문제의 해결로 표시하지 않는다.
 
+### 2026-11-16 — Independent search eligibility and schema construction
+- Context: Task 1a canonical search integration.
+- Impact/cause: agent search duplicated eligibility logic, omitted replacementId and per-resource authorizer checks, and searched only current body in history mode. Five new native regressions failed before changes. Canonical ScopedSearch/currentRecommendation now owns retrieval.
+- Implementation error: using omit on a refined Zod object caused an import failure; explicitly mapping its shape fixed construction. Canonical search rejected unadopted fixtures; explicit adoptFixture setup fixed test identities without weakening production authorization. Existing historical expectation incorrectly used current effectiveFrom; it now expects unknown historical metadata.
+- Verification: five new search regressions, one native cookie MCP regression and nine existing agent regressions passed. Broader final checks are recorded in handoff. Actual company model and operational acceptance remain unverified.
+
 ### 2026-11-16 — 탐색 PR 최신 main 통합
 - 사실/원인: 오래된 PR30과 최근 기능 병합 사이에서 인계·실수 기록과 HTTP me 경로 충돌이 발생했다.
 - 조치: 양쪽 기록을 보존하고 현재 me 처리 뒤에 discovery GET을 연결했다. 검증은 후속 실행 결과에 기록한다.

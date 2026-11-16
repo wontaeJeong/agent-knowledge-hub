@@ -1,11 +1,12 @@
 import { beforeEach, afterEach, test, expect } from "vitest";
-import { fixture, source } from "../test-support";
+import { fixture, adoptFixture, source } from "../test-support";
 import { membership } from "../repository";
 import { RuntimeService } from "../runtime/knowledge";
 import { AgentService } from "./service";
 let f: Awaited<ReturnType<typeof fixture>>, agents: AgentService;
 beforeEach(async () => {
   f = await fixture();
+  await adoptFixture(f.pool, f.workspaceId);
   agents = new AgentService(
     f.pool,
     new RuntimeService(f.pool),
@@ -316,7 +317,7 @@ test("archived and future-effective documents are readable snapshots, never curr
     ).items[0],
   ).toMatchObject({
     conditions: {
-      effectiveFrom: "2099-01-01T00:00:00Z",
+      effectiveFrom: null,
       currentRecommendation: false,
     },
   });
