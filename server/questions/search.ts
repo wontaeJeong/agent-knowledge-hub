@@ -142,6 +142,7 @@ export class ScopedSearch {
   ) {
     z.number().int().min(0).max(100000).parse(legacyOffset);
     const filters = searchFilters.parse(raw);
+    const foldedQuery = filters.query.toLocaleLowerCase();
     const { cursor, ...query } = filters;
     await membership(db, ctx);
     await ctx.authorization?.assertSession(db);
@@ -193,9 +194,14 @@ export class ScopedSearch {
     const items: Item[] = [];
     // Literal substring search: never execute caller regex, SQL keys or wildcard fragments.
     const matches = new Set(
-      (await indexedContentMatches(db, ctx.workspaceId, filters.query)).map(
-        (r) => `${r.page_id}:${r.number}`,
-      ),
+      (
+        await indexedContentMatches(
+          db,
+          ctx.workspaceId,
+          filters.query,
+          state.pages,
+        )
+      ).map((r) => `${r.page_id}:${r.number}`),
     );
     for (const page of state.pages) {
       try {
@@ -288,11 +294,12 @@ export class ScopedSearch {
               );
           if (
             filters.query &&
-            !matches.has(`${page.id}:${version.number}`) &&
+            !(
+              matches.has(`${page.id}:${version.number}`) &&
+              version.content.toLocaleLowerCase().includes(foldedQuery)
+            ) &&
             ![metadata?.title, metadata?.summary].some((value) =>
-              value
-                ?.toLocaleLowerCase()
-                .includes(filters.query.toLocaleLowerCase()),
+              value?.toLocaleLowerCase().includes(foldedQuery),
             )
           )
             continue;

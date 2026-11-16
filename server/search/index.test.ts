@@ -106,27 +106,80 @@ test("indexed canonical search preserves Korean/code and literal wildcard charac
     [],
   );
 });
+test.each([
+  { body: "ΟΣ", query: "ος", expected: true, label: "contextual final sigma" },
+  { body: "İ", query: "i\u0307", expected: true, label: "dotted I expansion" },
+  {
+    body: "i",
+    query: "İ",
+    expected: false,
+    label: "dotted I must not match plain i",
+  },
+  {
+    body: "ΟΣ",
+    query: "οσ",
+    expected: false,
+    label: "database sigma overmatch",
+  },
+  {
+    body: "K",
+    query: "k",
+    expected: true,
+    label: "Unicode body with ASCII query",
+  },
+])(
+  "indexed canonical body search retains JavaScript substring semantics: $label",
+  async ({ body, query, expected }) => {
+    const f = await setup();
+    const { ScopedSearch } = await import("../questions/search");
+    const { authorizeInTransaction } = await import("../access/index");
+    const search = new ScopedSearch(f.pool, {
+      runtime: f.runtime,
+      authorize: authorizeInTransaction,
+    });
+    // Neither current title nor summary can rescue a lost body hit.
+    await f.pool.query(
+      "UPDATE pages SET data=jsonb_set(jsonb_set(data,'{title}','\"zzz\"'),'{summary}','\"zzz\"') WHERE workspace_id=$1",
+      [f.workspaceId],
+    );
+    await f.pool.query(
+      "UPDATE versions SET data=jsonb_set(data,'{content}',to_jsonb($2::text)) WHERE workspace_id=$1",
+      [f.workspaceId, body],
+    );
+    expect(body.toLocaleLowerCase().includes(query.toLocaleLowerCase())).toBe(
+      expected,
+    );
+    expect(
+      (await search.search(f.reader, { query })).items.map(
+        (item) => item.pageId,
+      ),
+    ).toEqual(expected ? ["topic"] : []);
+  },
+);
+
 test("the real retrieval SQL uses the native GIN index for selective candidates", async () => {
   const f = await setup();
   const { CONTENT_MATCH_SQL, literalPattern } = await import("./query");
   await f.pool.query(
-    "INSERT INTO versions SELECT $1,'topic',n,data||jsonb_build_object('id','bulk-'||n,'number',n,'content',CASE WHEN n=5000 THEN 'rare_retry_code_72931' ELSE 'ordinary unrelated fixture content '||n END) FROM versions CROSS JOIN generate_series(2,10001)n WHERE workspace_id=$1 AND page_id='topic' AND number=1",
+    "INSERT INTO versions SELECT $1,'topic',n,data||jsonb_build_object('id','bulk-'||n,'number',n,'content',CASE WHEN n=5000 THEN 'rare_retry_code_72931 희귀_복구_72931' ELSE 'ordinary unrelated fixture content '||n END) FROM versions CROSS JOIN generate_series(2,10001)n WHERE workspace_id=$1 AND page_id='topic' AND number=1",
     [f.workspaceId],
   );
   await f.pool.query("VACUUM (ANALYZE) versions");
-  const plan = await f.pool.query(
-    "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + CONTENT_MATCH_SQL,
-    [f.workspaceId, literalPattern("rare_retry_code_72931")],
-  );
-  expect(JSON.stringify(plan.rows[0])).toContain("versions_content_trgm_idx");
-  expect(
-    (
-      await f.pool.query(CONTENT_MATCH_SQL, [
-        f.workspaceId,
-        literalPattern("rare_retry_code_72931"),
-      ])
-    ).rows,
-  ).toEqual([{ page_id: "topic", number: 5000 }]);
+  for (const query of ["rare_retry_code_72931", "희귀_복구_72931"]) {
+    const plan = await f.pool.query(
+      "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + CONTENT_MATCH_SQL,
+      [f.workspaceId, literalPattern(query)],
+    );
+    expect(JSON.stringify(plan.rows[0])).toContain("versions_content_trgm_idx");
+    expect(
+      (
+        await f.pool.query(CONTENT_MATCH_SQL, [
+          f.workspaceId,
+          literalPattern(query),
+        ])
+      ).rows,
+    ).toEqual([{ page_id: "topic", number: 5000 }]);
+  }
 });
 test("freshness metadata changes only with committed native index mutations and distinguishes rebuild time", async () => {
   const f = await setup();

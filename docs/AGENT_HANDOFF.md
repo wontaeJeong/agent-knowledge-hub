@@ -1,5 +1,12 @@
 # 에이전트 인계
 
+## 2026-11-17 Task1c — Unicode lexical compatibility correction
+
+- SRH-001/002/004/006 and CORE-009/010: before PR #55 merge, an actual PostgreSQL17 locale probe showed SQL lower() differs from JavaScript toLocaleLowerCase() for contextual final sigma and dotted I. Native canonical tests with unrelated title/summary reproduced two missed body hits and two overmatches before implementation. A fifth Kelvin-sign/ASCII-query case retains coverage of Unicode bodies.
+- `server/search/query.ts` still executes the fixed physical GIN query, then conservatively adds keys only from the already-loaded authorized snapshot for non-ASCII query/body or measured database/process ASCII-fold mismatch. `server/questions/search.ts` verifies every body result with the same JavaScript substring predicate as metadata. Existing current ACL/source/credential ceilings, history, cursor and structural filters remain; no query language restriction, normalization, silent truncation, model change or migration121 edit.
+- Exact limit: fallback work visits the existing authorized version array, adds no new content read and has no new independent hard count/byte bound. Unicode queries, including Korean, may scan that whole snapshot; end-to-end Unicode acceleration and large-workspace performance are unverified. Actual10,000-version GIN execution plans are tested for both selective Korean and code patterns. Empty-query semantic preparation still bypasses candidate/probe work and retains its full authorized structural-filtered corpus.
+- RED4 then targeted GREEN64 (index16, historical search18, retention30). Final complete Node24 check passed (frontend216, Node48, imports16, evaluation41, requirements251, server types/build/static smoke); combined UUID-isolated native20 files/217 tests passed including index16/semantic13/ordinary jobs52/historical search18/policy14, retention/release and native MCP. Independent fresh review and final remote CI remain required. No UI/layout change.
+
 ## 2026-11-17 PR #62 native navigation HTTP 시험 예산 보완
 
 - PR #62 `7387484`의 staged 알림 수정은 독립 리뷰 16시험에서 승인됐지만, 최종 CI run `43898200490`/job `133407397086`의 기존 navigation HTTP 시험은 5000ms 예산을 5005ms에 초과했다. staged 16시험을 포함한 다른 125서버 파일 통과가 이 CI 실패를 상쇄하지 않는다.

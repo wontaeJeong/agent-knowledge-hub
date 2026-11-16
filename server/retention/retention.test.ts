@@ -8,7 +8,7 @@ import { ContentRetentionService } from "./service";
 import { draftRetirementId } from "./drafts";
 import { replayRetentionTombstones } from "./drafts";
 import { OperationsService } from "../operations/service";
-import { indexedContentMatches } from "../search/query";
+import { CONTENT_MATCH_SQL, literalPattern } from "../search/query";
 import { previewErasure, executeErasure } from "../operations/erasure";
 import { randomUUID } from "node:crypto";
 import { captureRecoveryLedger, readRecoveryLedger } from "../operations/recovery";
@@ -286,11 +286,13 @@ test("explicit published version policy prunes only an unreferenced expired non-
   const globalBefore=(await f.pool.query('SELECT * FROM search_index_state ORDER BY id')).rows;
   const db=await f.pool.connect();
   try {
-    expect(await indexedContentMatches(db,f.workspaceId,'retired-index-candidate')).toEqual([{page_id:'isolated',number:1}]);
+    // Check the actual physical candidate SQL after service-approved retirement.
+    const indexMatches = async (query: string) => (await db.query(CONTENT_MATCH_SQL,[f.workspaceId,literalPattern(query)])).rows;
+    expect(await indexMatches('retired-index-candidate')).toEqual([{page_id:'isolated',number:1}]);
     const result=await service.executeRetention(admin(),{previewHash:preview.hash,policyRevision:1});
     expect(result).toMatchObject({status:'completed',deleted:1});
-    expect(await indexedContentMatches(db,f.workspaceId,'retired-index-candidate')).toEqual([]);
-    expect(await indexedContentMatches(db,f.workspaceId,'kept latest')).toEqual([{page_id:'isolated',number:2}]);
+    expect(await indexMatches('retired-index-candidate')).toEqual([]);
+    expect(await indexMatches('kept latest')).toEqual([{page_id:'isolated',number:2}]);
     expect(BigInt((await db.query('SELECT revision FROM search_index_workspace_state WHERE workspace_id=$1',[f.workspaceId])).rows[0].revision)).toBe(BigInt(observerBefore.revision)+1n);
     expect((await db.query('SELECT * FROM search_index_state ORDER BY id')).rows).toEqual(globalBefore);
   } finally {db.release();}
