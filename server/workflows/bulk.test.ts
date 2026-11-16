@@ -217,3 +217,51 @@ test("bulk recovers a committed result after response loss and reports unprocess
   ).toMatchObject({ status: "applied", revision: 1 });
   expect((await service.document(f.ctx, "topic")).settings.revision).toBe(1);
 });
+test("partial commit receipts survive a later target failure and remaining targets resume once", async () => {
+  for (const id of ["second", "third"]) {
+    await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)", [
+      f.workspaceId,
+      id,
+    ]);
+    await f.pool.query(
+      "INSERT INTO pages(workspace_id,id,data) SELECT workspace_id,$2,data||jsonb_build_object('id',$2::text) FROM pages WHERE workspace_id=$1 AND id='topic'",
+      [f.workspaceId, id],
+    );
+    await f.pool.query(
+      "INSERT INTO versions SELECT workspace_id,$2,number,data FROM versions WHERE workspace_id=$1 AND page_id='topic'",
+      [f.workspaceId, id],
+    );
+    await f.pool.query(
+      "INSERT INTO resource_readers SELECT workspace_id,kind,$2,principal_id FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='topic'",
+      [f.workspaceId, id],
+    );
+  }
+  const preview = await service.bulkPreview(f.ctx, {
+    pageIds: ["topic", "second", "third"],
+    operation: { kind: "archive" },
+    reason: "partial retry",
+  });
+  const apply = service.setDocumentState.bind(service);
+  let fail = true;
+  service.setDocumentState = async (
+    ...args: Parameters<typeof service.setDocumentState>
+  ) => {
+    if (args[1] === "second" && fail) {
+      fail = false;
+      throw Error("VERSION_METADATA_LIMIT");
+    }
+    return apply(...args);
+  };
+  expect(
+    (await service.bulkApply(f.ctx, { token: preview.token })).items.map(
+      (i) => i.status,
+    ),
+  ).toEqual(["applied", "unconfirmed", "skipped"]);
+  expect(
+    (await service.bulkApply(f.ctx, { token: preview.token })).items.map(
+      (i) => i.status,
+    ),
+  ).toEqual(["applied", "applied", "applied"]);
+  for (const id of ["topic", "second", "third"])
+    expect((await service.document(f.ctx, id)).settings.revision).toBe(1);
+});
