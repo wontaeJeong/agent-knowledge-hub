@@ -79,6 +79,21 @@ export function parseConvenienceLocation(
       ...(hash === "#workflows" ? { tab: "workflows" as const } : {}),
     };
   }
+  const standaloneShare = hash.match(/^#share-([a-zA-Z0-9_-]{1,100})$/);
+  if (standaloneShare) {
+    if (
+      !spaceId ||
+      section !== null ||
+      draft !== null ||
+      view !== null ||
+      version !== null ||
+      anchor !== null ||
+      targetKind !== null ||
+      targetId !== null
+    )
+      return invalid();
+    return { kind: "share", spaceId, share: standaloneShare[1] };
+  }
   if (version !== null || anchor || /^#(?:comment|share)-/.test(hash))
     return invalid();
   if (section !== null) {
@@ -125,12 +140,18 @@ export function parseConvenienceLocation(
     tab: readConsoleTab(hash),
   };
 }
-export function convenienceHref(location: ConvenienceLocation): string {
+export function convenienceHref(
+  location: ConvenienceLocation,
+  mode: "workspace" | "preview" = "workspace",
+): string {
   if (location.kind === "invalid") throw Error(location.error);
-  const params = new URLSearchParams({ app: "1" });
+  const params = new URLSearchParams(
+    mode === "preview" ? { preview: "1" } : { app: "1" },
+  );
   if (location.spaceId) params.set("space", location.spaceId);
   let hash = "";
   if (location.kind === "console") hash = `#${location.tab}`;
+  if (location.kind === "share") hash = `#share-${location.share}`;
   if (location.kind === "document") {
     params.set("document", location.document);
     if (location.version !== undefined)

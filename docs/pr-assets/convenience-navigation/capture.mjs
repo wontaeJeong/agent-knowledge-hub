@@ -50,16 +50,21 @@ try{
   await page.screenshot({path:`${out}/${width}-${theme}-job.png`,fullPage:true});
   await context.close();
  }
- for(const [label,caps,expected] of [['reader',['knowledge.read'],[]],['writer',['knowledge.read','draft.write','changeset.propose'],['새 문서']],['maintainer',['knowledge.read','knowledge.protect','lifecycle.manage'],['검토 · 공유 정책','편집 · 수명주기']]]){
+ for(const [label,caps,expected] of [['reader',['knowledge.read'],[]],['writer',['knowledge.read','draft.write','changeset.propose'],['새 문서']],['maintainer',['knowledge.read','knowledge.protect','lifecycle.manage','changeset.approve'],['검토 · 공유 정책','편집 · 수명주기']]]){
   const {context,page}=await contextFor(1440,'light',caps);
   await page.goto(`${baseUrl}/?app=1&space=test-space&section=home`);
   await page.getByText('이 화면은 아직 연결되지 않았습니다.',{exact:false}).waitFor();
   const nav=page.getByRole('navigation',{name:'운영 콘솔'});
   for(const name of expected) assert.equal(await nav.getByRole('link',{name,exact:true}).count(),1,label);
   assert.equal(await nav.getByRole('link',{name:'공간 · 접근',exact:true}).count(),0,label+' must not inherit admin from role');
+  assert.equal(await nav.getByRole('link',{name:'에이전트 · 토큰',exact:true}).count(),1,label+' personal keys');
+  assert.equal(await nav.getByRole('link',{name:'연동 · 자동화',exact:true}).count(),1,label+' personal devices');
+  assert.equal(await nav.getByRole('link',{name:'평가 · 성과 환류',exact:true}).count(),label==='maintainer'?1:0,label+' review qualification');
+  await nav.getByRole('link',{name:'연동 · 자동화',exact:true}).scrollIntoViewIfNeeded();
+  await page.screenshot({path:`${out}/1440-light-${label}-personal-tools.png`,fullPage:false});
   if(label==='reader') assert.equal(await page.getByRole('button',{name:'새 문서',exact:true}).count(),0);
   await context.close();
  }
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({screenshots:12,widths:[1440,390],themes:['light','dark'],keyboard:'Enter navigation, menu closes, focus returns to main',roles:['reader','writer','maintainer'],pageErrors:errors},null,2));
+ console.log(JSON.stringify({screenshots:15,widths:[1440,390],themes:['light','dark'],keyboard:'Enter navigation, menu closes, focus returns to main',roles:['reader','writer','maintainer'],pageErrors:errors},null,2));
 }finally{await browser.close();}

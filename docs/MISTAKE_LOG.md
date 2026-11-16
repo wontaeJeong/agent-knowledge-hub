@@ -1,5 +1,13 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — C1 최종 검토의 기존 공유·개인 도구·preview 호환 누락
+
+- 맥락/관련 작업: #49 / PR #63 전체 분기 검토, 수정 기준 `3f3e63f`.
+- 사실과 영향: 실제 access 화면은 document 없이 share URL을 생성하는데 새 parser가 이를 document 전용 댓글과 함께 거절했다. 개인 키·장치 및 검토 평가의 메뉴를 공간 Admin에 묶어 비관리자의 정상 진입을 숨겼다. preview 메뉴 이동/취소 복원은 app=1 주소를 만들어 재열기 모드가 실제 workspace로 바뀌었다.
+- 원인/조치: 실제 기존 URL 생성자와 기능별 canonical 인가를 충분히 대조하지 않았다. 독립 share 위치를 검증/보존하고 기존 현재 권한 공유 API로 조회한다. 개인 멤버·검토 자격 메뉴와 관리자 부분을 분리했다. URL 생성 mode를 명시해 preview 쓰기/복원 모두 preview=1로 보존한다.
+- 검증/상태: 실제 AccessPanel 링크 생성→인증 전 복귀 저장→인증 후 공유 조회와 403/404, Reader/Writer/Maintain 메뉴·현재 자격 거부, preview 메뉴→history 취소→entryMode 재열기를 시험했다. RED7실패/79통과 후 GREEN86통과, 보강5파일95통과. 최종 check frontend255/Node48/import16/evaluation41·요구사항251·타입/build/smoke 통과. 화면15장·pageerror0. [증거](pr-assets/convenience-navigation/README.md). 운영 SSO/DB와 동시 main 통합은 별도 확인한다.
+
+
 ### 2026-11-17 — C1 검토에서 발견한 history 공간 불일치와 메뉴 누락
 
 - 맥락/관련 작업: #49 C1 독립 1차 검토, 수정 기준 `b7d7cd3`.

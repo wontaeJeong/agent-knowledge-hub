@@ -17,6 +17,7 @@ export type TaskTarget = {
 export type ConvenienceLocation =
   | { kind: "invalid"; error: string }
   | { kind: "console"; spaceId?: string; tab: ConsoleTab }
+  | { kind: "share"; spaceId: string; share: string }
   | {
       kind: "document";
       spaceId: string;
@@ -44,5 +45,5 @@ export type ConvenienceLocation =
 export interface NavigationItem {
   id: ConsoleTab;
   label: string;
-  group: "지식 공간" | "내 문서" | "지식 도구" | "관리·운영";
+  group: "지식 공간" | "내 문서" | "지식 도구" | "내 도구" | "관리·운영";
 }

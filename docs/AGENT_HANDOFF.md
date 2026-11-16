@@ -1,5 +1,12 @@
 # 에이전트 인계
 
+## 2026-11-17 C1 최종 전체 검토 호환 수정 (#49 / PR #63)
+
+- 수정 기준 `3f3e63f`. 실제 `AccessPanel`이 생성하는 `/?app=1&space=...#share-...`를 독립 share 위치로 보존했다. 인증 전 로그인 복귀와 인증 후 기존 `/shares/:id`의 현재 수신자·문서·원본 계보 재인가 조회 및 고정 본문 표시를 연결했다. document 없는 comment와 모순 조합은 거절한다.
+- `knowledge.read` 멤버의 개인 API 키·장치 연결 메뉴를 별도 ‘내 도구’ 그룹에 복구했다. 검토 평가는 `changeset.approve`와 현재 검토 자격으로 판단한다. 기존 화면의 관리자 전용 부분과 서버 인가는 바꾸지 않았다. preview의 메뉴·history 취소·상태 정리 주소는 `preview=1`을 유지해 재열기에도 합성 모드다.
+- RED7실패/79통과 → GREEN86통과, 보강 포함5파일95통과. 최종 Node24 check: frontend255/Node48/import16/evaluation41, 요구사항251·서버 타입/build/smoke 통과. 메뉴 캡처를 갱신하고 Reader/Writer/Maintain 실제 렌더3장을 추가해 총15장·pageerror0. [최종 로그/화면](pr-assets/convenience-navigation/README.md). 실제 운영 SSO/DB 인수 및 별도 main 통합 한계는 유지한다.
+
+
 ## 2026-11-17 C1 1차 검토 수정 (#49)
 
 - `b7d7cd3`의 history 복귀가 URL 공간만 바꾸고 API 공간은 유지하는 문제를 재현했다. 공통 미저장 경고를 통과한 뒤 outer workspace key를 먼저 전환·재마운트하고, 새 API에서만 복원된 정확한 대상을 해석한다. 실제 Back/Forward와 충돌 작업 ID, 취소한 Back, 이전 공간의 지연 응답 회귀를 추가했다.

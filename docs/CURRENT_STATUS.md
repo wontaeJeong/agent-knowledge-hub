@@ -1,5 +1,10 @@
 # 현재 구현과 남은 연결
 
+## 2026-11-17 C1 최종 호환 검토 보완
+
+기존 access 화면이 생성하는 document 없는 share URL·로그인 복귀·현재 인가된 공유 조회를 복구했다. 비관리자의 개인 API 키/장치 메뉴와 자격 있는 검토자의 평가 메뉴를 canonical capability에 맞춰 복원했으며 관리자 전용 컨트롤은 유지했다. preview 메뉴와 취소된 history 복원의 URL도 preview로 재열린다. 실제 URL 생성 컴포넌트·인증 전후·거절 공유·capability·preview 재마운트 회귀를 포함한 최종 check는 frontend255/Node48/import16/evaluation41 및 251개 요구사항·타입/build/smoke를 통과했다. [화면 증거](pr-assets/convenience-navigation/README.md)는 15장이다. 운영 인수 승격은 아니다.
+
+
 ## 2026-11-17 C1 검토 보완
 
 1차 검토에서 공간이 다른 브라우저 history 복귀의 API scope 불일치, 기존 공지/VOC·정련 메뉴 누락, section 없는 업무 target 키의 조용한 삭제를 발견해 수정했다. 새 공간으로 API 소유 workspace를 먼저 재마운트하며, ID 충돌·이전 지연 응답·Back/Forward·미저장 이동 취소를 회귀 검증했다. 최종 check는 frontend240/Node48/import16/evaluation41과 기존 251개 요구사항·타입/build/smoke를 통과했다. 현재 [화면 증거](pr-assets/convenience-navigation/README.md)는 1440/390 light/dark 총12장이다. 실제 운영 인수·동시 main 통합 완료를 뜻하지 않는다.

@@ -491,3 +491,180 @@ test("Back and Forward bind colliding task IDs to the restored API space and fen
   expect(container.textContent).not.toContain("첫 공간 작업");
   expect(exactSpaces).toEqual(["one", "two", "one", "two"]);
 });
+
+test.each([
+  ["reader", ["knowledge.read"], false],
+  ["writer", ["knowledge.read", "draft.write", "changeset.propose"], false],
+  [
+    "maintain",
+    ["knowledge.read", "changeset.approve", "knowledge.protect"],
+    true,
+  ],
+] as const)(
+  "%s keeps personal credentials/device tools and only qualified review evaluation",
+  (_, caps, evaluate) => {
+    const items = navigation.navigationItems({
+      ...person,
+      capabilities: [...caps],
+    });
+    expect(items.map((item) => item.id)).toEqual(
+      expect.arrayContaining(["agents", "integrations"]),
+    );
+    expect(items.some((item) => item.id === "evaluation")).toBe(evaluate);
+    expect(items.some((item) => item.id === "access")).toBe(false);
+    expect(
+      items
+        .filter((item) => item.id === "agents" || item.id === "integrations")
+        .every((item) => item.group !== "관리·운영"),
+    ).toBe(true);
+  },
+);
+
+test("a share URL produced by AccessPanel survives unauthenticated login return and opens only the authorized snapshot", async () => {
+  const effective = {
+    role: "admin",
+    paths: [],
+    grants: [],
+    space: {
+      id: "team",
+      namespaceId: "ns",
+      namespaceKind: "team",
+      namespaceSlug: "example",
+      slug: "team",
+      visibility: "team",
+      policyVersion: 1,
+      owner: false,
+    },
+  };
+  let container = await mount("/?app=1&space=team#access", (path) =>
+    path === "/spaces/team/access"
+      ? effective
+      : path === "/shares"
+        ? {
+            items: [
+              {
+                id: "share-real",
+                pageId: "page-real",
+                version: 2,
+                principalId: "person",
+                expiresAt: "2027-01-01T00:00:00Z",
+                revoked: false,
+              },
+            ],
+          }
+        : { items: [] },
+  );
+  const produced = Array.from(container.querySelectorAll("a"))
+    .find((link) => link.textContent === "공유 고유 링크")!
+    .getAttribute("href")!;
+  expect(produced).toBe("/?app=1&space=team#share-share-real");
+  await act(async () => root!.unmount());
+  root = undefined;
+  container = await mount(produced, () => ({ items: [] }), false);
+  const login = container.querySelector(
+    'a[href="/auth/login"]',
+  ) as HTMLAnchorElement;
+  login.addEventListener("click", (event) => event.preventDefault(), {
+    once: true,
+  });
+  await act(async () => login.click());
+  expect(sessionStorage.getItem("akh-login-return")).toBe(produced);
+  await act(async () => root!.unmount());
+  root = undefined;
+  let reads = 0;
+  container = await mount("/?app=1", (path) => {
+    if (path === "/shares/share-real") {
+      reads++;
+      return { id: "page-real", version: 2, content: "현재 인가된 공유 내용" };
+    }
+    return { items: [] };
+  });
+  expect(window.location.hash).toBe("#share-share-real");
+  expect(reads).toBeGreaterThan(0);
+  expect(container.textContent).toContain("page-real · 고정 v2");
+  expect(container.textContent).toContain("현재 인가된 공유 내용");
+  expect(container.textContent).not.toContain("이동 주소가 올바르지 않습니다");
+});
+
+test("preview menu URL and cancelled history restoration remain preview when reopened", async () => {
+  window.history.replaceState(null, "", "/?preview=1#overview");
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("requestAnimationFrame", (fn: FrameRequestCallback) =>
+    setTimeout(() => fn(0), 0),
+  );
+  vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+  vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root!.render(<OperationalApp preview />));
+  const knowledge = container.querySelector(
+    'a[href="#knowledge"]',
+  ) as HTMLAnchorElement;
+  await act(async () => knowledge.click());
+  const { entryMode } = await import("../../entry");
+  expect(entryMode(window.location.search)).toBe("preview");
+  expect(window.location.hash).toBe("#knowledge");
+  expect(window.location.search).not.toContain("app=1");
+  window.addEventListener(
+    "akh:before-navigate",
+    (event) => event.preventDefault(),
+    { once: true },
+  );
+  await act(async () => {
+    const traversed = new Promise<void>((resolve) =>
+      window.addEventListener("popstate", () => resolve(), { once: true }),
+    );
+    window.history.back();
+    await traversed;
+  });
+  expect(entryMode(window.location.search)).toBe("preview");
+  expect(window.location.hash).toBe("#knowledge");
+  await act(async () => root!.unmount());
+  root = createRoot(container);
+  await act(async () =>
+    root!.render(
+      <OperationalApp
+        preview={entryMode(window.location.search) === "preview"}
+      />,
+    ),
+  );
+  expect(container.textContent).toContain("목업 미리보기");
+  expect(container.textContent).not.toContain("SSO 로그인");
+});
+
+test.each([403, 404])(
+  "a denied or withdrawn standalone share reports the existing authorized lookup error (%s)",
+  async (status) => {
+    const container = await mount(
+      "/?app=1&space=team#share-unavailable",
+      (path) =>
+        path === "/shares/unavailable"
+          ? new Response(
+              JSON.stringify({
+                code: status === 403 ? "FORBIDDEN" : "NOT_FOUND",
+              }),
+              { status },
+            )
+          : { items: [] },
+    );
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      status === 403 ? "FORBIDDEN" : "NOT_FOUND",
+    );
+    expect(container.textContent).not.toContain("고정 v");
+    expect(container.textContent).not.toContain(
+      "이동 주소가 올바르지 않습니다",
+    );
+  },
+);
+test("a current review qualification denial hides evaluation even with approval capability", () => {
+  expect(
+    navigation
+      .navigationItems({
+        ...person,
+        capabilities: ["knowledge.read", "changeset.approve"],
+        canReviewKnowledge: false,
+      })
+      .some((item) => item.id === "evaluation"),
+  ).toBe(false);
+});

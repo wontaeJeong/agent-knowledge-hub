@@ -129,6 +129,26 @@ test("legacy workflow document links round-trip their tab intent", () => {
   );
 });
 
-test.each(["targetKind=job", "targetId=j1", "targetKind=job&targetId=j1", "targetKind="])("rejects orphan task query keys without a tasks section: %s", query => {
-  expect(parse(`?space=team&${query}`)).toMatchObject({kind:"invalid"});
+test.each([
+  "targetKind=job",
+  "targetId=j1",
+  "targetKind=job&targetId=j1",
+  "targetKind=",
+])("rejects orphan task query keys without a tasks section: %s", (query) => {
+  expect(parse(`?space=team&${query}`)).toMatchObject({ kind: "invalid" });
+});
+
+test("standalone share links preserve their stable target without inventing a document", () => {
+  const location = parse("?app=1&space=team", "#share-s1");
+  expect(location).toEqual({ kind: "share", spaceId: "team", share: "s1" });
+  expect(route.convenienceHref(location)).toBe("/?app=1&space=team#share-s1");
+});
+test.each([
+  "?app=1",
+  "?space=team&section=tasks",
+  "?space=team&draft=d1",
+  "?space=team&version=2",
+  "?space=team&targetKind=job&targetId=j1",
+])("rejects contradictory standalone share location %s", (search) => {
+  expect(parse(search, "#share-s1")).toMatchObject({ kind: "invalid" });
 });

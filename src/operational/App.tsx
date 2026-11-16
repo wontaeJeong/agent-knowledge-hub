@@ -191,7 +191,7 @@ export default function OperationalApp({
       onSpace={(id) => {
         if (!window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))) return;
         const current = parseConvenienceLocation(window.location.search, window.location.hash);
-        window.history.replaceState(null, "", convenienceHref({ kind: "console", spaceId: id, tab: current.kind === "console" ? current.tab : "overview" }));
+        window.history.replaceState(null, "", convenienceHref({ kind: "console", spaceId: id, tab: current.kind === "console" ? current.tab : "overview" }, preview ? "preview" : "workspace"));
         setSpaceId(id);
       }}
     />
@@ -245,6 +245,7 @@ function OperationalWorkspace({
     if (value.kind === "invalid") return "home";
     if (value.kind === "console") return value.tab;
     if (value.kind === "document") return "workflows";
+    if (value.kind === "share") return "query";
     if (value.section === "tasks" && value.targetKind) return value.targetKind === "review" ? "review" : value.targetKind === "job" ? "jobs" : "lifecycle";
     return value.section;
   };
@@ -257,17 +258,17 @@ function OperationalWorkspace({
       : { kind: "console", ...(spaceId ? { spaceId } : {}), tab: next };
     setLocation(nextLocation);
     setTab(next);
-    window.history.pushState(null, "", convenienceHref(nextLocation));
+    window.history.pushState(null, "", convenienceHref(nextLocation, preview ? "preview" : "workspace"));
     requestAnimationFrame(() => {
       document.getElementById("op-main")?.focus();
       window.scrollTo(0, 0);
     });
     return true;
-  }, [spaceId, identity?.workspaceId]);
+  }, [spaceId, identity?.workspaceId, preview]);
   useEffect(() => {
     const onLocation = () => {
       if (!window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))) {
-        if (location.kind !== "invalid") window.history.pushState(null, "", convenienceHref(location));
+        if (location.kind !== "invalid") window.history.pushState(null, "", convenienceHref(location, preview ? "preview" : "workspace"));
         return;
       }
       const next = parseConvenienceLocation(window.location.search, window.location.hash);
@@ -283,7 +284,7 @@ function OperationalWorkspace({
     window.addEventListener("hashchange", onLocation);
     window.addEventListener("popstate", onLocation);
     return () => { window.removeEventListener("hashchange", onLocation); window.removeEventListener("popstate", onLocation); };
-  }, [location, spaceId, onRestoreSpace]);
+  }, [location, spaceId, onRestoreSpace, preview]);
   const target = location.kind === "section" && location.section === "tasks" && location.targetKind ? location : undefined;
   const pendingDestination = location.kind === "section" && !target || location.kind === "document" && (location.version !== undefined || !!location.anchor);
   const [pages, setPages] = useState<PublishedPage[]>([]);
@@ -344,7 +345,7 @@ function OperationalWorkspace({
       const safeLocation: ConvenienceLocation = { kind: "console", ...(spaceId ? { spaceId } : {}), tab: "overview" };
       setLocation(safeLocation);
       setTab("overview");
-      window.history.replaceState(null, "", convenienceHref(safeLocation));
+      window.history.replaceState(null, "", convenienceHref(safeLocation, preview ? "preview" : "workspace"));
       setPages([]);
       setSources([]);
       setChanges([]);
@@ -586,39 +587,22 @@ function OperationalWorkspace({
   };
   useEffect(() => {
     if (!identity || preview) return;
+    const shareId = location.kind === "share" ? location.share : location.kind === "document" ? location.share : undefined;
+    if (!shareId) return;
     let active = true;
-    const openShare = () => {
-      const share = window.location.hash.match(
-        /^#share-([a-zA-Z0-9_-]{1,100})$/,
-      );
-      if (!share) return;
-      const epoch = requestEpoch.current;
-      setSnapshot(null);
-      setError("");
-      void api
-        .get<{ id: string; version: number; content: string }>(
-          `/shares/${share[1]}`,
-        )
-        .then((s) => {
-          if (active && epoch === requestEpoch.current)
-            setSnapshot({
-              title: s.id,
-              version: { number: s.version, content: s.content },
-            });
-        })
-        .catch((e) => {
-          if (!active || epoch !== requestEpoch.current) return;
-          if (e instanceof ApiError && e.status === 401) clearProtected();
-          setError(e instanceof Error ? e.message : "공유를 열 수 없습니다.");
-        });
-    };
-    openShare();
-    window.addEventListener("hashchange", openShare);
-    return () => {
-      active = false;
-      window.removeEventListener("hashchange", openShare);
-    };
-  }, [api, preview, identity?.principalId, clearProtected]);
+    const epoch = requestEpoch.current;
+    setSnapshot(null);
+    setError("");
+    void api.get<{ id: string; version: number; content: string }>(`/shares/${encodeURIComponent(shareId)}`)
+      .then(s => {
+        if (active && epoch === requestEpoch.current) setSnapshot({ title: s.id, version: { number: s.version, content: s.content } });
+      }).catch(e => {
+        if (!active || epoch !== requestEpoch.current) return;
+        if (e instanceof ApiError && e.status === 401) clearProtected();
+        setError(e instanceof Error ? e.message : "공유를 열 수 없습니다.");
+      });
+    return () => { active = false; };
+  }, [api, preview, identity?.principalId, clearProtected, location]);
   useEffect(() => {
     if (
       !identity ||

@@ -270,3 +270,9 @@ describe("orphan task login-return validation", () => {
     expect(resumeWorkspaceLink(`/?app=1&space=team&${query}`)).toBeNull();
   });
 });
+
+it("retains canonical standalone share login returns while rejecting document-less comments", () => {
+  expect(resumeWorkspaceLink("/?app=1&space=team#share-s1")).toBe("/?app=1&space=team#share-s1");
+  expect(resumeWorkspaceLink("/?app=1&space=team#comment-c1")).toBeNull();
+  expect(resumeWorkspaceLink("/?app=1&space=team&section=home#share-s1")).toBeNull();
+});
