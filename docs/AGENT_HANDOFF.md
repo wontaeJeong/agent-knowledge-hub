@@ -12,6 +12,12 @@
 - PR #45 독립 검토에서 apply 직후 `onChanged` → App.load의 `dataReady=false` → WorkflowPanel unmount로 결과/복구 토큰이 사라지는 경계를 확인했다. 적용 응답 뒤 자동 부모 갱신을 제거하고, 결과·실패 대상 선택·같은 토큰 재확인을 보존한 뒤 사용자가 명시적으로 목록을 새로고침하게 했다. 명시적 갱신은 결과 화면을 닫는다.
 - TDD: 실제 호스트와 같은 unmount 경계 회귀가 수정 전 `NOT_PROCESSED` 대신 호스트 로딩 문구를 받아 실패했다. 수정 후 BulkEditor 3시험과 전체 `npm run check` 통과. scope/API 전환과 401/403의 보호 상태 비우기를 유지했다. 독립 재검토에서 중요 차단 결함을 발견하지 않았다.
 - [1440/390 화면 및 재현](pr-assets/bulk/README.md): 실제 컴포넌트/CSS와 합성 API, 부분 결과·재확인·명시적 갱신 및 pageerror 0 확인. 서버 기능은 바꾸지 않았고 전체 DB/최종 CI는 PR의 마지막 커밋 검사를 따른다.
+## 2026-11-16 필수 편의기능 설계와 구현 플랜
+
+- 사용자 요청: 열린 PR 병합과, 검토한 필수 편의기능 10개 전체의 설계·플랜 작성. 이 문서 PR은 후속 제품 코드 구현을 포함하지 않는다. [설계](superpowers/specs/2026-11-16-essential-convenience-design.md)와 [플랜](superpowers/plans/2026-11-16-essential-convenience.md)에 기존 요구사항·현재 경로·API/저장/권한·인수 기준·12개 PR 의존성을 연결했다. 기준 251개 요구사항과 보호 문서의 의미를 바꾸지 않았다.
+- 독립 설계 검토에서 수동 신규 문서의 import-run과 독립된 원본 공개 절차, 정확한 검토/작업/접근 요청 deep link, owner-only 개인 공간의 명시적 소유자 확인 경계를 보완했다. 개인 공간 정책을 팀 공유 승인 우회로 사용하지 않는다.
+- 작업 중 main의 전체 로드맵 문서 #44와 PR #45 일괄 편집, #46 공통 검색, #47 문서 탐색, #48 구독·알림 이벤트가 추가됐다. 해당 구현의 API·컴포넌트를 재사용하고 일괄 50건/10분 계약을 유지하도록 설계를 조정했다. 병합됐다는 가정으로 미구현 항목을 완료 처리하지 않는다.
+- 검증: 문서 링크·요구사항 ID·10개 작업/12개 PR 대응·기존 기준 불변·diff 및 요구사항 검사. 문서 전용 변경이며 제품 화면 캡처·DB 재검증은 이 PR의 변경 범위가 아니다. 최종 원격 검사와 병합 SHA는 PR 기록을 따른다.
 
 ## 2026-11-14 병합 CI의 동시 인증 회귀 수정
 
@@ -583,3 +589,8 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - Resolved overlapping published-body UI by using the shared safe Markdown renderer inside DocumentBody navigation. Outline/find decorate existing DOM without replacing authenticated attachment handlers. Math/SVG/control/status nodes are excluded from text marking. An integration regression failed on an external img before the change; safe image/math/find/preview and existing navigation/draft tests16 now pass. Fullcheck passed; actual integrated screenshots and scoped independent review follow.
 
 - Task3/Task2 final base integration: Node24 npmruncheck passed, native presentation-http/navigation-http/bulk3files passed, actual Chromium1440/390 safe-renderer navigation fixture passed outline4/find1/math/diagram/preview with external0/errors0/overflowfalse. Synthetic component input/reader is explicit in capture README; original actualOIDC/runtime/DB flow remains separately evidenced.
+
+## 2026-11-17 - First ready wave to main
+- User requests incremental completed-PR merges. This wave contains canonical/semantic search, document navigation, bulk edits, subscriptions/events, fixed-descendant sharing, ingest lineage/feedback and safe document/image rendering. Each immutable feature head passed final8 CI and independent scoped review. Product code from PR52ee1599d is integrated; its corrected-base verification note remains its separately tracked PR completion.
+- Broad combined review found no new Critical/Important issues and independently verified native21/UI19. Integrated requiredchecks and targeted native cross-feature regressions passed; final main-PR CI remains required before merge. Existing PR49 design documents and all251 requirements are preserved.
+- Extra auth/index, question-scope, export/import, weekly/monthly and remaining tasks continue separately; no whole-roadmap or company operations/model-quality completion claim.

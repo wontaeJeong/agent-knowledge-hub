@@ -17,6 +17,12 @@
 - 사실/원인: BulkEditor 단독 시험은 onChanged를 no-op으로 사용해 통과했으나 실제 App.load는 dataReady를 내려 패널을 unmount한다. apply 후 결과와 같은 토큰 재확인 상태가 즉시 소실됐다. 합성 fixture/독립 코드 검토로 확인했으며 운영 자료 영향은 확인하지 않았다.
 - 조치: 적용 직후 부모 자동 갱신 대신 명시적 ‘결과 확인 후 문서 목록 새로고침’을 제공한다. 호스트 unmount 경계 시험은 수정 전 실패, 수정 후 통과했다. 명시적 갱신 이후의 결과 보존은 제공하지 않는다.
 - 검증: 프런트 회귀 3건·전체 기본 검사·1440/390 실제 컴포넌트 화면·동일 토큰 재확인·독립 재검토. 최종 원격 CI는 해당 PR head 기준으로 확인한다.
+### 2026-11-16 — 편의기능 설계의 원본 공개·정확한 이동·개인 공간 경계
+
+- 사실과 영향: 첫 설계는 새 문서의 원본 공개 승인 서비스를 기존 import-run 결합과 구분하지 않았고, 검토/작업/접근 요청의 정확한 대상 URL이 빠졌다. 보완 중 모든 최초 발행에 독립 검토자를 요구해 owner-only 개인 공간이 막히는 설계 결함도 발견했다. 제품 코드에 적용하기 전 독립 검토로 확인했다.
+- 조치: 수동 초안의 별도 disclosure 상태/스냅샷과 공통 정책 helper를 설계했다. 팀 공유는 독립 qualified reviewer, 개인 공간은 서버가 확인한 소유자·본인만의 독자·명시적 확인으로 기존 정책을 유지한다. targetKind/targetId·로그인 복귀·패널 초기 선택과 반려/철회 시험을 플랜에 추가했다.
+- 동시 변경: PR #30의 원격 head가 다른 작업에서 갱신된 상태에서 expected-SHA 보호가 ref 변경과 병합을 거부했다. 원격을 다시 읽고 기존 변경을 보존했으며 강제 갱신하지 않았다. 동시에 추가된 #45~47은 별도 진행 상태/재사용 경계로 기록한다.
+- 검증/상태: 문서 검사에서 초안의 Task 1 제목에 남은 패치 표시도 검출·수정했다. 문서 단계의 수정이다. 선언한 API·테이블·새 편의 동선은 후속 구현/검증 대상이며 이 기록으로 운영 완료를 주장하지 않는다.
 
 ### 2026-11-14 — 기능 완성 설계의 복구·보존 범위 보완
 - 맥락: 운영 고도화를 제외한 추가 기능의 PR 분리 설계.
@@ -655,3 +661,7 @@
 - The first integration capture omitted shared token/shell styles and was replaced after inspecting the real screenshot. Final captures use tokens.css, operational-app/op-main/op-panel; only the final1440/390 evidence is retained.
 
 - Independent integration re-review found pending Mermaid source was marked as text then asynchronously replaced by SVG, leaving a stale find count. Controlled deferred-Mermaid regression reproduced marks0/status1. Excluded the entire pending/resolved diagram container, matching the existing SVG exclusion; regular code/table search remains supported.
+
+### 2026-11-17 - Incremental main integration
+- User explicitly requested completed PRs merge before advancing. Completed individual feature PRs were integrated after final CI and independent reviews, then broad cross-feature review approved with native21/UI19 tests. The integration preserves main51129cb and PR49 documents and proceeds to a first ready-wave main PR rather than waiting for all19 tasks.
+- PR52 initially targeted main; its reviewed head was integrated before detecting this. Retargeting was rejected422 for no new commits. A separate verification note permits explicit final CI/merge without changing product behavior. An attempted shared-log truncation was rejected by automatic approval review as a record-loss risk; no deletion occurred. Preserve both logs through an ordinary base merge instead.
