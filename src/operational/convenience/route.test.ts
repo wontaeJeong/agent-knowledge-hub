@@ -128,3 +128,7 @@ test("legacy workflow document links round-trip their tab intent", () => {
     "/?app=1&space=team&document=page#workflows",
   );
 });
+
+test.each(["targetKind=job", "targetId=j1", "targetKind=job&targetId=j1", "targetKind="])("rejects orphan task query keys without a tasks section: %s", query => {
+  expect(parse(`?space=team&${query}`)).toMatchObject({kind:"invalid"});
+});

@@ -112,7 +112,13 @@ export function parseConvenienceLocation(
       ...(view ? { view } : {}),
     } as ConvenienceLocation;
   }
-  if (draft !== null || view !== null) return invalid();
+  if (
+    draft !== null ||
+    view !== null ||
+    targetKind !== null ||
+    targetId !== null
+  )
+    return invalid();
   return {
     kind: "console",
     ...(spaceId ? { spaceId } : {}),

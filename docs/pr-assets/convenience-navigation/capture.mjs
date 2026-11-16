@@ -32,6 +32,11 @@ try{
    assert.equal(await page.getByRole('button',{name:'탐색 닫기'}).getAttribute('aria-expanded'),'true');
   }
   await page.screenshot({path:`${out}/${width}-${theme}-navigation.png`,fullPage:false});
+  const navigation = page.getByRole('navigation',{name:'운영 콘솔'});
+  assert.equal(await navigation.getByRole('link',{name:'공지 · VOC · 내부 검토',exact:true}).count(),1);
+  const refinement = navigation.getByRole('link',{name:'정련 · 경험',exact:true});
+  await refinement.scrollIntoViewIfNeeded();
+  await page.screenshot({path:`${out}/${width}-${theme}-tools.png`,fullPage:false});
   const recent=page.getByRole('link',{name:'최근 방문',exact:true});await recent.focus();await page.keyboard.press('Enter');
   await page.waitForURL('**section=recent');
   await page.waitForFunction(()=>document.activeElement?.id==='op-main');
@@ -56,5 +61,5 @@ try{
   await context.close();
  }
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({screenshots:8,widths:[1440,390],themes:['light','dark'],keyboard:'Enter navigation, menu closes, focus returns to main',roles:['reader','writer','maintainer'],pageErrors:errors},null,2));
+ console.log(JSON.stringify({screenshots:12,widths:[1440,390],themes:['light','dark'],keyboard:'Enter navigation, menu closes, focus returns to main',roles:['reader','writer','maintainer'],pageErrors:errors},null,2));
 }finally{await browser.close();}

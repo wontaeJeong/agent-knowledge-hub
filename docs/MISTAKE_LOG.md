@@ -1,5 +1,13 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — C1 검토에서 발견한 history 공간 불일치와 메뉴 누락
+
+- 맥락/관련 작업: #49 C1 독립 1차 검토, 수정 기준 `b7d7cd3`.
+- 사실과 영향: child history 처리만 URL location을 바꾸어 이전 공간 API가 같은 문서/업무 ID를 해석할 수 있었다. ACL 우회로 판정한 것은 아니며 URL과 실제 작업 공간이 달라지는 오류다. 대체 메뉴가 기존 boards/refinement를 모든 사용자에게서 제거했고, section 없는 targetKind/targetId는 오류 없이 overview로 정규화됐다.
+- 원인/조치: history 이동과 selector 이동의 outer space 소유권을 연결하지 않았다. guarded history 처리에서 outer workspace를 먼저 재마운트하도록 수정했다. 두 기존 화면을 knowledge.read 진입에 복구했으며 기존 변경 capability를 유지했다. orphan 업무 키는 parser와 로그인 복귀에서 명시적으로 거절한다.
+- 검증/상태: RED10실패/64통과 후 GREEN74통과. 실제 Back/Forward·같은 ID의 두 공간·미저장 Back 취소·이전 공간 지연 응답을 확인했다. 최종 `npm run check` 1회: frontend240/Node48/import16/evaluation41 및 요구사항251·서버 타입/build/smoke 통과. 메뉴 수정 후 실제 1440/390 light/dark12장·pageerror0. [증거](pr-assets/convenience-navigation/README.md). 별도 main 통합·운영 SSO/DB 인수는 계속 후속 조건이다.
+
+
 ### 2026-11-17 — C1 실행 환경·이동 회귀와 검증 harness 수정
 
 - 맥락/관련 작업: #49 C1, 격리 worktree `2ff4`, BASE `51129cb`. 원본 main과 다른 세션 worktree는 변경하지 않았다.

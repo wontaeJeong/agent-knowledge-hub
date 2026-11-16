@@ -264,3 +264,9 @@ describe("operational client boundary", () => {
     }
   });
 });
+
+describe("orphan task login-return validation", () => {
+  it.each(["targetKind=job", "targetId=j1", "targetKind=job&targetId=j1", "targetKind="])("rejects rather than discards %s", query => {
+    expect(resumeWorkspaceLink(`/?app=1&space=team&${query}`)).toBeNull();
+  });
+});

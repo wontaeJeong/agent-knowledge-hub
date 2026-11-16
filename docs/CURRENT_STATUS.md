@@ -1,5 +1,10 @@
 # 현재 구현과 남은 연결
 
+## 2026-11-17 C1 검토 보완
+
+1차 검토에서 공간이 다른 브라우저 history 복귀의 API scope 불일치, 기존 공지/VOC·정련 메뉴 누락, section 없는 업무 target 키의 조용한 삭제를 발견해 수정했다. 새 공간으로 API 소유 workspace를 먼저 재마운트하며, ID 충돌·이전 지연 응답·Back/Forward·미저장 이동 취소를 회귀 검증했다. 최종 check는 frontend240/Node48/import16/evaluation41과 기존 251개 요구사항·타입/build/smoke를 통과했다. 현재 [화면 증거](pr-assets/convenience-navigation/README.md)는 1440/390 light/dark 총12장이다. 실제 운영 인수·동시 main 통합 완료를 뜻하지 않는다.
+
+
 ## 2026-11-17 C1 이동 기반 추가 (#49)
 
 `src/operational/convenience`와 운영 앱에 capability 기반 사용자 메뉴, 명시적 새 섹션 경로, 기존 문서/댓글/공유/탭 호환 및 안전한 로그인 복귀를 추가했다. 정확한 검토·작업·접근 요청은 현재 서버가 허용한 대상을 다시 조회해 선택하며 불가 대상을 다른 작업으로 바꾸지 않는다. 계정/공간/세션 변경은 보호된 대상 상태를 비운다. 미저장 문서 입력은 메뉴 이동과 종료 경고로 보존한다.

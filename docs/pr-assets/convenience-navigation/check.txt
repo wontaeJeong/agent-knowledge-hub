@@ -18,62 +18,62 @@ PASS 개발 의존성 설치됨 (잠금 파일 동기화는 npm ci로 확인)
 
 
  Test Files  47 passed (47)
-      Tests  230 passed (230)
-   Start at  00:35:40
-   Duration  2.21s (environment 47%, import 25%, tests 17%, transform 10%, worker 1%)
+      Tests  240 passed (240)
+   Start at  00:46:38
+   Duration  1.96s (environment 44%, import 27%, tests 20%, transform 7%, worker 1%)
 
-    Isolate  47 workers spawned · ~228ms startup each (spawn + environment, per file)
-             at least ~965ms faster with isolate: false — reuses workers across files instead of one per file
+    Isolate  47 workers spawned · ~199ms startup each (spawn + environment, per file)
+             at least ~841ms faster with isolate: false — reuses workers across files instead of one per file
 
-✔ diagnostics reject unsupported runtimes at the supported boundaries (1.704792ms)
-✔ missing dependencies provide an actionable reproducible install command (0.155333ms)
-✔ diagnostic CLI fails without dependencies without reading secrets (48.785125ms)
-✔ migration CLI refuses to run without explicit database configuration (113.146375ms)
-✔ unconfigured model returns a visible error without an offline fallback (32.634208ms)
-✔ model proxy sends system policy and data, keeps key server-side (8.130916ms)
-✔ rejects cross-origin browser calls (3.1815ms)
-✔ invalid provider JSON is not applied as a successful answer (7.946584ms)
-✔ upstream failures do not leak response bodies (6.270208ms)
-✔ smoke accepts a complete static build served over HTTP (24.685625ms)
-✔ smoke rejects missing referenced asset /assets/app.js (20.635166ms)
-✔ smoke rejects missing referenced asset /assets/app.css (10.15625ms)
-✔ smoke rejects missing referenced asset /brand/favicon.svg (10.304083ms)
-✔ smoke rejects SPA HTML fallback masquerading as JavaScript (4.407917ms)
-✔ smoke rejects fallback success for an unknown file (4.766584ms)
-✔ smoke rejects an empty application shell (1.472958ms)
-✔ local smoke stops its demo child after success (158.521291ms)
-✔ local smoke stops its demo child after failure (137.387375ms)
-✔ local smoke reports a missing build without hanging (75.026709ms)
-✔ URL-mode CLI propagates a failed HTTP check (72.365125ms)
-✔ CLI persists private work, exposes a frozen review, and publishes only with reviewer credentials (816.116583ms)
-✔ CLI refuses non-synthetic service configuration (42.924125ms)
-✔ local edits persist through restart, sync to personal only and are visible on another device (191.040375ms)
-✔ simultaneous device edits preserve three versions and require a hash-bound confirmation (333.745916ms)
-✔ new remote edits invalidate prepared merge and preserve both sides (236.22575ms)
-✔ revocation removes cached content and prepared conflicts from every response (192.872959ms)
-✔ authorization outage fails closed, pending edits survive, tokens never reach disk (31.67575ms)
-✔ writes queued behind a sync are not lost; repeated syncs do not create duplicate revisions (69.58225ms)
-✔ explicit proposal freezes selected personal text, never automatically publishes it (58.146459ms)
-✔ local directory is bound to endpoint and account without persisting the token (23.838125ms)
-✔ a lost acceptance response recovers without duplicate personal versions (53.800375ms)
-✔ connected polling syncs writes and close cancels scheduling without a daemon (64.291167ms)
-✔ network transport rejects redirects and does not forward authorization to another origin (14.206542ms)
-✔ cross-space page ID collision preserves the first draft and cannot publish restricted content (76.001666ms)
+✔ diagnostics reject unsupported runtimes at the supported boundaries (1.229292ms)
+✔ missing dependencies provide an actionable reproducible install command (0.146209ms)
+✔ diagnostic CLI fails without dependencies without reading secrets (35.80325ms)
+✔ migration CLI refuses to run without explicit database configuration (117.65325ms)
+✔ unconfigured model returns a visible error without an offline fallback (17.441667ms)
+✔ model proxy sends system policy and data, keeps key server-side (5.009583ms)
+✔ rejects cross-origin browser calls (0.915584ms)
+✔ invalid provider JSON is not applied as a successful answer (5.469083ms)
+✔ upstream failures do not leak response bodies (2.712708ms)
+✔ smoke accepts a complete static build served over HTTP (22.680959ms)
+✔ smoke rejects missing referenced asset /assets/app.js (6.538083ms)
+✔ smoke rejects missing referenced asset /assets/app.css (3.337875ms)
+✔ smoke rejects missing referenced asset /brand/favicon.svg (5.045958ms)
+✔ smoke rejects SPA HTML fallback masquerading as JavaScript (2.724833ms)
+✔ smoke rejects fallback success for an unknown file (4.3815ms)
+✔ smoke rejects an empty application shell (2.305959ms)
+✔ local smoke stops its demo child after success (153.621166ms)
+✔ local smoke stops its demo child after failure (128.25825ms)
+✔ local smoke reports a missing build without hanging (80.064333ms)
+✔ URL-mode CLI propagates a failed HTTP check (74.927917ms)
+✔ CLI persists private work, exposes a frozen review, and publishes only with reviewer credentials (786.666875ms)
+✔ CLI refuses non-synthetic service configuration (54.8525ms)
+✔ local edits persist through restart, sync to personal only and are visible on another device (187.803291ms)
+✔ simultaneous device edits preserve three versions and require a hash-bound confirmation (339.533917ms)
+✔ new remote edits invalidate prepared merge and preserve both sides (213.443042ms)
+✔ revocation removes cached content and prepared conflicts from every response (157.55525ms)
+✔ authorization outage fails closed, pending edits survive, tokens never reach disk (31.307125ms)
+✔ writes queued behind a sync are not lost; repeated syncs do not create duplicate revisions (67.685708ms)
+✔ explicit proposal freezes selected personal text, never automatically publishes it (53.041292ms)
+✔ local directory is bound to endpoint and account without persisting the token (17.724291ms)
+✔ a lost acceptance response recovers without duplicate personal versions (48.919792ms)
+✔ connected polling syncs writes and close cancels scheduling without a daemon (66.788625ms)
+✔ network transport rejects redirects and does not forward authorization to another origin (19.816833ms)
+✔ cross-space page ID collision preserves the first draft and cannot publish restricted content (69.260375ms)
 ▶ proposal pins the selected personal revision across authorization refresh and request races
-  ✔ before-access (92.067875ms)
-  ✔ before-submit (84.949791ms)
-✔ proposal pins the selected personal revision across authorization refresh and request races (177.324166ms)
-✔ official MCP client edits personal knowledge, cannot publish, closes on EOF and resumes (515.235375ms)
-✔ personal push persists, is isolated, and never changes shared knowledge (27.163958ms)
-✔ retries are idempotent, reused keys with different payload fail, stale writes preserve winner (22.545417ms)
-✔ PR freezes personal revision; only reviewers publish with current shared base (57.114ms)
-✔ competing PRs cannot publish over a changed shared base (71.389875ms)
-✔ untrusted page metadata cannot widen source scope or invent source evidence (17.206458ms)
-✔ store locks concurrent writers, survives reopening, preserves corrupt state (22.164042ms)
-✔ reserved identifiers cannot address prototype properties (13.528959ms)
-✔ personal updates cannot drop inherited provenance (25.226334ms)
-✔ an unrelated private page cannot replace an existing shared page without lineage (35.913458ms)
-✔ proposal viewing requires current scope and cannot leak to another author (83.23125ms)
+  ✔ before-access (88.344958ms)
+  ✔ before-submit (89.352167ms)
+✔ proposal pins the selected personal revision across authorization refresh and request races (178.047542ms)
+✔ official MCP client edits personal knowledge, cannot publish, closes on EOF and resumes (507.10225ms)
+✔ personal push persists, is isolated, and never changes shared knowledge (30.205958ms)
+✔ retries are idempotent, reused keys with different payload fail, stale writes preserve winner (27.772542ms)
+✔ PR freezes personal revision; only reviewers publish with current shared base (71.083708ms)
+✔ competing PRs cannot publish over a changed shared base (80.503709ms)
+✔ untrusted page metadata cannot widen source scope or invent source evidence (13.043833ms)
+✔ store locks concurrent writers, survives reopening, preserves corrupt state (31.249125ms)
+✔ reserved identifiers cannot address prototype properties (31.791417ms)
+✔ personal updates cannot drop inherited provenance (49.913875ms)
+✔ an unrelated private page cannot replace an existing shared page without lineage (30.612792ms)
+✔ proposal viewing requires current scope and cannot leak to another author (66.607417ms)
 ℹ tests 48
 ℹ suites 0
 ℹ pass 48
@@ -81,7 +81,7 @@ PASS 개발 의존성 설치됨 (잠금 파일 동기화는 npm ci로 확인)
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 1596.196042
+ℹ duration_ms 1526.314625
 
 > agent-knowledge-hub@0.2.0-demo test:imports
 > vitest run server/imports/parser.test.ts server/imports/organizer.test.ts
@@ -92,54 +92,54 @@ PASS 개발 의존성 설치됨 (잠금 파일 동기화는 npm ci로 확인)
 
  Test Files  2 passed (2)
       Tests  16 passed (16)
-   Start at  00:35:44
-   Duration  109ms (import 51%, tests 28%, transform 17%, worker 4%)
+   Start at  00:46:42
+   Duration  103ms (import 52%, tests 31%, transform 13%, worker 3%)
 
 
 > agent-knowledge-hub@0.2.0-demo test:evaluation
 > node --test scripts/evaluation/*.test.mjs
 
-✔ all arms receive same authorized raw and budget while static wiki stays at stage zero (6.647209ms)
-✔ failed and timed-out assignments remain in denominators and unknown cost is not zero (20.971625ms)
-✔ heldout task or secret labels in maintenance material fail before use (0.238458ms)
-✔ human work requires exactly one explicit ordered start/end and rejects duplicate events (0.077917ms)
-✔ repeated citations from one raw origin count as one evidence root and preserve old-answer regression (0.433167ms)
-✔ start and end from different human identities cannot produce work time (0.036209ms)
-✔ label-shaped fields cannot enter maintenance input (0.05975ms)
-✔ heldout task records cannot smuggle labels into model inputs (0.115375ms)
-✔ invalid holdout labels or unbounded budget fail preflight (0.185083ms)
-✔ an agent cannot alter sealed raw sources to validate a fabricated citation (0.3475ms)
-✔ duplicate or out-of-order stage assignments are rejected (0.100208ms)
-✔ decoded quoted, backslash and newline heldout prompts cannot hide in nested metadata (0.067708ms)
-✔ abstention is scored against an explicit disposition and retained (0.302417ms)
-✔ the expected abstention disposition is mandatory before any evaluation (0.367083ms)
-✔ unexecuted abstention tasks remain in the expected disposition denominator (0.154958ms)
-✔ ground-truth label objects hidden in nested metadata are rejected (0.068375ms)
-✔ driver requires distinct explicit reviewer and exact model identity (15.153625ms)
-✔ runs three actual maintenance stages and freezes the first snapshot (4.909666ms)
-✔ leaked holdout stops before ingestion and failed stage remains incomplete (0.437917ms)
-✔ runtime model and actor verification precede any maintenance write (0.10775ms)
-✔ maintenance timeout stops later cycles and remains incomplete (7.171375ms)
-✔ driver identity must match the policy-bound evaluation principal before writes (0.326041ms)
-✔ records rejected, reproposed and rereviewed attempts with explicit reviewer events (1.150334ms)
-✔ summary exposes review rejections and unknown work instead of inferred zero (0.535958ms)
-✔ future reviewer events are unmeasured even when paired (0.749334ms)
-✔ pre-aborted experiment schedules no maintenance writes (0.189791ms)
-✔ a post-publication query failure records completed writes and requires reconciliation (0.280792ms)
-✔ a failed review submission is not recorded as an accepted approval (0.177ms)
-✔ real HTTP evaluation transport uses fixed seed/budgets/tools, unknown cost null and clean session (16.990416ms)
-✔ transmission opt-in required; never falls back to fixture when unconfigured (0.2545ms)
-✔ unknown token usage cannot silently exceed a multi-call token budget (4.732417ms)
-✔ records actual LiteLLM response cost without inferring a value (1.471083ms)
-✔ failed truncated outputs retain measured cost and tokens without claiming completion (5.436125ms)
-✔ timed-out later tool call preserves known earlier usage and unknown final total (304.748125ms)
-✔ heldout expected answers never reach agent; paired conditions use identical budgets/tools/model (5.819209ms)
-✔ failed/unexecuted tasks stay in denominator; unknown cost stays unknown (1.153875ms)
-✔ independent withheld labels score output, fake citations are safety failures (1.183792ms)
-✔ report uses Korean limits, explicit denominators, accessible tables and escapes data (1.107458ms)
-✔ timeouts and unavailable raw sources cannot produce success or hide incomplete assignments (184.976958ms)
-✔ actual usage separates maintenance, query and unknown cost (0.535541ms)
-✔ usage attribution requires an explicitly isolated evaluation workspace (0.170709ms)
+✔ all arms receive same authorized raw and budget while static wiki stays at stage zero (6.341792ms)
+✔ failed and timed-out assignments remain in denominators and unknown cost is not zero (22.312833ms)
+✔ heldout task or secret labels in maintenance material fail before use (0.252041ms)
+✔ human work requires exactly one explicit ordered start/end and rejects duplicate events (0.086416ms)
+✔ repeated citations from one raw origin count as one evidence root and preserve old-answer regression (0.465542ms)
+✔ start and end from different human identities cannot produce work time (0.033125ms)
+✔ label-shaped fields cannot enter maintenance input (0.061916ms)
+✔ heldout task records cannot smuggle labels into model inputs (0.123208ms)
+✔ invalid holdout labels or unbounded budget fail preflight (0.188208ms)
+✔ an agent cannot alter sealed raw sources to validate a fabricated citation (0.359375ms)
+✔ duplicate or out-of-order stage assignments are rejected (0.094958ms)
+✔ decoded quoted, backslash and newline heldout prompts cannot hide in nested metadata (0.075625ms)
+✔ abstention is scored against an explicit disposition and retained (0.305792ms)
+✔ the expected abstention disposition is mandatory before any evaluation (0.131208ms)
+✔ unexecuted abstention tasks remain in the expected disposition denominator (0.127209ms)
+✔ ground-truth label objects hidden in nested metadata are rejected (0.066709ms)
+✔ driver requires distinct explicit reviewer and exact model identity (11.791ms)
+✔ runs three actual maintenance stages and freezes the first snapshot (4.698417ms)
+✔ leaked holdout stops before ingestion and failed stage remains incomplete (0.848ms)
+✔ runtime model and actor verification precede any maintenance write (0.206542ms)
+✔ maintenance timeout stops later cycles and remains incomplete (6.289792ms)
+✔ driver identity must match the policy-bound evaluation principal before writes (0.164625ms)
+✔ records rejected, reproposed and rereviewed attempts with explicit reviewer events (0.729458ms)
+✔ summary exposes review rejections and unknown work instead of inferred zero (0.917459ms)
+✔ future reviewer events are unmeasured even when paired (0.390583ms)
+✔ pre-aborted experiment schedules no maintenance writes (0.267083ms)
+✔ a post-publication query failure records completed writes and requires reconciliation (0.536666ms)
+✔ a failed review submission is not recorded as an accepted approval (0.319625ms)
+✔ real HTTP evaluation transport uses fixed seed/budgets/tools, unknown cost null and clean session (16.415708ms)
+✔ transmission opt-in required; never falls back to fixture when unconfigured (0.237083ms)
+✔ unknown token usage cannot silently exceed a multi-call token budget (4.1685ms)
+✔ records actual LiteLLM response cost without inferring a value (1.373834ms)
+✔ failed truncated outputs retain measured cost and tokens without claiming completion (4.812125ms)
+✔ timed-out later tool call preserves known earlier usage and unknown final total (309.086375ms)
+✔ heldout expected answers never reach agent; paired conditions use identical budgets/tools/model (6.5205ms)
+✔ failed/unexecuted tasks stay in denominator; unknown cost stays unknown (1.261041ms)
+✔ independent withheld labels score output, fake citations are safety failures (1.476833ms)
+✔ report uses Korean limits, explicit denominators, accessible tables and escapes data (1.365625ms)
+✔ timeouts and unavailable raw sources cannot produce success or hide incomplete assignments (205.738ms)
+✔ actual usage separates maintenance, query and unknown cost (1.015583ms)
+✔ usage attribution requires an explicitly isolated evaluation workspace (0.389ms)
 ℹ tests 41
 ℹ suites 0
 ℹ pass 41
@@ -147,7 +147,7 @@ PASS 개발 의존성 설치됨 (잠금 파일 동기화는 npm ci로 확인)
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 419.990083
+ℹ duration_ms 419.445416
 
 > agent-knowledge-hub@0.2.0-demo check:requirements
 > node scripts/check-requirements.mjs
@@ -173,25 +173,25 @@ dist/assets/BoardsWorkbench-DEHCBFnc.css      1.79 kB │ gzip:  0.72 kB
 dist/assets/UsageDashboard-BLr_Ozi3.css       2.49 kB │ gzip:  0.85 kB
 dist/assets/App-Bh-xRv6O.css                 26.62 kB │ gzip:  5.41 kB
 dist/assets/index-D9AcMG6d.css               47.55 kB │ gzip:  9.32 kB
-dist/assets/search-CrmOGXZy.js                0.24 kB │ gzip:  0.22 kB │ map:     1.02 kB
-dist/assets/ConsoleTable-CuyW7PDw.js          1.95 kB │ gzip:  1.01 kB │ map:     6.07 kB
+dist/assets/search-DqtfdCqh.js                0.24 kB │ gzip:  0.22 kB │ map:     1.02 kB
+dist/assets/ConsoleTable-C-UvLqWB.js          1.95 kB │ gzip:  1.00 kB │ map:     6.07 kB
 dist/assets/console-xJNnbbuu.js               1.96 kB │ gzip:  1.06 kB │ map:     5.92 kB
-dist/assets/ModelAssessment-ddHjZXny.js       2.13 kB │ gzip:  1.27 kB │ map:     5.02 kB
-dist/assets/ImportPreview-BApT1AYN.js         3.23 kB │ gzip:  1.73 kB │ map:     7.72 kB
-dist/assets/BoardsWorkbench-Bjumk-Rq.js       7.36 kB │ gzip:  2.62 kB │ map:    20.25 kB
-dist/assets/UsageDashboard-DUq4Fy9M.js       11.05 kB │ gzip:  3.94 kB │ map:    25.38 kB
-dist/assets/AgentCredentials-Dq2jDvzN.js     11.46 kB │ gzip:  3.76 kB │ map:    26.45 kB
-dist/assets/AccessManager-DWguPyOe.js        14.16 kB │ gzip:  4.34 kB │ map:    46.71 kB
-dist/assets/KnowledgeWorkbench-AOUlErGx.js   17.59 kB │ gzip:  6.20 kB │ map:    47.74 kB
-dist/assets/ImportWorkbench-Drzyt5UM.js      25.58 kB │ gzip:  8.70 kB │ map:    81.20 kB
-dist/assets/ManagementPreview-Dd91s1Oi.js    47.51 kB │ gzip: 15.06 kB │ map:   119.88 kB
-dist/assets/App-Chk2W5fo.js                  54.19 kB │ gzip: 16.00 kB │ map:   152.05 kB
-dist/assets/wiki-PPwxQON9.js                102.55 kB │ gzip: 36.24 kB │ map:   321.63 kB
-dist/assets/roadmap-CJ2gwMut.js             132.46 kB │ gzip: 23.49 kB │ map:   182.86 kB
-dist/assets/index-DwY3iBPz.js               244.19 kB │ gzip: 77.58 kB │ map: 1,084.86 kB
-dist/assets/App-CbRYVvMs.js                 291.39 kB │ gzip: 81.29 kB │ map:   866.44 kB
+dist/assets/ModelAssessment-DF7apPKq.js       2.13 kB │ gzip:  1.27 kB │ map:     5.02 kB
+dist/assets/ImportPreview-9O_zgnKn.js         3.23 kB │ gzip:  1.73 kB │ map:     7.72 kB
+dist/assets/BoardsWorkbench-PGSzEz81.js       7.36 kB │ gzip:  2.61 kB │ map:    20.25 kB
+dist/assets/UsageDashboard-ZbzYQGTs.js       11.05 kB │ gzip:  3.94 kB │ map:    25.38 kB
+dist/assets/AgentCredentials-D5Mf-zMS.js     11.46 kB │ gzip:  3.76 kB │ map:    26.45 kB
+dist/assets/AccessManager-46EURtNi.js        14.16 kB │ gzip:  4.34 kB │ map:    46.71 kB
+dist/assets/KnowledgeWorkbench-O692OvH1.js   17.59 kB │ gzip:  6.20 kB │ map:    47.74 kB
+dist/assets/ImportWorkbench-DJW1SYSC.js      25.58 kB │ gzip:  8.70 kB │ map:    81.20 kB
+dist/assets/ManagementPreview-CYvcYR6D.js    47.51 kB │ gzip: 15.07 kB │ map:   119.88 kB
+dist/assets/App-C0UetmUJ.js                  54.19 kB │ gzip: 16.00 kB │ map:   152.05 kB
+dist/assets/wiki-E5hOYKY-.js                102.55 kB │ gzip: 36.23 kB │ map:   321.63 kB
+dist/assets/roadmap-D5Vyqvmd.js             132.46 kB │ gzip: 23.49 kB │ map:   182.86 kB
+dist/assets/index-DeKbBGRo.js               244.19 kB │ gzip: 77.58 kB │ map: 1,084.86 kB
+dist/assets/App-DF1iEepB.js                 291.60 kB │ gzip: 81.39 kB │ map:   867.30 kB
 
-✓ built in 434ms
+✓ built in 403ms
 
 > agent-knowledge-hub@0.2.0-demo test:smoke
 > node scripts/smoke.mjs

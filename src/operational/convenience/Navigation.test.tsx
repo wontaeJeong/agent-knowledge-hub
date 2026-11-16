@@ -10,6 +10,7 @@ afterEach(async () => {
   if (root) await act(async () => root?.unmount());
   root = undefined;
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   sessionStorage.clear();
   document.body.innerHTML = "";
 });
@@ -357,4 +358,136 @@ test("refreshing an exact job removes previously visible details after permissio
   expect(container.querySelector('[role="alert"]')?.textContent).toContain(
     "현재 접근할 수 없습니다",
   );
+});
+
+test("existing boards and refinement remain discoverable with their read capability", () => {
+  expect(
+    navigation
+      .navigationItems({ ...person, capabilities: ["knowledge.read"] })
+      .map((item) => item.id),
+  ).toEqual(expect.arrayContaining(["boards", "refinement"]));
+  expect(
+    navigation
+      .navigationItems({ ...person, capabilities: ["draft.write"] })
+      .map((item) => item.id),
+  ).not.toEqual(expect.arrayContaining(["boards", "refinement"]));
+});
+
+test("Back and Forward bind colliding task IDs to the restored API space and fence a pending previous response", async () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/?app=1&space=one&section=tasks&targetKind=job&targetId=collision",
+  );
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("requestAnimationFrame", (fn: FrameRequestCallback) =>
+    setTimeout(() => fn(0), 0),
+  );
+  vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+  vi.stubGlobal("confirm", () => true);
+  vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  let releaseOld!: (response: Response) => void;
+  let pendingOld = true;
+  const oldResponse = new Promise<Response>((resolve) => {
+    releaseOld = resolve;
+  });
+  const exactSpaces: string[] = [];
+  const job = (space: string) => ({
+    id: "collision",
+    kind: space === "one" ? "첫 공간 작업" : "둘째 공간 작업",
+    status: "succeeded",
+    attempts: 1,
+    maxAttempts: 3,
+    error: null,
+    checkpoint: {},
+    result: {},
+    heartbeatAt: null,
+  });
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+    const path = String(url).split("/api/v1")[1];
+    const space = new Headers(init.headers).get("X-Space-Id")!;
+    if (path === "/jobs-v2/collision") {
+      exactSpaces.push(space);
+      if (space === "two" && pendingOld) {
+        pendingOld = false;
+        return oldResponse;
+      }
+      return new Response(JSON.stringify(job(space)));
+    }
+    const data =
+      path === "/me"
+        ? { ...person, workspaceId: space }
+        : path === "/spaces"
+          ? {
+              items: ["one", "two"].map((id) => ({
+                id,
+                namespaceSlug: "team",
+                slug: id,
+                role: "read",
+              })),
+            }
+          : path === "/model"
+            ? { configured: false, model: null }
+            : { items: [], nextOffset: null };
+    return new Response(JSON.stringify(data));
+  });
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root!.render(<OperationalApp />));
+  expect(container.textContent).toContain("첫 공간 작업");
+  const favorites = container.querySelector(
+    'a[href="/?app=1&space=one&section=favorites"]',
+  ) as HTMLAnchorElement;
+  await act(async () => favorites.click());
+  const selector = () =>
+    Array.from(container.querySelectorAll("select")).find((select) =>
+      Array.from(select.options).some((option) => option.value === "two"),
+    )!;
+  await act(async () => {
+    selector().value = "two";
+    selector().dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  // Restore a valid exact target in the current entry, as an app deep-link update does.
+  await act(async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?app=1&space=two&section=tasks&targetKind=job&targetId=collision",
+    );
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  expect(exactSpaces).toEqual(["one", "two"]);
+  const traverse = async (direction: "back" | "forward") => {
+    await act(async () => {
+      const traversed = new Promise<void>((resolve) =>
+        window.addEventListener("popstate", () => resolve(), { once: true }),
+      );
+      window.history[direction]();
+      await traversed;
+    });
+  };
+  window.addEventListener(
+    "akh:before-navigate",
+    (event) => event.preventDefault(),
+    { once: true },
+  );
+  await traverse("back");
+  expect(window.location.search).toContain("space=two");
+  expect(selector().value).toBe("two");
+  expect(exactSpaces).toEqual(["one", "two"]);
+  await traverse("back");
+  expect(window.location.search).toContain("space=one");
+  expect(selector().value).toBe("one");
+  expect(container.textContent).toContain("첫 공간 작업");
+  expect(exactSpaces).toEqual(["one", "two", "one"]);
+  await act(async () => releaseOld(new Response(JSON.stringify(job("two")))));
+  expect(container.textContent).toContain("첫 공간 작업");
+  expect(container.textContent).not.toContain("둘째 공간 작업");
+  await traverse("forward");
+  expect(window.location.search).toContain("space=two");
+  expect(selector().value).toBe("two");
+  expect(container.textContent).toContain("둘째 공간 작업");
+  expect(container.textContent).not.toContain("첫 공간 작업");
+  expect(exactSpaces).toEqual(["one", "two", "one", "two"]);
 });

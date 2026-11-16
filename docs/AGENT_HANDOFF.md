@@ -1,5 +1,12 @@
 # 에이전트 인계
 
+## 2026-11-17 C1 1차 검토 수정 (#49)
+
+- `b7d7cd3`의 history 복귀가 URL 공간만 바꾸고 API 공간은 유지하는 문제를 재현했다. 공통 미저장 경고를 통과한 뒤 outer workspace key를 먼저 전환·재마운트하고, 새 API에서만 복원된 정확한 대상을 해석한다. 실제 Back/Forward와 충돌 작업 ID, 취소한 Back, 이전 공간의 지연 응답 회귀를 추가했다.
+- 기존 boards/refinement 진입을 `knowledge.read` 메뉴에 복구했다. 각 화면의 변경·승인·Lint 컨트롤은 기존 capability 검사를 유지한다. `section=tasks` 없이 쓰인 targetKind/targetId는 한쪽·양쪽·빈 값 모두 오류이며 로그인 복귀에서 조용히 버리지 않는다.
+- RED10실패/64통과 → GREEN74통과. 최종 Node24 `npm run check` 1회 통과: frontend240/Node48/import16/evaluation41, 요구사항251, 서버 타입/build/smoke. 기존 8장 재확인 및 복구 메뉴 4장 추가, 총12장·pageerror0. [현재 증거](pr-assets/convenience-navigation/README.md). 별도 main 통합과 실제 운영 인수 한계는 그대로 남는다.
+
+
 ## 2026-11-17 C1 사용자 메뉴와 호환 경로 (#49)
 
 - 범위: capability 기반 기본/개인/도구/관리 메뉴와 모바일 상단 검색·새 문서·기존 알림 진입, 검증된 `section/draft/view/version/anchor/targetKind/targetId` 계약과 동일 앱 로그인 복귀를 연결했다. 문서·댓글·공유·기존 탭 URL과 계정/세션 화면을 유지한다. UX-001/003/004/006, SHR-001~003, REV-001/002, ACL-008, IAM-004/005/009의 관련 이동 경계를 보강하며 기존 251개 수용 기준/상태를 바꾸지 않는다.

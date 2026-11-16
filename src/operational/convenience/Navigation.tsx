@@ -31,6 +31,8 @@ export function navigationItems(identity: Identity): NavigationItem[] {
       "versions",
       "notifications",
       "query",
+      "boards",
+      "refinement",
     ] as const)
       add(id, "지식 도구");
   }

@@ -187,6 +187,7 @@ export default function OperationalApp({
       key={`${preview}:${spaceId}`}
       preview={preview}
       spaceId={spaceId}
+      onRestoreSpace={setSpaceId}
       onSpace={(id) => {
         if (!window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))) return;
         const current = parseConvenienceLocation(window.location.search, window.location.hash);
@@ -200,10 +201,12 @@ function OperationalWorkspace({
   preview,
   spaceId,
   onSpace,
+  onRestoreSpace,
 }: {
   preview: boolean;
   spaceId: string;
   onSpace: (id: string) => void;
+  onRestoreSpace: (id: string) => void;
 }) {
   const api = useMemo<OperationalApi>(
     () => (preview ? new PreviewApi() : new OperationalApi("", spaceId)),
@@ -268,12 +271,19 @@ function OperationalWorkspace({
         return;
       }
       const next = parseConvenienceLocation(window.location.search, window.location.hash);
+      const restored = new URLSearchParams(window.location.search).get("space") ?? "";
+      const restoredSpace = /^[a-zA-Z0-9_-]{1,100}$/.test(restored) ? restored : "";
+      if (restoredSpace !== spaceId) {
+        // Remount the authenticated API owner before resolving any protected ID.
+        onRestoreSpace(restoredSpace);
+        return;
+      }
       setLocation(next); setTab(locationTab(next));
     };
     window.addEventListener("hashchange", onLocation);
     window.addEventListener("popstate", onLocation);
     return () => { window.removeEventListener("hashchange", onLocation); window.removeEventListener("popstate", onLocation); };
-  }, [location]);
+  }, [location, spaceId, onRestoreSpace]);
   const target = location.kind === "section" && location.section === "tasks" && location.targetKind ? location : undefined;
   const pendingDestination = location.kind === "section" && !target || location.kind === "document" && (location.version !== undefined || !!location.anchor);
   const [pages, setPages] = useState<PublishedPage[]>([]);
