@@ -33,8 +33,19 @@ type SearchItem = {
   currentRecommendation: boolean;
   metadataStatus: string;
   href: string;
+  match?: { quote: string; reason: string; status: string };
 };
-type SearchPage = { items: SearchItem[]; nextCursor: string | null };
+type SearchPage = {
+  items: SearchItem[];
+  nextCursor: string | null;
+  retrieval?: {
+    kind: string;
+    invoked: boolean;
+    provider: string | null;
+    model: string | null;
+    reason?: string;
+  };
+};
 type FeedbackItem = {
   id: string;
   answerId: string;
@@ -88,7 +99,10 @@ export function QuestionsWorkbench({
   identityKey: string;
 }) {
   const [boundIdentity, setBoundIdentity] = useState(identityKey);
-  const [snapshot, setSnapshot] = useState<{title: string; version: {number: number; content: string}} | null>(null);
+  const [snapshot, setSnapshot] = useState<{
+    title: string;
+    version: { number: number; content: string };
+  } | null>(null);
   const [thread, setThread] = useState<Thread | null>(null),
     [threads, setThreads] = useState<{ id: string; revision: number }[]>([]),
     [threadCursor, setThreadCursor] = useState<string | null>(null);
@@ -99,6 +113,13 @@ export function QuestionsWorkbench({
     [notice, setNotice] = useState(""),
     [error, setError] = useState(""),
     [turnPage, setTurnPage] = useState(0);
+  const [searchMode, setSearchMode] = useState<"lexical" | "semantic">(
+      "lexical",
+    ),
+    [searchBusy, setSearchBusy] = useState(false),
+    [searchJob, setSearchJob] = useState<string | null>(null);
+  const searchController = useRef<AbortController | null>(null);
+  const searchNonce = useRef<{ signature: string; key: string } | null>(null);
   const [results, setResults] = useState<SearchPage>({
       items: [],
       nextCursor: null,
@@ -132,7 +153,12 @@ export function QuestionsWorkbench({
   function clear() {
     generation.current++;
     controller.current?.abort();
+    searchController.current?.abort();
     setBusy(false);
+    setSearchBusy(false);
+    setSearchJob(null);
+    setSearchMode("lexical");
+    searchNonce.current = null;
     setActiveJob(null);
     setThread(null);
     setSnapshot(null);
@@ -222,6 +248,7 @@ export function QuestionsWorkbench({
     return () => {
       generation.current++;
       controller.current?.abort();
+      searchController.current?.abort();
     };
   }, [api, identityKey]);
   // Refresh protected state when returning to this screen; never resurrect from localStorage.
@@ -265,7 +292,14 @@ export function QuestionsWorkbench({
           setNotice("접근 범위가 변경되어 대화를 지웠습니다. 다시 조회하세요.");
           return;
         }
-        setThread({ ...older, contextOmitted: older.contextOmitted || latest.contextOmitted || thread.contextOmitted, turns: [...older.turns, ...thread.turns] });
+        setThread({
+          ...older,
+          contextOmitted:
+            older.contextOmitted ||
+            latest.contextOmitted ||
+            thread.contextOmitted,
+          turns: [...older.turns, ...thread.turns],
+        });
         setTurnPage(0);
       }
     } catch (e) {
@@ -460,19 +494,49 @@ export function QuestionsWorkbench({
   }
   async function find(event?: FormEvent, cursor?: string | null) {
     event?.preventDefault();
+    if (searchBusy) return;
     setError("");
+    setSearchBusy(true);
+    setSearchJob(null);
     const current = generation.current;
+    const abort = new AbortController();
+    searchController.current?.abort();
+    searchController.current = abort;
     try {
-      const page = await api.post<SearchPage>(
-        `${root}/search`,
-        searchBody(cursor),
-      );
+      let page: SearchPage;
+      if (searchMode === "semantic") {
+        const filters = searchBody();
+        const signature = JSON.stringify(filters);
+        if (searchNonce.current?.signature !== signature)
+          searchNonce.current = { signature, key: crypto.randomUUID() };
+        const requestKey = searchNonce.current.key;
+        const receipt = await api.post(
+          "/search/semantic",
+          { filters, idempotency_key: requestKey },
+          requestKey,
+        );
+        page = await resolveJob<SearchPage>(api, receipt, {
+          expectQueued: true,
+          signal: abort.signal,
+          onProgress: (job) => {
+            if (current === generation.current) {
+              setSearchJob(job.id + ": " + job.status);
+              if (job.status === "dead" || job.status === "cancelled")
+                searchNonce.current = null;
+            }
+          },
+        });
+        if (current === generation.current) searchNonce.current = null;
+      } else
+        page = await api.post<SearchPage>(`${root}/search`, searchBody(cursor));
       if (current === generation.current) setResults(page);
     } catch (e) {
       if (current === generation.current) {
         setResults({ items: [], nextCursor: null });
         fail(e);
       }
+    } finally {
+      if (current === generation.current) setSearchBusy(false);
     }
   }
   async function report(event: FormEvent) {
@@ -555,7 +619,17 @@ export function QuestionsWorkbench({
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
-      {snapshot && <article><h3>{snapshot.title} · v{snapshot.version.number}</h3><p style={{whiteSpace:"pre-wrap"}}>{snapshot.version.content}</p><button type="button" onClick={() => setSnapshot(null)}>인용 본문 닫기</button></article>}
+      {snapshot && (
+        <article>
+          <h3>
+            {snapshot.title} · v{snapshot.version.number}
+          </h3>
+          <p style={{ whiteSpace: "pre-wrap" }}>{snapshot.version.content}</p>
+          <button type="button" onClick={() => setSnapshot(null)}>
+            인용 본문 닫기
+          </button>
+        </article>
+      )}
       {activeJob && (
         <button type="button" onClick={() => void cancelActive()}>
           현재 작업 취소
@@ -607,7 +681,15 @@ export function QuestionsWorkbench({
               제외된 내용은 다시 보내지 않습니다.
             </p>
           )}
-          {thread.nextCursor && <button type="button" disabled={busy} onClick={() => void loadOlder()}>이전 대화 불러오기</button>}
+          {thread.nextCursor && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void loadOlder()}
+            >
+              이전 대화 불러오기
+            </button>
+          )}
           <ol>
             {thread.turns
               .slice(turnPage * 25, (turnPage + 1) * 25)
@@ -641,7 +723,12 @@ export function QuestionsWorkbench({
                       <ul>
                         {turn.answer.citations.map((c, i) => (
                           <li key={i}>
-                            <button type="button" onClick={() => void openSnapshot(c.pageId, c.version)}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void openSnapshot(c.pageId, c.version)
+                              }
+                            >
                               {c.title} · v{c.version}
                             </button>
                           </li>
@@ -807,7 +894,10 @@ export function QuestionsWorkbench({
               <ul>
                 {item.work.map((w) => (
                   <li key={`${w.pageId}:${w.version}`}>
-                    <button type="button" onClick={() => void openSnapshot(w.pageId, w.version)}>
+                    <button
+                      type="button"
+                      onClick={() => void openSnapshot(w.pageId, w.version)}
+                    >
                       {w.pageId} · v{w.version}
                     </button>{" "}
                     ·{" "}
@@ -835,64 +925,95 @@ export function QuestionsWorkbench({
         없음’이며 현재 속성으로 채우지 않습니다.
       </p>
       <form onSubmit={find}>
-        <label>
-          본문·제목 검색
-          <input
-            maxLength={2000}
-            value={search.query}
-            onChange={(e) => {
-              setSearch((s) => ({ ...s, query: e.target.value }));
-              setResults({ items: [], nextCursor: null });
-            }}
-          />
-        </label>
-        <details>
-          <summary>유형·담당자·태그·상태·기간·환경 필터</summary>
-          {fields.map(([key, label]) => (
-            <label key={key}>
-              {label}
-              <input
-                maxLength={200}
-                value={search[key]}
-                onChange={(e) => {
-                  setSearch((s) => ({ ...s, [key]: e.target.value }));
-                  setResults({ items: [], nextCursor: null });
-                }}
-              />
-            </label>
-          ))}
+        <fieldset disabled={searchBusy}>
           <label>
-            보관 여부
+            검색 방식
             <select
-              value={search.archived}
+              value={searchMode}
               onChange={(e) => {
-                setSearch((s) => ({ ...s, archived: e.target.value }));
+                setSearchMode(e.target.value as "lexical" | "semantic");
                 setResults({ items: [], nextCursor: null });
+                searchNonce.current = null;
               }}
             >
-              <option value="">모두</option>
-              <option value="true">보관됨</option>
-              <option value="false">보관되지 않음</option>
+              <option value="lexical">키워드·코드 일치</option>
+              <option value="semantic">의미 검색 (구성된 모델)</option>
             </select>
           </label>
-        </details>
-        <label>
-          <input
-            type="checkbox"
-            checked={search.historical}
-            onChange={(e) => {
-              setSearch((s) => ({ ...s, historical: e.target.checked }));
-              setResults({ items: [], nextCursor: null });
-            }}
-          />
-          실제 과거 버전 포함 (현재 권고 아님)
-        </label>
-        <button>검색</button>
+          <p>
+            의미 검색은 서버에서 승인한 모델과 예산을 사용합니다. 구성이 없거나
+            범위가 너무 크면 실패를 표시합니다.
+          </p>
+          <label>
+            본문·제목 검색
+            <input
+              maxLength={2000}
+              value={search.query}
+              onChange={(e) => {
+                setSearch((s) => ({ ...s, query: e.target.value }));
+                setResults({ items: [], nextCursor: null });
+              }}
+            />
+          </label>
+          <details>
+            <summary>유형·담당자·태그·상태·기간·환경 필터</summary>
+            {fields.map(([key, label]) => (
+              <label key={key}>
+                {label}
+                <input
+                  maxLength={200}
+                  value={search[key]}
+                  onChange={(e) => {
+                    setSearch((s) => ({ ...s, [key]: e.target.value }));
+                    setResults({ items: [], nextCursor: null });
+                  }}
+                />
+              </label>
+            ))}
+            <label>
+              보관 여부
+              <select
+                value={search.archived}
+                onChange={(e) => {
+                  setSearch((s) => ({ ...s, archived: e.target.value }));
+                  setResults({ items: [], nextCursor: null });
+                }}
+              >
+                <option value="">모두</option>
+                <option value="true">보관됨</option>
+                <option value="false">보관되지 않음</option>
+              </select>
+            </label>
+          </details>
+          <label>
+            <input
+              type="checkbox"
+              checked={search.historical}
+              onChange={(e) => {
+                setSearch((s) => ({ ...s, historical: e.target.checked }));
+                setResults({ items: [], nextCursor: null });
+              }}
+            />
+            실제 과거 버전 포함 (현재 권고 아님)
+          </label>
+          <button>{searchBusy ? "검색 실행 중" : "검색"}</button>
+        </fieldset>
       </form>
+      {searchJob && <p role="status">의미 검색 작업 {searchJob}</p>}
+      {results.retrieval && (
+        <p>
+          {results.retrieval.invoked
+            ? `모델 관련성 제안 · ${results.retrieval.provider ?? "공급자 미기록"} · ${results.retrieval.model ?? "응답 모델 미기록"}`
+            : "권한 범위의 후보가 없어 모델을 호출하지 않았습니다."}
+        </p>
+      )}
       <ul>
         {results.items.map((item) => (
           <li key={`${item.pageId}:${item.version}`}>
-            <button type="button" onClick={() => void openSnapshot(item.pageId, item.version)}>
+            <button
+              type="button"
+              onClick={() => void openSnapshot(item.pageId, item.version)}
+            >
               {item.title ?? "과거 제목 기록 없음"} · v{item.version}
             </button>
             <p>
@@ -906,6 +1027,13 @@ export function QuestionsWorkbench({
                 ? "과거 속성 알 수 없음"
                 : "기록된 속성"}
             </p>
+            {item.match && (
+              <p>
+                모델 관련성 제안: {item.match.reason}
+                <br />
+                일치 근거: {item.match.quote}
+              </p>
+            )}
             <details>
               <summary>고정 버전 본문</summary>
               <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>

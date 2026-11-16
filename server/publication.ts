@@ -68,10 +68,12 @@ const batchHash = ({
   approvedFingerprint: _f,
   requestAuthorizationPending: _pending,
   reviewWarnings: _warnings,
+  reviewFeedback: _feedback,
   ...content
 }: Batch & {
   requestAuthorizationPending?: boolean;
   reviewWarnings?: PropertyWarning[];
+  reviewFeedback?: { reason: string; recordedAt: string; recordedBy: string };
 }) => digest(content);
 type RuntimeBatch = Batch & {
   producer?: NonNullable<import("../src/domain/types").Version["producer"]>;

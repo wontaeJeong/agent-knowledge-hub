@@ -239,6 +239,7 @@ test("MCP uses same authenticated filtered views and never exposes approval tool
     "knowledge_import_status",
     "knowledge_import_cancel",
     "knowledge_import_resume",
+    "knowledge_semantic_search",
     "knowledge_search",
     "knowledge_query",
     "knowledge_ingest",
