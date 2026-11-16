@@ -484,3 +484,8 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 ### 2026-11-14 — P1~P10 사용자 승인 병합
 - 후속 “머지” 요청에 따라 기능 PR #32~43을 squash 순서로 통합한다. 요구사항 범위는 변경하지 않으며 기존 PR #30은 별도다.
 - 각 기능의 격리 worktree에서 현재 main 및 선행 기능을 보존하고 최종 head의 필수 CI를 확인한다. 절차·검증과 제약은 [병합 기록](superpowers/plans/2026-11-14-product-merge.md)을 참조한다.
+
+## 2026-11-16 - SHR-007 fixed descendant sharing preview
+- Added authenticated shares/preview and shares/selection plus an actual AccessPanel flow. The ten-minute actor/workspace/credential-bound signed preview lists currently accessible fixed versions for one recipient. Selection creates all shares atomically after current actor/source/recipient checks and policy CAS. Future children never auto-join; moved/changed selected pages require a new preview. Existing individual/group fixed-link path remains available.
+- No document/source audience expansion is performed: recipient must currently read the complete input ancestry. Maximum50 selected pages; snapshots are fixed to current versions and restart requires a new preview.
+- Node24 npm run check, UI scope-clearing regression and PostgreSQL nativeOIDC/CSRF/forgery/descendant/source-revocation regressions4 pass. Actual1440/390 component screenshots under docs/pr-assets/share-selection use synthetic API; corporate acceptance is separate.

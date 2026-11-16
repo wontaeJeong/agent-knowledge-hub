@@ -507,3 +507,8 @@
 - 조치: 새 동시 인증 회귀 2건의 RED를 확인하고 proof refresh 시작에서 세션별 advisory mutex를 잡는다. 최초 exclusive row lock 대안은 독립 리뷰에서 directory gate와 역순 잠금 가능성이 확인돼 채택하지 않았다. fixture는 하나의 기준 시각을 사용한다.
 - 검증: 최종 수정의 PostgreSQL 17 관련 9파일과 전체 `npm run check` 통과. 잘못 지정한 `legacy-compat.test.ts` 필터는 실행 전 거부됐으며 실제 `legacy-compatibility.test.ts`로 수정해 실행했다. 원격 최종 CI를 다시 통과해야 병합한다.
 - 남은 제약: 기존 final guard/directory gate 경합의 더 넓은 잠금 순서는 별도 재현·검토 대상이다. 이번 검증을 모든 동시성 문제의 해결로 표시하지 않는다.
+
+### 2026-11-16 - Share preview authorization fixtures and merge checks
+- Initial missing preview methods failed as expected. First implementation tests used writer role, which correctly lacked share.manage; test explicitly grants admin and production authorization stays strict. NativeOIDC/CSRF and current source revocation then pass.
+- During roadmap integration, PR30 merge was rejected by strict required check after main advanced; updated branch, verified finalCI and merged24550c5. A later merge command used an abbreviated expectedSHA and was rejected422 without mutation; subsequent merges use40-character SHAs only.
+- Search/discovery documentation conflicts preserve both records and re-run checks; no reset/clean/discard used.
