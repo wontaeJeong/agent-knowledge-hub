@@ -40,6 +40,7 @@
     "lucide-react": "1.61.0",
     "marked": "18.1.2",
     "openid-client": "6.8.4",
+    "parse5": "8.0.1",
     "pg": "8.23.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",

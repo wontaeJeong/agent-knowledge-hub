@@ -9,6 +9,7 @@ Direct package metadata at the packaged lockfile versions. Preserve original not
 | dompurify | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
 | lucide-react | 1.61.0 | ISC |
 | marked | 18.1.2 | MIT |
+| parse5 | 8.0.1 | MIT |
 | pg | 8.23.1 | MIT |
 | openid-client | 6.8.4 | MIT |
 | tsx | 4.20.6 | MIT |
@@ -28,6 +29,8 @@ Direct package metadata at the packaged lockfile versions. Preserve original not
 | typescript | 7.0.2 | Apache-2.0 |
 | vite | 8.3.5 | MIT |
 | vitest | 5.0.5 | MIT |
+
+parse5 8.0.1 was promoted from an existing pinned transitive dependency to a direct runtime dependency for internal-link HTML parsing; its version and transitive entities 8.1.0 remain unchanged. Its original MIT license is retained in third-party-licenses/parse5-LICENSE.
 
 Original available direct-package license texts are included under third-party-licenses/. Transitive packages retain their npm notices. No upstream wiki product or Enterprise Edition source was copied into this repository.
 
