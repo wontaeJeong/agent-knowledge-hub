@@ -1,3 +1,4 @@
+import { SearchIndexService } from "../search/service";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { Pool, PoolClient } from "pg";
@@ -85,11 +86,13 @@ export function runtimeCapabilities(
   return [...result];
 }
 const actionFor = (kind: string): Action =>
-  kind === "retention" ? "knowledge.read" : kind === "query"
+  kind === "retention"
     ? "knowledge.read"
-    : kind === "lint"
-      ? "lint.run"
-      : "changeset.propose";
+    : kind === "query"
+      ? "knowledge.read"
+      : kind === "lint"
+        ? "lint.run"
+        : "changeset.propose";
 const grantPayloadHash = (input: JobInput) =>
   fingerprint({
     kind: input.kind,
@@ -106,6 +109,11 @@ function payloadFor(
   payload: unknown,
   internal = false,
 ): Record<string, unknown> {
+  if (kind === "index")
+    return z
+      .object({ action: z.literal("rebuild-search-index") })
+      .strict()
+      .parse(payload);
   if (kind === "query") {
     if (payload && typeof payload === "object" && "threadId" in payload) {
       const base = z
@@ -153,9 +161,17 @@ function payloadFor(
       .strict()
       .parse(payload);
   if (kind === "lint") return z.object({}).strict().parse(payload);
-  if (kind === "retention") return (internal
-    ? z.object({policyRevision:z.number().int().positive(),manager:z.unknown().optional()}).strict()
-    : z.object({policyRevision:z.number().int().positive()}).strict()).parse(payload);
+  if (kind === "retention")
+    return (
+      internal
+        ? z
+            .object({
+              policyRevision: z.number().int().positive(),
+              manager: z.unknown().optional(),
+            })
+            .strict()
+        : z.object({ policyRevision: z.number().int().positive() }).strict()
+    ).parse(payload);
   if (kind === "daily" || kind === "weekly")
     return z
       .object({
@@ -203,15 +219,43 @@ export function createRuntimeJobs(
     throw Error("INVALID_JOB_OPTIONS");
   const operators = new Set(options.platformOperatorIds ?? []);
   const authority = new RuntimeIdentityAuthority(pool, options);
-  const retentionGuard = async (db:PoolClient, workspaceId:string, ctx?:Context) => {
-    if (!ctx?.credentialId || !options.retentionServices?.some(i => i.workspaceId===workspaceId && i.principalId===ctx.principalId && i.credentialId===ctx.credentialId)) return false;
-    await authority.service(db,{workspaceId,principalId:ctx.principalId,credentialId:ctx.credentialId});
-    const row=(await db.query(`SELECT sa.sponsor_id,p.approved_by FROM access_service_accounts sa JOIN content_retention_policies p ON p.workspace_id=$1 JOIN access_principals h ON h.id=sa.sponsor_id AND h.kind='human' AND h.active WHERE sa.principal_id=$2`,[workspaceId,ctx.principalId])).rows[0];
-    if (!row || row.sponsor_id!==row.approved_by) return false;
-    await authorizeActionDb(db,{workspaceId,principalId:row.approved_by},"space.admin");
+  const retentionGuard = async (
+    db: PoolClient,
+    workspaceId: string,
+    ctx?: Context,
+  ) => {
+    if (
+      !ctx?.credentialId ||
+      !options.retentionServices?.some(
+        (i) =>
+          i.workspaceId === workspaceId &&
+          i.principalId === ctx.principalId &&
+          i.credentialId === ctx.credentialId,
+      )
+    )
+      return false;
+    await authority.service(db, {
+      workspaceId,
+      principalId: ctx.principalId,
+      credentialId: ctx.credentialId,
+    });
+    const row = (
+      await db.query(
+        `SELECT sa.sponsor_id,p.approved_by FROM access_service_accounts sa JOIN content_retention_policies p ON p.workspace_id=$1 JOIN access_principals h ON h.id=sa.sponsor_id AND h.kind='human' AND h.active WHERE sa.principal_id=$2`,
+        [workspaceId, ctx.principalId],
+      )
+    ).rows[0];
+    if (!row || row.sponsor_id !== row.approved_by) return false;
+    await authorizeActionDb(
+      db,
+      { workspaceId, principalId: row.approved_by },
+      "space.admin",
+    );
     return true;
   };
-  const retention = new ContentRetentionService(pool,authorizeInTransaction,{workerGuard:retentionGuard});
+  const retention = new ContentRetentionService(pool, authorizeInTransaction, {
+    workerGuard: retentionGuard,
+  });
   const runtimeRules = readFileSync(
     new URL("../../wiki/SCHEMA.md", import.meta.url),
     "utf8",
@@ -234,6 +278,31 @@ export function createRuntimeJobs(
   });
   const grant = authority.grant.bind(authority),
     serviceIdentity = authority.service.bind(authority);
+  const indexAdmin = async (db: PoolClient, ctx: Context) => {
+    if (!operators.has(ctx.principalId) || ctx.agent) throw Error("FORBIDDEN");
+    if (ctx.credentialId) {
+      const g = await grant(db, ctx);
+      if (
+        !g ||
+        g.operation !== "index" ||
+        !g.parent_session_id ||
+        g.parent_credential_id
+      )
+        throw Error("INDEX_SESSION_REQUIRED");
+      // This exact server-minted index capability is bound to a verified same-human session.
+      // It grants no general Admin action: recheck the human's current Admin role for this fixed operation.
+      await authorizeActionDb(
+        db,
+        { workspaceId: ctx.workspaceId, principalId: ctx.principalId },
+        "space.admin",
+      );
+    } else {
+      if (!ctx.authorization?.sessionId) throw Error("INDEX_SESSION_REQUIRED");
+      await ctx.authorization.assertSession(db);
+      await authorizeActionDb(db, ctx, "space.admin");
+    }
+  };
+  const searchIndex = new SearchIndexService(pool, indexAdmin);
   const needsModel = (payload: Record<string, unknown>) =>
     payload.mode === "model" || payload.semantic === true;
   const prepareSemantic = async (
@@ -329,13 +398,44 @@ export function createRuntimeJobs(
       )
         throw Error("SEMANTIC_SCHEDULE_NOT_SUPPORTED");
       const payload = payloadFor(input.kind, input.payload, true);
-      if (purpose !== "read" && input.kind !== "retention") await assertJobFeatures(db, ctx, input.kind);
+      if (input.kind === "index") {
+        if (purpose === "schedule") throw Error("INDEX_SCHEDULE_NOT_SUPPORTED");
+        await indexAdmin(db, ctx);
+        if (
+          input.pageIds.length ||
+          input.sourceIds.length ||
+          input.reservation.tokens ||
+          input.reservation.costMicros ||
+          input.model
+        )
+          throw Error("EXECUTION_SCOPE_CONFLICT");
+      }
+      if (purpose !== "read" && input.kind !== "retention")
+        await assertJobFeatures(db, ctx, input.kind);
       if (input.kind === "retention") {
-        if (!await retentionGuard(db,ctx.workspaceId,ctx)) throw Error("RETENTION_WORKER_NOT_AUTHORIZED");
-        const policy=(await db.query("SELECT revision,policy FROM content_retention_policies WHERE workspace_id=$1",[ctx.workspaceId])).rows[0];
-        if (!policy?.policy?.enabled || policy.revision!==payload.policyRevision) throw Error("RETENTION_POLICY_CHANGED");
-        if (input.pageIds.length || input.sourceIds.length || input.reservation.tokens || input.reservation.costMicros || input.model) throw Error("EXECUTION_SCOPE_CONFLICT");
-        if (purpose !== "schedule" && !payload.manager) throw Error("EXECUTION_SCOPE_CONFLICT");
+        if (!(await retentionGuard(db, ctx.workspaceId, ctx)))
+          throw Error("RETENTION_WORKER_NOT_AUTHORIZED");
+        const policy = (
+          await db.query(
+            "SELECT revision,policy FROM content_retention_policies WHERE workspace_id=$1",
+            [ctx.workspaceId],
+          )
+        ).rows[0];
+        if (
+          !policy?.policy?.enabled ||
+          policy.revision !== payload.policyRevision
+        )
+          throw Error("RETENTION_POLICY_CHANGED");
+        if (
+          input.pageIds.length ||
+          input.sourceIds.length ||
+          input.reservation.tokens ||
+          input.reservation.costMicros ||
+          input.model
+        )
+          throw Error("EXECUTION_SCOPE_CONFLICT");
+        if (purpose !== "schedule" && !payload.manager)
+          throw Error("EXECUTION_SCOPE_CONFLICT");
       }
       await authorizeActionDb(db, ctx, actionFor(input.kind));
       if (input.kind === "query" && typeof payload.threadId === "string") {
@@ -420,9 +520,18 @@ export function createRuntimeJobs(
         )
           throw Error("EXECUTION_SCOPE_CONFLICT");
         if (input.kind === "retention") {
-          const approved=(await db.query("SELECT 1 FROM access_principals WHERE id=$1 AND kind='human' AND active",[manager.approvedBy])).rowCount;
+          const approved = (
+            await db.query(
+              "SELECT 1 FROM access_principals WHERE id=$1 AND kind='human' AND active",
+              [manager.approvedBy],
+            )
+          ).rowCount;
           if (!approved) throw Error("UNAUTHENTICATED");
-          await authorizeActionDb(db,{workspaceId:ctx.workspaceId,principalId:manager.approvedBy},"space.admin");
+          await authorizeActionDb(
+            db,
+            { workspaceId: ctx.workspaceId, principalId: manager.approvedBy },
+            "space.admin",
+          );
         }
         if (
           actor?.kind === "service" &&
@@ -438,7 +547,9 @@ export function createRuntimeJobs(
           throw Error("EXECUTION_SCOPE_CONFLICT");
       } else if (
         actor?.kind === "service" &&
-        purpose === "execute" && input.kind !== "retention" &&
+        purpose === "execute" &&
+        input.kind !== "retention" &&
+        input.kind !== "index" &&
         payload.semantic !== true &&
         typeof payload.threadId !== "string"
       ) {
@@ -476,10 +587,15 @@ export function createRuntimeJobs(
           id,
         });
     },
-    authorizeRetentionSchedule: async (db,ctx) => {
-      const human=(await db.query("SELECT 1 FROM access_principals WHERE id=$1 AND kind='human' AND active",[ctx.principalId])).rowCount;
+    authorizeRetentionSchedule: async (db, ctx) => {
+      const human = (
+        await db.query(
+          "SELECT 1 FROM access_principals WHERE id=$1 AND kind='human' AND active",
+          [ctx.principalId],
+        )
+      ).rowCount;
       if (!human || ctx.credentialId) throw Error("FORBIDDEN");
-      await authorizeActionDb(db,ctx,"space.admin");
+      await authorizeActionDb(db, ctx, "space.admin");
     },
     validateScheduleIdentity: serviceIdentity,
   };
@@ -515,10 +631,16 @@ export function createRuntimeJobs(
         : { tokens: 0, costMicros: 0 },
       timeoutMs: Math.min(requested?.timeoutMs ?? timeout, timeout),
       maxAttempts: Math.min(requested?.maxAttempts ?? 3, 3),
-      limits: {
-        documents: Math.min(requested?.limits?.documents ?? 200, 200),
-        changes: Math.min(requested?.limits?.changes ?? maxChanges, maxChanges),
-      },
+      limits:
+        kind === "index"
+          ? { documents: 1, changes: 0 }
+          : {
+              documents: Math.min(requested?.limits?.documents ?? 200, 200),
+              changes: Math.min(
+                requested?.limits?.changes ?? maxChanges,
+                maxChanges,
+              ),
+            },
       ...(needsModel(payload)
         ? { model: modelConfig().model ?? undefined }
         : {}),
@@ -576,6 +698,10 @@ export function createRuntimeJobs(
         sourceIds: [...new Set(prepared.sourceIds)].sort(),
       };
     }
+    if (kind === "index") {
+      await indexAdmin(db, ctx);
+      return settings(kind, payload, key, requested);
+    }
     const { state } = await service.view(db, ctx);
     if (kind === "ingest")
       for (const id of payload.sourceIds as string[])
@@ -588,7 +714,7 @@ export function createRuntimeJobs(
   };
   const submitInteractive = async (
     ctx: Context,
-    kind: "ingest" | "query" | "lint",
+    kind: "ingest" | "query" | "lint" | "index",
     raw: unknown,
     key: string,
     requested?: JobInput,
@@ -596,6 +722,11 @@ export function createRuntimeJobs(
     Object.freeze(ctx);
     z.string().min(1).max(200).parse(key);
     const payload = payloadFor(kind, raw);
+    if (
+      kind === "index" &&
+      (ctx.credentialId || ctx.agent || !ctx.authorization?.sessionId)
+    )
+      throw Error("INDEX_SESSION_REQUIRED");
     if (payload.semantic === true && !options.semanticLint)
       throw Error("SEMANTIC_LINT_NOT_CONFIGURED");
     if (
@@ -627,6 +758,7 @@ export function createRuntimeJobs(
       await ctx.authorization?.assertSession(db);
       await authorizeActionDb(db, ctx, actionFor(kind));
       await authorizeActionDb(db, ctx, "knowledge.read");
+      if (kind === "index") await indexAdmin(db, ctx);
       const existing = (
         await db.query(
           "SELECT id,input FROM durable_jobs WHERE workspace_id=$1 AND principal_id=$2 AND idempotency_key=$3",
@@ -634,11 +766,16 @@ export function createRuntimeJobs(
         )
       ).rows[0];
       if (existing) {
+        if (existing.input.kind !== kind) throw Error("IDEMPOTENCY_CONFLICT");
         const replayPayload =
           payload.semantic === true
             ? { ...payload, prepared: existing.input.payload.prepared }
             : kind === "query" && typeof payload.threadId === "string"
-              ? { ...payload, mode: existing.input.payload.mode, prepared: existing.input.payload.prepared }
+              ? {
+                  ...payload,
+                  mode: existing.input.payload.mode,
+                  prepared: existing.input.payload.prepared,
+                }
               : payload;
         if (
           grantPayloadHash(existing.input) !==
@@ -904,11 +1041,22 @@ export function createRuntimeJobs(
   };
   const handler = async (run: JobRun) => {
     if (run.lease.input.kind === "retention") {
-      const payload=payloadFor("retention",run.lease.input.payload,true);
-      const result:Record<string,unknown>={};
-      return {value:result,noModelCalls:true,commit:async(db:PoolClient,ctx:Context) => {
-        Object.assign(result,await retention.executeDurable(db,ctx,payload.policyRevision as number));
-      }};
+      const payload = payloadFor("retention", run.lease.input.payload, true);
+      const result: Record<string, unknown> = {};
+      return {
+        value: result,
+        noModelCalls: true,
+        commit: async (db: PoolClient, ctx: Context) => {
+          Object.assign(
+            result,
+            await retention.executeDurable(
+              db,
+              ctx,
+              payload.policyRevision as number,
+            ),
+          );
+        },
+      };
     }
     const e = execution(run),
       ctx: Context = Object.freeze({
@@ -923,6 +1071,11 @@ export function createRuntimeJobs(
       });
     const input = run.lease.input,
       payload = payloadFor(input.kind, input.payload, true);
+    if (input.kind === "index")
+      return {
+        value: await searchIndex.rebuild(ctx, run.lease.id, e),
+        noModelCalls: true,
+      };
     let value: unknown;
     if (input.kind === "query" && typeof payload.threadId === "string") {
       if (!options.questions) throw Error("QUESTION_JOBS_NOT_CONFIGURED");
@@ -1093,6 +1246,7 @@ export function createRuntimeJobs(
           daily: handler,
           weekly: handler,
           retention: handler,
+          index: handler,
         },
         {
           workerId: `runtime-${randomUUID()}`,
@@ -1103,6 +1257,7 @@ export function createRuntimeJobs(
   );
   return {
     jobs,
+    searchIndex,
     workers,
     worker: workers[0],
     start: () => workers.forEach((w) => w.start()),
@@ -1111,7 +1266,7 @@ export function createRuntimeJobs(
     },
     submitInteractive: (
       ctx: Context,
-      kind: "ingest" | "query" | "lint",
+      kind: "ingest" | "query" | "lint" | "index",
       payload: unknown,
       key: string,
     ) => submitInteractive(ctx, kind, payload, key),
@@ -1125,6 +1280,7 @@ export function createRuntimeJobs(
           input.key,
           input,
         );
+      if (input.kind === "index") throw Error("INDEX_SESSION_REQUIRED");
       if (input.kind === "retention") throw Error("EXECUTION_SCOPE_CONFLICT");
       if (!ctx.credentialId) throw Error("SCOPED_SERVICE_IDENTITY_REQUIRED");
       await authority.refresh({

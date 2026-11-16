@@ -52,3 +52,10 @@
 ## 2026-11-16 추가: 문서 탐색과 개인 목록
 
 EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행본 목차·코드/표 본문 검색 위치 이동, 현재 ACL의 내부 링크 자동완성·삽입 전 재검사·한 단계 백링크와 태그 관계, 기존 서버 즐겨찾기/최근 목록을 제공한다. 관계는 펼칠 때 최대 20건씩 조회하며 숨긴 문서 제목·개수는 반환하지 않는다. [설계·API·한계](design/2026-11-16-document-navigation.md)와 [실제 브라우저 1440/390 캡처](pr-assets/roadmap-navigation/README.md)를 따른다. 포커스 복귀/60초 권한 새로 고침은 실시간 푸시 철회를 뜻하지 않는다. 전체 상태 ACL 계산의 대규모 부하 시험·주제/공간 구독 확대·사내 운영 인수·실제 업무 효과는 남는다. 기존 요구사항의 운영 검증 상태는 변경하지 않는다.
+
+## 2026-11-16 Task1c - native search index operations
+
+- SRH-006/008 and SRH-001/002/004/007 compatibility: migration121 adds actual PostgreSQL body GIN acceleration, committed mutation observations, catalog readiness/actual rebuild outcomes and durable index maintenance in existing workers. Literal Korean/code/wildcard compatibility and canonical current ACL/history filters remain.
+- Authenticated status/rebuild REST and a jobs-console panel require configured platform operator plus current space Admin through a verified human session. No generic Admin credential delegation, caller SQL/index selection, service job or schedule path is added. Failed atomic rebuild keeps prior index/last success; recorded failure and later recovery remain distinct.
+- [Design, North Star invariants, official SQL references and limits](implementation/2026-11-16-search-index.md), [actual1440/390 browser evidence with synthetic UI provenance](pr-assets/search-index/README.md). Large-index/company workload performance, physical corruption detection and production operating acceptance remain unverified.
+- Task1c validation after schema fix: Node24 npm run check passed (src188, Node48, imports16, evaluation41, requirements251, server typecheck, build/static smoke). Isolated PostgreSQL17 recovery/index/erasure/storage68 tests plus runtime/policy/historical-search84 tests passed:7 files/152 tests. New index-native11 and UI3 included; actual1440/390 success/failure browser captures are labeled synthetic UI data. git diff --check clean.

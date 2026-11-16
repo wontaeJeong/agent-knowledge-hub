@@ -161,6 +161,7 @@ export const featureForJobOperation = (operation: string): Feature | null =>
     {
       ingest: "ingest",
       query: "query",
+      index: "query",
       lint: "lint",
       organize: "imports",
       "semantic-lint": "lint",

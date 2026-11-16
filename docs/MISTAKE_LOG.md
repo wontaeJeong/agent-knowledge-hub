@@ -539,3 +539,10 @@
 - 조치: 링크 응답은 최신 커밋된 삽입 콜백을 사용한다. WorkflowPanel은 현재 초안·계정 바인딩을 확인하고 활성 DraftAutosave의 현재 본문에 추가한 동일 값을 React 입력과 자동 저장에 전달한다. 기존 대상/요청 세대·권한 철회 검사를 유지한다.
 - 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
 - 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
+
+### 2026-11-16 - Native index integration and schema qualification
+- Context: Task1c PostgreSQL index maintenance. Initial native RED tests observed no physical index and JOB_KIND_NOT_SUPPORTED. The first worker integration reached FEATURE_DISABLED because index was absent from feature-operation mapping; added the existing query feature mapping.
+- A revocation regression left the shared synthetic editor principal inactive for a later test in the same isolated file DB; explicit fixture setup restores that known synthetic actor. The first HTTP RED attempt failed in fixture setup; after correction, removing the route reproduced404 and restoring it passed actual OIDC/CSRF/worker HTTP checks. No shared base or production schema was modified.
+- Broader release-upgrade regression failed because a private-schema search_path could not resolve gin_trgm_ops already installed in public. Migration now qualifies the actual extension namespace; maintenance resolves/quotes object names from the versions table schema rather than assuming public. The failed upgrade regression then passed with25 tests; native index11, erasure28 and storage graph4 also passed.
+- A prior candidate SQL escape spelling was overcomplicated during implementation; explicit exclamation escape now keeps percent/underscore/backslash behavior literal and is exercised through canonical search.
+- All successful/failed rebuild, checksum/legacy migration, permission and UI outcome claims use actual executed tests. Final full-check/native counts are in handoff/report. Screenshots use labeled synthetic replies, not production data or a performance benchmark.

@@ -1,3 +1,4 @@
+import { indexedContentMatches } from "../search/query";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -174,12 +175,9 @@ export class ScopedSearch {
       const items: Item[] = [];
       // Literal substring search: never execute caller regex, SQL keys or wildcard fragments.
       const matches = new Set(
-        (
-          await db.query(
-            "SELECT page_id,number FROM versions WHERE workspace_id=$1 AND (strpos(lower(data->>'content'),lower($2))>0 OR $2='')",
-            [ctx.workspaceId, filters.query],
-          )
-        ).rows.map((r) => `${r.page_id}:${r.number}`),
+        (await indexedContentMatches(db, ctx.workspaceId, filters.query)).map(
+          (r) => `${r.page_id}:${r.number}`,
+        ),
       );
       for (const page of state.pages) {
         try {

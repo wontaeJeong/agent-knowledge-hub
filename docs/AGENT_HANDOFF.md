@@ -509,3 +509,10 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 
 - `LinkCompletion`의 지연 권한 응답이 최신 삽입 콜백을 사용하고, `WorkflowPanel`이 현재 초안/계정 바인딩과 활성 자동 저장 편집기의 최신 본문을 사용해 대기 중 입력을 보존하도록 수정했다. EDT-007과 초안 저장 경계에 해당한다. 기존 요청 세대/대상 철회 검사는 유지한다.
 - `src/operational/navigation-draft.test.tsx`에서 과거 콜백 호출·실제 편집창의 입력 유실 RED를 확인한 뒤 수정했다. React 입력과 실제 DraftAutosave→OperationalApi의 합성 저장소에 동일한 최신 본문·링크가 남는 통합 회귀를 포함한다. 전체 `npm run check`(프런트180)와 native 인증 HTTP 탐색·CSRF·원본 철회 회귀를 재통과했다. 시각 변경은 없어 기존 캡처를 유지한다.
+
+## 2026-11-16 Task1c - native search index operations
+
+- SRH-006/008 and SRH-001/002/004/007 compatibility: migration121 adds actual PostgreSQL body GIN acceleration, committed mutation observations, catalog readiness/actual rebuild outcomes and durable index maintenance in existing workers. Literal Korean/code/wildcard compatibility and canonical current ACL/history filters remain.
+- Authenticated status/rebuild REST and a jobs-console panel require configured platform operator plus current space Admin through a verified human session. No generic Admin credential delegation, caller SQL/index selection, service job or schedule path is added. Failed atomic rebuild keeps prior index/last success; recorded failure and later recovery remain distinct.
+- [Design, North Star invariants, official SQL references and limits](implementation/2026-11-16-search-index.md), [actual1440/390 browser evidence with synthetic UI provenance](pr-assets/search-index/README.md). Large-index/company workload performance, physical corruption detection and production operating acceptance remain unverified.
+- Task1c validation after schema fix: Node24 npm run check passed (src188, Node48, imports16, evaluation41, requirements251, server typecheck, build/static smoke). Isolated PostgreSQL17 recovery/index/erasure/storage68 tests plus runtime/policy/historical-search84 tests passed:7 files/152 tests. New index-native11 and UI3 included; actual1440/390 success/failure browser captures are labeled synthetic UI data. git diff --check clean.
