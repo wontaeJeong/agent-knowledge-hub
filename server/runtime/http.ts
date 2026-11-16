@@ -827,6 +827,7 @@ export function createRuntimeHandler(options: {
         await handleAgentRoute(
           { method: req.method ?? "GET", path, body, ctx, send },
           agents,
+          options.jobs,
         )
       )
         return;

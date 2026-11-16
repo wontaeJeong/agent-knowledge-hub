@@ -3,6 +3,7 @@ import os from "node:os";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { selectedSource, knowledgeOperation } from "./knowledge.mjs";
 import { openClient } from "./client.mjs";
 import { safeError, MAX_BYTES } from "./protocol.mjs";
 
@@ -37,6 +38,7 @@ try {
       path.join(os.homedir(), ".agent-knowledge-hub", "wiki"),
     url: process.env.AGENT_KNOWLEDGE_HUB_WIKI_URL,
     token: process.env.AGENT_KNOWLEDGE_HUB_WIKI_TOKEN,
+    sourceRoot: process.env.AGENT_KNOWLEDGE_HUB_SOURCE_ROOT,
   });
   server = new McpServer(
     { name: "agent-knowledge-hub-local", version: "0.1.0" },
@@ -131,8 +133,57 @@ try {
   tool(
     "wiki_propose_batch",
     "선택한 동기화 개인 revision을 하나의 검토 제안으로 제출합니다. 승인이나 발행은 하지 않습니다.",
-    {id,targetSpaceId:id,selections:z.array(z.object({pageId:id,baseVersion:z.number().int().positive(),personalVersion:z.number().int().positive()}).strict()).min(1).max(20)},
-    (a) => client.proposeBatch(a), false,
+    {
+      id,
+      targetSpaceId: id,
+      selections: z
+        .array(
+          z
+            .object({
+              pageId: id,
+              baseVersion: z.number().int().positive(),
+              personalVersion: z.number().int().positive(),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(20),
+    },
+    (a) => client.proposeBatch(a),
+    false,
+  );
+  tool(
+    "wiki_register_source",
+    "Register an explicitly selected file under the approved root as an unverified source. No publication.",
+    { selection: selectedSource },
+    (a) => client.registerSource(a.selection),
+    false,
+  );
+  tool(
+    "wiki_knowledge",
+    "Admit an explicit Ingest, Query, Lint job or a derived-answer review candidate. Inspect the actual result separately.",
+    { operation: knowledgeOperation },
+    (a) => client.knowledge(a.operation),
+    false,
+  );
+  tool(
+    "wiki_knowledge_resume",
+    "Resume the saved selection with the same idempotency key.",
+    { id },
+    (a) => client.resumeKnowledge(a.id),
+    false,
+  );
+  tool(
+    "wiki_knowledge_poll",
+    "Read actual job state and review references under current credentials and access.",
+    { id },
+    (a) => client.pollKnowledge(a.id),
+  );
+  tool(
+    "wiki_knowledge_status",
+    "Inspect saved references, unknown outcomes and errors. This is not proof of current authorization or execution.",
+    {},
+    () => client.knowledgeStatus(),
   );
   process.stdin.once("end", () =>
     shutdown().catch(() => {

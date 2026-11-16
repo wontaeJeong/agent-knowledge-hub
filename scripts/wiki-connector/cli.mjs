@@ -12,6 +12,7 @@ const environment = () => ({
     path.join(os.homedir(), ".agent-knowledge-hub", "wiki"),
   url: process.env.AGENT_KNOWLEDGE_HUB_WIKI_URL,
   token: process.env.AGENT_KNOWLEDGE_HUB_WIKI_TOKEN,
+  sourceRoot: process.env.AGENT_KNOWLEDGE_HUB_SOURCE_ROOT,
 });
 try {
   if (command === "serve") {
@@ -70,6 +71,11 @@ try {
     console.log(JSON.stringify(value, null, 2));
   } else if (
     [
+      "source-register",
+      "knowledge",
+      "knowledge-resume",
+      "knowledge-poll",
+      "knowledge-status",
       "status",
       "sync",
       "read",
@@ -85,7 +91,21 @@ try {
     const client = await openClient(environment());
     try {
       let value;
-      if (command === "write")
+      if (command === "source-register")
+        value = await client.registerSource(
+          JSON.parse(await readFile(args[0], "utf8")),
+        );
+      else if (command === "knowledge")
+        value = await client.knowledge(
+          JSON.parse(await readFile(args[0], "utf8")),
+        );
+      else if (command === "knowledge-resume")
+        value = await client.resumeKnowledge(args[0]);
+      else if (command === "knowledge-poll")
+        value = await client.pollKnowledge(args[0]);
+      else if (command === "knowledge-status")
+        value = await client.knowledgeStatus();
+      else if (command === "write")
         value = await client.write(JSON.parse(await readFile(args[0], "utf8")));
       else if (command === "read") value = await client.read(args[0], args[1]);
       else if (command === "search") value = await client.search(args[0] ?? "");
@@ -102,7 +122,10 @@ try {
         value = await client.propose(
           JSON.parse(await readFile(args[0], "utf8")),
         );
-      else if (command === "propose-batch") value = await client.proposeBatch(JSON.parse(await readFile(args[0], "utf8")));
+      else if (command === "propose-batch")
+        value = await client.proposeBatch(
+          JSON.parse(await readFile(args[0], "utf8")),
+        );
       else value = await client[command]();
       console.log(JSON.stringify(value, null, 2));
     } finally {
@@ -110,7 +133,7 @@ try {
     }
   } else {
     console.log(
-      "wiki: serve <synthetic-config.json> | status | sync | read <id> [space] | search <query> | write <page.json> | conflicts | prepare-merge <id> <text-file> | confirm-merge <id> <hash> --human-reviewed | propose <proposal.json> | propose-batch <batch.json> | show-proposal/approve/publish <id>",
+      "wiki: source-register <selection.json> | knowledge <operation.json> | knowledge-resume/poll <id> | knowledge-status | serve <synthetic-config.json> | status | sync | read <id> [space] | search <query> | write <page.json> | conflicts | prepare-merge <id> <text-file> | confirm-merge <id> <hash> --human-reviewed | propose <proposal.json> | propose-batch <batch.json> | show-proposal/approve/publish <id>",
     );
     if (command) process.exitCode = 1;
   }

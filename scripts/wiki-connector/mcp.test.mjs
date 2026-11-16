@@ -66,6 +66,9 @@ test(
       page: { ...page, content: "written by an agent" },
     });
     await call("wiki_sync");
+    const unsupportedKnowledge=await client.callTool({name:"wiki_knowledge",arguments:{operation:{id:"unsupported-knowledge",kind:"lint"}}});
+    assert.equal(unsupportedKnowledge.isError,true);
+    assert.equal(unsupportedKnowledge.content[0].text,"FEATURE_UNAVAILABLE");
     const unsupported = await client.callTool({name:"wiki_propose_batch",arguments:{id:"batch",targetSpaceId:"team-a",selections:[{pageId:"guide",baseVersion:1,personalVersion:1}]}});
     assert.equal(unsupported.isError,true);
     assert.equal(unsupported.content[0].text,"FEATURE_UNAVAILABLE");
