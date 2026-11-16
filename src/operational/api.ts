@@ -188,6 +188,9 @@ export class OperationalApi {
         MODEL_OUTPUT_LIMIT:
           "모델 출력이 토큰 한도로 잘려 반영하지 않았습니다. 입력 규모와 추론 모드 설정을 확인하세요.",
         MODEL_CONFIGURATION: "서버의 모델 설정이 올바르지 않습니다.",
+        SEMANTIC_SEARCH_NOT_CONFIGURED: "의미 검색 모델이나 지속 작업이 구성되지 않았습니다.",
+        SEMANTIC_CORPUS_LIMIT: "의미 검색 후보 한도를 초과했습니다. 유형·태그·기간·환경 필터로 범위를 줄이세요.",
+        MODEL_CONTEXT_LIMIT: "모델 입력 한도를 초과했습니다. 검색 범위를 줄이세요.",
         UNAUTHENTICATED: "세션이 만료되었습니다. 다시 로그인하세요.",
         FORBIDDEN: "이 작업 권한이 없습니다.",
         OFFICIAL_REVIEW_REQUIRED:

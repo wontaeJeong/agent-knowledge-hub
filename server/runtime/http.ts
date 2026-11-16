@@ -68,6 +68,7 @@ import {
   verifyDevice,
   decideDevice,
 } from "../agent-credentials";
+import { semanticSearchRequest } from "../questions/semantic";
 import { QuestionsService } from "../questions/service";
 import { handleQuestionRoute } from "../questions/http";
 import {
@@ -437,6 +438,19 @@ export function createRuntimeHandler(options: {
           return;
         return send(404, { code: "NOT_FOUND", requestId });
       }
+      if (path === "/api/v1/search/semantic" && req.method === "POST") {
+        if (agent) throw Error("FORBIDDEN");
+        if (!options.jobs) throw Error("SEMANTIC_SEARCH_NOT_CONFIGURED");
+        const data = semanticSearchRequest.parse(body);
+        const receipt = await options.jobs.submitInteractive(
+          ctx,
+          "query",
+          { semanticSearch: data.filters, mode: "model" },
+          data.idempotency_key,
+        );
+        await recordJobTrace(options.pool, ctx, requestId, "query", receipt.id);
+        return send(202, { ...receipt, requestId });
+      }
       if (path.startsWith("/api/v1/questions/")) {
         // Neither credential type has a verified ceiling for private threads yet.
         if (credential || agent) throw Error("FORBIDDEN");
@@ -796,6 +810,15 @@ export function createRuntimeHandler(options: {
               options.refinement!.importAgentSignals(ctx, { outcomeId: id })
           : undefined,
         questions.searcher,
+        options.jobs
+          ? (ctx, filters, key) =>
+              options.jobs!.submitInteractive(
+                ctx,
+                "query",
+                { semanticSearch: filters, mode: "model" },
+                key,
+              )
+          : undefined,
       );
       if (path === "/api/v1/agent/mcp" && req.method === "POST")
         return await handleAgentMcp(req, res, body, agents, ctx, options.jobs);
@@ -827,7 +850,15 @@ export function createRuntimeHandler(options: {
       )
         return;
       if (path === "/mcp" && req.method === "POST")
-        return await handleMcp(req, res, body, service, ctx, options.jobs, questions.searcher);
+        return await handleMcp(
+          req,
+          res,
+          body,
+          service,
+          ctx,
+          options.jobs,
+          questions.searcher,
+        );
       if (req.method === "GET") {
         const storedAnswer = path.match(/^\/api\/v1\/answers\/([^/]+)$/);
         if (storedAnswer)
