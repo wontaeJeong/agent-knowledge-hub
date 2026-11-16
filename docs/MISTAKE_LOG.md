@@ -650,6 +650,11 @@
 - 조치: 양쪽 기록을 보존하고 현재 me 처리 뒤에 discovery GET을 연결했다. 검증은 후속 실행 결과에 기록한다.
 - 상태: 통합 검증 중.
 
+### 2026-11-16 - Concurrent valid-session authentication deadlock
+- Initial screenshot401 was hypothesized to be pool starvation. SQL instrumentation disproved it:40P01, process2579 holding a session update waiting directory7203101; process2575 holding directory gate waiting its transaction/session row. Larger pool was not accepted as a fix.
+- Reproduced with two actual auth/protected transactions and observed pg_blocking_pids. Central gate acquisition now orders directory serialization before row locks across shared transaction entrypoints; direct OperationsService shared SQL and callback/switch-space were covered.
+- Transient backend faults preserve session while denying the request503. Fixture's first second-test attempt reused a global session hash and failed unique-key; changed synthetic hash to workspace-specific. No production session was affected.
+- The central gate lengthens global serialized sections; initialApp1/DB1 behavior is validated, throughput improvement is not claimed.
 ### 2026-11-16 — 일반 편입의 후보 누락과 검토 이유 환류 공백
 - 맥락/관련 PR: remaining-roadmap Task 5. 기존 일반 모델 Ingest는 답변 재편입과 달리 반환 candidates를 버렸고 반려 사유/발행된 사람 편집 이유를 다음 입력에 전달하지 않았다. 원본 정정도 영향 주장 재검토를 생성하지 않았다.
 - 사실과 영향: 새 실제 PostgreSQL 회귀에서 후보 부재, 동일 반려안 재생성, 정정 요청 부재가 RED였고 사람의 편집/보호 이유 부재도 확인했다. 코드 경로 공백이며 실제 사내 정보 유출/운영 데이터 영향은 확인되지 않았다.
@@ -694,6 +699,9 @@
 - 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
 - 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
 
+### 2026-11-16 - Auth lock-order CI integration finding
+- Full CI found discovery admission now waited on the new shared directory serialization before trying its nonblocking per-space gate, admitting a second same-space report after the first completed. Moved the identifier-only nonblocking discovery gate before the common mutation gate, without taking workspace/session/identity rows first.
+- The previous cross-space test assumed protected transactions ran concurrently. The intentionally shared directory serialization invalidates that performance assumption; its functional assertion now directly probes the waiting workspace row with NOWAIT. Global serialization is documented as a throughput limit, not a performance improvement. Full CI must pass again.
 ### 2026-11-17 - Lineage PR base mismatch
 - PR52 originally targeted main while other featurePRs targeted the approved integration branch. Its exact reviewed/CI-green head was locally integrated0c84ee8 before detecting the mismatch, so a later base update was rejected422 for no new commits. Added a verification note and retargeted before its explicit PR merge; final CI still required. No source changes were discarded or falsely marked merged.
 ### 2026-11-16 - Presentation and navigation renderer overlap
@@ -766,3 +774,12 @@
 - 조치: 요청된 통합 기준 `7791a75`를 병합하며 semantic query 및 후보 prompt와 양쪽 문서를 보존했다. Weekly는 공통 후보 스키마와 exact source binder를 사용하고 후보·이유를 승인 해시가 있는 canonical 배치에 보존한다. strict unknown 필드를 무작정 버리거나 prompt 계약을 축소하지 않았다. 정확한 고정 원본 텍스트·조건·예외·기간·불확실성·미검증 상태·현재 권한·producer·예산을 유지한다.
 - 검증: 교정 후 실제 HTTP 모델→후보→독립 승인/원자 발행→버전2 주장/정확한 근거, no-change, 잘못된 인용·범위·철회, 승인 후 후보/이유 해시 변조와 발행 전 철회를 포함한20/20 회귀가 통과했다. 최종 전체 검사와 넓은 native 회귀 결과는 PR/후속 기록을 따른다. 독립 재리뷰·최종 CI·사내 운영 수용과 의미 품질은 별도다.
 - Task7 검토 A 교정 검증 완료: 통합 기준과 자체 수정 후 전체 `npm run check`(source215/Node48/import16/evaluation41/251요구사항/types/build/smoke), jobs·정련·lineage15파일224시험이 모두 exit0이었다. 실제로 존재하지만 실행 서비스에 읽기 권한이 없는 동일 공간 원본의 텍스트가 모델 입력에 포함되지 않으며 후보가 거부되는 강화 시험까지 유지관리20/20을 재통과했다. 독립 재리뷰·원격 최종 CI는 미완료로 남긴다.
+### 2026-11-17 - Auth CI inherited cumulative navigation budget
+- Final auth620c505 CI failed only the existing34-request navigation HTTP test at its default5000ms; every other native file passed. Adopted the exact independently reviewed f08058f test file (same assertions, single case20s) and reran auth/discovery/navigation. No product timeout change. Final auth CI must pass again.
+
+### 2026-11-17 — 통합 검증의 호스트/DB 시계 차이와 파일 필터
+
+- PR #59에 C1 main `a1dba1f`, Task7 #60 및 인증 #54를 통합했다. 최초 native 실행은 추정한 두 파일 경로가 존재하지 않아 INVALID_SERVER_TEST_FILTER로 종료됐고 실제 파일 경로로 바로잡았다.
+- 호스트 Node의 discovery 15시험 중 4개(별도 재실행 3개)가 최근 answer를 집계하지 못했다. 읽기 전용 측정에서 호스트 `16:30:58.176Z`, DB `16:30:58.123Z`, 응답 직후 호스트 `.184Z`로 약61ms 차이가 확인됐다. 서버의 JS answer 시각이 DB report cutoff보다 미래가 되는 환경 경계다. 실패를 성공 처리하거나 제품/시험 assertion을 변경하지 않았다.
+- 동일 소스의 별도 임시 복사본을 Node24.22.0 Alpine 컨테이너에 복사하고 소유한 PG17 테스트 컨테이너의 네트워크/시계에서 실행했다. lockfile npm ci 후 discovery15/auth-lock2/navigation1 전부 통과했다. 호스트와 컨테이너 간 시계 차이를 제거한 검증이며 임의의 다중 호스트 clock skew 대응을 증명하지 않는다. 원격 필수 CI와 실제 운영 시계 동기화 인수는 별도다.
+- 첫 bind mount는 Docker 데몬 호스트에 로컬 경로가 없어 실행 전 거부됐다. 기존 컨테이너를 변경하지 않고 새 소유 컨테이너에 docker cp로 복사했다. 실제 DB 시험은 파일별 UUID 생성/정리 runner를 사용했고 공유 base DB에는 자료를 쓰지 않았다.

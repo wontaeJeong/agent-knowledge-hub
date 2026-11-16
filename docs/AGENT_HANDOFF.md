@@ -600,6 +600,10 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - PR30을 main5218828과 통합했다. 원래 인계·실수 기록을 보존하고 discovery GET과 최신 인증 me 경로를 함께 유지했다.
 - Node24 npm run check 통과. PostgreSQL17 격리 DB discovery/runtime/access 3파일37개 통과. 실제 Chromium1440/390 합성 명시 미리보기와 document overflow 없음 확인, docs/pr-assets/discovery에 캡처. 실제 회사 품질/대규모/운영 인수는 미검증이다.
 
+## 2026-11-16 - Authentication transaction lock order
+- Synthetic actualbrowser concurrent reads exposed SQLSTATE40P01 between directory gate7203101 and a refreshed runtime_session row. The mutation gate now orders shared directory serialization before workspace/session/identity rows. Callback/switch-space join the common gate and OperationsService shared mode uses the same helper. Exclusive mutation operations retain their existing exclusion.
+- SQL deadlock/serialization/lock/backend availability failures become AUTH_BACKEND_UNAVAILABLE503 and do not discard a valid session. Current-identity/session/ACL checks remain required, and actual authentication failures still revoke the session.
+- Native deterministic blocked-backend regression fails before the fix and passes after it, including preserved session after transient40P01. Node24 npm run check and11nativefiles pass. Actual OIDC browser concurrent reads passed with pool6, 1440/390 Chromium, synthetic Task5 lineage flow, in a separate stacked verification worktree (9de1; local fc46344). Four screenshots and native/browser log are retained in /private/tmp/akh-auth-pool6-browser and /private/tmp/akh-auth-pool6-browser.log. This is not a scalability/SLO claim.
 ### 2026-11-16 — Task 5 일반 편입 주장 계보·검토 피드백
 - 요구사항: KNO-002~006/013/014. 일반 편입 후보를 정확한 원본 위치/fingerprint와 조건·기간·예외에 결합하여 배치에 보관하고, 검토 발행 트랜잭션에서 주장/근거/상충 요청을 저장한다. 반려·사람의 발행 수정·보호 이유는 다음 모델 입력에 고정하며 같은 원본·같은 제안 반복은 차단한다. 원본 정정은 불변 원본/주장을 보존하면서 영향을 받은 발행 버전의 재검토와 미발행 승인 무효화에 연결한다.
 - 변경 파일: `server/runtime/{knowledge,ingest-lineage,model,http,errors}.ts`, `server/publication.ts`, `server/refinement/service.ts`, `server/workflows/service.ts`, `src/operational/{App,review-rejection,refinement}.tsx`, 관련 CSS/회귀. 기존 저장소를 사용하며 migration 추가 없음.
@@ -683,3 +687,9 @@ Final feature validation (2026-11-17): `npm run check` passed after ancestry har
 - 실제 loopback HTTP 모델의 유효/빈 후보 응답이 실패하는 RED 및 invalid quote/source/target가 공유 binder에 이르지 못하는 RED를 확인했다. 수정 뒤 신규 후보→검토/발행→버전2 주장/정확한 원본 근거, empty no-change, 전송 중 철회, 후보/이유 승인 해시 변조, 발행 전 원본 철회 원자성까지 maintenance runtime 20/20 통과했다. 통합 기준의 잠금 파일과 일치하는 의존성은 기존 symlink만 해제한 뒤 이 worktree에서 `npm ci`로 설치했고 다른 의존성 폴더를 변경하지 않았다.
 - 최종 전체 검사와 jobs/refinement/lineage 전체 회귀 결과, 새로운 head 및 독립 재검토 상태는 아래 후속 기록·PR60을 따른다. UI blob은 기존 캡처와 같으며 이번 교정은 서버 계약이다. 실제 의미 품질·독립 업무 증거·사내 운영 인수는 미검증이다.
 - PR60 검토 A 최종 로컬 검증: 통합 `7791a75`와 교정 코드의 Node24 `npm run check` 통과(source215, Node48, imports16, evaluation41, 요구사항251, server types, build/smoke). 기존 presentation의 큰 청크 경고는 남으며 빌드는 성공했다. `scripts/test-server.mjs server/jobs server/refinement server/runtime/lineage.test.ts server/runtime/lineage-feedback.test.ts server/runtime/lineage-http.test.ts`는15파일224시험·exit0. 실제 접근 불가 원본을 추가해 모델 입력에서 원문 sentinel이 제외되는 강화 회귀까지 최종 maintenance20/20 재통과. UI 소스 blob은 `a024b69d757560caa02a43a2a2d19a2d0b53855d`로 캡처와 동일하다. 독립 재검토·최종 원격 CI는 별도다.
+
+## 2026-11-17 첫 완료 로드맵 묶음 main 통합
+
+- 완료된 #45/46/47/48/50/51/52/53/56/60/62와 인증 수정 #54를 PR #59에 통합한다. 별도 편의기능 C1 main `a1dba1f`도 보존했다. C1 충돌은 App의 ReviewRejection 및 convenience imports, workflows의 BulkEditor 및 NavigationProtection imports를 모두 유지했으며 양쪽 인계/실수 기록을 보존했다.
+- C1 통합 후 및 인증 통합 후 Node24.22.2 전체 npm run check가 각각 통과했다. 주간 모델/알림/계보 관련 통합 native도 통과했다. 인증·수집·navigation의 원본 시험은 호스트/DB 시계 차이를 관찰한 뒤 동일 시계 컨테이너에서18건 전부 통과했다. 실패와 환경 제약은 MISTAKE_LOG에 기록했다. 최종 원격8개 필수 검사를 확인한 뒤 main에 머지한다.
+- 남은 Task1c/6/10/11/12/13/14/15/16/17/18/19는 각각 별도 PR로 계속 진행한다. 1노드/App1/DB1 최소 리소스 기준, 전체251요구사항, 현재 ACL·원본 상한·독립 검토/발행 불변식을 유지하며 의미 품질·사내 SSO·운영 인수를 주장하지 않는다.
