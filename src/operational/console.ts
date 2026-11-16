@@ -43,6 +43,7 @@ export const consoleGroups = [
   {
     label: "지식 순환",
     items: [
+      { id: "discovery", label: "지식 탐색 · 트렌드" },
       { id: "knowledge", label: "발행 지식" },
       { id: "versions", label: "버전 비교 · 복원" },
       { id: "workflows", label: "편집 · 협업" },
