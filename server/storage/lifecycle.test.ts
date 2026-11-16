@@ -656,3 +656,143 @@ it("implements authenticated logical attachment head replacement CAS and immutab
   );
   await expect(s.download(f.reader, first.id)).rejects.toThrow("NOT_FOUND");
 });
+it("validates raster images before storing, previews immutable pixels, and rechecks current source ACL", async () => {
+  const sharp = (await import("sharp")).default;
+  const image = await sharp({
+    create: { width: 3, height: 2, channels: 3, background: "#78469e" },
+  })
+    .png()
+    .toBuffer();
+  const input = {
+    parent: { kind: "source" as const, id: source.id },
+    filename: "diagram.png",
+    mime: "image/png",
+  };
+  const first = await s.upload(
+    f.editor,
+    input,
+    (async function* () {
+      yield image;
+    })(),
+  );
+  expect(first.scanState).toBe("clean");
+  const preview = await s.previewAttachment(f.reader, first.slotId, 1);
+  expect(preview).toMatchObject({
+    render: "raster-image",
+    width: 3,
+    height: 2,
+    mime: "image/png",
+  });
+  expect(
+    Buffer.from((preview as unknown as { base64: string }).base64, "base64"),
+  ).toEqual(image);
+  const second = await s.upload(
+    f.editor,
+    {
+      ...input,
+      slotId: first.slotId,
+      expectedHead: first.id,
+      expectedRevision: 1,
+    },
+    (async function* () {
+      yield image;
+    })(),
+  );
+  expect(second.revision).toBe(2);
+  await expect(
+    s.upload(
+      f.editor,
+      {
+        ...input,
+        slotId: first.slotId,
+        expectedHead: first.id,
+        expectedRevision: 1,
+      },
+      (async function* () {
+        yield image;
+      })(),
+    ),
+  ).rejects.toThrow("STALE_VERSION");
+  const linked = await s.proposeAttachmentLink(f.editor, first.slotId, {
+    baseVersion: 1,
+    expectedHead: second.id,
+    reason: "이미지 첨부",
+    pageId: page.id,
+  });
+  const batch = (
+    await f.pool.query(
+      "SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, linked.id],
+    )
+  ).rows[0].data;
+  expect(batch.updates[0].content).toContain(
+    `![diagram.png](/api/v1/storage/blobs/${second.id})`,
+  );
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id=$2 AND principal_id='reader'",
+    [f.workspaceId, source.id],
+  );
+  await expect(s.previewAttachment(f.reader, first.slotId, 1)).rejects.toThrow(
+    "NOT_FOUND",
+  );
+  await s.withdrawAttachment(f.editor, first.slotId, {
+    expectedRevision: 2,
+    reason: "철회",
+  });
+  await expect(s.previewAttachment(f.editor, first.slotId, 1)).rejects.toThrow(
+    "NOT_FOUND",
+  );
+});
+it("rejects corrupt, mismatched, oversized-pixel and executable image uploads without metadata", async () => {
+  const sharp = (await import("sharp")).default;
+  const png = await sharp({
+    create: { width: 2, height: 2, channels: 3, background: "white" },
+  })
+    .png()
+    .toBuffer();
+  const huge = await sharp({
+    create: { width: 4097, height: 1, channels: 3, background: "white" },
+  })
+    .png()
+    .toBuffer();
+  for (const [mime, filename, bytes] of [
+    ["image/jpeg", "x.jpg", png],
+    ["image/png", "x.png", png.subarray(0, 32)],
+    ["image/png", "x.png", huge],
+    ["image/svg+xml", "x.svg", Buffer.from('<svg onload="alert(1)"/>')],
+  ] as const) {
+    await expect(
+      s.upload(
+        f.editor,
+        { parent: { kind: "page", id: page.id }, mime, filename },
+        (async function* () {
+          yield bytes;
+        })(),
+      ),
+    ).rejects.toThrow();
+  }
+  expect((await s.list(f.reader, { kind: "page", id: page.id })).total).toBe(0);
+});
+it("keeps Markdown table, code, internal link, math and diagram syntax through reviewed export/import", async () => {
+  const markdown =
+    "| Key | Value |\n| --- | --- |\n| retry | 2 |\n\n```ts\nconst x = 2;\n```\n\n[문서](/?app=1&document=topic)\n\n$x^2$\n\n```mermaid\nflowchart LR\n A[원본] --> B[검토]\n```";
+  await f.pool.query(
+    "UPDATE versions SET data=jsonb_set(data,'{content}',to_jsonb($3::text)) WHERE workspace_id=$1 AND page_id=$2 AND number=1",
+    [f.workspaceId, page.id, markdown],
+  );
+  const exported = await s.export(f.editor, { pageIds: [page.id] });
+  expect(exported.pages[0].versions[0].content).toBe(markdown);
+  const imported = await s.import(f.editor, exported);
+  const proposal = await s.proposeImport(f.editor, imported.id, {
+    baseVersions: { [page.id]: 1 },
+    reason: "Markdown 왕복 검토",
+  });
+  const batch = (
+    await f.pool.query(
+      "SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, proposal.id],
+    )
+  ).rows[0].data;
+  expect(batch.updates[0].content).toBe(markdown);
+  expect(batch.status).toBe("pending");
+});

@@ -1,6 +1,7 @@
 import { BulkEditor } from "./BulkEditor";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
+import { Markdown, type ImagePreview, presentationFormats } from "../ui/Markdown";
 import {
   DocumentBody,
   PersonalDocuments,
@@ -334,6 +335,7 @@ export function WorkflowPanel({
   spaceId?: string;
   initialPageId?: string;
 }) {
+  const readAttachment = useCallback((blobId: string) => api.get<ImagePreview>(`/storage/blobs/${blobId}/preview`), [api]);
   const [selected, setSelected] = useState(initialPageId ?? "");
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -879,7 +881,9 @@ export function WorkflowPanel({
             <DocumentBody
               key={`${selected}:${latest.number}`}
               content={latest.content}
+              readAttachment={readAttachment}
             />
+            <details><summary>지원하는 문서 형식</summary><p>{presentationFormats}</p></details>
           </details>
           {spaceId && (
             <RelatedDocuments

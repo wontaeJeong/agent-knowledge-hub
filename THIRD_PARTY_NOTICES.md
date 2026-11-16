@@ -10,6 +10,8 @@ Direct package metadata at the packaged lockfile versions. Preserve original not
 | lucide-react | 1.61.0 | ISC |
 | marked | 18.1.2 | MIT |
 | parse5 | 8.0.1 | MIT |
+| katex | 0.19.1 | MIT |
+| mermaid | 12.3.0 | MIT |
 | pg | 8.23.1 | MIT |
 | openid-client | 6.8.4 | MIT |
 | tsx | 4.20.6 | MIT |

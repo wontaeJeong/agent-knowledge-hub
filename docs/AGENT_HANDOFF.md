@@ -1,5 +1,12 @@
 # 에이전트 인계
 
+## 2026-11-16 문서 표시·이미지 첨부 — 로드맵 Task 3
+
+- 독립 리뷰의 Important 2건을 회귀로 재현해 수정했다. Sharp가 APNG의 pages를 생략하므로 실제 PNG 청크 경계를 검사해 acTL/fcTL/fdAT·손상/종료 뒤 데이터를 거부한다. 유효한 2프레임 합성 APNG는 실제 런타임에서415로 거부되고 blob 메타데이터가 생기지 않는다. 수식/다이어그램 세대와 별개인 이미지 요청 토큰은 새 선택·닫기·컨텍스트/언마운트에서 갱신하며 늦은 성공이 최신 권한 거부를 덮지 못한다. 대기 중 닫기도 지원한다. 이미지 object URL은 생성하지 않는다. 새 codec/React deferred/native HTTP 회귀 및 최종 전체 검사 결과는 화면 증거 README를 따른다.
+- EDT-001/008/009. `src/ui/Markdown.tsx`와 운영 문서·질문·고정 인용 및 기존 데모의 공통 읽기 경로를 연결했다. 원본 Markdown 표/코드/내부 링크를 다시 직렬화하지 않고, 로컬 KaTeX MathML과 엄격한 Mermaid flowchart/sequenceDiagram을 표시한다. 외부 이미지·HTML 실행·다이어그램 설정/콜백은 차단한다.
+- `server/storage/content.ts`, `service.ts`, `attachments.ts`, `file-read.ts`, `routes.ts`와 `src/operational/storage.tsx`에서 PNG/JPEG/WebP 업로드·이미지 미리보기·불변 버전 교체와 검토 연결을 지원한다. 5 MiB/400만 화소/4096px/정지 이미지 제한, 전체 픽셀 디코딩, 현재 ACL·원본 상한·고정 공유·디코딩 뒤 재검사·철회를 적용한다. 기존 CAS·스냅샷·보존/물리 삭제 게이트를 재사용하며 공개 파일 저장소는 없다.
+- 지원 형식·API·원본/발행/평가 경계는 [문서 표시 계약](DOCUMENT_PRESENTATION.md). 이미지 구조 검사는 바이러스/근거 검증이 아니며 PDF 변환·추출·미리보기, SVG/GIF와 임의 Mermaid 확장은 미지원이다. 지식/에이전트 성과는 측정하지 않았다.
+- 검증: Node24 전체 `npm run check`, 파일별 격리 PostgreSQL17의 storage/erasure 회귀 및 OIDC 세션·CSRF를 지나는 이미지 HTTP 검사를 실행했다. 실제 Chromium/React/서버/합성 OIDC·DB의 1440/390 문서·첨부 캡처와 업로드→미리보기→교체→원본 ACL 철회 후 차단, 외부 요청0/브라우저 오류0 근거는 [화면 증거](pr-assets/roadmap-presentation/README.md). 최종 실행 수와 PR 검토 상태는 해당 증거에 기록한다. 회사 SSO/실제 자료 운영 인수는 수행하지 않았다.
 ## 2026-11-16 일괄 결과의 호스트 재조회 경계 수정
 
 - PR #45 독립 검토에서 apply 직후 `onChanged` → App.load의 `dataReady=false` → WorkflowPanel unmount로 결과/복구 토큰이 사라지는 경계를 확인했다. 적용 응답 뒤 자동 부모 갱신을 제거하고, 결과·실패 대상 선택·같은 토큰 재확인을 보존한 뒤 사용자가 명시적으로 목록을 새로고침하게 했다. 명시적 갱신은 결과 화면을 닫는다.
@@ -610,3 +617,11 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - 부모 작업이 전달한 원격 CI `43890549626`의 PostgreSQL 119파일 실행에서 `navigation-http.test.ts` 단일 사례만 기본 5000ms를 초과했다. assertion/product 오류는 보고되지 않았으며 다른 CI 작업은 통과했다. 해당 사례는 fixture migration/bootstrap과 OIDC/current-ACL 검증을 포함한 native HTTP 요청 34건을 순차 실행한다. 이전 로컬 파일 시간도 5.20초로 기본 제한에 근접했다.
 - 제품·전역 테스트·CI 설정을 변경하지 않고 해당 통합 사례에만 20초 상한을 명시했다. `server/questions/runtime-http.test.ts`의 20초/30초 native HTTP 예산을 따르며 auth/CSRF·상대/절대/network 링크·Host·원본 철회 검사를 그대로 유지했다. sleep/retry는 추가하지 않았다.
 - 전용 native PostgreSQL의 해당 파일 1시험 통과(파일 5.46초), `npm run check:server` 통과. 테스트만 수정한 작은 변경이므로 전체 광역 suite는 반복하지 않았다. 정확한 명령/출력은 기존 task report에 추가했다. 최종 원격 CI 확인은 부모 작업에서 수행한다.
+### 2026-11-16 — 렌더링 변경과 링크 계보 수정의 최종 통합
+
+문서 표시 PR #53이 반영된 통합175ed7a를 보존해 링크 계보 수정과 합쳤다. source 충돌은 없었고 HANDOFF·라이선스 고지의 양쪽 항목을 함께 보존했다. 새 KaTeX/Mermaid 의존성은 이 작업 트리의 독립 node_modules에 `npm ci --ignore-scripts`로 설치했다. Node24 `npm run check` 통과(프런트56파일213시험·251요구사항·서버 타입·빌드·HTTP smoke), 전용 native PostgreSQL17의 기존154회귀와 storage presentation HTTP를 포함한13파일155시험 통과. 이전38fa809의 원격124파일 CI도 모두 통과했으나 이 통합 커밋의 최종 CI는 별도 확인해야 한다. 번들 크기 경고와 npm http-proxy 경고는 빌드 실패가 아니다. 알림 승인 대기 이벤트 유실은 앞선 미해결 기록대로 별도다.
+
+### Task3/Task2 integration safety
+- Resolved overlapping published-body UI by using the shared safe Markdown renderer inside DocumentBody navigation. Outline/find decorate existing DOM without replacing authenticated attachment handlers. Math/SVG/control/status nodes are excluded from text marking. An integration regression failed on an external img before the change; safe image/math/find/preview and existing navigation/draft tests16 now pass. Fullcheck passed; actual integrated screenshots and scoped independent review follow.
+
+- Task3/Task2 final base integration: Node24 npmruncheck passed, native presentation-http/navigation-http/bulk3files passed, actual Chromium1440/390 safe-renderer navigation fixture passed outline4/find1/math/diagram/preview with external0/errors0/overflowfalse. Synthetic component input/reader is explicit in capture README; original actualOIDC/runtime/DB flow remains separately evidenced.

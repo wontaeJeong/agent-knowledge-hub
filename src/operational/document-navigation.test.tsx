@@ -245,3 +245,22 @@ test("typing a document title completes current authorized links without submitt
   expect(node.textContent).toContain("자동 완성 문서");
   await act(async () => root.unmount());
 });
+
+test("document navigation retains safe math and authenticated image previews during find", async () => {
+  const node = document.createElement("div"); document.body.append(node);
+  const root = createRoot(node);
+  const readAttachment = vi.fn().mockResolvedValue({ render: "raster-image", mime: "image/png", base64: "aGVsbG8=", width: 1, height: 1 });
+  const props = { content: "# Heading\nneedle\n\n$x^2$\n\n![outside](https://external.invalid/x.png)\n\n![local](/api/v1/storage/blobs/blob-one)", readAttachment };
+  try {
+    await act(async () => root.render(<DocumentBody {...props} />));
+    expect(node.querySelector('img[src^="http"]')).toBeNull();
+    expect(node.querySelector("math")).not.toBeNull();
+    await input(node.querySelector("input")!, "needle");
+    expect(node.querySelectorAll("mark[data-match]")).toHaveLength(1);
+    await act(async () => (node.querySelector("[data-attachment]") as HTMLButtonElement).click());
+    expect(readAttachment).toHaveBeenCalledWith("blob-one");
+    expect(node.querySelector('img[src^="data:image/png"]')).not.toBeNull();
+    expect(node.querySelectorAll("mark[data-match]")).toHaveLength(1);
+    expect(node.querySelector('nav button')?.textContent).toBe("Heading");
+  } finally { await act(async () => root.unmount()); }
+});
