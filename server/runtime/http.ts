@@ -1053,6 +1053,19 @@ export function createRuntimeHandler(options: {
               .parse(body);
             return send(200, await service.triage(ctx, batchId, b.label));
           }
+          if (action[2] === "reject") {
+            const { hash, reason } = approvalInput
+              .extend({
+                reason: z
+                  .string()
+                  .trim()
+                  .min(1)
+                  .max(2000)
+                  .default("사유 미기록"),
+              })
+              .parse(body);
+            return send(200, await service.reject(ctx, batchId, hash, reason));
+          }
           const { hash } = approvalInput.parse(body);
           if (action[2] === "publish") {
             const key = z
@@ -1065,8 +1078,6 @@ export function createRuntimeHandler(options: {
               await service.core.publish(ctx, batchId, hash, key),
             );
           }
-          if (action[2] === "reject")
-            return send(200, await service.reject(ctx, batchId, hash));
           const approved = await service.core.approve(ctx, batchId, hash);
           return send(200, {
             id: batchId,

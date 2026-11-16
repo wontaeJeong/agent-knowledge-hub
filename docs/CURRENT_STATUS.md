@@ -50,6 +50,12 @@
 - P7/P9 integration: applied workspace erasure receipts, including physical-purge-pending states, fence trusted collection before outbound requests and at final commit. Legal-hold and failed preflight alone are not treated as completed erasure. Verified with synthetic PostgreSQL 17, native HTTP and local TLS; external physical deletion and production operation remain separate.
 
 - SHR-007: fixed current descendants can be previewed and explicitly selected for an authenticated recipient. Atomic creation rechecks input rights and policy/selected versions; no later descendants or expanded source audience. Max50 pages, preview10minutes.
+### 2026-11-16 — Task 5 일반 편입 계보·검토 환류
+- KNO-002~006/013/014: [일반 편입](../server/runtime/knowledge.ts)도 [공통 후보 바인딩](../server/runtime/ingest-lineage.ts)을 사용해 정확한 원본 fingerprint/위치·조건·유효 기간·예외를 미검증 주장 후보로 저장한다. 승인된 원자적 발행에서만 기존 refinement 주장/근거/상충 요청으로 연결한다. 승인/모델 성공을 독립 실행 검증으로 바꾸지 않는다.
+- 반려 사유·검토자·시각을 저장하고, 전체 현재 ACL의 반려 내용·발행된 사람 수정/보호 이유가 다음 일반 편입/답변 재편입에 전달된다. 동일 원본·동일 내용 재제안은 서버가 차단한다. 원본 정정은 영향 발행 버전/주장별 재검토 요청과 미발행 승인 무효화에 연결되며 원본/이전 주장을 덮어쓰지 않는다.
+- 연결: 기존 REST·MCP·durable Ingest가 같은 RuntimeService를 호출한다. 검토 화면의 반려 사유 입력/이력, 정련 화면의 원본 정정 이유·원본/대체 ID를 표시한다. [설계와 한계](superpowers/specs/2026-11-16-knowledge-lineage-feedback.md), [실제 화면 증거](pr-assets/roadmap-knowledge-lineage/README.md).
+- 검증/경계: 실제 PostgreSQL·loopback 모델/OIDC·MCP SDK·브라우저 회귀이며 실제 사내 모델 의미 품질/독립 업무 증거/운영 수용을 뜻하지 않는다. 정확히 같은 제안의 반복 차단과 의미상 같은 제안의 판단을 구분한다. 피드백 이력/모델 컨텍스트 한도 초과는 명시 오류로 남긴다.
+- PR52 검토 P1 보완: 반려안의 외부 링크·전이/과거 원본·상위 문서 전체를 현재 권한으로 검사하고, 그 완전한 envelope를 모델 전송/저장 시 다시 검증한다. 답변 편입에는 원래 답변 envelope 밖의 피드백을 보내지 않는다. 권한을 잃은 링크 ID만 제거하며 반려 본문을 유지하던 부분 검사는 사용하지 않는다.
 - 2026-11-16 Task 8 (CLB-004–006): current-category/space subscriptions, document comment integration, transactional publication/pending-review/terminal-job-failure outbox, explicit lifecycle expiry and personal processed state are connected to the existing collaboration notification/digest worker and UI. Read/final-send gates reauthorize current identity, whole source context and subscriptions; retries deduplicate. [Exact API/limits](superpowers/specs/2026-11-16-notifications-contract.md) · [synthetic browser evidence](pr-assets/roadmap-notifications/README.md). Local PostgreSQL/native HTTP/React/project checks are distinct from actual directory/gateway and operational acceptance; no semantic quality claim is added.
 - EDT-012: 운영 편집 화면의 다중 문서 태그/위치/보관 미리보기·대상별CAS 결과·실패 재시도 연결. 미리보기는 최대50문서/10분이고 현재권한을 적용 시 재검사한다.
 

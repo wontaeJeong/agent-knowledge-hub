@@ -71,6 +71,9 @@ export interface ClaimView {
   }[];
 }
 export interface ReviewRequest {
+  correctionReason?: string;
+  sourceId?: string;
+  replacementId?: string;
   conflicts?: { claimId: string; kind: string }[];
   id: string;
   claimIds?: string[];
@@ -822,7 +825,7 @@ export function RefinementPanel({
     );
   return (
     <section className="panel refinement-panel" aria-label="지식 정련">
-      <style>{`.refinement-panel{font-size:14px;min-width:0}.refinement-panel h2{font-size:22px}.refinement-panel p{line-height:1.6}.refinement-panel form,.refinement-panel fieldset,.refinement-panel article,.refinement-panel details{min-width:0;margin:12px 0;padding:12px;border:1px solid #d9cddd;border-radius:8px}.refinement-panel label.ref-field{display:grid;gap:6px;margin:10px 0}.refinement-panel input:not([type=checkbox]),.refinement-panel select,.refinement-panel textarea{min-width:0;max-width:100%;width:100%;padding:8px;font:inherit;box-sizing:border-box}.refinement-panel textarea{min-height:80px}.refinement-panel .ref-check{display:flex;gap:8px;align-items:flex-start;margin:8px 0}.refinement-panel button{font:inherit;min-height:36px;margin:4px;padding:6px 10px;white-space:normal}.refinement-panel nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.refinement-panel code,.refinement-panel dd,.refinement-panel li{overflow-wrap:anywhere}.refinement-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}.refinement-panel dl{display:grid;grid-template-columns:minmax(80px,1fr) minmax(0,3fr);gap:6px}.refinement-panel dd{margin:0}.refinement-panel a{color:#663f70}.refinement-panel summary{cursor:pointer;min-height:32px}.refinement-panel :focus-visible{outline:3px solid #79526e;outline-offset:2px}.refinement-panel .ref-notice{background:#f4edf5;border-left:4px solid #79526e;padding:12px}.refinement-panel fieldset:disabled{opacity:.75}`}</style>
+      <style>{`.refinement-panel{font-size:14px;min-width:0}.refinement-panel h2{font-size:22px}.refinement-panel h4{overflow-wrap:anywhere}.refinement-panel p{line-height:1.6}.refinement-panel form,.refinement-panel fieldset,.refinement-panel article,.refinement-panel details{min-width:0;margin:12px 0;padding:12px;border:1px solid #d9cddd;border-radius:8px}.refinement-panel label.ref-field{display:grid;gap:6px;margin:10px 0}.refinement-panel input:not([type=checkbox]),.refinement-panel select,.refinement-panel textarea{min-width:0;max-width:100%;width:100%;padding:8px;font:inherit;box-sizing:border-box}.refinement-panel textarea{min-height:80px}.refinement-panel .ref-check{display:flex;gap:8px;align-items:flex-start;margin:8px 0}.refinement-panel button{font:inherit;min-height:36px;margin:4px;padding:6px 10px;white-space:normal}.refinement-panel nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.refinement-panel code,.refinement-panel dd,.refinement-panel li{overflow-wrap:anywhere}.refinement-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}.refinement-panel dl{display:grid;grid-template-columns:minmax(80px,1fr) minmax(0,3fr);gap:6px}.refinement-panel dd{margin:0}.refinement-panel a{color:#663f70}.refinement-panel summary{cursor:pointer;min-height:32px}.refinement-panel :focus-visible{outline:3px solid #79526e;outline-offset:2px}.refinement-panel .ref-notice{background:#f4edf5;border-left:4px solid #79526e;padding:12px}.refinement-panel fieldset:disabled{opacity:.75}`}</style>
       <h2>지식 정련 · 시간·근거·경험</h2>
       <p className="ref-notice">
         결론: 현재 권한으로 읽은 검토 후보입니다. 단일 사례·추론·검토 승인은
@@ -1083,8 +1086,23 @@ export function RefinementPanel({
                 <p>
                   {r.status ?? "pending-review"} · {r.result ?? "성과 미확인"}
                 </p>
+                {r.correctionReason && (
+                  <p>
+                    원본 정정: {r.sourceId} → {r.replacementId} ·{" "}
+                    {r.correctionReason}
+                  </p>
+                )}
                 {r.observations && <p>{r.observations}</p>}
-                {!!r.conflicts?.length && <ul>{r.conflicts.map((conflict) => <li key={conflict.claimId}>기존 주장 {conflict.claimId} · {conflict.kind} · 재검토 필요</li>)}</ul>}
+                {!!r.conflicts?.length && (
+                  <ul>
+                    {r.conflicts.map((conflict) => (
+                      <li key={conflict.claimId}>
+                        기존 주장 {conflict.claimId} · {conflict.kind} · 재검토
+                        필요
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p>
                   {r.uncertainty ?? "검토 후보이며 독립 검증은 미확인"}{" "}
                   {r.limits}

@@ -548,6 +548,18 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - PR30을 main5218828과 통합했다. 원래 인계·실수 기록을 보존하고 discovery GET과 최신 인증 me 경로를 함께 유지했다.
 - Node24 npm run check 통과. PostgreSQL17 격리 DB discovery/runtime/access 3파일37개 통과. 실제 Chromium1440/390 합성 명시 미리보기와 document overflow 없음 확인, docs/pr-assets/discovery에 캡처. 실제 회사 품질/대규모/운영 인수는 미검증이다.
 
+### 2026-11-16 — Task 5 일반 편입 주장 계보·검토 피드백
+- 요구사항: KNO-002~006/013/014. 일반 편입 후보를 정확한 원본 위치/fingerprint와 조건·기간·예외에 결합하여 배치에 보관하고, 검토 발행 트랜잭션에서 주장/근거/상충 요청을 저장한다. 반려·사람의 발행 수정·보호 이유는 다음 모델 입력에 고정하며 같은 원본·같은 제안 반복은 차단한다. 원본 정정은 불변 원본/주장을 보존하면서 영향을 받은 발행 버전의 재검토와 미발행 승인 무효화에 연결한다.
+- 변경 파일: `server/runtime/{knowledge,ingest-lineage,model,http,errors}.ts`, `server/publication.ts`, `server/refinement/service.ts`, `server/workflows/service.ts`, `src/operational/{App,review-rejection,refinement}.tsx`, 관련 CSS/회귀. 기존 저장소를 사용하며 migration 추가 없음.
+- 검증: Node24 `npm run check` 통과(웹173, import16 및 기존 Node/evaluation·251개 요구사항·서버 타입·빌드·HTTP smoke). PostgreSQL·실제 OIDC/모델 HTTP·MCP SDK 계보 회귀와 기존 답변 환류/권한/워크플로/정련/내구 작업 회귀를 실행한다. 최종 native 수치는 PR 검증 기록을 따른다. 실제 Chromium 1440/390 크기와 가로 넘침 검사, 합성 서버 데이터 캡처를 [증거](pr-assets/roadmap-knowledge-lineage/README.md)에 보관한다.
+- 남은 조건: 합성 loopback은 실제 사내 모델의 의미 품질·독립 실행 검증·지식 효과·운영 수용이 아니다. 의미상 반복 제안/상충 해석의 정답성은 모델 평가와 사람 검토가 필요하다. 모델 피드백·사람 편집 이력 각100개 및 기존 컨텍스트/작업 예산 초과는 명시적으로 중단한다. Task 6의 질문 주제/현재·과거 범위·조건 컨텍스트는 별도 PR 대상이다.
+- 추가 검증 발견(미해결): screenshot pool6의 병렬 인증 GET에서401/세션 폐기를 관찰했고 임시 PG 계측이 identity projection advisory7203101의SQLSTATE40P01을 확인했다(연결 timeout0건). Task5에서 auth/identity/network 경로를 바꾸지는 않았다. [요약](pr-assets/roadmap-knowledge-lineage/auth-deadlock.json)·실수 기록과 별도 검토 인계를 따르며 pool20 캡처 통과를 해결로 표시하지 않는다.
+
+### 2026-11-16 — Task 5 PR52 P1 권한/계보 재검토 보완
+- 독립 검토가 재현한 과거 반려안 외부 링크 누락을 수정했다. `rejectedFeedback`은 제안의 모든 기존 대상·외부 링크·과거/파생 원본·상위 문서에 현재 권한을 적용하고 전체 envelope를 반환한다. 하나라도 거부되면 본문/이유/ID 전체를 제외한다. 일반 편입은 이 전체 envelope를 고정하고, 답변 편입은 원래 답변 envelope 안에 완전히 포함되는 피드백만 허용한다. 전송 직전/커밋 직전 범위를 재검사한다.
+- 새 파일 `server/runtime/lineage-feedback.test.ts`에서 실제 DB/모델 입력과 실제 HTTP provider를 사용해 페이지/하위 페이지/원본/정책 철회·전송 직전 철회·응답 후 철회·답변 범위·제안 로컬 새 링크를 검증한다. 최초11개 동작 RED를 확인한 뒤 수정했다. 최종 검사 결과는 PR52와 인계 파일을 따른다.
+- 같은 변경 집합의 새 페이지 링크와 과거 결정 이력을 보존하되 현재 종합 페이지 선택·원본 공개 상한·모델 정책을 넓히지 않는다. 기존 auth deadlock 수정은 별도 PR이다.
+- P1 최종 검증: 리뷰어 원래 실제 PG 재현은 빈 feedback으로 수정 확인. 집중15개(링크/원본/정책 철회와 실제 provider HTTP 포함), 관련 native6파일110개, `npm run check` 웹178/import16/251 요구사항·서버 타입·빌드·HTTP smoke 통과. 로그 `/private/tmp/akh-lineage-feedback-{red,green,final-focused,regression,check,proof-green}.log`. 제품 UI 변경이 없어 기존 캡처를 보존했다.
 ## 2026-11-16 문서 탐색과 개인 목록
 
 - EDT-007/010, SRH-009/010: `server/workflows/service.ts`, `http.ts`, `src/operational/document-navigation.tsx`, `workflows.tsx`, `styles.css`에 현재 ACL의 링크 후보·백링크·태그 관계(각 20건), 목차·코드/표 검색 위치 이동, 기존 즐겨찾기·최근 API 기반 목록과 개인 초안 링크 완성을 연결했다. 기존 구독 버튼·서버 활동 저장을 재사용한다.
