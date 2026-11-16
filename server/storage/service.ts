@@ -3,6 +3,12 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import type { Context } from "../service";
 import { ImportWorkflow, readImportArchive } from "./imports";
+import {
+  historySchema,
+  exportHistory,
+  historicalReferences,
+  type ExportHistory,
+} from "./roundtrip";
 import { AttachmentWorkflow } from "./attachments";
 import { FileReadAccess } from "./file-read";
 import { acquireSharedMutationGate } from "../operations/gate";
@@ -78,7 +84,7 @@ type BlobRow = {
 const manifestSchema = z
   .object({
     format: z.literal("akh-export"),
-    version: z.literal(1),
+    version: z.union([z.literal(1), z.literal(2)]),
     workspaceId: id,
     exportedAt: z.iso.datetime(),
     pages: z
@@ -92,6 +98,7 @@ const manifestSchema = z
               .record(z.string(), z.unknown())
               .nullable()
               .optional(),
+            history: historySchema.optional(),
             readers: z.array(z.string().min(1).max(200)).max(100),
           })
           .strict(),
@@ -283,7 +290,11 @@ export class StorageService {
       this.parent(db, ctx, parent),
     );
   }
-  async ingestText(ctx: Context, input: unknown, guard?: (db: PoolClient) => Promise<void>) {
+  async ingestText(
+    ctx: Context,
+    input: unknown,
+    guard?: (db: PoolClient) => Promise<void>,
+  ) {
     const d = z
       .object({
         title: z.string().trim().min(1).max(300),
@@ -721,12 +732,18 @@ export class StorageService {
       async (db) => {
         const state = await loadState(db, ctx.workspaceId);
         const visible = await visiblePageIds(db, ctx, state);
+        const histories = new Map<string, ExportHistory>();
         const pageIds = new Set(request.pageIds),
           sourceIds = new Set(request.sourceIds);
         // Include complete historical/transitive ancestry or reject, never silently omit protected inputs.
         for (const pageId of pageIds) {
           if (!visible.has(pageId)) throw Error("NOT_FOUND");
           const p = state.pages.find((p) => p.id === pageId)!;
+          const history = await exportHistory(db, ctx, pageId);
+          histories.set(pageId, history);
+          const refs = historicalReferences(history);
+          for (const sid of refs.sourceIds) sourceIds.add(sid);
+          for (const pid of refs.pageIds) pageIds.add(pid);
           const inputs = inheritedProvenance(p);
           for (const sid of inputs.sourceIds) sourceIds.add(sid);
           for (const pid of [...inputs.pageIds, ...(p.links ?? [])])
@@ -757,6 +774,7 @@ export class StorageService {
             versions,
             readers: await readers(db, ctx.workspaceId, "page", pageId),
             operational: operational.rows[0] ?? null,
+            history: histories.get(pageId)!,
           });
         }
         const sources = [];
@@ -827,7 +845,7 @@ export class StorageService {
     });
     const manifest = {
       format: "akh-export" as const,
-      version: 1 as const,
+      version: 2 as const,
       workspaceId: ctx.workspaceId,
       exportedAt: new Date().toISOString(),
       pages: prepared.pages,
@@ -864,6 +882,14 @@ export class StorageService {
       }
     }
     for (const p of d.pages) {
+      if (d.version === 2 && !p.history) throw Error("IMPORT_HISTORY_REQUIRED");
+      if (p.history) {
+        const refs = historicalReferences(p.history);
+        for (const pid of refs.pageIds)
+          if (!keys.has("page:" + pid)) throw Error("INCOMPLETE_PROVENANCE");
+        for (const sid of refs.sourceIds)
+          if (!keys.has("source:" + sid)) throw Error("INCOMPLETE_PROVENANCE");
+      }
       const numbers = new Set<number>();
       for (const v of p.versions) {
         const n = z.number().int().positive().parse(v.number);

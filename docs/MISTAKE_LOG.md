@@ -562,3 +562,14 @@
 - 조치: 링크 응답은 최신 커밋된 삽입 콜백을 사용한다. WorkflowPanel은 현재 초안·계정 바인딩을 확인하고 활성 DraftAutosave의 현재 본문에 추가한 동일 값을 React 입력과 자동 저장에 전달한다. 기존 대상/요청 세대·권한 철회 검사를 유지한다.
 - 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
 - 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
+
+### 2026-11-17 — 아카이브 복원에서 이력·첨부 경계 누락 발견
+
+- 맥락: Task 10, LIF-008/009 독립 worktree. 기존 가져오기는 본문 제안과 검역 이력을 제공했지만 부모를 link로 바꾸고 facts/properties를 복원하지 않았다. 새 v2 회귀는 이 격차를 실패로 확인했다. 운영 자료/배포에는 적용하지 않았다.
+- 확인된 추가 원인: 변경된 속성만 plan에 넣으면 제안 뒤 변한 미변경 속성을 승인할 수 있었다. selective review가 원래 batch와 다른 ID를 만들어 재내보내기 이력 연결이 끊겼다. 새 부모에 사용자 속성이 없으면 absent-page plan이 빠졌다. 새 첨부를 원본 부모에 남기거나 논리 slot을 첫 revision 처리 중 옮기면 실제 페이지 부모 복원/전체 revision 검사에 실패했다. slot 없는 원본 스냅샷과 역사적 첨부 remap도 별도 처리해야 했다.
+- 조치: 현재 hash에 모든 v2 metadata intent를 고정하고 canonical base 0 검사를 현재 개인 소유자/빈 자원에 제한했다. immutable decision lineage를 따라 import evidence를 재내보낸다. 발행 트랜잭션에서 모든 revision을 검사한 뒤 부모를 함께 바꾸고, source snapshot은 유지하며 원래 첨부 메타데이터/관련 remap을 보존한다. 새 egress 정책은 명시적으로 설정하기 전 거부한다.
+- 시험/fixture 실수: pages INSERT에 명시 컬럼이 없어 data not-null 오류가 났다. native import가 실제 201인데 202를 기대했고, 새 원본 export policy가 자동 생긴다고 기대했다. Date 객체와 JSON timestamp 문자열 비교도 실패했다. 명시 컬럼·실제 응답 계약·현재 egress 허가 fixture·ISO JSON 정규화로 고쳤고 보안 정책을 완화하지 않았다.
+- 검증: 각 원인별 RED/수정 후 green을 기록했다. 첨부 hook을 잠시 제거한 검증에서는 승인 후 scan/head 변경이 잘못 발행되는 RED를 확인하고 원상복구했다. native HTTP/PG와 전체 기본/영향 회귀의 최종 명령·결과는 해당 PR/작업 보고서에 남긴다.
+- 상태: 로컬 수정·검증됨. 독립 재리뷰와 최종 CI/통합이 남으며 회사 운영 인수를 뜻하지 않는다.
+- 같은 문서 갱신 시 한국어를 포함한 Python stdin이 인코딩 오류로 실패하여 CURRENT_STATUS만 갱신되지 않았다. UTF-8 임시 행 파일을 ASCII Python 코드에서 명시 인코딩으로 읽어 적용하고 실제 행 존재를 확인했다. 코드·테스트 결과는 영향받지 않았다.
+- 최종 영향 회귀 재실행에서 multi-request native HTTP 시험이 Vitest 기본 5초에 도달해 실패했다(5006ms, 다른 14파일은 통과). 앞선 격리/전체 실행과 재실행에서 기능 assertion은 통과했으며, 20초의 명시적 integration-test deadline에서는 10시험 전부 완료했다. 공유 검증 부하가 지연 원인이라는 판단은 가설로 유지한다. 제품 타임아웃·정책·SLO를 변경하지 않고 이 종단 시험만 20초로 명시한 뒤 최종 전체 회귀를 다시 실행한다.

@@ -530,3 +530,13 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 
 - `LinkCompletion`의 지연 권한 응답이 최신 삽입 콜백을 사용하고, `WorkflowPanel`이 현재 초안/계정 바인딩과 활성 자동 저장 편집기의 최신 본문을 사용해 대기 중 입력을 보존하도록 수정했다. EDT-007과 초안 저장 경계에 해당한다. 기존 요청 세대/대상 철회 검사는 유지한다.
 - `src/operational/navigation-draft.test.tsx`에서 과거 콜백 호출·실제 편집창의 입력 유실 RED를 확인한 뒤 수정했다. React 입력과 실제 DraftAutosave→OperationalApi의 합성 저장소에 동일한 최신 본문·링크가 남는 통합 회귀를 포함한다. 전체 `npm run check`(프런트180)와 native 인증 HTTP 탐색·CSRF·원본 철회 회귀를 재통과했다. 시각 변경은 없어 기존 캡처를 유지한다.
+
+## 2026-11-17 — LIF-008/009 검토 기반 구조·속성·이력 아카이브 복원
+
+- 요구사항: LIF-008/009. `server/storage/service.ts`, `imports.ts`, 새 `roundtrip.ts`와 canonical `publication.ts`/`workflows/versions/metadata.ts`, 오류 계약을 연결했다. 기존 인증 HTTP의 export/import/propose에서 v2 아카이브를 생성·검역·검토 제안한다. 실제 승인/발행 트랜잭션이 본문·사실·링크·분류·태그·사용자 속성·환경·부모 트리를 복원한다. 단순 부모 링크나 검역 보관만을 복원으로 표시하지 않는다.
+- 원래 version metadata/metadata-only events와 과거 페이지·원본·첨부 메타데이터, remap을 보존·재내보내며 imported history는 `unverified-import` 근거다. 기존 로컬 과거 버전·승인·검증 시각으로 소급 삽입하지 않는다. selective review의 파생 배치에도 이력 근거를 유지한다.
+- 변경되지 않은 속성도 현재 hash에 고정하며 base/settings/policy/부모 순환과 발행 직전 ACL·원본 상한을 검사한다. 기존 ACL·보호·소유권·검토 기한·수명주기는 유지한다. 새 ID는 현재 인간 소유자의 개인 공간에서 private/미검증으로 새 로컬 버전을 만들며 수입 권한·역할·공식성·egress 허가를 적용하지 않는다. 개인 공간의 기존 self-review 예외 외에는 독립 검토가 필요하다.
+- 새 페이지 첨부는 제안 중 원본 상한에 묶고 실제 발행 때 모든 revision의 hash/scan/head와 현재 독자 상한을 확인한 후 실제 페이지 부모로 함께 옮긴다. 논리 slot이 없는 원본 스냅샷은 그대로 둔다. 중복 stage/propose/publish는 기존 durable 기록을 재사용하며 실패 시 페이지 버전·속성·첨부 부모 변경이 롤백된다.
+- [판단·API·한계](design/2026-11-16-export-import-roundtrip.md). North Star의 연결된 근거·검토·발행·재편입 순환을 보존하기 위한 변경이며 품질/업무 성과 향상은 미평가다. 새 migration·서비스·Pod·UI는 없고 1노드/앱1/DB1 초기 구성을 유지한다.
+- 검증: TDD의 v2 미지원·속성/실제 트리 미복원 RED와 기본 부모·selective 이력·미변경 속성 drift·새 첨부 부모/복수 revision·slot 없는 스냅샷·remap 이력 누락을 재현했다. canonical 첨부 hook을 제거하면 승인 후 scan/head 변경 회귀 2건이 잘못 발행됨을 확인한 후 hook 복구로 차단했다. 실제 native HTTP/격리 PostgreSQL은 DB 세션·loopback OIDC UserInfo·CSRF·원본/부모자식/속성/이력·첨부2버전·독립 승인·원자 발행·재시도·현재 원본 ACL 철회를 실행한다. 최종 Node24 `npm run check`와 영향 범위 native PostgreSQL 15파일108시험의 결과는 PR/작업 보고서에 기록한다.
+- 제약: 같은 workspace의 허용 아카이브만 지원한다. v1은 종전 content-proposal 호환이며 v2의 속성 복원 보장이 소급 적용되지 않는다. 5MiB/100문서·원본·blob/20제안문서 및 bounded history 제한을 초과하면 거부한다. 과거 이력은 inspect/re-export 가능한 미검증 근거이며 현재 버전 목록의 확정 발행본으로 나타내지 않는다. 실제 회사 IdP/기밀 자료·모델 품질·대규모 부하·운영 인수는 미검증이다. UI 변경이 없어 새 화면 캡처는 없다.

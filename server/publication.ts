@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { applyPublishedImportAttachments } from "./storage/roundtrip";
 import type { Pool, PoolClient } from "pg";
 import type { Context } from "./service";
 import type { Source } from "../src/domain/types";
@@ -1138,6 +1139,7 @@ export async function publish(
           );
         }
         await applyApprovedVersionMetadataPlans(db, ctx, id, hash, versions);
+        await applyPublishedImportAttachments(db, ctx, id, versions);
         for (const [pageId, number] of Object.entries(versions))
           await capturePublishedVersionMetadata(db, ctx, pageId, number);
         // Source bodies remain unchanged; processing state is separate from the immutable input.

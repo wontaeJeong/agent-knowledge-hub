@@ -78,15 +78,28 @@ export interface RestorePlan {
  fields:string[];next:MetadataSnapshot;currentHash:string;content:string;sourceIds:string[];dependencies:string[];
 }
 const validatedPlans=new WeakMap<PoolClient,{tx:string;batchId:string;hash:string;actor:string;digest:string}>();
-export async function validatePlannedMetadata(db:PoolClient,ctx:Context,plan:RestorePlan){
- const current=await currentMetadata(db,ctx,plan.pageId);
- if(current.number!==plan.baseVersion||current.settingsRevision!==plan.settingsRevision||fingerprint(current)!==plan.currentHash)throw Error("STALE_VERSION");
+export async function validatePlannedMetadata(db:PoolClient,ctx:Context,plan:RestorePlan,plans:RestorePlan[]=[plan]){
+ if(plan.baseVersion===0){
+  // Absent-page plans are restricted to the current human's personal namespace.
+  // An existing resource or settings row is a collision, never an upsert target.
+  const personal=(await db.query("SELECT 1 FROM access_spaces s JOIN access_namespaces n ON n.id=s.namespace_id JOIN access_principals p ON p.id=n.owner_id AND p.active AND p.kind='human' WHERE s.workspace_id=$1 AND s.active AND n.kind='personal' AND n.owner_id=$2",[ctx.workspaceId,ctx.principalId])).rowCount;
+  if(!personal||ctx.credentialId)throw Error("FORBIDDEN");
+  if((await db.query("SELECT 1 FROM resources WHERE workspace_id=$1 AND kind='page' AND id=$2 UNION ALL SELECT 1 FROM workflow_document_state WHERE workspace_id=$1 AND page_id=$2",[ctx.workspaceId,plan.pageId])).rowCount||plan.settingsRevision!==0||plan.currentHash!==fingerprint(['absent',plan.pageId])||plan.next.lifecycle!=='active')throw Error("STALE_VERSION");
+ }else{
+  const current=await currentMetadata(db,ctx,plan.pageId);
+  if(current.number!==plan.baseVersion||current.settingsRevision!==plan.settingsRevision||fingerprint(current)!==plan.currentHash)throw Error("STALE_VERSION");
+ }
  const policy=(await db.query("SELECT policy_version FROM access_spaces WHERE workspace_id=$1 AND active",[ctx.workspaceId])).rows[0];if(!policy||policy.policy_version!==plan.policyVersion)throw Error("APPROVAL_STALE");
- if(plan.fields.some(f=>["properties","environment","lifecycle","parentId","category"].includes(f)))await authorizeActionDb(db,ctx,"knowledge.protect",{kind:"page",id:plan.pageId});
+ if(plan.fields.some(f=>["properties","environment","lifecycle","parentId","category"].includes(f)))await authorizeActionDb(db,ctx,"knowledge.protect",plan.baseVersion?{kind:"page",id:plan.pageId}:undefined);
  if(plan.fields.includes("parentId")){
-  await authorizeActionDb(db,ctx,"space.admin",{kind:"page",id:plan.pageId});
+  await authorizeActionDb(db,ctx,"space.admin",plan.baseVersion?{kind:"page",id:plan.pageId}:undefined);
   const seen=new Set([plan.pageId]);let parent=plan.next.parentId;
-  while(parent){if(seen.has(parent))throw Error("RESTORE_PARENT_CYCLE");seen.add(parent);await authorizeActionDb(db,ctx,"knowledge.read",{kind:"page",id:parent});parent=(await db.query("SELECT parent_id FROM workflow_document_state WHERE workspace_id=$1 AND page_id=$2",[ctx.workspaceId,parent])).rows[0]?.parent_id??null;}
+  while(parent){
+   if(seen.has(parent))throw Error("RESTORE_PARENT_CYCLE");seen.add(parent);
+   const proposed=plans.find(p=>p.pageId===parent);
+   if(!proposed||proposed.baseVersion>0)await authorizeActionDb(db,ctx,"knowledge.read",{kind:"page",id:parent});
+   parent=proposed?.fields.includes("parentId")?proposed.next.parentId:(await db.query("SELECT parent_id FROM workflow_document_state WHERE workspace_id=$1 AND page_id=$2",[ctx.workspaceId,parent])).rows[0]?.parent_id??null;
+  }
  }
  const policies=(await db.query("SELECT * FROM governance_type_policies WHERE workspace_id=$1 ORDER BY document_type",[ctx.workspaceId])).rows;
  const required=policies.find(p=>p.document_type===plan.next.category)??policies.find(p=>p.document_type==="*");
@@ -96,7 +109,7 @@ export async function validatePlannedMetadata(db:PoolClient,ctx:Context,plan:Res
 export async function validateVersionMetadataPlans(db:PoolClient,ctx:Context,plans:RestorePlan[]) {
  if(plans.length>20||new Set(plans.map(p=>p.pageId)).size!==plans.length)throw Error("VALIDATION_FAILED");
  const projections:Record<string,MetadataSnapshot>={};
- for(const plan of plans){await validatePlannedMetadata(db,ctx,plan);projections[plan.pageId]=plan.next;}
+ for(const plan of plans){await validatePlannedMetadata(db,ctx,plan,plans);projections[plan.pageId]=plan.next;}
  return projections;
 }
 
@@ -112,7 +125,7 @@ export async function assertVersionPlansCurrent(db:PoolClient,ctx:Context,batchI
  for(const plan of plans){const draft=batch.data.updates.find((d:{id:string})=>d.id===plan.pageId);
    if(!draft||draft.baseVersion!==plan.baseVersion||draft.content!==plan.content||draft.title!==plan.next.title||draft.summary!==plan.next.summary||fingerprint(draft.links)!==fingerprint(plan.next.relations)||fingerprint(draft.sourceIds)!==fingerprint(plan.sourceIds))throw Error("APPROVAL_STALE");}
  const projections:Record<string,MetadataSnapshot>={};
- for(const row of rows){if(row.batch_hash!==batchHash||row.plan_hash!==fingerprint(row.payload))throw Error("APPROVAL_STALE");await validatePlannedMetadata(db,ctx,row.payload);projections[row.page_id]=row.payload.next;}
+ for(const row of rows){if(row.batch_hash!==batchHash||row.plan_hash!==fingerprint(row.payload))throw Error("APPROVAL_STALE");await validatePlannedMetadata(db,ctx,row.payload,plans);projections[row.page_id]=row.payload.next;}
  const digest=fingerprint(rows.map(r=>[r.page_id,r.plan_hash]));
  validatedPlans.set(db,{tx:(await db.query("SELECT txid_current()::text AS id")).rows[0].id,batchId,hash:batchHash,actor:ctx.principalId,digest});
  return {digest,projections};
