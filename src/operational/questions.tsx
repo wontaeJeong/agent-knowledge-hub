@@ -519,8 +519,11 @@ export function QuestionsWorkbench({
           expectQueued: true,
           signal: abort.signal,
           onProgress: (job) => {
-            if (current === generation.current)
+            if (current === generation.current) {
               setSearchJob(job.id + ": " + job.status);
+              if (job.status === "dead" || job.status === "cancelled")
+                searchNonce.current = null;
+            }
           },
         });
         if (current === generation.current) searchNonce.current = null;

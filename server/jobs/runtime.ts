@@ -756,13 +756,21 @@ export function createRuntimeJobs(
         )
       ).rows[0];
       if (existing) {
+        if (existing.input.kind !== kind) throw Error("IDEMPOTENCY_CONFLICT");
+        let semanticSnapshotHash: string | undefined;
+        if (payload.semanticSearch) {
+          const previous = semanticSearchSeal.safeParse(
+            existing.input.payload?.semanticSearch,
+          );
+          if (!previous.success) throw Error("IDEMPOTENCY_CONFLICT");
+          semanticSnapshotHash = previous.data.snapshotHash;
+        }
         const replayPayload = payload.semanticSearch
           ? {
               mode: "model",
               semanticSearch: {
                 filters: payload.semanticSearch,
-                snapshotHash:
-                  existing.input.payload.semanticSearch.snapshotHash,
+                snapshotHash: semanticSnapshotHash,
               },
             }
           : payload.semantic === true

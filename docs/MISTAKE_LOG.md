@@ -520,3 +520,11 @@
 - Test command mistake: malformed-output RED once ran direct Vitest against the coordinator test-only base URL instead of scripts/test-server.mjs. It migrated base and created one synthetic workspace. No reset/truncate/drop or production access. Parent informed; base left untouched as admin anchor until owned test-container cleanup after all work. All later DB runs use UUID per-file runner databases exclusively. Never run direct DB Vitest on a shared base, even for a filtered test.
 - Browser worktree screenshots were rejected by allowed-root policy; captured to allowed ignored output and copied evidence. Ambiguous selectors were rejected; corrected and recaptured actual unconfigured state. Rejected captures are not success evidence.
 - Final validation is recorded in handoff/report. Provider replies and UI data are synthetic; no company quality or production acceptance claim.
+
+### 2026-11-16 - Semantic idempotency variant and terminal retry review findings
+- Context: independent PR51 review found two Important defects in3636d48.
+- Cause/impact: replay construction dereferenced the stored semantic seal before checking its kind/variant, so a key belonging to ordinary query/lint caused TypeError instead of IDEMPOTENCY_CONFLICT. The browser cleared its search key only on success, so confirmed dead/cancelled jobs remained the target of identical retries indefinitely.
+- Reproduction: two new native query/lint regressions observed the TypeError. Two UI interaction regressions observed identical request keys after dead/cancelled. Uncertain admission/network/poll timeout cases explicitly preserve keys.
+- Fix: guard stored kind and validate semantic seal before replay; release browser key only on observed terminal failure/cancellation.
+- Test correction: the first timeout fixture advanced Date.now on the first arbitrary call, which React consumed. It now advances at the actual pending API response. The existing real provider/identity/budget test crossed the default5s timeout during concurrent native runs; semantic native file now has a30s real-IO timeout. Neither was hidden as a pass.
+- Verification: six UI regressions passed after the fix; final native/full-check results are in handoff and task report. Presentation unchanged, so no new screenshot claim.

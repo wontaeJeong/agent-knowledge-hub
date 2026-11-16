@@ -8,6 +8,7 @@ import { browserIdentity } from "../jobs/fixtures/session";
 import { approveLocalTransmissionFixture } from "../policy/test-fixture";
 import { ScopedSearch } from "./search";
 import { authorizeInTransaction } from "../access/index";
+vi.setConfig({ testTimeout: 30000 });
 const fixtures: Awaited<ReturnType<typeof fixture>>[] = [],
   servers: Server[] = [];
 afterEach(async () => {
@@ -449,3 +450,36 @@ test("malformed semantic provider output is an explicit model validation failure
   });
   expect(f.calls()).toBe(1);
 });
+
+test.each(["query", "lint"] as const)(
+  "semantic search rejects a key already bound to ordinary %s with IDEMPOTENCY_CONFLICT and no new job",
+  async (kind) => {
+    const f = await setup(async () => modelReply);
+    const key = "collision-" + kind;
+    const original = await f.bridge.submitInteractive(
+      f.browser.ctx,
+      kind,
+      kind === "query"
+        ? { question: "ordinary question", mode: "offline" }
+        : {},
+      key,
+    );
+    await expect(
+      f.bridge.submitInteractive(
+        f.browser.ctx,
+        "query",
+        { semanticSearch: filters, mode: "model" },
+        key,
+      ),
+    ).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+    expect(
+      (
+        await f.pool.query(
+          "SELECT id FROM durable_jobs WHERE workspace_id=$1 AND principal_id=$2 AND idempotency_key=$3",
+          [f.workspaceId, f.editor.principalId, key],
+        )
+      ).rows,
+    ).toEqual([{ id: original.id }]);
+    expect(f.calls()).toBe(0);
+  },
+);
