@@ -1,5 +1,7 @@
+import { BulkEditor } from "./BulkEditor";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
+import { Markdown, type ImagePreview, presentationFormats } from "../ui/Markdown";
 import {
   DocumentBody,
   PersonalDocuments,
@@ -333,6 +335,7 @@ export function WorkflowPanel({
   spaceId?: string;
   initialPageId?: string;
 }) {
+  const readAttachment = useCallback((blobId: string) => api.get<ImagePreview>(`/storage/blobs/${blobId}/preview`), [api]);
   const [selected, setSelected] = useState(initialPageId ?? "");
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -766,6 +769,7 @@ export function WorkflowPanel({
   return (
     <section className="op-panel">
       <h2>편집과 협업</h2>
+      {manage && <BulkEditor api={api} pages={pages} scope={`${spaceId ?? ""}:${principalId ?? ""}`} onChanged={onChanged} onExpired={onExpired} />}
       <p>
         개인 초안은 본인에게만 보입니다. 검토·승인 전에는 발행본이 바뀌지
         않습니다.
@@ -868,7 +872,9 @@ export function WorkflowPanel({
             <DocumentBody
               key={`${selected}:${latest.number}`}
               content={latest.content}
+              readAttachment={readAttachment}
             />
+            <details><summary>지원하는 문서 형식</summary><p>{presentationFormats}</p></details>
           </details>
           {spaceId && (
             <RelatedDocuments

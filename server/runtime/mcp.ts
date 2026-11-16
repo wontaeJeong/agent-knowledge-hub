@@ -14,6 +14,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { recordJobTrace } from "./traces";
 import { hash } from "../imports/parser";
 import { PART_SIZE, selectionSchema } from "../imports/service";
+import { semanticSearchRequest } from "../questions/semantic";
 import { ScopedSearch, searchFilters } from "../questions/search";
 import { authorizeInTransaction } from "../access/index";
 const searchers = new WeakMap<RuntimeService, ScopedSearch>();
@@ -100,6 +101,9 @@ export async function handleMcp(
       required: ["runId"],
       additionalProperties: false,
     },
+    knowledge_semantic_search: z.toJSONSchema(semanticSearchRequest, {
+      io: "input",
+    }),
     knowledge_search: z.toJSONSchema(mcpSearchInput, { io: "input" }),
     knowledge_query: {
       type: "object",
@@ -268,6 +272,17 @@ export async function handleMcp(
               ? "cancel"
               : "resume"
         ](ctx, b.runId);
+        break;
+      }
+      case "knowledge_semantic_search": {
+        if (!jobs) throw Error("SEMANTIC_SEARCH_NOT_CONFIGURED");
+        const data = semanticSearchRequest.parse(input);
+        result = await jobs.submitInteractive(
+          ctx,
+          "query",
+          { semanticSearch: data.filters, mode: "model" },
+          data.idempotency_key,
+        );
         break;
       }
       case "knowledge_search": {
