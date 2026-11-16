@@ -112,7 +112,7 @@ test("personal lists and lazy neighborhood open authorized document links withou
 test("link completion inserts escaped markdown only after server search and clears results on failure", async () => {
   vi.spyOn(OperationalApi.prototype, "post")
     .mockResolvedValueOnce({
-      items: [{ id: "target", title: "대상 [문서]", version: 2 }],
+      items: [{ id: "target", title: "대상 [문서]", version: 1 }],
     })
     .mockResolvedValueOnce({
       items: [{ id: "target", title: "대상 [문서]", version: 2 }],
@@ -145,6 +145,7 @@ test("link completion inserts escaped markdown only after server search and clea
   });
   expect(insert).toHaveBeenCalledWith(
     "[대상 \\[문서\\]](/?app=1&space=space&document=target)",
+    { id: "target", version: 2 },
   );
   await act(async () => {
     node
