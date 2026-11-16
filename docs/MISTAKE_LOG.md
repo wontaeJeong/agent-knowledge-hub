@@ -650,6 +650,8 @@
 - 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
 - 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
 
+### 2026-11-17 - Lineage PR base mismatch
+- PR52 originally targeted main while other featurePRs targeted the approved integration branch. Its exact reviewed/CI-green head was locally integrated0c84ee8 before detecting the mismatch, so a later base update was rejected422 for no new commits. Added a verification note and retargeted before its explicit PR merge; final CI still required. No source changes were discarded or falsely marked merged.
 ### 2026-11-16 - Presentation and navigation renderer overlap
 - Separate PRs both owned published-body rendering. Taking navigation alone would preserve its earlier DOMPurify renderer, allowing remote img and omitting configured math/image preview behavior. Taking Markdown alone would lose outline/find. Added a failing integration regression, then composed safe Markdown under navigation without replacing its event-bound DOM. Targeted16 and fullcheck passed; independent review remains required.
 ### 2026-11-16 - Integration scheduling and native filter correction
