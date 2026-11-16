@@ -428,13 +428,20 @@ export class AgentService {
         const entry = {
           ...item,
           page_id: item.id,
-          source_refs: selection.envelope.sourceIds.map((id) => ({
+          source_refs: selection.pageEnvelopes[
+            `${item.id}:${item.version}`
+          ].sourceIds.map((id) => ({
             id,
             version: 1,
             location: "content",
           })),
           conditions: {
             ...item.metadata,
+            project: item.metadata?.project ?? null,
+            environment: item.metadata?.environment ?? null,
+            effectiveFrom: item.metadata?.effectiveFrom ?? null,
+            reviewDue: item.metadata?.reviewDate ?? null,
+            lifecycle: item.metadata?.state ?? null,
             currentRecommendation: item.currentRecommendation,
           },
           verification: item.metadata?.verification ?? null,

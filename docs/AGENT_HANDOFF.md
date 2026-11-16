@@ -563,3 +563,9 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - [API·시간·예산·North Star 판단·제약](implementation/2026-11-16-question-scope.md), [1440/390 실제 인증 화면](pr-assets/roadmap-question-scope/README.md). 모델 계약은 `2026-11-17-question-scope-v1`; 기존 모델 작업은 원래 계약 신선도 검사를 따른다. 마이그레이션/추가 Pod 없음.
 - 검증: scope/실제 HTTP·OIDC/CSRF·provider·두 MCP·durable replay·철회·예산 회귀와 Node24 전체 필수 검사를 실행한다. 최종 수치는 해당 PR과 작업 보고서에 기록한다. 실제 사내 의미 품질·대규모 비용/지연·지식 효과·운영 인수는 미검증이다.
 - Task 6 최종 검증: Node24 `npm run check` 통과(웹195, import16, Node/evaluation·251 요구사항·서버 타입·빌드·HTTP smoke). 최종 집중 native 3파일11개 통과(scope8, 실제 인증/provider/MCP/durable/브라우저2, policy-bound 모델 평가1). 더 넓은 native23파일에서203개 통과/평가1개 실패를 확인했고, 해당 평가 가드 수정 뒤 위 최종 회귀로 재통과했다. 이전 scope7에서 최종8로 확장했다. 평가의 pg 동시 client.query deprecation 경고와 별도 pool6 인증 이슈는 미해결 기록을 보존한다. 실제 1440/390 역사 질문 제출·저장 답변 재조회·가로 넘침 검사는 통과했다. 독립 리뷰·원격 CI는 PR에서 별도로 확인한다.
+
+### 2026-11-17 — PR58 독립 검토 보완
+- QNA-004/CORE-010: 유효한 UTC 기간의 소수점 정밀도 차이를 downstream searchFilters도 실제 시각으로 비교한다. 서로 독립인 페이지의 source_refs에는 각 페이지의 전체 계보만 넣으며 전체 선택 envelope는 권한/전송 검사에 유지한다. 페이지별 주장도 그 페이지의 계보 envelope에 제한해 다른 검색 결과가 근거 상한을 넓히지 않는다.
+- 기존 agent conditions의 reviewDue/lifecycle와 미등록 project/environment/effectiveFrom의 null을 복원한다. canonical metadata와 기존 키는 함께 제공하며, 미기록 과거 속성에는 현재값을 대입하지 않는다. UI 레이아웃 변경이 없어 기존 1440/390 증거를 재사용한다.
+- 검증: 혼합/동일 UTC 정밀도, 두 독립 페이지 source_refs/정확한 바이트 예산, 전이 계보, 현재 조건 DTO/미기록 과거 null 회귀를 추가했다. 기존 실제 provider·OIDC/CSRF·두 MCP와 agent REST DTO 회귀도 확장했다. 최종 실행 결과와 커밋은 PR58 재검토 보고서를 따른다. root의 최신 base 통합은 이 보완에서 수행하지 않는다.
+- PR58 보완 최종 로컬 검증: Node24 npm run check 통과(웹195/import16/Node·evaluation/251 요구사항/서버 타입/build/smoke), native6파일31개 통과(scope13/실제 인증provider·MCP·REST·durable2/agents9/search-regression5/search-MCP1/policy-evaluation1). RED 로그 `/private/tmp/akh-question-scope-review-red.log`, 최종 `/private/tmp/akh-question-scope-review-final.log`; pg deprecation은 계속 관찰되며 미해결이다. 독립 재검토·base 충돌·원격 CI는 root 인계 대상이다.

@@ -617,3 +617,10 @@
 - 화면 시험: select label의 option 텍스트 포함과 두 질문 textarea의 동명 때문에 첫 locator/submit 검증이 실패했다. 명시적인 접근성 이름과 실제 대상 placeholder를 사용했다. 이후 저장 답변 DTO 누락을 위와 같이 제품 경계에서 수정했다. 별도 기존 pool6 인증 동시성 문제를 우회하는 pool20 합성 캡처는 그 문제의 수정/반증으로 보고하지 않는다.
 - 검증/상태: 새 회귀의 의도한 RED와 수정 후 재검증 로그는 작업 보고서/PR을 따른다. native 평가 실행에서 pg 동시 client.query deprecation 경고도 관찰했다. 이 단위에서 그 기존 경고의 원인을 확정하거나 해결했다고 표시하지 않는다. 회사 원문·계정/키·실제 외부 배포 영향은 확인되지 않았다.
 - 최종 재검증: `npm run check` 웹195/import16/251 요구사항·서버 타입·빌드·smoke 통과. 넓은 native23파일203통과/평가1실패를 숨기지 않고 수정 후 최종3파일11개로 재검증했다(scope8/인증HTTP·MCP·provider·durable·실제브라우저2/평가1). 최종 캡처1440/390에서 역사 질문 제출·보호된 저장 답변 재조회·선택 범위 표시·overflow 검사가 통과했다. 기존 pg 경고/별도 인증 문제는 이 단위의 해결로 기록하지 않는다.
+
+### 2026-11-17 — PR58 독립 검토: 기간 검증·페이지별 계보·조건 DTO
+- 사실/영향: queryScope는 실제 시각 순서를 허용했으나 downstream searchFilters는 문자열 순서로 검사해 start=00:00:00Z/end=00:00:00.999Z를 거절했다. agent context는 전체 선택 원본 합집합을 각 페이지의 source_refs에 복제해 독립 페이지의 근거를 잘못 표시하고 바이트 예산을 소모했다. canonical reviewDate/state로 바꾸면서 기존 reviewDue/lifecycle와 미등록 project/environment null도 빠졌다. ACL 우회/실제 회사 자료 전송이 확인된 사안은 아니다.
+- 원인: 이중 스키마의 시각 비교 불일치, 전송 권한 envelope와 페이지의 근거 attribution 혼동, additive DTO 호환 회귀 부족이다. 새 실제 PostgreSQL 회귀4건과 provider HTTP 경로의 동작 RED를 확인했다.
+- 조치: 기간은 downstream에서도 Date.parse로 비교한다. entry별 현재/과거 전체 계보 envelope와 전체 권한 합집합을 구별하고 entry의 source_refs·주장 근거에 해당 entry 계보를 사용한다. legacy 조건 키/명시 null을 복원하고 canonical metadata를 유지한다. 같은 시각의 다른 ISO 소수점 표기, 독립 2페이지와 예산 생략, 전이 계보, 현재 REST/미기록 과거 MCP 응답을 재검증한다.
+- 상태/검증: 수정 후 집중 검사와 전체 npm run check를 실행한다. 최종 수치는 PR58 보완 보고서를 따른다. UI 레이아웃 변경 없음, base 통합/배포 없음. 기존 pg deprecation/별도 pool6 인증 문제를 해결했다고 표시하지 않는다.
+- 최종 로컬 재검증: 전체 npm run check 웹195/import16/251 요구사항·서버 타입·build/smoke 통과, native6파일31개 통과. 혼합 정밀도 actual provider/MCP, 독립 페이지 source_refs/예산 생략, 전이 계보와 기존 조건 DTO/과거 unknown null을 포함한다. 재검토 및 원격 CI는 아직 별도다.

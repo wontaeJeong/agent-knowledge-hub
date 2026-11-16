@@ -7,7 +7,7 @@ import { queryScope, type QueryScope } from "../runtime/schema";
 import { ScopedSearch } from "./search";
 import { RefinementService } from "../refinement/service";
 import { authorizeInTransaction } from "../access/index";
-import { captureEnvelope } from "../provenance";
+import { captureEnvelope, type InputEnvelope } from "../provenance";
 import type { WorkflowAuthorizer } from "../workflows/service";
 
 /** Server-only composition. Search scope never grants access or adds resources outside the admitted view. */
@@ -44,7 +44,12 @@ export async function querySelectionDb(
         state,
         selected.map((p) => p.id),
       );
+    const pageEnvelopes: Record<string, InputEnvelope> = {};
+    for (const page of selected)
+      pageEnvelopes[`${page.id}:${current(page).number}`] =
+        await captureEnvelope(db, ctx, state, [page.id]);
     return {
+      pageEnvelopes,
       scope,
       asOf,
       temporalMode: "current-recommendation",
@@ -114,19 +119,24 @@ export async function querySelectionDb(
       (i) => i.pageId === p.id && i.version === current(p).number,
     )!,
   );
-  const pageIds = new Set(entries.map((i) => i.pageId)),
+  const pageIds = new Set<string>(),
     sourceIds = new Set<string>();
-  if (scope.historical) {
-    const snapshots = (
-      await db.query(
-        "SELECT page_id,number,snapshot FROM version_metadata WHERE workspace_id=$1",
-        [ctx.workspaceId],
-      )
-    ).rows;
-    for (const item of entries) {
+  const pageEnvelopes: Record<string, InputEnvelope> = {};
+  const snapshots = scope.historical
+    ? (
+        await db.query(
+          "SELECT page_id,number,snapshot FROM version_metadata WHERE workspace_id=$1",
+          [ctx.workspaceId],
+        )
+      ).rows
+    : [];
+  for (const item of entries) {
+    const roots = new Set([item.pageId]),
+      sources = new Set<string>();
+    if (scope.historical) {
       const p = state.pages.find((p) => p.id === item.pageId)!,
         v = p.versions.find((v) => v.number === item.version)!;
-      for (const id of v.sourceIds) sourceIds.add(id);
+      for (const id of v.sourceIds) sources.add(id);
       const snap = snapshots.find(
         (s) => s.page_id === item.pageId && s.number === item.version,
       )?.snapshot;
@@ -136,10 +146,20 @@ export async function querySelectionDb(
           ...(snap.relations ?? []),
           ...(snap.parentId ? [snap.parentId] : []),
         ])
-          pageIds.add(id);
-        for (const s of snap.sources ?? []) sourceIds.add(s.id);
+          roots.add(id);
+        for (const source of snap.sources ?? []) sources.add(source.id);
       }
     }
+    const entry = await captureEnvelope(
+      db,
+      ctx,
+      state,
+      [...roots],
+      [...sources],
+    );
+    pageEnvelopes[`${item.pageId}:${item.version}`] = entry;
+    for (const id of entry.pageIds) pageIds.add(id);
+    for (const id of entry.sourceIds) sourceIds.add(id);
   }
   const envelope = await captureEnvelope(
     db,
@@ -170,7 +190,7 @@ export async function querySelectionDb(
         ctx,
         i.pageId,
         i.version,
-        envelope,
+        pageEnvelopes[`${i.pageId}:${i.version}`],
         scope.historical ? i.at : asOf,
         scope.environment,
         scope.historical ? i.at : undefined,
@@ -182,6 +202,7 @@ export async function querySelectionDb(
       ),
     });
   return {
+    pageEnvelopes,
     scope,
     asOf,
     temporalMode: scope.historical

@@ -386,3 +386,169 @@ test("claims atomically documented by the same publication remain available in h
     validation: "unverified",
   });
 });
+test("valid mixed-precision and equivalent UTC publication bounds reach actual query selection", async () => {
+  for (const periodTo of [
+    "2026-10-29T00:00:00.999Z",
+    "2026-10-29T00:00:00.000Z",
+  ]) {
+    const result = await scoped({
+      historical: true,
+      periodFrom: "2026-10-29T00:00:00Z",
+      periodTo,
+    });
+    expect(result.citations[0]).toMatchObject({
+      version: 1,
+      quote: "기존 내용",
+    });
+    expect(inputs.at(-1).pages[0]).toMatchObject({
+      version: 1,
+      metadataStatus: "unknown",
+    });
+  }
+});
+async function independentContextPages() {
+  const s = {
+    ...source,
+    id: "source-b",
+    targetPageId: "topic-b",
+    content: "기존 독립 원본",
+  };
+  await runtime.core.registerSource(f.editor, s, [
+    "editor",
+    "reviewer",
+    "reader",
+  ]);
+  const b = await runtime.core.propose(
+    f.editor,
+    [
+      {
+        id: "topic-b",
+        title: "독립 주제",
+        summary: "독립 자료",
+        scope: "team",
+        content: "기존 독립 발행본",
+        links: [],
+        facts: [],
+        sourceIds: [s.id],
+        baseVersion: 0,
+      },
+    ],
+    [s.id],
+  );
+  await runtime.core.approve(f.ctx, b.id, b.hash);
+  await runtime.core.publish(f.ctx, b.id, b.hash, "independent-context");
+  return new AgentService(f.pool, runtime, authorizeInTransaction);
+}
+test("each context page keeps its own ancestry source references", async () => {
+  const agents = await independentContextPages();
+  const result = await agents.context(f.reader, {
+    task: "기존",
+    token_budget: 16000,
+  });
+  expect(result.items).toHaveLength(2);
+  for (const item of result.items)
+    expect(item.source_refs).toEqual([
+      {
+        id: item.page_id === "topic" ? "source-a" : "source-b",
+        version: 1,
+        location: "content",
+      },
+    ]);
+});
+test("an unrelated selected source cannot consume another page's exact context budget", async () => {
+  const agents = await independentContextPages();
+  const full = await agents.context(f.reader, {
+    task: "기존",
+    token_budget: 16000,
+  });
+  const first = full.items[0],
+    expected = {
+      ...first,
+      source_refs: [
+        {
+          id: first.page_id === "topic" ? "source-a" : "source-b",
+          version: 1,
+          location: "content",
+        },
+      ],
+    };
+  const token_budget = Buffer.byteLength(JSON.stringify([expected]));
+  const bounded = await agents.context(f.reader, {
+    task: "기존",
+    token_budget,
+  });
+  expect(bounded.items.map((p) => p.page_id)).toEqual([first.page_id]);
+  expect(bounded.omitted.map((p) => p.pageId)).toEqual([full.items[1].page_id]);
+  expect(bounded.budget.evidenceUtf8Bytes).toBeLessThanOrEqual(token_budget);
+});
+test("context retains legacy condition aliases and explicit unknown historical values", async () => {
+  const due = "2026-12-01T00:00:00Z";
+  await f.pool.query(
+    "INSERT INTO workflow_document_state(workspace_id,page_id,state,data) VALUES($1,'topic','active',$2)",
+    [f.workspaceId, { reviewDue: due }],
+  );
+  const agents = new AgentService(f.pool, runtime, authorizeInTransaction);
+  const current = await agents.context(f.reader, {
+    task: "기존",
+    token_budget: 16000,
+  });
+  expect(current.items[0].conditions).toMatchObject({
+    reviewDue: due,
+    lifecycle: "active",
+    reviewDate: due,
+    state: "active",
+    project: null,
+    environment: null,
+    effectiveFrom: null,
+  });
+  const historical = await agents.context(f.reader, {
+    task: "기존",
+    token_budget: 16000,
+    scope: { historical: true },
+  });
+  expect(historical.items[0].conditions).toMatchObject({
+    reviewDue: null,
+    lifecycle: null,
+    project: null,
+    environment: null,
+    effectiveFrom: null,
+    currentRecommendation: false,
+  });
+  expect(historical.items[0].metadata).toBeNull();
+});
+test("per-page context references retain transitive ancestry without contaminating independent pages", async () => {
+  const agents = await independentContextPages();
+  const b = await runtime.core.propose(
+    f.editor,
+    [
+      {
+        id: "topic",
+        title: page.title,
+        summary: page.summary,
+        scope: "team",
+        content: "기존 연결된 발행본",
+        links: ["topic-b"],
+        facts: [],
+        sourceIds: [source.id],
+        baseVersion: 1,
+      },
+    ],
+    [source.id],
+  );
+  await runtime.core.approve(f.ctx, b.id, b.hash);
+  await runtime.core.publish(f.ctx, b.id, b.hash, "context-ancestry");
+  const result = await agents.context(f.reader, {
+    task: "기존",
+    token_budget: 16000,
+  });
+  const refs = (id: string) =>
+    (
+      result.items.find((p) => p.page_id === id)!.source_refs as {
+        id: string;
+      }[]
+    )
+      .map((r) => r.id)
+      .sort();
+  expect(refs("topic")).toEqual(["source-a", "source-b"]);
+  expect(refs("topic-b")).toEqual(["source-b"]);
+});

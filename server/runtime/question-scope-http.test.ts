@@ -136,6 +136,10 @@ test("native authenticated scoped queries reach exact provider prompts and both 
       [f.workspaceId],
     );
   try {
+    await f.pool.query(
+      "INSERT INTO workflow_document_state(workspace_id,page_id,state,data) VALUES($1,'topic','active',$2)",
+      [f.workspaceId, { reviewDue: "2026-12-01T00:00:00Z" }],
+    );
     await refinements.addEvidence(f.editor, {
       id: "e",
       kind: "claim",
@@ -196,6 +200,23 @@ test("native authenticated scoped queries reach exact provider prompts and both 
     expect(bodies[0].messages[0].content).toContain(
       "unknown dates, titles or conditions stay unknown",
     );
+    const currentContext = await post("/api/v1/agent/context", {
+      task: "기존",
+      token_budget: 16000,
+    });
+    expect(currentContext.status, await currentContext.clone().text()).toBe(
+      200,
+    );
+    expect((await currentContext.json()).items[0]).toMatchObject({
+      source_refs: [{ id: source.id, version: 1, location: "content" }],
+      conditions: {
+        reviewDue: "2026-12-01T00:00:00Z",
+        lifecycle: "active",
+        project: null,
+        environment: null,
+      },
+      metadata: { reviewDate: "2026-12-01T00:00:00Z", state: "active" },
+    });
     await f.pool.query("INSERT INTO versions VALUES($1,'topic',2,$2)", [
       f.workspaceId,
       {
@@ -209,7 +230,7 @@ test("native authenticated scoped queries reach exact provider prompts and both 
     const historical = {
       historical: true,
       periodFrom: "2026-10-29T00:00:00Z",
-      periodTo: "2026-10-29T00:00:00Z",
+      periodTo: "2026-10-29T00:00:00.999Z",
     };
     r = await post("/api/v1/query", {
       question: "기존",
@@ -254,7 +275,17 @@ test("native authenticated scoped queries reach exact provider prompts and both 
       expect(
         path === "/mcp" ? parsed.citations[0].version : parsed.items[0].version,
       ).toBe(1);
-      if (path !== "/mcp") expect(parsed.items[0].metadata).toBeNull();
+      if (path !== "/mcp") {
+        expect(parsed.items[0].metadata).toBeNull();
+        expect(parsed.items[0].conditions).toMatchObject({
+          reviewDue: null,
+          lifecycle: null,
+          project: null,
+          environment: null,
+          effectiveFrom: null,
+          currentRecommendation: false,
+        });
+      }
     }
     const count = bodies.length;
     r = await post(

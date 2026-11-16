@@ -59,7 +59,9 @@ export const searchFilters = z
   .strict()
   .refine(
     (f) =>
-      (!f.periodFrom || !f.periodTo || f.periodFrom <= f.periodTo) &&
+      (!f.periodFrom ||
+        !f.periodTo ||
+        Date.parse(f.periodFrom) <= Date.parse(f.periodTo)) &&
       (!f.reviewDateFrom ||
         !f.reviewDateTo ||
         f.reviewDateFrom <= f.reviewDateTo),
@@ -300,7 +302,8 @@ export class ScopedSearch {
           )
             continue;
           if (
-            (filters.periodFrom && Date.parse(at) < Date.parse(filters.periodFrom)) ||
+            (filters.periodFrom &&
+              Date.parse(at) < Date.parse(filters.periodFrom)) ||
             (filters.periodTo && Date.parse(at) > Date.parse(filters.periodTo))
           )
             continue;
@@ -374,7 +377,9 @@ export class ScopedSearch {
     const accessible = old
       ? items.filter((i) => compare(key(i), old.last) > 0)
       : items;
-    const page = all ? accessible : accessible.slice(legacyOffset, legacyOffset + filters.limit);
+    const page = all
+      ? accessible
+      : accessible.slice(legacyOffset, legacyOffset + filters.limit);
     const nextCursor =
       accessible.length > legacyOffset + filters.limit
         ? this.encode({
