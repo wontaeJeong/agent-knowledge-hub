@@ -207,8 +207,18 @@ export function Markdown({
   } | null>(null);
   const [message, setMessage] = useState("");
   const generation = useRef(0);
+  const previewRequest = useRef(0);
+  const [previewPending, setPreviewPending] = useState(false);
+  const closePreview = () => {
+    previewRequest.current++;
+    setPreviewPending(false);
+    setImage(null);
+    setMessage("");
+  };
   useEffect(() => {
     const epoch = ++generation.current;
+    previewRequest.current++;
+    setPreviewPending(false);
     setImage(null);
     setMessage("");
     for (const element of root.current?.querySelectorAll<HTMLElement>(
@@ -236,6 +246,7 @@ export function Markdown({
     }
     return () => {
       generation.current++;
+      previewRequest.current++;
     };
   }, [text, readAttachment]);
   return (
@@ -248,16 +259,24 @@ export function Markdown({
             "[data-attachment]",
           );
           if (!target) return;
+          const request = ++previewRequest.current;
           if (!readAttachment) {
+            setImage(null);
+            setPreviewPending(false);
             setMessage("인증된 첨부 미리보기 연결이 필요합니다.");
             return;
           }
           const epoch = generation.current;
+          setPreviewPending(true);
           setImage(null);
           setMessage("현재 권한을 확인하고 있습니다.");
           void readAttachment(target.dataset.attachment!)
             .then((preview) => {
-              if (epoch === generation.current) {
+              if (
+                epoch === generation.current &&
+                request === previewRequest.current
+              ) {
+                setPreviewPending(false);
                 setImage({
                   preview,
                   label: target.dataset.label || "첨부 이미지",
@@ -266,7 +285,11 @@ export function Markdown({
               }
             })
             .catch(() => {
-              if (epoch === generation.current) {
+              if (
+                epoch === generation.current &&
+                request === previewRequest.current
+              ) {
+                setPreviewPending(false);
                 setImage(null);
                 setMessage(
                   "현재 권한 또는 검사 상태로 이미지를 표시할 수 없습니다.",
@@ -282,10 +305,10 @@ export function Markdown({
           </p>
         )}
       {message && <p role="status">{message}</p>}
-      {image && (
+      {(image || previewPending) && (
         <figure>
-          <RasterImage {...image} />
-          <button onClick={() => setImage(null)}>이미지 닫기</button>
+          {image && <RasterImage {...image} />}
+          <button onClick={closePreview}>이미지 닫기</button>
         </figure>
       )}
     </div>

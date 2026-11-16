@@ -2,7 +2,7 @@ import { test, expect } from "vitest";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as oidc from "openid-client";
@@ -86,6 +86,32 @@ test("authenticated runtime checks image format, CSRF, current source ACL and re
     });
     expect(await invalid.json()).toMatchObject({ code: "INVALID_IMAGE" });
     expect(invalid.status).toBe(415);
+    const animated = await readFile(
+      new URL("./fixtures/animated-two-frame.png", import.meta.url),
+    );
+    const before = (
+      await f.pool.query(
+        "SELECT count(*)::int n FROM storage_blobs WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows[0].n;
+    const animatedUpload = await fetch(base + "/api/v1/storage/blobs", {
+      method: "PUT",
+      headers,
+      body: animated,
+    });
+    expect(animatedUpload.status).toBe(415);
+    expect(await animatedUpload.json()).toMatchObject({
+      code: "INVALID_IMAGE",
+    });
+    expect(
+      (
+        await f.pool.query(
+          "SELECT count(*)::int n FROM storage_blobs WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(before);
     const upload = await fetch(base + "/api/v1/storage/blobs", {
       method: "PUT",
       headers,

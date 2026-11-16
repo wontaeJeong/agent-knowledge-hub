@@ -2,6 +2,7 @@
 
 ## 2026-11-16 문서 표시·이미지 첨부 — 로드맵 Task 3
 
+- 독립 리뷰의 Important 2건을 회귀로 재현해 수정했다. Sharp가 APNG의 pages를 생략하므로 실제 PNG 청크 경계를 검사해 acTL/fcTL/fdAT·손상/종료 뒤 데이터를 거부한다. 유효한 2프레임 합성 APNG는 실제 런타임에서415로 거부되고 blob 메타데이터가 생기지 않는다. 수식/다이어그램 세대와 별개인 이미지 요청 토큰은 새 선택·닫기·컨텍스트/언마운트에서 갱신하며 늦은 성공이 최신 권한 거부를 덮지 못한다. 대기 중 닫기도 지원한다. 이미지 object URL은 생성하지 않는다. 새 codec/React deferred/native HTTP 회귀 및 최종 전체 검사 결과는 화면 증거 README를 따른다.
 - EDT-001/008/009. `src/ui/Markdown.tsx`와 운영 문서·질문·고정 인용 및 기존 데모의 공통 읽기 경로를 연결했다. 원본 Markdown 표/코드/내부 링크를 다시 직렬화하지 않고, 로컬 KaTeX MathML과 엄격한 Mermaid flowchart/sequenceDiagram을 표시한다. 외부 이미지·HTML 실행·다이어그램 설정/콜백은 차단한다.
 - `server/storage/content.ts`, `service.ts`, `attachments.ts`, `file-read.ts`, `routes.ts`와 `src/operational/storage.tsx`에서 PNG/JPEG/WebP 업로드·이미지 미리보기·불변 버전 교체와 검토 연결을 지원한다. 5 MiB/400만 화소/4096px/정지 이미지 제한, 전체 픽셀 디코딩, 현재 ACL·원본 상한·고정 공유·디코딩 뒤 재검사·철회를 적용한다. 기존 CAS·스냅샷·보존/물리 삭제 게이트를 재사용하며 공개 파일 저장소는 없다.
 - 지원 형식·API·원본/발행/평가 경계는 [문서 표시 계약](DOCUMENT_PRESENTATION.md). 이미지 구조 검사는 바이러스/근거 검증이 아니며 PDF 변환·추출·미리보기, SVG/GIF와 임의 Mermaid 확장은 미지원이다. 지식/에이전트 성과는 측정하지 않았다.

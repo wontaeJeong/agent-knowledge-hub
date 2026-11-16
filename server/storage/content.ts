@@ -58,6 +58,38 @@ export async function bounded(
   }
 }
 export const rasterMimes = ["image/png", "image/jpeg", "image/webp"];
+/** Walk real chunk boundaries: decoder metadata may omit APNG frames. Never scan payload substrings. */
+function requireStaticPng(bytes: Buffer) {
+  const invalid = () => {
+    throw Error("INVALID_IMAGE");
+  };
+  if (
+    !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  )
+    invalid();
+  let offset = 8,
+    data = false;
+  while (offset + 12 <= bytes.length) {
+    const size = bytes.readUInt32BE(offset);
+    if (size > bytes.length - offset - 12) invalid();
+    const type = bytes.toString("latin1", offset + 4, offset + 8);
+    if (
+      !/^[a-zA-Z]{4}$/.test(type) ||
+      (offset === 8 && (type !== "IHDR" || size !== 13)) ||
+      (offset !== 8 && type === "IHDR")
+    )
+      invalid();
+    if (["acTL", "fcTL", "fdAT"].includes(type)) invalid();
+    const end = offset + size + 12;
+    if (type === "IDAT") data = true;
+    if (type === "IEND") {
+      if (size !== 0 || !data || end !== bytes.length) invalid();
+      return;
+    }
+    offset = end;
+  }
+  invalid();
+}
 /** Decode bounded pixels before declaring a raster structurally valid. No SVG/animated images. */
 export async function inspectAttachment(
   bytes: Buffer,
@@ -66,6 +98,7 @@ export async function inspectAttachment(
 ) {
   const checked = inspectContent(bytes, mime, filename);
   if (checked.extraction !== "image") return checked;
+  if (mime === "image/png") requireStaticPng(bytes);
   const sharp = (await import("sharp")).default;
   try {
     const image = sharp(bytes, {

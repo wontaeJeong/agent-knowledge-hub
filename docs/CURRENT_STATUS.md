@@ -6,7 +6,7 @@
 
 ## 2026-11-16 문서 표시·이미지 첨부 추가 근거
 
-EDT-001/008/009의 공통 Markdown 읽기, KaTeX MathML, 제한된 Mermaid flowchart/sequenceDiagram과 PNG/JPEG/WebP 업로드·현재 ACL 미리보기·불변 버전/검토 연결을 구현했다. 외부 자동 자원/HTML·스크립트 실행은 차단하며 PDF 추출·SVG/GIF는 미지원이다. [실제 연결·지원 형식](DOCUMENT_PRESENTATION.md), [1440/390 실제 서버 화면과 합성 회귀](pr-assets/roadmap-presentation/README.md)를 따른다. 이는 전체 수용 기준이나 실제 사내 운영 인수 완료가 아니다.
+EDT-001/008/009의 공통 Markdown 읽기, KaTeX MathML, 제한된 Mermaid flowchart/sequenceDiagram과 PNG/JPEG/WebP 업로드·현재 ACL 미리보기·불변 버전/검토 연결을 구현했다. 외부 자동 자원/HTML·스크립트 실행은 차단하며 PDF 추출·SVG/GIF는 미지원이다. 독립 리뷰 후 APNG 청크 거부와 요청별 이미지 응답·닫기 무효화 회귀를 추가했다. [실제 연결·지원 형식](DOCUMENT_PRESENTATION.md), [1440/390 실제 서버 화면과 합성 회귀](pr-assets/roadmap-presentation/README.md)를 따른다. 이는 전체 수용 기준이나 실제 사내 운영 인수 완료가 아니다.
 
 ## 상태를 읽는 방법
 

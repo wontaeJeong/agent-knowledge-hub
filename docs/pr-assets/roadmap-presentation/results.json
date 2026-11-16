@@ -11,5 +11,6 @@
   "imagePreview": true,
   "storageUpload": true,
   "replacement": true,
-  "currentAclDenial": true
+  "currentAclDenial": true,
+  "pendingPreviewCancel": true
 }
