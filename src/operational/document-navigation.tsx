@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+import { Markdown, type AttachmentReader } from "../ui/Markdown";
 import { Button } from "../ui/primitives";
 import { documentHref, OperationalApi } from "./api";
 
@@ -13,7 +12,7 @@ type Neighborhood = {
   related: Item[];
   truncated: Record<"links" | "backlinks" | "related", boolean>;
 };
-export function DocumentBody({ content }: { content: string }) {
+export function DocumentBody({ content, readAttachment }: { content: string; readAttachment?: AttachmentReader }) {
   const body = useRef<HTMLDivElement>(null);
   const [outline, setOutline] = useState<
     { id: string; title: string; level: number }[]
@@ -27,9 +26,12 @@ export function DocumentBody({ content }: { content: string }) {
   };
   useEffect(() => {
     const element = body.current!;
-    element.innerHTML = DOMPurify.sanitize(
-      marked.parse(content, { async: false }),
-    );
+    // Decorate the canonical safe renderer without replacing its event-bound DOM.
+    for (const mark of element.querySelectorAll("mark[data-match]")) {
+      const parent = mark.parentNode!;
+      mark.replaceWith(document.createTextNode(mark.textContent ?? ""));
+      parent.normalize();
+    }
     const headings = Array.from(
       element.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6"),
     );
@@ -47,7 +49,11 @@ export function DocumentBody({ content }: { content: string }) {
     const needle = query.trim().toLocaleLowerCase();
     const nodes: Text[] = [];
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      if (node.parentElement?.closest("math,svg,[data-diagram],button,figure,[role=status],.markdown-help")) continue;
+      nodes.push(node);
+    }
     let matches = 0;
     if (needle)
       for (const node of nodes) {
@@ -139,7 +145,7 @@ export function DocumentBody({ content }: { content: string }) {
           현재 위치로 이동
         </Button>
       </div>
-      <div ref={body} className="op-markdown" />
+      <div ref={body}><Markdown text={content} readAttachment={readAttachment} /></div>
     </section>
   );
 }
@@ -317,7 +323,7 @@ export function LinkCompletion({
 }: {
   api: OperationalApi;
   spaceId: string;
-  onInsert: (markdown: string) => void;
+  onInsert: (markdown: string, target: { id: string; version: number }) => void;
   onError: (error: unknown) => void;
 }) {
   const [query, setQuery] = useState(""),
@@ -427,7 +433,8 @@ export function LinkCompletion({
                         );
                       const title = current.title.replace(/[\\[\]]/g, "\\$&");
                       currentInsert.current(
-                        `[${title}](${documentHref(spaceId, item.id)})`,
+                        `[${title}](${documentHref(spaceId, current.id)})`,
+                        { id: current.id, version: current.version },
                       );
                     })
                     .catch((error) => {

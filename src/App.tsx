@@ -38,8 +38,7 @@ import {
   Workflow,
   X,
 } from "lucide-react";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+import { Markdown } from "./ui/Markdown";
 import { Badge, Button, Empty, Modal } from "./ui/primitives";
 import { BrandIcon } from "./ui/BrandIcon";
 import { BrandMark } from "./ui/BrandMark";
@@ -93,18 +92,7 @@ const statusText: Record<Change["status"], string> = {
   rejected: "반려됨",
   conflict: "충돌 · 재검토",
 };
-function Markdown({ text }: { text: string }) {
-  return (
-    <div
-      className="markdown"
-      dangerouslySetInnerHTML={{
-        __html: DOMPurify.sanitize(
-          marked.parse(text, { async: false }) as string,
-        ),
-      }}
-    />
-  );
-}
+
 function PageIcon({
   category,
   size = 21,

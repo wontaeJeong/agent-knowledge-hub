@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { Lexer, walkTokens } from "marked";
+import { rasterMimes } from "./content";
 import { AccessService, effectiveAccess } from "../access/index";
 import { transaction } from "../database";
 import { membership, requireRead, audit } from "../repository";
@@ -9,12 +10,12 @@ type Blob = Awaited<ReturnType<StorageService["blob"]>>;
 const validId = (id: string) =>
   /^[a-zA-Z0-9_-]{1,100}$/.test(id) &&
   !["__proto__", "constructor", "prototype"].includes(id);
-function references(content: unknown, blobId: string) {
+function references(content: unknown, blobId: string, image = false) {
   if (typeof content !== "string" || content.length > 100000) return false;
   let found = false;
   walkTokens(Lexer.lex(content), (token) => {
     if (
-      token.type === "link" &&
+      (token.type === "link" || (image && token.type === "image")) &&
       "href" in token &&
       token.href === `/api/v1/storage/blobs/${blobId}`
     )
@@ -75,7 +76,14 @@ export class FileReadAccess {
       if (candidates.rows.length > 100) throw Error("POLICY_UNAVAILABLE");
       let proven = false;
       for (const candidate of candidates.rows) {
-        if (!references(candidate.data.content, blobId)) continue;
+        if (
+          !references(
+            candidate.data.content,
+            blobId,
+            rasterMimes.includes(blob.mime),
+          )
+        )
+          continue;
         if (
           blob.parent_kind === "source" &&
           ![

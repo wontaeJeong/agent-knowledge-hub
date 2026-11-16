@@ -4,7 +4,13 @@
 
 제품 목표는 [North Star](LLM_WIKI_CORE.md), 수용 기준은 [기준 요구사항](requirements/requirements.json)과 [CORE 추가 기준](requirements/core-requirements.json), 개발 순서는 [요구사항 정비 기준](requirements/MAINTENANCE.md)을 따른다. 251개 중 필수 236개·확장 12개·선택 3개이며, 전체 운영 수용 완료로 판정한 항목은 없다. 이것은 구현이 전혀 없다는 뜻이 아니다.
 
+## 2026-11-16 문서 표시·이미지 첨부 추가 근거
+
+EDT-001/008/009의 공통 Markdown 읽기, KaTeX MathML, 제한된 Mermaid flowchart/sequenceDiagram과 PNG/JPEG/WebP 업로드·현재 ACL 미리보기·불변 버전/검토 연결을 구현했다. 외부 자동 자원/HTML·스크립트 실행은 차단하며 PDF 추출·SVG/GIF는 미지원이다. 독립 리뷰 후 APNG 청크 거부와 요청별 이미지 응답·닫기 무효화 회귀를 추가했다. [실제 연결·지원 형식](DOCUMENT_PRESENTATION.md), [1440/390 실제 서버 화면과 합성 회귀](pr-assets/roadmap-presentation/README.md)를 따른다. 이는 전체 수용 기준이나 실제 사내 운영 인수 완료가 아니다.
+
 ## 상태를 읽는 방법
+
+2026-11-16 편의기능 후속 설계는 [설계안](superpowers/specs/2026-11-16-essential-convenience-design.md)과 [구현 플랜](superpowers/plans/2026-11-16-essential-convenience.md)을 따른다. 10개 작업의 현재 격차·기존 PR 재사용·화면/API·권한·인수 기준과 12개 PR 단위 의존성을 정리했다. 이 문서 추가는 기존 구현·검증·운영 인수 상태를 승격하지 않는다. PR #30 및 #45~48의 병합/최종 검사는 각 PR 기록을 별도로 확인한다.
 
 - **구현:** 실제 서비스 로직이 있는가. 파일·화면 이름만으로 구현을 판정하지 않는다.
 - **연결:** 실행 진입점에서 인증·정책·저장소·작업·화면까지 호출되는가. `503`, 비활성 기능과 독립 어댑터를 구분한다.
@@ -49,6 +55,7 @@
 - P9 보존 리뷰 후속: 복구 재생에서 원본 법적 보류·비공개 참조·최신 스냅샷을 보수적으로 보호하고 초안의 현재 및 이력 계보에 대한 실행 자격증명의 접근을 재검사한다. CAS 물리 purge와 실제 운영 정책 검증은 남아 있다.
 - P7/P9 integration: applied workspace erasure receipts, including physical-purge-pending states, fence trusted collection before outbound requests and at final commit. Legal-hold and failed preflight alone are not treated as completed erasure. Verified with synthetic PostgreSQL 17, native HTTP and local TLS; external physical deletion and production operation remain separate.
 
+- SHR-007: fixed current descendants can be previewed and explicitly selected for an authenticated recipient. Atomic creation rechecks input rights and policy/selected versions; no later descendants or expanded source audience. Max50 pages, preview10minutes.
 ### 2026-11-16 — Task 5 일반 편입 계보·검토 환류
 - KNO-002~006/013/014: [일반 편입](../server/runtime/knowledge.ts)도 [공통 후보 바인딩](../server/runtime/ingest-lineage.ts)을 사용해 정확한 원본 fingerprint/위치·조건·유효 기간·예외를 미검증 주장 후보로 저장한다. 승인된 원자적 발행에서만 기존 refinement 주장/근거/상충 요청으로 연결한다. 승인/모델 성공을 독립 실행 검증으로 바꾸지 않는다.
 - 반려 사유·검토자·시각을 저장하고, 전체 현재 ACL의 반려 내용·발행된 사람 수정/보호 이유가 다음 일반 편입/답변 재편입에 전달된다. 동일 원본·동일 내용 재제안은 서버가 차단한다. 원본 정정은 영향 발행 버전/주장별 재검토 요청과 미발행 승인 무효화에 연결되며 원본/이전 주장을 덮어쓰지 않는다.
@@ -56,10 +63,11 @@
 - 검증/경계: 실제 PostgreSQL·loopback 모델/OIDC·MCP SDK·브라우저 회귀이며 실제 사내 모델 의미 품질/독립 업무 증거/운영 수용을 뜻하지 않는다. 정확히 같은 제안의 반복 차단과 의미상 같은 제안의 판단을 구분한다. 피드백 이력/모델 컨텍스트 한도 초과는 명시 오류로 남긴다.
 - PR52 검토 P1 보완: 반려안의 외부 링크·전이/과거 원본·상위 문서 전체를 현재 권한으로 검사하고, 그 완전한 envelope를 모델 전송/저장 시 다시 검증한다. 답변 편입에는 원래 답변 envelope 밖의 피드백을 보내지 않는다. 권한을 잃은 링크 ID만 제거하며 반려 본문을 유지하던 부분 검사는 사용하지 않는다.
 - 2026-11-16 Task 8 (CLB-004–006): current-category/space subscriptions, document comment integration, transactional publication/pending-review/terminal-job-failure outbox, explicit lifecycle expiry and personal processed state are connected to the existing collaboration notification/digest worker and UI. Read/final-send gates reauthorize current identity, whole source context and subscriptions; retries deduplicate. [Exact API/limits](superpowers/specs/2026-11-16-notifications-contract.md) · [synthetic browser evidence](pr-assets/roadmap-notifications/README.md). Local PostgreSQL/native HTTP/React/project checks are distinct from actual directory/gateway and operational acceptance; no semantic quality claim is added.
+- EDT-012: 운영 편집 화면의 다중 문서 태그/위치/보관 미리보기·대상별CAS 결과·실패 재시도 연결. 미리보기는 최대50문서/10분이고 현재권한을 적용 시 재검사한다.
 
 ## 2026-11-16 추가: 문서 탐색과 개인 목록
 
-EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행본 목차·코드/표 본문 검색 위치 이동, 현재 ACL의 내부 링크 자동완성·삽입 전 재검사·한 단계 백링크와 태그 관계, 기존 서버 즐겨찾기/최근 목록을 제공한다. 관계는 펼칠 때 최대 20건씩 조회하며 숨긴 문서 제목·개수는 반환하지 않는다. [설계·API·한계](design/2026-11-16-document-navigation.md)와 [실제 브라우저 1440/390 캡처](pr-assets/roadmap-navigation/README.md)를 따른다. 포커스 복귀/60초 권한 새로 고침은 실시간 푸시 철회를 뜻하지 않는다. 전체 상태 ACL 계산의 대규모 부하 시험·주제/공간 구독 확대·사내 운영 인수·실제 업무 효과는 남는다. 기존 요구사항의 운영 검증 상태는 변경하지 않는다.
+EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행본 목차·코드/표 본문 검색 위치 이동, 현재 ACL의 내부 링크 자동완성·삽입 전 재검사·한 단계 백링크와 태그 관계, 기존 서버 즐겨찾기/최근 목록을 제공한다. 관계는 펼칠 때 최대 20건씩 조회하며 숨긴 문서 제목·개수는 반환하지 않는다. [설계·API·한계](design/2026-11-16-document-navigation.md)와 [실제 브라우저 1440/390 캡처](pr-assets/roadmap-navigation/README.md)를 따른다. 포커스 복귀/60초 권한 새로 고침은 실시간 푸시 철회를 뜻하지 않는다. 전체 상태 ACL 계산의 대규모 부하 시험·사내 운영 인수·실제 업무 효과는 남는다. 기존 요구사항의 운영 검증 상태는 변경하지 않는다.
 
 ## 2026-11-16 Task 1a — Unified scoped search
 
