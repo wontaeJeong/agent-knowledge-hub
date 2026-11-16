@@ -84,6 +84,7 @@ const docSchema = z
     properties: z.record(z.string().max(100), z.string().max(2000)).optional(),
     reviewDue: z.iso.datetime().nullable().optional(),
     effectiveFrom: z.iso.datetime().nullable().optional(),
+    effectiveUntil: z.iso.datetime().nullable().optional(),
     replacementId: id.nullable().optional(),
     protected: z.boolean().optional(),
   })
@@ -1004,7 +1005,8 @@ export class WorkflowService {
           ],
         );
         const subscribers = await db.query(
-          "SELECT principal_id FROM workflow_subscriptions WHERE workspace_id=$1 AND page_id=$2",
+          `SELECT principal_id FROM workflow_subscriptions WHERE workspace_id=$1 AND page_id=$2
+           UNION SELECT s.principal_id FROM collaboration_subscriptions s WHERE s.workspace_id=$1 AND (s.scope='space' OR s.target IN (SELECT data->>'category' FROM pages WHERE workspace_id=$1 AND id=$2))`,
           [ctx.workspaceId, pageId],
         );
         const recipients = new Set([
@@ -1156,7 +1158,7 @@ export class WorkflowService {
   async notifications(ctx: Context) {
     return this.run(ctx, "knowledge.read", undefined, async (db) => {
       const rows = await db.query(
-        "SELECT id,page_id,version,kind,data,read_at,created_at FROM workflow_notifications WHERE workspace_id=$1 AND principal_id=$2 ORDER BY created_at DESC LIMIT 500",
+        "SELECT id,page_id,version,kind,data,read_at,created_at FROM workflow_notifications WHERE workspace_id=$1 AND principal_id=$2 AND page_id IS NOT NULL AND NOT(data ? 'eventId') ORDER BY created_at DESC LIMIT 500",
         [ctx.workspaceId, ctx.principalId],
       );
       const items = [];

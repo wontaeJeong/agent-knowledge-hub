@@ -524,6 +524,23 @@
 - Impact/cause: agent search duplicated eligibility logic, omitted replacementId and per-resource authorizer checks, and searched only current body in history mode. Five new native regressions failed before changes. Canonical ScopedSearch/currentRecommendation now owns retrieval.
 - Implementation error: using omit on a refined Zod object caused an import failure; explicitly mapping its shape fixed construction. Canonical search rejected unadopted fixtures; explicit adoptFixture setup fixed test identities without weakening production authorization. Existing historical expectation incorrectly used current effectiveFrom; it now expects unknown historical metadata.
 - Verification: five new search regressions, one native cookie MCP regression and nine existing agent regressions passed. Broader final checks are recorded in handoff. Actual company model and operational acceptance remain unverified.
+### 2026-11-16 — Notification expiry clock ordering and capability fixture
+- Context: Task 8 CLB-004–006 in isolated `feat/roadmap-notifications-20261116`.
+- Observed impact: an expiry regression intermittently produced no notification when comparing DB subscription timestamps with the application clock; no production data or external message was involved. A later UI fixture omitted the protection capability required by the canonical lifecycle API and failed after controls were correctly gated.
+- Cause: two clocks (and initially different timestamp precision) were used for event/subscription ordering. The UI fixture represented lifecycle access without the separate protected-setting capability.
+- Correction: use DB `clock_timestamp()` and exact timestamp text (preserving PostgreSQL microseconds across the JS boundary) for outbox/subscription ordering, while the injectable clock controls deadline evaluation and delivery windows. Discover candidates from subscriptions/explicit job responsibility, then use current canonical authorization. Align the UI fixture and actual controls with both required capabilities.
+- Validation: the initially failing expiry DB regression and protected-setting UI interaction now pass; event retry/current-category/source-revocation/native HTTP/final-digest gates are covered. Intentional TDD red runs for missing subscription/event/processing/expiry controls were observed before those implementations; these were expected missing-feature failures.
+- Additional discovery regression: resource authorization ceilings must be checked alongside stored reader ACLs before listing category names; the new source-denial regression failed first and now passes through the shared authorized envelope gate.
+- Integration discovery: the new durable tables initially failed the existing retention inventory gate. Added explicit classifications/private target hashing and subscription deletion under reviewed erasure, with graph lineage and a failing-first regression; generic target redaction would violate the space target CHECK or collide across topic keys.
+- Status: corrected locally; actual company directory/gateway and production acceptance remain separate. Final regression evidence is attached to the feature PR.
+
+### 2026-11-16 — Publication outbox lineage used a page kind for a batch ID
+- Context: independent review N1 of Task 8, PR #48.
+- Observed impact: source-only selection reached the originating batch but omitted the publication event and linked notification when their target page had no independently selected edge. Event rows contain identifiers; no body disclosure was established.
+- Cause: the erasure mapper grouped publication with page-scoped expiry although migration 120 stores `NEW.batch_id` for publication `resource_id`.
+- Correction: publication and review request map to batch; expiry keeps page and job failure keeps job. Regression tests use the exported graph selector and actual source-scoped deletion plus trusted recovery replay, retaining an independent target page.
+- Validation: all three new assertions failed before the production fix and passed after it; initial native fixture setup also required its existing resources FK row. Full project and affected native regressions are recorded in the PR follow-up report. No schema/UI change or external delivery.
+- Status: corrected locally; independent re-review/integration CI still required before merge.
 
 ### 2026-11-16 — 탐색 PR 최신 main 통합
 - 사실/원인: 오래된 PR30과 최근 기능 병합 사이에서 인계·실수 기록과 HTTP me 경로 충돌이 발생했다.
