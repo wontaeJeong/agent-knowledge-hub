@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import type { Context } from "../service";
-import type { Claim, Evidence } from "./logic";
+import { proposalCandidateInput, type Claim, type Evidence } from "./logic";
+import { bindCandidates } from "../runtime/ingest-lineage";
 import type { State } from "../../src/domain/types";
 import { current, draftOf, type Draft } from "../../src/domain/wiki";
 import { transaction } from "../database";
@@ -524,7 +525,8 @@ export class MaintenanceService {
       const output = z
         .object({
           updates: z.array(z.unknown()).max(execution.maxChanges),
-          reason: z.string().min(1).max(2000),
+          reason: z.string().trim().min(1).max(2000),
+          candidates: z.array(proposalCandidateInput).max(100).optional(),
           noChanges: z.boolean().optional(),
         })
         .strict()
@@ -556,12 +558,22 @@ export class MaintenanceService {
         ...d,
         sourceIds: [...new Set([...d.sourceIds, ...allSources])],
       }));
+      // Use the same immutable source/quote/target binder as ordinary ingest.
+      // No candidate metadata is trusted from the model beyond its input schema.
+      let candidates = bindCandidates(
+        output,
+        state.sources.filter((s) => envelope.sourceIds.includes(s.id)),
+        updates,
+      );
       updates = updates.filter((d) => {
         const p = state.pages.find((p) => p.id === d.id);
         if (!p) return true;
         if (d.baseVersion !== current(p).number) throw Error("STALE_VERSION");
         return digest(d) !== digest(draftOf(p));
       });
+      candidates = candidates.filter((candidate) =>
+        updates.some((update) => update.id === candidate.pageId),
+      );
       const prior = await execution.completed("ingest");
       if (prior !== undefined)
         proposal = z.object({ id: z.string(), hash: z.string() }).parse(prior);
@@ -574,6 +586,8 @@ export class MaintenanceService {
           {
             expectedStateHash: captured.fingerprint,
             mode: "model",
+            candidates,
+            evolutionReason: reason,
             dependencyIds: state.pages.map((p) => p.id),
             inputEnvelope: envelope,
             producer: await execution.producer("model"),

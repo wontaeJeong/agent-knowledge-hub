@@ -205,6 +205,7 @@ async function addPage(f: Awaited<ReturnType<typeof setup>>) {
 async function model(
   f: Awaited<ReturnType<typeof setup>>,
   beforeReply?: () => Promise<void>,
+  response?: (input: any) => Record<string, unknown>,
 ) {
   let calls = 0,
     input: any,
@@ -241,6 +242,7 @@ async function model(
                   sourceIds: ["source-a"],
                   facts: [],
                 })),
+                ...response?.(input),
               }),
             },
           },
@@ -583,4 +585,318 @@ it("weekly schedule admission fails closed for a missing link dependency", async
       )
     ).rows[0].n,
   ).toBe(0);
+});
+
+const weeklyCandidate = {
+  pageId: "topic",
+  key: "weekly-retry",
+  value: "conditional retry",
+  kind: "inference",
+  conditions: { os: "linux", version: "1" },
+  exceptions: ["permanent failure"],
+  validFrom: "2026-01-01T00:00:00.000Z",
+  validTo: null,
+  uncertainty: "single unverified source",
+  sourceId: "source-a",
+  quote: "실패 시 재시도한다.",
+};
+it("weekly shared ingest candidates bind immutable quotes and publish new-version claims only after independent review", async () => {
+  const f = await setup();
+  const m = await model(f, undefined, () => ({
+    candidates: [weeklyCandidate],
+    reason: "Add applicable retry conditions without claiming execution proof.",
+  }));
+  const row = await f.run("weekly", { ...modelJob, pageIds: ["topic"] });
+  expect(row.status, JSON.stringify(row)).toBe("succeeded");
+  expect(m.calls()).toBe(1);
+  expect(m.input().sources[0]).toEqual(source);
+  expect(m.system()).toContain("Optionally return candidates");
+  const proposal = row.result.proposal;
+  const pending = (
+    await f.pool.query(
+      "SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, proposal.id],
+    )
+  ).rows[0].data;
+  expect(pending.candidates).toEqual([
+    expect.objectContaining({
+      ...weeklyCandidate,
+      sourceVersion: digest(source),
+      verifiedAt: null,
+      location: {
+        start: source.content.indexOf(weeklyCandidate.quote),
+        end:
+          source.content.indexOf(weeklyCandidate.quote) +
+          weeklyCandidate.quote.length,
+        quote: weeklyCandidate.quote,
+      },
+    }),
+  ]);
+  expect(pending.evolutionReason).toBe(
+    "Add applicable retry conditions without claiming execution proof.",
+  );
+  expect(pending.producer).toMatchObject({
+    kind: "model",
+    provider: "openai",
+    model: "actual-weekly-model",
+  });
+  expect(
+    (
+      await f.pool.query(
+        "SELECT count(*)::int n FROM refinement_claims WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows[0].n,
+  ).toBe(0);
+  await expect(
+    f.runtime.core.approve(f.identity, proposal.id, proposal.hash),
+  ).rejects.toThrow();
+  await f.runtime.core.approve(f.ctx, proposal.id, proposal.hash);
+  await f.runtime.core.publish(
+    f.ctx,
+    proposal.id,
+    proposal.hash,
+    "weekly-candidate",
+  );
+  await f.runtime.core.publish(
+    f.ctx,
+    proposal.id,
+    proposal.hash,
+    "weekly-candidate",
+  );
+  const claims = (
+    await new RefinementService(f.pool, authorizeInTransaction).context(f.ctx, {
+      environment: { os: "linux", version: "1" },
+    })
+  ).items;
+  expect(claims).toHaveLength(1);
+  expect(claims[0]).toMatchObject({
+    pageId: "topic",
+    pageVersion: 2,
+    key: "weekly-retry",
+    kind: "inference",
+    conditions: weeklyCandidate.conditions,
+    exceptions: weeklyCandidate.exceptions,
+    validFrom: weeklyCandidate.validFrom,
+    validTo: null,
+    verifiedAt: null,
+    uncertainty: weeklyCandidate.uncertainty,
+    validation: "unverified",
+  });
+  const evidence = (
+    await f.pool.query(
+      "SELECT data FROM refinement_evidence WHERE workspace_id=$1",
+      [f.workspaceId],
+    )
+  ).rows;
+  expect(evidence).toHaveLength(1);
+  expect(evidence[0].data).toMatchObject({
+    sourceId: "source-a",
+    sourceVersion: digest(source),
+    kind: "claim",
+    verifiedAt: null,
+    location: pending.candidates[0].location,
+  });
+  expect(
+    source.content.slice(
+      evidence[0].data.location.start,
+      evidence[0].data.location.end,
+    ),
+  ).toBe(weeklyCandidate.quote);
+}, 15000);
+it("weekly accepts the shared empty candidates no-change response without creating a batch", async () => {
+  const f = await setup();
+  await model(f, undefined, () => ({
+    updates: [],
+    candidates: [],
+    noChanges: true,
+    reason: "No substantive change in this pinned context.",
+  }));
+  const row = await f.run("weekly", { ...modelJob, pageIds: ["topic"] });
+  expect(row.status, JSON.stringify(row)).toBe("succeeded");
+  expect(row.result).toMatchObject({
+    proposal: null,
+    noChanges: true,
+    reason: "No substantive change in this pinned context.",
+  });
+  expect(
+    (
+      await f.pool.query(
+        "SELECT count(*)::int n FROM batches WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows[0].n,
+  ).toBe(0);
+});
+it.each([
+  {
+    label: "invalid quote",
+    candidate: { ...weeklyCandidate, quote: "fabricated unsupported quote" },
+  },
+  {
+    label: "out-of-scope source",
+    candidate: { ...weeklyCandidate, sourceId: "hidden-source" },
+  },
+  {
+    label: "out-of-scope target",
+    candidate: { ...weeklyCandidate, pageId: "hidden-page" },
+  },
+])(
+  "weekly candidate rejects $label before any proposal or claim effect",
+  async ({ candidate }) => {
+    const f = await setup();
+    if (candidate.sourceId === "hidden-source") {
+      // A real same-space source with no service read grant, not an unknown ID.
+      await f.pool.query(
+        "INSERT INTO resources VALUES($1,'source','hidden-source')",
+        [f.workspaceId],
+      );
+      await f.pool.query(
+        "INSERT INTO sources(workspace_id,id,data) VALUES($1,'hidden-source',$2)",
+        [
+          f.workspaceId,
+          {
+            ...source,
+            id: "hidden-source",
+            content: source.content + "\nhidden-weekly-source-sentinel",
+          },
+        ],
+      );
+    }
+    const m = await model(f, undefined, () => ({ candidates: [candidate] }));
+    const row = await f.run("weekly", { ...modelJob, pageIds: ["topic"] });
+    expect(m.calls()).toBe(1);
+    expect(m.input().sources.map((s: any) => s.id)).toEqual(["source-a"]);
+    expect(JSON.stringify(m.input())).not.toContain(
+      "hidden-weekly-source-sentinel",
+    );
+    expect(row.status).toBe("dead");
+    expect(row.error_code).toBe("MODEL_INVALID");
+    expect(
+      (
+        await f.pool.query(
+          "SELECT count(*)::int n FROM batches WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+    expect(
+      (
+        await f.pool.query(
+          "SELECT count(*)::int n FROM refinement_claims WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+  },
+);
+it("weekly candidate source revocation during model transmission prevents every proposal and lineage effect", async () => {
+  const f = await setup();
+  const m = await model(
+    f,
+    async () => {
+      await f.pool.query(
+        "DELETE FROM resource_readers WHERE workspace_id=$1 AND principal_id=$2 AND kind='source' AND resource_id='source-a'",
+        [f.workspaceId, f.identity.principalId],
+      );
+    },
+    () => ({ candidates: [weeklyCandidate] }),
+  );
+  const row = await f.run("weekly", { ...modelJob, pageIds: ["topic"] });
+  expect(m.calls()).toBe(1);
+  expect(row.status).toBe("dead");
+  expect(row.result).toBeNull();
+  for (const table of ["batches", "refinement_claims", "refinement_evidence"])
+    expect(
+      (
+        await f.pool.query(
+          `SELECT count(*)::int n FROM ${table} WHERE workspace_id=$1`,
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+});
+
+it.each(["candidate", "reason"])(
+  "weekly %s remains bound to the independently approved batch hash",
+  async (field) => {
+    const f = await setup();
+    await model(f, undefined, () => ({ candidates: [weeklyCandidate] }));
+    const row = await f.run("weekly", { ...modelJob, pageIds: ["topic"] });
+    expect(row.status, JSON.stringify(row)).toBe("succeeded");
+    const proposal = row.result.proposal;
+    await f.runtime.core.approve(f.ctx, proposal.id, proposal.hash);
+    await f.pool.query(
+      "UPDATE batches SET data=jsonb_set(data,$3::text[],$4::jsonb) WHERE workspace_id=$1 AND id=$2",
+      [
+        f.workspaceId,
+        proposal.id,
+        field === "candidate"
+          ? ["candidates", "0", "value"]
+          : ["evolutionReason"],
+        JSON.stringify("changed after independent review"),
+      ],
+    );
+    await expect(
+      f.runtime.core.publish(
+        f.ctx,
+        proposal.id,
+        proposal.hash,
+        "changed-weekly-metadata",
+      ),
+    ).rejects.toThrow("APPROVAL_STALE");
+    expect(
+      (
+        await f.pool.query(
+          "SELECT count(*)::int n FROM refinement_claims WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+    expect(
+      (
+        await f.pool.query(
+          "SELECT count(*)::int n FROM versions WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  },
+);
+it("weekly reviewed candidates recheck current source access before canonical publication and roll back lineage", async () => {
+  const f = await setup();
+  await model(f, undefined, () => ({ candidates: [weeklyCandidate] }));
+  const row = await f.run("weekly", { ...modelJob, pageIds: ["topic"] });
+  expect(row.status, JSON.stringify(row)).toBe("succeeded");
+  const proposal = row.result.proposal;
+  await f.runtime.core.approve(f.ctx, proposal.id, proposal.hash);
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND principal_id='reviewer' AND kind='source' AND resource_id='source-a'",
+    [f.workspaceId],
+  );
+  await expect(
+    f.runtime.core.publish(
+      f.ctx,
+      proposal.id,
+      proposal.hash,
+      "revoked-weekly-candidate",
+    ),
+  ).rejects.toThrow();
+  for (const table of ["refinement_claims", "refinement_evidence"])
+    expect(
+      (
+        await f.pool.query(
+          `SELECT count(*)::int n FROM ${table} WHERE workspace_id=$1`,
+          [f.workspaceId],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+  expect(
+    (
+      await f.pool.query(
+        "SELECT count(*)::int n FROM versions WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows[0].n,
+  ).toBe(1);
 });
