@@ -249,9 +249,8 @@ export function DiscoveryDashboard({
     <div className="discovery-dashboard">
       <div className="discovery-intro">
         <div>
-          <span className="discovery-eyebrow">KNOWLEDGE DISCOVERY</span>
-          <h2>주목할 지식을 찾아보세요</h2>
-          <p>많이 연결된 문서와 최근 지식의 흐름을 한눈에 확인합니다.</p>
+          <h2>문서 연결과 질문 인용 통계</h2>
+          <p>선택한 기간의 문서 연결과 질문 인용을 집계합니다.</p>
         </div>
         <label>
           기간{" "}
