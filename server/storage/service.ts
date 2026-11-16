@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import type { Context } from "../service";
 import { ImportWorkflow, readImportArchive } from "./imports";
-import { AttachmentWorkflow } from "./attachments";
+import { AttachmentWorkflow, attachmentPreview } from "./attachments";
 import { FileReadAccess } from "./file-read";
 import { acquireSharedMutationGate } from "../operations/gate";
 import { statfs } from "node:fs/promises";
@@ -21,6 +21,7 @@ import {
   FileBlobStore,
   bounded,
   inspectContent,
+  inspectAttachment,
   sha256,
   MAX_BYTES,
 } from "./content";
@@ -283,7 +284,11 @@ export class StorageService {
       this.parent(db, ctx, parent),
     );
   }
-  async ingestText(ctx: Context, input: unknown, guard?: (db: PoolClient) => Promise<void>) {
+  async ingestText(
+    ctx: Context,
+    input: unknown,
+    guard?: (db: PoolClient) => Promise<void>,
+  ) {
     const d = z
       .object({
         title: z.string().trim().min(1).max(300),
@@ -445,7 +450,7 @@ export class StorageService {
         );
     });
     const bytes = await bounded(stream);
-    const check = inspectContent(bytes, d.mime, d.filename);
+    const check = await inspectAttachment(bytes, d.mime, d.filename);
     return this.run(ctx, "source.create", d.parent, async (db) => {
       await attachments.writableParent(db, ctx, d.parent);
       if (d.slotId)
@@ -512,6 +517,18 @@ export class StorageService {
         text: undefined,
       };
     });
+  }
+  async previewBlob(ctx: Context, blobId: string) {
+    const result = await this.download(ctx, blobId);
+    const preview = await attachmentPreview(result);
+    await new FileReadAccess(this).run(
+      ctx,
+      async () => blobId,
+      async (_db, now) => {
+        if (now.sha256 !== result.sha256) throw Error("STALE_VERSION");
+      },
+    );
+    return preview;
   }
   async list(ctx: Context, parent: StorageResource, offset = 0) {
     z.number().int().min(0).max(1000000).parse(offset);

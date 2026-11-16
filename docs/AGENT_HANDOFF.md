@@ -1,10 +1,23 @@
 # 에이전트 인계
 
+## 2026-11-16 문서 표시·이미지 첨부 — 로드맵 Task 3
+
+- 독립 리뷰의 Important 2건을 회귀로 재현해 수정했다. Sharp가 APNG의 pages를 생략하므로 실제 PNG 청크 경계를 검사해 acTL/fcTL/fdAT·손상/종료 뒤 데이터를 거부한다. 유효한 2프레임 합성 APNG는 실제 런타임에서415로 거부되고 blob 메타데이터가 생기지 않는다. 수식/다이어그램 세대와 별개인 이미지 요청 토큰은 새 선택·닫기·컨텍스트/언마운트에서 갱신하며 늦은 성공이 최신 권한 거부를 덮지 못한다. 대기 중 닫기도 지원한다. 이미지 object URL은 생성하지 않는다. 새 codec/React deferred/native HTTP 회귀 및 최종 전체 검사 결과는 화면 증거 README를 따른다.
+- EDT-001/008/009. `src/ui/Markdown.tsx`와 운영 문서·질문·고정 인용 및 기존 데모의 공통 읽기 경로를 연결했다. 원본 Markdown 표/코드/내부 링크를 다시 직렬화하지 않고, 로컬 KaTeX MathML과 엄격한 Mermaid flowchart/sequenceDiagram을 표시한다. 외부 이미지·HTML 실행·다이어그램 설정/콜백은 차단한다.
+- `server/storage/content.ts`, `service.ts`, `attachments.ts`, `file-read.ts`, `routes.ts`와 `src/operational/storage.tsx`에서 PNG/JPEG/WebP 업로드·이미지 미리보기·불변 버전 교체와 검토 연결을 지원한다. 5 MiB/400만 화소/4096px/정지 이미지 제한, 전체 픽셀 디코딩, 현재 ACL·원본 상한·고정 공유·디코딩 뒤 재검사·철회를 적용한다. 기존 CAS·스냅샷·보존/물리 삭제 게이트를 재사용하며 공개 파일 저장소는 없다.
+- 지원 형식·API·원본/발행/평가 경계는 [문서 표시 계약](DOCUMENT_PRESENTATION.md). 이미지 구조 검사는 바이러스/근거 검증이 아니며 PDF 변환·추출·미리보기, SVG/GIF와 임의 Mermaid 확장은 미지원이다. 지식/에이전트 성과는 측정하지 않았다.
+- 검증: Node24 전체 `npm run check`, 파일별 격리 PostgreSQL17의 storage/erasure 회귀 및 OIDC 세션·CSRF를 지나는 이미지 HTTP 검사를 실행했다. 실제 Chromium/React/서버/합성 OIDC·DB의 1440/390 문서·첨부 캡처와 업로드→미리보기→교체→원본 ACL 철회 후 차단, 외부 요청0/브라우저 오류0 근거는 [화면 증거](pr-assets/roadmap-presentation/README.md). 최종 실행 수와 PR 검토 상태는 해당 증거에 기록한다. 회사 SSO/실제 자료 운영 인수는 수행하지 않았다.
 ## 2026-11-16 일괄 결과의 호스트 재조회 경계 수정
 
 - PR #45 독립 검토에서 apply 직후 `onChanged` → App.load의 `dataReady=false` → WorkflowPanel unmount로 결과/복구 토큰이 사라지는 경계를 확인했다. 적용 응답 뒤 자동 부모 갱신을 제거하고, 결과·실패 대상 선택·같은 토큰 재확인을 보존한 뒤 사용자가 명시적으로 목록을 새로고침하게 했다. 명시적 갱신은 결과 화면을 닫는다.
 - TDD: 실제 호스트와 같은 unmount 경계 회귀가 수정 전 `NOT_PROCESSED` 대신 호스트 로딩 문구를 받아 실패했다. 수정 후 BulkEditor 3시험과 전체 `npm run check` 통과. scope/API 전환과 401/403의 보호 상태 비우기를 유지했다. 독립 재검토에서 중요 차단 결함을 발견하지 않았다.
 - [1440/390 화면 및 재현](pr-assets/bulk/README.md): 실제 컴포넌트/CSS와 합성 API, 부분 결과·재확인·명시적 갱신 및 pageerror 0 확인. 서버 기능은 바꾸지 않았고 전체 DB/최종 CI는 PR의 마지막 커밋 검사를 따른다.
+## 2026-11-16 필수 편의기능 설계와 구현 플랜
+
+- 사용자 요청: 열린 PR 병합과, 검토한 필수 편의기능 10개 전체의 설계·플랜 작성. 이 문서 PR은 후속 제품 코드 구현을 포함하지 않는다. [설계](superpowers/specs/2026-11-16-essential-convenience-design.md)와 [플랜](superpowers/plans/2026-11-16-essential-convenience.md)에 기존 요구사항·현재 경로·API/저장/권한·인수 기준·12개 PR 의존성을 연결했다. 기준 251개 요구사항과 보호 문서의 의미를 바꾸지 않았다.
+- 독립 설계 검토에서 수동 신규 문서의 import-run과 독립된 원본 공개 절차, 정확한 검토/작업/접근 요청 deep link, owner-only 개인 공간의 명시적 소유자 확인 경계를 보완했다. 개인 공간 정책을 팀 공유 승인 우회로 사용하지 않는다.
+- 작업 중 main의 전체 로드맵 문서 #44와 PR #45 일괄 편집, #46 공통 검색, #47 문서 탐색, #48 구독·알림 이벤트가 추가됐다. 해당 구현의 API·컴포넌트를 재사용하고 일괄 50건/10분 계약을 유지하도록 설계를 조정했다. 병합됐다는 가정으로 미구현 항목을 완료 처리하지 않는다.
+- 검증: 문서 링크·요구사항 ID·10개 작업/12개 PR 대응·기존 기준 불변·diff 및 요구사항 검사. 문서 전용 변경이며 제품 화면 캡처·DB 재검증은 이 PR의 변경 범위가 아니다. 최종 원격 검사와 병합 SHA는 PR 기록을 따른다.
 
 ## 2026-11-14 병합 CI의 동시 인증 회귀 수정
 
@@ -575,3 +588,44 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 ## 2026-11-17 - Task15 additional actual collector fixture
 - COL004 implementation adds explicitly pinned OpenCode2.3.0 synthetic pending input via the trusted private host/session path, with actual installed-server fixtures (IDs anonymized, no model/tools/work data). Live GET verified the pending inbox differs from the legacy message endpoint; only the exact selected item is persisted after strict session/version/revision/exclusion checks.
 - Native36 tests and fullnpmcheck passed. No UI/migration/newPod. Assistant/tool output for2.3.0 and corporate approved-host installation remain unsupported/unverified. [Contract and capture limits](implementation/2026-11-17-additional-collector.md). Independent review/finalCI remain required.
+### Task3/Task2 integration safety
+- Resolved overlapping published-body UI by using the shared safe Markdown renderer inside DocumentBody navigation. Outline/find decorate existing DOM without replacing authenticated attachment handlers. Math/SVG/control/status nodes are excluded from text marking. An integration regression failed on an external img before the change; safe image/math/find/preview and existing navigation/draft tests16 now pass. Fullcheck passed; actual integrated screenshots and scoped independent review follow.
+
+- Task3/Task2 final base integration: Node24 npmruncheck passed, native presentation-http/navigation-http/bulk3files passed, actual Chromium1440/390 safe-renderer navigation fixture passed outline4/find1/math/diagram/preview with external0/errors0/overflowfalse. Synthetic component input/reader is explicit in capture README; original actualOIDC/runtime/DB flow remains separately evidenced.
+
+## 2026-11-17 - First ready wave to main
+- User requests incremental completed-PR merges. This wave contains canonical/semantic search, document navigation, bulk edits, subscriptions/events, fixed-descendant sharing, ingest lineage/feedback and safe document/image rendering. Each immutable feature head passed final8 CI and independent scoped review. Product code from PR52ee1599d is integrated; its corrected-base verification note remains its separately tracked PR completion.
+- Broad combined review found no new Critical/Important issues and independently verified native21/UI19. Integrated requiredchecks and targeted native cross-feature regressions passed; final main-PR CI remains required before merge. Existing PR49 design documents and all251 requirements are preserved.
+- Extra auth/index, question-scope, export/import, weekly/monthly and remaining tasks continue separately; no whole-roadmap or company operations/model-quality completion claim.
+
+### 2026-11-16 — PR #47 내부 링크의 초안·발행 계보 보존
+
+- EDT-007/010, SRH-009/010 및 ACL/CORE-006의 원본 상한·검토 발행 불변식: 자동완성은 삽입 직전 재확인한 대상 ID/버전을 기존 `dependencyVersions`에 보존한다. 진행 중인 이전 자동 저장 응답이 새 입력과 링크 바인딩을 지우지 않도록 합친다. 기존 최신 콜백·현재 편집기·신원·요청 세대 검사를 유지했다.
+- 서버 `WorkflowService`의 기존 Markdown 탐색 파서를 재사용해 저장과 직접 제안에서도 같은 공간의 링크 대상을 현재 권한으로 확인한다. 저장된 의존 집합과 새 참조를 합치므로 클라이언트 메타데이터나 URL 제거가 기존 계보를 제거하지 않는다. 제출은 현재 대상 버전과 일반 `captureEnvelope`·발행 권한 검사로 대상 페이지/원본의 독자 상한을 유지한다. 모델 호출·마이그레이션·원격 변경은 없다.
+- 변경 파일: `server/workflows/service.ts`, workflow 서비스/인증 HTTP 회귀, `src/operational/document-navigation.tsx`, `workflows.tsx`, 탐색/자동 저장 회귀. 코드 예시·외부/다른 공간 제외와 이전 지연 응답 입력 보존 회귀를 유지했다. `constructor`처럼 객체 프로토타입 이름과 겹치는 유효 문서 ID도 의존 집합에 포함한다.
+- 검증: 초안 계보 누락/철회 저장·제출/가짜 대상의 서버 RED 6건과 클라이언트 누락 RED, 진행 중 저장 응답의 바인딩 유실 RED, 프로토타입 이름 누락 RED를 관찰했다. 수정 후 Node24 `npm run check` 전체와 전용 native PostgreSQL17의 workflow·인증 HTTP·보존/복구 5파일 73시험, 클라이언트 3파일 13시험을 통과했다. 화면 모양은 변하지 않아 기존 PR #47의 1440/390 캡처를 유지한다.
+- 한계: 과거에 계보 없이 저장한 뒤 URL도 제거한 자유 텍스트의 출처를 소급 추정하지 않는다. Docker dump/restore·실제 회사 자료/디렉터리·운영 인수는 미실행이다. 독립 재리뷰·원격 최종 CI·발행은 별도 확인한다.
+
+
+### 2026-11-16 — 내부 링크 계보의 독립 리뷰 후속 폐쇄
+
+- 이전 `ad2fbca`의 검증 뒤 독립 리뷰에서 저장 핀 덮어쓰기, Zod의 `__proto__` 키 제거, 렌더된 query-relative/HTML 링크 누락, 템플릿 우회, 업그레이드 전 초안 URL 유실을 추가로 확인했다. 하나의 수정 묶음으로 대응하며 새 편의 기능이나 접근 권한은 추가하지 않았다.
+- 저장/이력의 의존 버전은 immutable union으로 합쳐 충돌을 `STALE_VERSION`으로 거부한다. 클라이언트의 반복 자동완성도 기존 핀과 다른 버전이면 본문을 변경하지 않는다. 공통 키 보존 스키마는 save/propose/recovery에 적용하며 ordinary envelope의 page/source 해시 맵도 `__proto__`를 own key로 보관한다.
+- `marked`가 렌더한 HTML을 parse5로 읽어 query-relative 링크·HTML anchor·엔티티 인코딩을 같은 공간 관계에 포함한다. 코드 예시·다른 공간·절대 외부 URL 제외를 유지했다. parse5 8.0.1은 기존 lockfile의 전이 패키지를 고정 버전 그대로 runtime 직접 의존성으로 승격했으며 MIT 원문과 고지를 추가했다. entities 8.1.0도 버전을 바꾸지 않았다.
+- 초안 목록/저장/제출과 복구는 기존 현재·이력 본문의 URL 증거를 확인해 다음 입력이 URL이나 메타데이터를 제거해도 대상을 보존한다. 알려진 다중 출처 초안의 템플릿 편입은 지원하지 않고 안전하게 거부한다. 현재 저장한 초안 ID/리비전에 템플릿 작성을 바인딩하고, owner 범위의 일치 본문/동일 원본 페이지 초안·이력도 검사해 바인딩 생략 우회를 막는다. 기존 안전한 plain/단일 origin 템플릿은 유지하지만 같은 원본에 추가 계보가 있는 초안 이력이 있으면 보수적으로 제한할 수 있다.
+- 검증 명령/원시 출력은 `.superpowers/sdd/navigation-lineage-repair-plan/task-1-report.md`에 추가했다. 새 서버 18건 RED·반복 삽입 2건 RED 및 외부 sentinel/ordinary envelope 키 누락 RED를 관찰한 뒤 집중 GREEN, 최종 전체 `npm run check`를 실행했다. 모델 품질·회사 인수·Docker dump/restore는 검증하지 않았다. 부모 작업에서 새 커밋 범위만 독립 재리뷰·원격 발행을 담당한다.
+
+
+### 2026-11-16 — 링크 계보 수정의 round 2 회귀 복구
+
+- `132ec8d` 독립 재리뷰는 앞선 5개 계보 문제의 수정을 확인했지만, 변경분의 신뢰 origin·템플릿 바인딩·과거 초안 목록 처리에서 3개 Important 회귀를 추가로 발견했다. 이를 같은 로컬 작업 트리에서 수정했으며 원격 변경은 하지 않았다.
+- APP_ORIGIN에서 유래한 runtime `options.origin`만 WorkflowService와 DraftRecoveryService에 전달한다. 같은 배포의 절대/네트워크 Markdown·HTML href를 포함하고 외부 origin·다른 공간은 제외한다. Request Host/본문을 신뢰 기준으로 사용하지 않는다. 설정하지 않은 순수 fixture는 상대 URL만 추론한다.
+- 검증된 템플릿은 지정한 source draft ID/리비전의 불변 본문·origin과 그 리비전까지의 출처만 검사한다. 같은 A의 독립 초안이나 원본 초안의 이후 B 추가가 기존 안전한 템플릿을 오염시키지 않는다. 추가 출처 템플릿 거부는 유지하며, unbound legacy 템플릿은 owner 범위의 실제 일치 본문 증거로만 보수적으로 검사한다.
+- 과거 초안의 명시 핀을 모두 먼저 합친 뒤 URL의 빠진 바인딩을 추론한다. 기존 핀들이 서로 충돌하는 pre-upgrade 초안은 목록의 해당 항목만 제외하며 건강한 다른 초안은 읽을 수 있다. 충돌 초안의 저장·제출은 계속 거부한다.
+- RED: 신규 closure 9건과 native HTTP same-origin 1건 실패, 기존 closure 21건 통과. GREEN: 최종 native PostgreSQL 7파일 115시험과 Node24 전체 `npm run check`(프런트 181시험 포함) 통과. 세부 명령과 원시 출력은 같은 task report에 추가했다. 기존 late-typing·원본 상한·erasure/current-session·검토 발행 불변식은 유지한다. capped 정확 ID 검색과 반복 visibility 비용은 여전히 Minor 제약이며 Docker/실제 운영 인수는 미실행이다.
+
+### 2026-11-16 — 내부 링크 계보 수정의 통합 브랜치 검증
+
+독립 spec/quality 리뷰와 두 차례 범위 재검토에서 Important 잔여 없음. 검토한 ca6c958..7bb6d86의 세 수정 커밋을 bulk #45·구독 #48이 포함된 통합4f50478 위에 옮겼다. git range-diff로 코드 patch 동등성을 확인했고, MISTAKE_LOG의 양쪽 추가 기록만 함께 보존했다. 최종 통합 소스09fa3b1에서 Node24 `npm run check` 통과(프런트49파일191시험·원래251요구사항·서버 타입·빌드·HTTP smoke), 전용 native PostgreSQL17에서 workflow/lineage/native HTTP/recovery/retention/provenance/bulk 8파일122시험 통과. Docker dump/restore·배포·사내 수용·원격 CI는 이 로컬 결과로 주장하지 않는다. 템플릿의 추가 계보는 아직 fail-closed이고, 충돌하는 legacy 초안은 목록에서 개별 제외되어 별도 복구가 필요하다.
+
+통합된 #48의 승인 대기 검토 이벤트 유실은 별도 미해결이다. PR48 리뷰5921247928·5921544871에 재현 경로가 있으며, 이 내부 링크 수정은 해당 이벤트 문제를 해결하지 않는다.

@@ -134,7 +134,7 @@ export function collectArtifact(
     sessionId?: string;
     selectedToolIds?: string[];
   },
-  /** Trusted host-only binding after fetching the exact selected URL. Never request JSON. */
+  /** Trusted host-only binding after selecting the exact artifact via the version-specific approved-session route. Never request JSON. */
   verifiedBinding?: { sessionId: string; artifactId: string },
 ) {
   if (
