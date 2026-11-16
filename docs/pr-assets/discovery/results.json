@@ -1,0 +1,13 @@
+{
+  "environment": "macOS Node24 Playwright Chromium; synthetic explicit preview",
+  "results": [
+    {
+      "width": 1440,
+      "scrollWidth": 1440
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390
+    }
+  ]
+}

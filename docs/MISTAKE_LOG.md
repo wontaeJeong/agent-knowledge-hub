@@ -22,6 +22,17 @@
 - 추가 관찰: 지원 Node 24.22.2에서 lockfile 그대로 설치했고 `npm audit --json`은 간접 의존성 `hono`, `@hono/node-server`의 moderate 2건을 보고했다(high/critical 0). 이번 문서 정비에서 의존성을 변경하지 않았다.
 - 검증/후속: 기존 전체 기본 검사는 통과했다. 취약점의 실제 노출 경로와 수정 버전 호환성은 별도 검토·업데이트·회귀가 필요하며 해결됐다고 표시하지 않는다.
 
+
+### 2026-11-11 — 지식 탐색의 비현재 문서 및 화면 검증 제한
+- 맥락/관련 PR: 지식 연결·인용 대시보드. 합성 테스트만 사용했다.
+- 사실과 영향: 초기 구현은 시행 전 문서를 추천 집계에 포함했다. PostgreSQL 회귀에서 재현해 수정했다. Chromium은 소켓 생성 권한 오류로 시작하지 못했고 별도 브라우저는 로컬 서버 연결이 거부되어 필수 화면 증거를 얻지 못했다. 실제 사용자 자료 영향은 확인되지 않았다.
+- 원인: 접근 가능과 현재 권고 자격을 처음에 동일하게 취급했다. 브라우저 실행/네트워크 제한의 세부 원인은 확인하지 않았다. 임시 PostgreSQL의 첫 단독 연결도 명령별 네트워크 격리 때문에 거부됐으나 같은 실행 컨텍스트에서 서버와 검사를 실행해 해결했다.
+- 조치 및 검증: 서버의 기존 `currentRecommendation`을 다시 적용했고 시행 전 문서 회귀 및 비공개 입력 권한 검사를 실제 PostgreSQL에서 통과시켰다. 화면은 미검증 상태로 초안 PR에 남긴다.
+- 추가 코드 리뷰: ACL 재검사 후 권한 철회 경합, 500개 초과 입력의 조용한 집계 누락, 같은 문서 재진입 링크, 장시간 잠금과 인덱스 생성 중 쓰기 차단 가능성을 확인했다. 외부 세션을 최종 재확인하고 현재 볼 수 있는 자료의 권한과 지문을 재검사하며, 명시적 오류·로그인 복귀 링크·시간/용량 예산을 추가했으며 인덱스의 유지보수 창을 문서화했다. 초기 transaction_timeout 시도는 연결 종료로 테스트 오류를 발생시켜 폐기하고 statement_timeout과 협력형 시간 제한으로 바꿨다. 실제 대규모 부하와 무중단 인덱스는 미검증이다.
+- 추가 검증: 세 서버 테스트 파일을 하나의 DB에 병렬 실행했을 때 테스트 간 인증 데이터가 충돌해 두 검사가 실패했다. 각 파일을 독립 DB에서 순차 실행하는 저장소의 `test-server.mjs` 경로로 재실행했다. 공간 전체 크기 제한의 간접 노출 가능성과 다중 공간 부하는 남아 있다.
+- 추가: 로컬 git HTTPS push는 인증 정보가 없어 실패했다. GitHub 연결 도구로 동일한 변경을 올리며, 로컬 커밋과 원격 파일의 내용 일치를 확인한다.
+- 상태/후속 작업: 부모의 상속 ACL 변경 경합도 실제 DB에서 재현·수정했고 코드 재검토를 마쳤다. 데스크톱·모바일 실제 화면과 키보드 검증, 최종 CI는 별도다.
+
 ### 2026-11-02 — API 키 화면 검증 중 타입 및 브라우저 실행 실패
 - 맥락/관련 PR: API 키 폐기 시각 표시.
 - 사실과 영향: 첫 전체 검사에서 테스트용 React act 설정의 전역 타입 오류로 빌드가 실패했다. 별도로 Chromium은 `socket() failed: Operation not permitted`로 시작하지 못해 실제 화면을 확인하지 못했다.
@@ -519,3 +530,24 @@
 - Added per-preview/per-target workflow_events receipts atomically with mutations. A response lost after commit is unconfirmed until the same preview reconciles the receipt, without duplicating the metadata revision.
 - The first search regression needed adoptFixture because canonical authorization correctly rejected missing legacy evidence. Production authorization was not relaxed.
 - A documentation append command failed with source encoding error; retried ASCII source. No product data was affected. Node24 npm run check and native bulk5/workflows25 tests pass; scoped independent re-review follows.
+
+### 2026-11-16 — 탐색 PR 최신 main 통합
+- 사실/원인: 오래된 PR30과 최근 기능 병합 사이에서 인계·실수 기록과 HTTP me 경로 충돌이 발생했다.
+- 조치: 양쪽 기록을 보존하고 현재 me 처리 뒤에 discovery GET을 연결했다. 검증은 후속 실행 결과에 기록한다.
+- 상태: 통합 검증 중.
+
+### 2026-11-16 — 문서 탐색 검증 환경과 합성 fixture 수정
+
+- 맥락: EDT-007/010, SRH-009/010 기능 worktree.
+- 사실/영향: 최초 기본 검사에서 sandbox의 localhost 바인딩 EPERM으로 HTTP 시험 10건이 실패했다. 예전 로컬 PG 포트는 종료돼 ECONNREFUSED가 났다. 신규 DB fixture는 pages의 명시적 data 컬럼 없이 INSERT하여 not-null 오류가 났으며, 작성 화면 캡처는 recovery 권한 API에 빈 목록 fixture를 반환해 바인딩 검사로 초안이 닫혀 타임아웃됐다. 인계 문서 갱신용 Python stdin의 인코딩 오류도 발생해 UTF-8 heredoc 작성으로 전환했다. 제품 상태나 원격 배포는 변경하지 않았다.
+- 원인/조치: 도구 권한·환경과 API별 fixture 계약 확인이 부족했다. 권한 있는 실행에서 localhost 회귀를 재실행하고 공유 disposable PostgreSQL17의 파일별 UUID DB 실행기를 사용했다. INSERT 컬럼을 명시하고 recovery의 실제 명시적 403 응답을 fixture에 사용했다. 제품 인증·바인딩 검사를 완화하지 않았다.
+- 검증: 환경/fixture 문제 수정 후 신규 기능의 의도한 RED를 확인했다. 자동완성·삽입 전 철회·Markdown 코드 오인 회귀는 실제 실패 후 수정했고 targeted green, native 인증 HTTP green, 실제 Chromium 1440/390 캡처 성공·pageerror 0건을 확인했다. 최종 전체 `npm run check`와 workflow 서버 8파일 회귀도 통과했다.
+- 상태: 수정·검증됨. 실제 회사 자료·디렉터리·부하 시험은 미실행이다.
+
+### 2026-11-16 — 링크 삽입 권한 재검사 중 작성 입력 유실
+
+- 맥락: PR #47 독립 리뷰, EDT-007 및 개인 초안 자동 저장 경로.
+- 확인된 원인/영향: 링크 대상의 현재 권한을 재검사하는 Promise가 과거 `onInsert` 콜백과 본문을 보관했다. 응답을 기다리는 동안 계속 입력하면 이전 본문에 링크를 붙여 화면과 자동 저장에서 새 입력을 잃었다. 실제 사용자 데이터 영향은 확인하지 않았으며 합성 편집창으로 재현했다.
+- 조치: 링크 응답은 최신 커밋된 삽입 콜백을 사용한다. WorkflowPanel은 현재 초안·계정 바인딩을 확인하고 활성 DraftAutosave의 현재 본문에 추가한 동일 값을 React 입력과 자동 저장에 전달한다. 기존 대상/요청 세대·권한 철회 검사를 유지한다.
+- 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
+- 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
