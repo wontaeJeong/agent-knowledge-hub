@@ -12,6 +12,8 @@ import {
 } from "../identity/directory";
 import { identityTransaction } from "../identity/sessions";
 import { emergencyAuthority } from "../identity/authority";
+import { legacySessionRole } from "./legacy-compat";
+import type { Role } from "../../src/domain/types";
 
 export const spaceRoles = [
   "read",
@@ -99,7 +101,7 @@ export async function recordAccessAudit(
 export type SpaceDescriptor = {
   id: string;
   namespaceId: string;
-  namespaceKind: "personal" | "team";
+  namespaceKind: "personal" | "team" | "legacy";
   namespaceSlug: string;
   slug: string;
   visibility: "private" | "team" | "company";
@@ -111,15 +113,17 @@ export type EffectiveAccess = {
   capabilities: string[];
   paths: { role: SpaceRole; via: string }[];
   space: SpaceDescriptor;
+  legacyRole?: Role;
 };
 
 export async function effectiveAccess(
   db: DB,
   ctx: Context,
+  verifiedSessionId?: string,
 ): Promise<EffectiveAccess> {
   if ("connect" in db && !("release" in db))
     return identityTransaction(db as Pool, (client) =>
-      effectiveAccess(client, ctx),
+      effectiveAccess(client, ctx, verifiedSessionId),
     );
   await projectDirectoryMemberships(db, ctx.principalId);
   const r = await db.query(
@@ -130,7 +134,51 @@ export async function effectiveAccess(
     WHERE s.workspace_id=$1 AND s.active FOR SHARE OF p`,
     [ctx.workspaceId, ctx.principalId],
   );
-  if (!r.rowCount) throw Error("NOT_FOUND");
+  if (!r.rowCount) {
+    const legacyRole = await legacySessionRole(
+      db,
+      ctx,
+      verifiedSessionId ?? ctx.authorization?.sessionId,
+    );
+    if (!legacyRole) throw Error("NOT_FOUND");
+    let capabilities = [
+      "knowledge.read",
+      "queue.triage",
+      "lint.run",
+      ...(legacyRole !== "reader"
+        ? ["source.create", "changeset.propose"]
+        : []),
+      ...(legacyRole === "reviewer"
+        ? ["changeset.approve", "changeset.publish"]
+        : []),
+    ];
+    if (ctx.credentialId) {
+      const c = await db.query(
+        "SELECT actions FROM access_credentials WHERE id=$1 AND principal_id=$2 AND workspace_id=$3 AND NOT revoked AND expires_at>clock_timestamp()",
+        [ctx.credentialId, ctx.principalId, ctx.workspaceId],
+      );
+      if (!c.rowCount) throw Error("UNAUTHENTICATED");
+      capabilities = capabilities.filter(
+        (a) => delegated.has(a as Action) && c.rows[0].actions.includes(a),
+      );
+    }
+    return {
+      role: legacyRole === "editor" ? "write" : "read",
+      legacyRole,
+      capabilities,
+      paths: [],
+      space: {
+        id: ctx.workspaceId,
+        namespaceId: "",
+        namespaceKind: "legacy",
+        namespaceSlug: "",
+        slug: "",
+        visibility: "private",
+        policyVersion: 0,
+        owner: false,
+      },
+    };
+  }
   const s = r.rows[0];
   if (s.principal_kind === "service")
     await db.query(
@@ -234,11 +282,11 @@ export async function authorizeActionDb(
     resource.version &&
     action === "knowledge.read" &&
     !ctx.credentialId &&
-    a.space.namespaceKind === "team"
+    a.space?.namespaceKind === "team"
   ) {
     const m = await db.query(
       "SELECT 1 FROM access_team_members WHERE team_id=$1 AND principal_id=$2 AND active",
-      [a.space.namespaceId, ctx.principalId],
+      [a.space!.namespaceId, ctx.principalId],
     );
     if (m.rowCount)
       shared = !!(
@@ -263,12 +311,12 @@ export async function authorizeActionDb(
     resource?.kind === "page" &&
     Number.isSafeInteger(resource.version) &&
     resource.version! > 0 &&
-    a.space.namespaceKind === "team" &&
+    a.space?.namespaceKind === "team" &&
     ["knowledge.read", "queue.triage", "triage.manage"].includes(action)
   ) {
     const admitted = await db.query(
       "SELECT 1 FROM access_team_members WHERE team_id=$1 AND principal_id=$2 AND active",
-      [a.space.namespaceId, ctx.principalId],
+      [a.space!.namespaceId, ctx.principalId],
     );
     const exact = await db.query(
       "SELECT 1 FROM versions WHERE workspace_id=$1 AND page_id=$2 AND number=$3",
@@ -344,7 +392,7 @@ export async function assertResourceUpperBound(
         )
           throw Error("NOT_FOUND");
         const v = await db.query(
-          "SELECT data FROM versions WHERE workspace_id=$1 AND page_id=$2 AND (number=(SELECT max(number) FROM versions WHERE workspace_id=$1 AND page_id=$2) OR number=$3)",
+          "SELECT jsonb_build_object('sourceIds',data->'sourceIds','provenance',jsonb_build_object('sourceIds',data->'provenance'->'sourceIds','pageIds',data->'provenance'->'pageIds')) AS data FROM versions WHERE workspace_id=$1 AND page_id=$2 AND (number=(SELECT max(number) FROM versions WHERE workspace_id=$1 AND page_id=$2) OR number=$3)",
           [
             ctx.workspaceId,
             pageId,
@@ -387,7 +435,7 @@ export async function assertResourceUpperBound(
           pending.push(...(input.provenance?.pageIds ?? []));
         }
         const p = await db.query(
-          "SELECT data FROM pages WHERE workspace_id=$1 AND id=$2",
+          "SELECT jsonb_build_object('links',data->'links') AS data FROM pages WHERE workspace_id=$1 AND id=$2",
           [ctx.workspaceId, pageId],
         );
         pending.push(...(p.rows[0]?.data.links ?? []));
@@ -635,11 +683,11 @@ export class AccessService {
       );
       await db.query(
         "INSERT INTO access_service_accounts VALUES($1,$2,$3,$4,$5)",
-        [id, a.space.namespaceId, b.name, ctx.principalId, b.expiresAt],
+        [id, a.space!.namespaceId, b.name, ctx.principalId, b.expiresAt],
       );
       await db.query(
         "INSERT INTO access_team_members VALUES($1,$2,'member',true)",
-        [a.space.namespaceId, id],
+        [a.space!.namespaceId, id],
       );
       await db.query(
         "INSERT INTO access_grants(id,workspace_id,principal_id,role) VALUES($1,$2,$3,'read')",
@@ -671,7 +719,7 @@ export class AccessService {
     return this.mutate(ctx, "space.admin", async (db, a) => {
       const svc = await db.query(
         "SELECT * FROM access_service_accounts WHERE principal_id=$1 AND namespace_id=$2 AND expires_at>$3",
-        [ident.parse(principalId), a.space.namespaceId, b.expiresAt],
+        [ident.parse(principalId), a.space!.namespaceId, b.expiresAt],
       );
       if (!svc.rowCount) throw Error("NOT_FOUND");
       for (const action of b.actions) {
@@ -704,7 +752,7 @@ export class AccessService {
     return (
       await this.pool.query(
         'SELECT s.principal_id AS id,s.name,s.sponsor_id AS "sponsorId",s.expires_at AS "expiresAt",p.active FROM access_service_accounts s JOIN access_principals p ON p.id=s.principal_id WHERE s.namespace_id=$1',
-        [a.space.namespaceId],
+        [a.space!.namespaceId],
       )
     ).rows;
   }
@@ -718,7 +766,7 @@ export class AccessService {
       .strict()
       .parse(input);
     return this.mutate(ctx, "space.admin", async (db, a) => {
-      await this.activeMember(db, a.space.namespaceId, b.sponsorId);
+      await this.activeMember(db, a.space!.namespaceId, b.sponsorId);
       const human = await db.query(
         "SELECT 1 FROM access_principals WHERE id=$1 AND active AND kind='human'",
         [b.sponsorId],
@@ -726,7 +774,7 @@ export class AccessService {
       if (!human.rowCount) throw Error("NOT_FOUND");
       const r = await db.query(
         "UPDATE access_service_accounts SET sponsor_id=$3,expires_at=$4 WHERE principal_id=$1 AND namespace_id=$2 RETURNING principal_id",
-        [ident.parse(id), a.space.namespaceId, b.sponsorId, b.expiresAt],
+        [ident.parse(id), a.space!.namespaceId, b.sponsorId, b.expiresAt],
       );
       if (!r.rowCount) throw Error("NOT_FOUND");
       await this.bump(db, ctx, b.expectedVersion);
@@ -738,7 +786,7 @@ export class AccessService {
     return (
       await this.pool.query(
         'SELECT c.id,c.workspace_id AS "spaceId",c.actions,c.expires_at AS "expiresAt",c.revoked,c.last_used_at AS "lastUsedAt" FROM access_credentials c JOIN access_service_accounts s ON s.principal_id=c.principal_id WHERE s.namespace_id=$1 AND s.principal_id=$2 AND c.workspace_id=$3',
-        [a.space.namespaceId, ident.parse(id), ctx.workspaceId],
+        [a.space!.namespaceId, ident.parse(id), ctx.workspaceId],
       )
     ).rows;
   }
@@ -751,7 +799,7 @@ export class AccessService {
       await db.query(
         "UPDATE access_credentials c SET revoked=true FROM access_service_accounts s WHERE s.principal_id=c.principal_id AND s.namespace_id=$1 AND s.principal_id=$2 AND c.workspace_id=$3 AND c.id=$4",
         [
-          a.space.namespaceId,
+          a.space!.namespaceId,
           ident.parse(id),
           ctx.workspaceId,
           ident.parse(credentialId),
@@ -792,7 +840,7 @@ export class AccessService {
     return this.mutate(ctx, "space.admin", async (db, a) => {
       const r = await db.query(
         "SELECT 1 FROM access_service_accounts WHERE principal_id=$1 AND namespace_id=$2",
-        [ident.parse(id), a.space.namespaceId],
+        [ident.parse(id), a.space!.namespaceId],
       );
       if (!r.rowCount) throw Error("NOT_FOUND");
       await db.query("UPDATE access_principals SET active=false WHERE id=$1", [
@@ -833,7 +881,7 @@ export class AccessService {
         await projectDirectoryMemberships(db);
         const g = await db.query(
           "SELECT 1 FROM access_groups WHERE id=$1 AND team_id=$2",
-          [b.groupId, a.space.namespaceId],
+          [b.groupId, a.space!.namespaceId],
         );
         if (!g.rowCount) throw Error("NOT_FOUND");
         targets = (
@@ -849,7 +897,7 @@ export class AccessService {
       );
       if (!version.rowCount || !targets.length) throw Error("NOT_FOUND");
       for (const target of targets) {
-        await this.activeMember(db, a.space.namespaceId, target);
+        await this.activeMember(db, a.space!.namespaceId, target);
         await this.assertShareInputs(
           db,
           { workspaceId: ctx.workspaceId, principalId: target },
@@ -913,7 +961,7 @@ export class AccessService {
           pending.push({ id, version: 1 });
       }
       const meta = await db.query(
-        "SELECT data FROM pages WHERE workspace_id=$1 AND id=$2",
+        "SELECT jsonb_build_object('links',data->'links') AS data FROM pages WHERE workspace_id=$1 AND id=$2",
         [ctx.workspaceId, p.id],
       );
       for (const id of meta.rows[0]?.data.links ?? [])
@@ -993,7 +1041,7 @@ export class AccessService {
     const rows = await this.pool.query(
       "SELECT workspace_id FROM access_spaces WHERE active ORDER BY workspace_id",
     );
-    const result = [];
+    const result: (SpaceDescriptor & {role:string;capabilities:string[];legacyAccess?:boolean})[] = [];
     for (const r of rows.rows)
       try {
         const a = await this.effective({ ...ctx, workspaceId: r.workspace_id });
@@ -1006,6 +1054,15 @@ export class AccessService {
       } catch (e) {
         if (!(e instanceof Error) || e.message !== "NOT_FOUND") throw e;
       }
+    if (ctx.authorization?.sessionId) {
+      const legacyRows = await this.pool.query("SELECT workspace_id FROM legacy_compat_memberships WHERE principal_id=$1 AND NOT revoked ORDER BY workspace_id",[ctx.principalId]);
+      for (const row of legacyRows.rows) {
+        try {
+          const a = await this.effective({...ctx,workspaceId:row.workspace_id});
+          if (a.legacyRole) result.push({...a.space,slug:row.workspace_id,role:a.legacyRole,capabilities:a.capabilities,legacyAccess:true});
+        } catch(e) { if (!(e instanceof Error) || e.message !== "NOT_FOUND") throw e; }
+      }
+    }
     return result;
   }
   async teams(ctx: Context) {
@@ -1061,6 +1118,7 @@ export class AccessService {
         : [];
       return {
         ...a,
+        space: a.legacyRole ? null : a.space,
         principalId: target.principalId,
         grants,
         blockedReasons: a.role ? [] : ["NO_SPACE_GRANT"],
@@ -1599,11 +1657,11 @@ export class AccessService {
     return this.mutate(ctx, "space.admin", async (db, a) => {
       if (a.space.namespaceKind !== "team") throw Error("FORBIDDEN");
       if (b.principalId)
-        await this.activeMember(db, a.space.namespaceId, b.principalId);
+        await this.activeMember(db, a.space!.namespaceId, b.principalId);
       else {
         const g = await db.query(
           "SELECT 1 FROM access_groups WHERE id=$1 AND team_id=$2",
-          [b.groupId, a.space.namespaceId],
+          [b.groupId, a.space!.namespaceId],
         );
         if (!g.rowCount) throw Error("NOT_FOUND");
       }
@@ -1835,6 +1893,7 @@ export class AccessService {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
       await this.principal(db, ctx);
       await ctx.authorization?.assertSession(db);
+      if ((await effectiveAccess(db,ctx)).legacyRole) throw Error("FORBIDDEN");
       for (const action of b.actions) {
         if (!delegated.has(action)) throw Error("FORBIDDEN");
         await credentialCeiling(db, ctx, action);

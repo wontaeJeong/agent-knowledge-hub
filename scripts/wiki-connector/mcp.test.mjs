@@ -55,6 +55,7 @@ test(
     const names = (await client.listTools()).tools.map((x) => x.name);
     assert.ok(names.includes("wiki_write"));
     assert.ok(names.includes("wiki_prepare_merge"));
+    assert.ok(names.includes("wiki_propose_batch"));
     assert.ok(!names.some((n) => /publish|approve|confirm/.test(n)));
     const call = async (name, args = {}) => {
       const result = await client.callTool({ name, arguments: args });
@@ -65,6 +66,9 @@ test(
       page: { ...page, content: "written by an agent" },
     });
     await call("wiki_sync");
+    const unsupported = await client.callTool({name:"wiki_propose_batch",arguments:{id:"batch",targetSpaceId:"team-a",selections:[{pageId:"guide",baseVersion:1,personalVersion:1}]}});
+    assert.equal(unsupported.isError,true);
+    assert.equal(unsupported.content[0].text,"FEATURE_UNAVAILABLE");
     assert.equal(
       (await call("wiki_read", { id: "guide" })).page.content,
       "written by an agent",

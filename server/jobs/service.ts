@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { acquireSharedMutationGate } from "../operations/gate";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import type { Context } from "../service";
@@ -20,7 +21,7 @@ const identifier = z.string().min(1).max(200);
 const integer = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const jobSchema = z
   .object({
-    kind: z.enum(["ingest", "query", "lint", "daily", "weekly", "index"]),
+    kind: z.enum(["ingest", "query", "lint", "daily", "weekly", "index", "retention"]),
     key: identifier,
     payload: z.record(z.string(), z.unknown()),
     pageIds: z.array(identifier).max(200),
@@ -129,12 +130,14 @@ export class JobService {
       if (!Number.isSafeInteger(n) || n < 1) throw Error("INVALID_JOB_OPTIONS");
     if (this.options.globalConcurrency > 10) throw Error("CONCURRENCY_LIMIT");
   }
-  private async tx<T>(work: (db: PoolClient) => Promise<T>): Promise<T> {
+  private async tx<T>(work: (db: PoolClient) => Promise<T>, gate: "shared"|"exclusive" = "shared"): Promise<T> {
     const db = await this.pool.connect();
     try {
       await db.query("BEGIN");
       await db.query("SET LOCAL lock_timeout='5s'");
       await db.query("SET LOCAL statement_timeout='15s'");
+      if (gate === "exclusive") await db.query("SELECT pg_advisory_xact_lock(822025)");
+      else await acquireSharedMutationGate(db);
       const value = await work(db);
       await db.query("COMMIT");
       return value;
@@ -898,6 +901,7 @@ export class JobService {
     return this.tx(async (db) => {
       await this.mutex(db);
       const row = await this.locked(db, lease);
+      if (row.kind !== lease.input.kind) throw Error("LEASE_LOST");
       const ctx = await this.resolve(db, this.rowIdentity(row));
       await this.assertCurrent(db, row, ctx);
       if (+this.clock() >= +new Date(row.started_at) + row.timeout_ms)
@@ -927,7 +931,7 @@ export class JobService {
         id: row.id,
         result: completion.value ?? null,
       });
-    });
+    }, lease.input.kind === "retention" ? "exclusive" : "shared");
   }
   async fail(lease: Lease, error: string, transient = false) {
     return this.tx(async (db) => {
@@ -1324,13 +1328,17 @@ export class JobService {
       sources,
     );
   }
+  private async retentionManager(db: PoolClient, ctx: Context) {
+    if (ctx.credentialId || !this.hooks.authorizeRetentionSchedule) throw Error("FORBIDDEN");
+    await this.hooks.authorizeRetentionSchedule(db,ctx);
+  }
   async saveSchedule(ctx: Context, input: unknown) {
     const serialized = JSON.stringify(input);
     if (!serialized || Buffer.byteLength(serialized) > 500000)
       throw Error("INPUT_LIMIT");
     const spec = scheduleSchema.parse(JSON.parse(serialized));
     nextOccurrence(spec, this.clock());
-    if (!["daily", "weekly", "lint", "ingest", "index"].includes(spec.job.kind))
+    if (!["daily", "weekly", "lint", "ingest", "index", "retention"].includes(spec.job.kind))
       throw Error("INVALID_SCHEDULE_KIND");
     if (spec.identity.workspaceId !== ctx.workspaceId)
       throw Error("SCOPE_CONFLICT");
@@ -1339,11 +1347,13 @@ export class JobService {
       spec.job.sourceIds.some((id) => !spec.approvedSourceIds.includes(id))
     )
       throw Error("SCOPE_CONFLICT");
-    await this.request(ctx, "jobs.manage", (db) =>
-      this.scheduleReadable(db, ctx, spec),
-    );
+    await this.request(ctx, "jobs.manage", async (db) => {
+      if (spec.job.kind === "retention") await this.retentionManager(db,ctx);
+      await this.scheduleReadable(db, ctx, spec);
+    });
     await this.hooks.revalidateIdentity?.(spec.identity);
     return this.request(ctx, "jobs.manage", async (db) => {
+      if (spec.job.kind === "retention") await this.retentionManager(db,ctx);
       await this.scheduleReadable(db, ctx, spec);
       await this.hooks.validateScheduleIdentity?.(db, spec.identity);
       const execution = await this.resolve(db, spec.identity);
@@ -1362,6 +1372,7 @@ export class JobService {
           [ctx.workspaceId, spec.key],
         )
       ).rows[0];
+      if (previous?.config?.job?.kind === "retention" && spec.job.kind !== "retention") await this.retentionManager(db,ctx);
       if ((previous?.revision ?? 0) !== (spec.expectedRevision ?? 0))
         throw Error("STALE_VERSION");
       const id = previous?.id ?? randomUUID(),
@@ -1474,6 +1485,7 @@ export class JobService {
         )
       ).rows[0];
       if (!row) throw Error("NOT_FOUND");
+      if (enabled && row.config.job.kind === "retention") await this.retentionManager(db,ctx);
       if (enabled) {
         await this.hooks.validateScheduleIdentity?.(db, row.identity);
         await this.validate(
@@ -1504,6 +1516,7 @@ export class JobService {
         )
       ).rows[0];
       if (!row) throw Error("NOT_FOUND");
+      if (row.config.job.kind === "retention") await this.retentionManager(db,ctx);
       await this.hooks.validateScheduleIdentity?.(db, row.identity);
       return this.enqueueIn(
         db,

@@ -342,6 +342,14 @@ it("gateway requires verified TLS/allowlist and never follows redirects", async 
 });
 it("overdue review work uses explicit active backup and never marks a claim false", async () => {
   const f = await setup();
+  await f.pool.query(
+    "UPDATE access_grants SET role='maintain' WHERE workspace_id=$1 AND principal_id IN ('editor','reader')",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO access_reviewers(workspace_id,principal_id) VALUES($1,'editor'),($1,'reader') ON CONFLICT DO NOTHING",
+    [f.workspaceId],
+  );
   await f.service.configureReviewCadence(f.ctx, {
     documentType: "기술 설계",
     expectedRevision: 0,
@@ -496,6 +504,14 @@ it("future-effective pages do not become current overdue recommendation work", a
 });
 it("review responsibility is not namespace ownership and acknowledging work creates no verification", async () => {
   const f = await setup();
+  await f.pool.query(
+    "UPDATE access_grants SET role='maintain' WHERE workspace_id=$1 AND principal_id IN ('editor','reader')",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO access_reviewers(workspace_id,principal_id) VALUES($1,'editor'),($1,'reader') ON CONFLICT DO NOTHING",
+    [f.workspaceId],
+  );
   await f.service.configureReviewCadence(f.ctx, {
     documentType: "*",
     expectedRevision: 0,
@@ -526,4 +542,57 @@ it("review responsibility is not namespace ownership and acknowledging work crea
       )
     ).rows[0].data.verifiedAt,
   ).toBeUndefined();
+});
+it("review scan withdraws a revoked assignment and assigns an eligible backup once", async () => {
+  const f = await setup(false);
+  await f.pool.query(
+    "UPDATE access_grants SET role='maintain' WHERE workspace_id=$1 AND principal_id IN ('editor','reader')",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO access_reviewers(workspace_id,principal_id) VALUES($1,'editor'),($1,'reader') ON CONFLICT DO NOTHING",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO workflow_document_state(workspace_id,page_id,data) VALUES($1,'topic','{\"reviewDue\":\"2020-01-01T00:00:00Z\"}')",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO governance_business_owners(workspace_id,page_id,revision,owner_id,backup_id) VALUES($1,'topic',1,'editor','reader')",
+    [f.workspaceId],
+  );
+  await f.service.scanReviews();
+  const oldWork = (await f.service.reviewInbox(f.editor)).items[0];
+  expect(oldWork).toBeTruthy();
+  await f.pool.query(
+    "UPDATE access_team_members SET active=false WHERE principal_id='editor' AND team_id=(SELECT namespace_id FROM access_spaces WHERE workspace_id=$1)",
+    [f.workspaceId],
+  );
+  await f.service.scanReviews();
+  const row = (
+    await f.pool.query(
+      "SELECT assigned_id FROM collaboration_review_due_work WHERE workspace_id=$1 AND page_id='topic' AND status='needs-review'",
+      [f.workspaceId],
+    )
+  ).rows;
+  expect(row).toEqual([{ assigned_id: "reader" }]);
+  expect((await f.service.reviewInbox(f.reader)).items).toHaveLength(1);
+  await f.service.scanReviews();
+  expect(
+    (
+      await f.pool.query(
+        "SELECT id FROM workflow_notifications WHERE workspace_id=$1 AND principal_id='reader' AND kind='review-due'",
+        [f.workspaceId],
+      )
+    ).rowCount,
+  ).toBe(1);
+  await f.pool.query(
+    "UPDATE access_team_members SET active=true WHERE principal_id='editor' AND team_id=(SELECT namespace_id FROM access_spaces WHERE workspace_id=$1)",
+    [f.workspaceId],
+  );
+  await expect(
+    f.service.acknowledgeReview(f.editor, oldWork.id, oldWork.revision),
+  ).rejects.toThrow("STALE_VERSION");
+  await f.service.scanReviews();
+  expect((await f.service.reviewInbox(f.editor)).items).toHaveLength(1);
 });

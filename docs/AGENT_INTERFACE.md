@@ -1,12 +1,12 @@
 # 업무 에이전트 인터페이스
 
-후속 구현: `server/runtime/mcp.ts`의 `/mcp`는 실제 SDK Streamable HTTP이며 OIDC 브라우저 세션·Origin·CSRF를 검사한다. 현행 도구는 `knowledge_search`, `knowledge_query`, `knowledge_ingest`, `knowledge_lint`, `knowledge_jobs`와 7개 `knowledge_import_*`로 별도 버전 경로이며 공통 서버 ACL/계보/발행 서비스를 사용한다. 독립 서비스 계정/Bearer 위임·업무 context/outcome·아래 `wiki_*` 목표 계약 전체와 개인 커넥터의 운영 통합은 **미구현**이다. 쿠키 세션 도구를 일반 에이전트 호스트 운영 인증까지 완성한 것으로 표시하지 않는다. [설정과 현재 한계](OPERATIONAL_SETUP.md).
+현재 구현: `server/runtime/mcp.ts`의 `/mcp`는 실제 SDK Streamable HTTP이며 OIDC 브라우저 세션·Origin·CSRF를 검사한다. 현행 도구는 `knowledge_search`, `knowledge_query`, `knowledge_ingest`, `knowledge_lint`, `knowledge_jobs`와 7개 `knowledge_import_*`로 별도 버전 경로이며 공통 서버 ACL/계보/발행 서비스를 사용한다. 별도로 `server/agents/mcp.ts`의 `/api/v1/agent/mcp`에 아래 여섯 `wiki_*` 도구와 범위 자격증명 경로가 연결돼 있다. 실제 호스트의 전체 인수와 개인 커넥터 종단 통합은 별도다. [현재 현황](CURRENT_STATUS.md)에 연결 근거와 남은 범위를 기록한다. 쿠키 세션 도구를 일반 에이전트 호스트 운영 인증까지 완성한 것으로 표시하지 않는다. [설정과 현재 한계](OPERATIONAL_SETUP.md).
 
-이 문서는 **운영 목표 계약**이다. 현재 앱에 범용 사내 REST API나 인증된 운영 MCP가 구현된 것은 아니다. 모델 중계는 로컬 실행기의 /api/model/config와 /api/model/complete다. 별도로 [로컬 위키 커넥터](LOCAL_WIKI.md)는 합성 개발 서비스용 STDIO MCP를 제공한다. 이 개발 프로토콜의 도구·단일 페이지 제안은 아래 운영 계약 전체와 호환/통합됐다는 뜻이 아니다.
+이 문서는 **운영 목표 계약과 현재 어댑터 경계**를 설명한다. 서버 경로의 정확한 입력 스키마는 `server/agents/service.ts`의 `agentInputs`와 runtime HTTP/MCP를 따른다. 로컬 데모 모델 중계 /api/model/config와 /api/model/complete는 별도 실행 경로다. 별도로 [로컬 위키 커넥터](LOCAL_WIKI.md)는 합성 개발 서비스용 STDIO MCP를 제공한다. 이 개발 프로토콜의 도구·단일 페이지 제안은 아래 운영 계약 전체와 호환/통합됐다는 뜻이 아니다.
 
 ## 구성과 책임
 
-공간별 역할·소유권·위임 토큰의 후속 계약은 [권한 모델](ACCESS_CONTROL.md)의 §5~8과 [ADR 005](adr/005-github-style-access-control.md)를 따른다. 이는 **제안**이며 현행 쿠키 세션 MCP나 합성 커넥터 토큰에 새 권한이 생긴 것은 아니다. 사용자/서비스 주체의 현재 권한과 발급 상한의 교집합으로 제한하고, 첫 위임 경로의 MCP/토큰에는 공유 승인·발행·멤버/보호 정책 관리 권한을 부여하지 않는다. 기존 원본·전체 입력 계보·응답 직전 재검사는 유지한다.
+공간별 역할·소유권·위임 토큰의 후속 계약은 [권한 모델](ACCESS_CONTROL.md)의 §5~8과 [ADR 005](adr/005-github-style-access-control.md)를 따른다. ADR 005는 **제안** 상태를 유지한다. 일부 범위 자격증명 구현이 있다는 사실이 전체 제안의 승인이나 합성 커넥터 토큰의 권한 확대를 의미하지 않는다. 사용자/서비스 주체의 현재 권한과 발급 상한의 교집합으로 제한하고, 첫 위임 경로의 MCP/토큰에는 공유 승인·발행·멤버/보호 정책 관리 권한을 부여하지 않는다. 기존 원본·전체 입력 계보·응답 직전 재검사는 유지한다.
 
 웹·MCP·매니저는 같은 지식 서비스 계층을 사용한다. 원본·위키·발행 집합·작업 기록은 서버가 소유하며 검색 인덱스는 재생성 가능한 파생 데이터다. 도구 호출자의 실제 사용자·위임·서비스 주체로 권한을 검사한다. 요청 본문의 사용자 이름이나 공통 관리자 키로 신원을 대신하지 않는다. MCP Tools를 기본으로 제공하고 버전별 본문 Resources는 클라이언트 호환성을 검증해 추가한다.
 
@@ -40,4 +40,4 @@
 
 ## 웹 편입 · 조직 접근 관리 구현 (2026-10-30)
 
-[실제 실행 계약·설정·검증과 남은 범위](IMPLEMENTATION_GUIDE.md), [웹 자료 편입 설계](DATA_INGESTION.md), [대화 기록](CONVERSATION_IMPORT.md)를 참조한다. 웹/REST/MCP의 개인 원본 접수·서버 영속 정리·선택 원본 공개 승인·독립 지식 검토/발행을 연결했다. Organization/Team/공간별 역할·초대·Owner·현재 권한 철회를 구현하며 기존 공간은 명시적 이관 전까지 기존 OIDC 역할을 유지한다. 원본 제한은 관리자에게도 적용한다. 새 기능의 구현은 전체 251개 요구사항이나 실제 LLM 의미 품질/운영 인수 통과를 뜻하지 않는다.
+[실제 실행 계약·설정·검증과 남은 범위](IMPLEMENTATION_GUIDE.md), [웹 자료 편입 설계](DATA_INGESTION.md), [대화 기록](CONVERSATION_IMPORT.md)를 참조한다. 웹/REST/MCP의 개인 원본 접수·서버 영속 정리·선택 원본 공개 승인·독립 지식 검토/발행을 연결했다. Organization/Team/공간별 역할·초대·Owner·현재 권한 철회를 구현하며 기존 공간의 역할 유지 요구와 현재 소유권 미확인 공간 격리의 차이는 [현재 현황](CURRENT_STATUS.md)의 미충족 조건을 따른다. 원본 제한은 관리자에게도 적용한다. 새 기능의 구현은 전체 251개 요구사항이나 실제 LLM 의미 품질/운영 인수 통과를 뜻하지 않는다.

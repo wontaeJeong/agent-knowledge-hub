@@ -18,7 +18,7 @@ export async function handleAgentRoute(
   if (path === "/api/v1/connector") {
     const request = z
       .object({
-        action: z.enum(["snapshot", "access", "push", "propose", "proposal"]),
+        action: z.enum(["snapshot", "access", "check-local", "push", "propose", "propose-batch", "proposal"]),
         input: z.unknown(),
       })
       .strict()

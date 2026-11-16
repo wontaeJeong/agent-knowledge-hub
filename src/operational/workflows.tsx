@@ -60,6 +60,8 @@ interface TrashItem {
   id: string;
   title: string;
   revision: number;
+  trashedAt?: string | null;
+  purgeAfter?: string | null;
 }
 interface Template {
   id: string;
@@ -332,6 +334,8 @@ export function WorkflowPanel({
   const [drafts, setDrafts] = useState<PrivateDraft[]>([]);
   const [notifications, setNotifications] = useState<Notice[]>([]);
   const [trash, setTrash] = useState<TrashItem[]>([]);
+  const [restoreParents, setRestoreParents] = useState<Record<string,string>>({});
+  const [restoreTitles, setRestoreTitles] = useState<Record<string,string>>({});
   const [templates, setTemplates] = useState<Template[]>([]);
   const [draft, setDraft] = useState<PrivateDraft | null>(null);
   const [content, setContent] = useState("");
@@ -1568,11 +1572,21 @@ export function WorkflowPanel({
           <summary>휴지통 ({trash.length})</summary>
           <p>
             현재 원본·상위 문서 권한을 만족하는 문서만 표시합니다. 복구로 과거
-            권한은 복원하지 않습니다.
+            권한은 복원하지 않습니다. 유예 시각 경과만으로 삭제하지 않으며,
+            실제 정리는 별도 보존 정책과 실행 결과를 따릅니다.
           </p>
           {pageItems(trash, trashPage).map((t) => (
             <article key={t.id}>
               <strong>{t.title}</strong>
+              <p>휴지통 이동: {t.trashedAt ? new Date(t.trashedAt).toLocaleString("ko-KR") : "시각 미확인"} · 유예 만료: {t.purgeAfter ? new Date(t.purgeAfter).toLocaleString("ko-KR") : "미설정"}</p>
+              <label>복구 위치
+                <select value={restoreParents[t.id] ?? "original"} onChange={(e) => setRestoreParents({ ...restoreParents, [t.id]: e.target.value })}>
+                  <option value="original">원래 위치</option>
+                  <option value="root">최상위</option>
+                  {pages.filter((p) => p.id !== t.id).map((p) => <option key={p.id} value={`page:${p.id}`}>{p.title}</option>)}
+                </select>
+              </label>
+              <label>새 제목 (변경할 때만 입력)<input value={restoreTitles[t.id] ?? ""} maxLength={300} onChange={(e) => setRestoreTitles({...restoreTitles,[t.id]:e.target.value})} /></label>
               <Button
                 disabled={busy}
                 onClick={() =>
@@ -1588,6 +1602,8 @@ export function WorkflowPanel({
                       {
                         expectedRevision: t.revision,
                         state: "active",
+                        ...(restoreTitles[t.id]?.trim() ? {restoreTitle:restoreTitles[t.id].trim()} : {}),
+                        ...(restoreParents[t.id] === "root" ? {restoreParentId:null} : restoreParents[t.id]?.startsWith("page:") ? {restoreParentId:restoreParents[t.id].slice(5)} : {}),
                         reason: "사용자 확인 후 휴지통 복구",
                       },
                     );
@@ -1618,6 +1634,8 @@ interface RetentionPolicy {
   publishedVersions: number | null;
   sourceVersions: number | null;
   runtimeResults: number | null;
+  trashGraceDays?: number | null;
+  draftOwners?: string[] | null;
 }
 interface RetentionPreview {
   hash: string;
@@ -1643,7 +1661,11 @@ const retentionReasons: Record<string, string> = {
   NOT_DUE: "보존 기간 미경과",
   AGE_UNAVAILABLE: "기준 시각 미확인",
   LEGAL_HOLD: "법적 보존",
+  OWNER_OUTSIDE_POLICY: "정책 소유자 범위 밖",
   RETAINED_REFERENCE: "보존 자료의 참조 근거",
+  CURRENT_VERSION: "현재 버전 보존",
+  UNKNOWN_REFERENCE: "참조 관계 미확인",
+  UNKNOWN_IDENTITY: "식별자 형식 미지원",
   IMMUTABLE_HISTORY_REQUIRES_REVIEWED_PRUNING:
     "불변 이력: 검토된 의존성 안전 가지치기 미지원 — 삭제하지 않음",
 };
@@ -1671,6 +1693,7 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
     policy: RetentionPolicy;
   } | null>(null);
   const [preview, setPreview] = useState<RetentionPreview | null>(null);
+  const [draftOwnerText, setDraftOwnerText] = useState("");
   const [page, setPage] = useState(0),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
@@ -1678,7 +1701,7 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
     {
       id: string;
       status: string;
-      details: { deleted?: number; blocked?: number };
+      details: { deleted?: number; blocked?: number; physicalPurgePending?: number };
     }[]
   >([]);
   const [receiptPage, setReceiptPage] = useState(0);
@@ -1709,6 +1732,7 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
               api.get<{ items: typeof receipts }>("/retention/receipts"),
             ]);
             setSettings(policy);
+            setDraftOwnerText(policy.policy.draftOwners?.join(", ") ?? "");
             setReceipts(history.items);
           });
       }}
@@ -1727,7 +1751,7 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
             e.preventDefault();
             if (
               !window.confirm(
-                "이 유형별 보존 정책을 적용할까요? 활성화하면 연결된 서버 주기 작업이 적격 개인 초안만 정리할 수 있습니다.",
+                "이 유형별 보존 정책을 적용할까요? 활성화된 일정은 적격 자료를 정리할 수 있습니다.",
               )
             )
               return;
@@ -1735,7 +1759,7 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
               setSettings(
                 await api.post("/retention/policy", {
                   expectedRevision: settings.revision,
-                  policy: settings.policy,
+                  policy: { ...settings.policy, draftOwners: draftOwnerText.trim() ? draftOwnerText.split(",").map(v=>v.trim()).filter(Boolean) : null },
                 }),
               );
               setPreview(null);
@@ -1759,6 +1783,9 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
             />
             명시적 자동 정리 허용
           </label>
+          <label>휴지통 유예 일수 (빈 값은 미설정)
+            <input type="number" min={1} max={36500} disabled={busy} value={settings.policy.trashGraceDays ?? ""} onChange={(e) => setSettings({ ...settings, policy: { ...settings.policy, trashGraceDays: e.target.value === "" ? null : Number(e.target.value) } })} />
+          </label>
           {(Object.keys(retentionLabels) as RetentionClass[]).map((kind) => (
             <label key={kind}>
               {retentionLabels[kind]} 보존 일수 (빈 값은 영구 보존)
@@ -1781,6 +1808,9 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
               />
             </label>
           ))}
+          <label>초안 소유자 ID (쉼표 구분, 빈 값은 이 공간의 모든 소유자)
+            <input value={draftOwnerText} disabled={busy} onChange={(e) => setDraftOwnerText(e.target.value)} />
+          </label>
           <Button type="submit" disabled={busy}>
             정책 변경 확인
           </Button>
@@ -1888,7 +1918,7 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
             onClick={() => {
               if (
                 !window.confirm(
-                  `정리 가능한 초안 ${preview.counts.eligible}건을 실제 정리할까요? 현재 정책·참조·법적 보존을 다시 검사합니다.`,
+                  `정리 가능한 자료 ${preview.counts.eligible}건을 정리할까요? 현재 권한·정책·참조·법적 보존을 다시 검사합니다.`,
                 )
               )
                 return;
@@ -1896,13 +1926,14 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
                 const receipt = await api.post<{
                   status: string;
                   deleted: number;
+                  physicalPurgePending?: number;
                   blocked: number;
                 }>("/retention/execute", {
                   previewHash: preview.hash,
                   policyRevision: preview.policyRevision,
                 });
                 setMessage(
-                  `${receipt.status === "completed" ? "정리 실행 완료" : "삭제 차단"} · 실제 삭제 ${receipt.deleted}건 · 보존 ${receipt.blocked}건`,
+                  `${receipt.status === "completed" ? "정리 실행 완료" : receipt.physicalPurgePending ? "일부 정리됨 · 물리 정리 대기" : "삭제 차단"} · 제품 기록 정리 ${receipt.deleted}건 · 보존 ${receipt.blocked}건`,
                 );
                 setPreview(null);
                 setReceipts(
@@ -1928,7 +1959,7 @@ export function RetentionPanel({ api }: { api: OperationalApi }) {
               : r.status === "blocked"
                 ? "차단"
                 : "실패"}{" "}
-            · 삭제 {r.details.deleted ?? "미확인"} · 보존{" "}
+            · 제품 기록 정리 {r.details.deleted ?? "미확인"} · 물리 정리 대기 {r.details.physicalPurgePending ?? 0} · 보존{" "}
             {r.details.blocked ?? "미확인"} · {r.id}
           </p>
         ))}

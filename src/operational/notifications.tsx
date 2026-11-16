@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { ApiError, OperationalApi } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ApiError, OperationalApi, documentHref } from "./api";
 import { Button } from "../ui/primitives";
 interface Preferences {
   revision: number;
@@ -12,6 +12,11 @@ interface Preferences {
   weeklyAt: string;
   weeklyDay: number;
   quietHours: { enabled: boolean; start: string; end: string };
+}
+interface InAppNotification {
+  pageId: string;
+  title: string;
+  events: { id: string; read: boolean }[];
 }
 interface Delivery {
   id: string;
@@ -64,15 +69,19 @@ export function NotificationPanel({
   api,
   capabilities,
   onExpired,
+  spaceId = "",
 }: {
   api: OperationalApi;
   capabilities: string[];
   onExpired?: () => void;
+  spaceId?: string;
 }) {
+  const generation = useRef(0);
   const canRead = capabilities.includes("knowledge.read"),
     manage = capabilities.includes("knowledge.protect");
   const [prefs, setPrefs] = useState(initial),
     [deliveries, setDeliveries] = useState<Delivery[]>([]),
+    [notifications, setNotifications] = useState<InAppNotification[]>([]),
     [reviews, setReviews] = useState<Review[]>([]),
     [offset, setOffset] = useState(0),
     [busy, setBusy] = useState(false),
@@ -85,6 +94,11 @@ export function NotificationPanel({
     [cadenceRevision, setCadenceRevision] = useState(0);
   const failure = useCallback(
     (e: unknown) => {
+      generation.current++;
+      setNotifications([]);
+      setReviews([]);
+      setDeliveries([]);
+      setPreview(null);
       if (e instanceof ApiError && e.status === 401) onExpired?.();
       setError(
         e instanceof Error ? e.message : "알림 요청을 완료하지 못했습니다.",
@@ -94,23 +108,37 @@ export function NotificationPanel({
   );
   const refresh = useCallback(async () => {
     if (!canRead) return;
-    const [p, d, r] = await Promise.all([
-      api.get<Preferences>("/collaboration/preferences"),
-      api.get<{ items: Delivery[] }>(
-        `/collaboration/deliveries?offset=${offset}`,
-      ),
-      api.get<{ items: Review[] }>(
-        `/collaboration/review-due?offset=${offset}&all=${all && manage}`,
-      ),
-    ]);
-    setPrefs(p);
-    setDeliveries(d.items);
-    setReviews(r.items);
-  }, [api, canRead, offset, all, manage]);
+    const current = ++generation.current;
+    try {
+      const [p, n, d, r] = await Promise.all([
+        api.get<Preferences>("/collaboration/preferences"),
+        api.get<{ items: InAppNotification[] }>(
+          `/collaboration/notifications?offset=${offset}`,
+        ),
+        api.get<{ items: Delivery[] }>(
+          `/collaboration/deliveries?offset=${offset}`,
+        ),
+        api.get<{ items: Review[] }>(
+          `/collaboration/review-due?offset=${offset}&all=${all && manage}`,
+        ),
+      ]);
+      if (current !== generation.current) return;
+      setPrefs(p);
+      setNotifications(n.items);
+      setDeliveries(d.items);
+      setReviews(r.items);
+    } catch (e) {
+      if (current === generation.current) failure(e);
+    }
+  }, [api, canRead, offset, all, manage, failure]);
   useEffect(() => {
-    void refresh().catch(failure);
-  }, [refresh, failure]);
+    void refresh();
+    return () => {
+      generation.current++;
+    };
+  }, [refresh]);
   const perform = async (action: () => Promise<void>) => {
+    generation.current++;
     setBusy(true);
     setError("");
     try {
@@ -303,7 +331,34 @@ export function NotificationPanel({
           </pre>
         </details>
       )}
-      <h3>요약 전달 이력</h3>
+      <h3>인앱 알림</h3>
+      {!notifications.length && <p>표시할 알림이 없습니다.</p>}
+      {notifications.map((item) => (
+        <div key={item.pageId}>
+          <a href={documentHref(spaceId, item.pageId)}>{item.title}</a>
+          {item.events.map((event) => (
+            <div key={event.id}>
+              <span>{event.read ? "읽음" : "읽지 않음"}</span>{" "}
+              {!event.read && (
+                <Button
+                  disabled={busy}
+                  onClick={() =>
+                    void perform(async () => {
+                      await api.post(
+                        `/collaboration/notifications/${encodeURIComponent(event.id)}/read`,
+                        {},
+                      );
+                    })
+                  }
+                >
+                  읽음 표시
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+      <h3>이메일 전달 이력</h3>
       <p>
         미설정·실패·수신 미확인은 성공으로 표시하지 않습니다. 설정 변경 또는
         권한 철회 이후 이미 수신한 이메일은 회수할 수 없습니다. 재시도는 같은
@@ -424,7 +479,9 @@ export function NotificationPanel({
           <tbody>
             {reviews.map((r) => (
               <tr key={r.id}>
-                <td>{r.title}</td>
+                <td>
+                  <a href={documentHref(spaceId, r.pageId)}>{r.title}</a>
+                </td>
                 <td>
                   {r.status === "needs-review"
                     ? "검토 필요"

@@ -79,6 +79,7 @@ try {
       "prepare-merge",
       "confirm-merge",
       "propose",
+      "propose-batch",
     ].includes(command)
   ) {
     const client = await openClient(environment());
@@ -101,6 +102,7 @@ try {
         value = await client.propose(
           JSON.parse(await readFile(args[0], "utf8")),
         );
+      else if (command === "propose-batch") value = await client.proposeBatch(JSON.parse(await readFile(args[0], "utf8")));
       else value = await client[command]();
       console.log(JSON.stringify(value, null, 2));
     } finally {
@@ -108,7 +110,7 @@ try {
     }
   } else {
     console.log(
-      "wiki: serve <synthetic-config.json> | status | sync | read <id> [space] | search <query> | write <page.json> | conflicts | prepare-merge <id> <text-file> | confirm-merge <id> <hash> --human-reviewed | propose <proposal.json> | show-proposal/approve/publish <id>",
+      "wiki: serve <synthetic-config.json> | status | sync | read <id> [space] | search <query> | write <page.json> | conflicts | prepare-merge <id> <text-file> | confirm-merge <id> <hash> --human-reviewed | propose <proposal.json> | propose-batch <batch.json> | show-proposal/approve/publish <id>",
     );
     if (command) process.exitCode = 1;
   }

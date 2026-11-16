@@ -283,7 +283,7 @@ export class StorageService {
       this.parent(db, ctx, parent),
     );
   }
-  async ingestText(ctx: Context, input: unknown) {
+  async ingestText(ctx: Context, input: unknown, guard?: (db: PoolClient) => Promise<void>) {
     const d = z
       .object({
         title: z.string().trim().min(1).max(300),
@@ -314,12 +314,14 @@ export class StorageService {
       .strict()
       .parse(input);
     await this.run(ctx, "source.create", undefined, async (db) => {
+      await guard?.(db);
       if (d.targetPageId)
         await this.parent(db, ctx, { kind: "page", id: d.targetPageId });
     });
     const bytes = Buffer.from(d.content);
     inspectContent(bytes, "text/plain", "source.txt");
     return this.run(ctx, "source.create", undefined, async (db) => {
+      await guard?.(db);
       if (d.targetPageId)
         await this.parent(db, ctx, { kind: "page", id: d.targetPageId });
       const key = sha256(
@@ -347,6 +349,7 @@ export class StorageService {
       }
       const saved = await this.writeContent(db, bytes);
       await this.recheck(db, ctx, "source.create");
+      await guard?.(db);
       if (d.targetPageId)
         await this.parent(db, ctx, { kind: "page", id: d.targetPageId });
       const sourceId = randomUUID(),

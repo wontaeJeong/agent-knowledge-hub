@@ -163,6 +163,49 @@ test("native final guards reject unknown activity; only live verified recovery u
       .rowCount,
   ).toBe(0);
 });
+test.each([true, false])(
+  "concurrent verified session refresh keeps a valid session (interactive=%s)",
+  async (interactive) => {
+    const f = await native(),
+      s = await f.session(f.subject, true);
+    // Hold the shared session check briefly so both requests overlap at the
+    // legacy proof update. A lock upgrade used to deadlock and discard the session.
+    const wrapped = new WeakSet<import("pg").PoolClient>();
+    const delaySharedCheck = (client: import("pg").PoolClient) => {
+      if (wrapped.has(client)) return;
+      wrapped.add(client);
+      const query = client.query;
+      client.query = (async (...args: unknown[]) => {
+        const result = await (query as (...args: unknown[]) => unknown).apply(
+          client,
+          args,
+        );
+        if (typeof args[0] === "string" && args[0].includes("FOR SHARE OF s,p"))
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        return result;
+      }) as typeof client.query;
+    };
+    f.pool.on("acquire", delaySharedCheck);
+    try {
+      const sessions = await Promise.all([
+        f.auth.authenticate(s.req, interactive),
+        f.auth.authenticate(s.req, interactive),
+      ]);
+      expect(
+        sessions.every((session) => session?.principalId === s.principalId),
+      ).toBe(true);
+      expect(
+        (
+          await f.pool.query("SELECT id FROM runtime_sessions WHERE id=$1", [
+            s.id,
+          ])
+        ).rowCount,
+      ).toBe(1);
+    } finally {
+      f.pool.off("acquire", delaySharedCheck);
+    }
+  },
+);
 test("native interactive grant revalidation does not extend idle lifetime; current policy checked again at final effect", async () => {
   const f = await native(),
     s = await f.session(f.subject, true),
@@ -404,4 +447,45 @@ test("canonical authorizer consumes emergency approval only for exact page/versi
       }),
     ),
   ).rejects.toThrow();
+});
+
+test("host identity routes fence sessions, CSRF and current-cookie revocation", async () => {
+  const f = await native();
+  const runtime = createIdentityRuntime(f.pool);
+  const current = await f.session(f.subject, true);
+  const other = await f.session(randomUUID(), true);
+  const { createRuntimeHandler } = await import("../runtime/http");
+  const { RuntimeService } = await import("../runtime/knowledge");
+  const server = createServer(createRuntimeHandler({ pool: f.pool, service: new RuntimeService(f.pool), auth: f.auth, origin: "http://localhost", workspaceId: f.workspaceId, identityServices: runtime.httpServices }));
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw Error("FIXTURE_LISTEN");
+  const base = `http://127.0.0.1:${address.port}`;
+  const headers = { Cookie: `akh_session=${current.raw}`, Origin: "http://localhost", "X-CSRF-Token": "csrf", "Content-Type": "application/json" };
+  const list = await fetch(`${base}/api/v1/identity/sessions`, { headers });
+  expect(list.status).toBe(200);
+  const items = (await list.json()).items;
+  expect(items.some((item: { id: string }) => item.id === other.id)).toBe(false);
+  const denied = await fetch(`${base}/api/v1/identity/sessions/${other.id}`, { method: "DELETE", headers, body: "{}" });
+  expect(denied.status).toBe(404);
+  const csrf = await fetch(`${base}/api/v1/identity/sessions/${current.id}`, { method: "DELETE", headers: { ...headers, "X-CSRF-Token": "wrong" }, body: "{}" });
+  expect(csrf.status).toBe(403);
+  const revoke = await fetch(`${base}/api/v1/identity/sessions/${current.id}`, { method: "DELETE", headers, body: "{}" });
+  expect(revoke.status).toBe(200);
+  expect(revoke.headers.get("set-cookie")).toContain("akh_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
+  expect((await fetch(`${base}/api/v1/identity/sessions`, { headers })).status).toBe(401);
+  const second = await f.session(f.subject, true);
+  const third = await f.session(f.subject, true);
+  const secondHeaders = { ...headers, Cookie: `akh_session=${second.raw}` };
+  expect((await fetch(`${base}/api/v1/identity/emergencies`, { headers: secondHeaders })).status).toBe(404);
+  expect((await fetch(`${base}/api/v1/identity/directory-bindings`, { headers: secondHeaders })).status).toBe(404);
+  const all = await fetch(`${base}/api/v1/identity/logout-all`, { method: "POST", headers: secondHeaders, body: "{}" });
+  expect(all.status).toBe(200);
+  expect((await all.json()).idpLogout).toBe("not_configured");
+  expect(all.headers.get("set-cookie")).toContain("Max-Age=0");
+  expect((await fetch(`${base}/api/v1/identity/sessions`, { headers: { ...headers, Cookie: `akh_session=${third.raw}` } })).status).toBe(401);
+  const disabled = await f.session(f.subject, true);
+  await f.pool.query("UPDATE access_principals SET active=false WHERE id=$1", [f.principalId]);
+  expect((await fetch(`${base}/api/v1/identity/sessions`, { headers: { ...headers, Cookie: `akh_session=${disabled.raw}` } })).status).toBe(401);
 });

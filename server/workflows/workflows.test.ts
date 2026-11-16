@@ -648,3 +648,44 @@ test("mentions do not treat retained raw ACL rows as an active space grant", asy
     ).rows,
   ).toEqual([]);
 });
+
+test("trash records explicit grace and restoring a conflicting sibling requires choosing a free parent", async () => {
+  await f.pool.query("INSERT INTO content_retention_policies(workspace_id,revision,policy,approved_by) VALUES($1,1,$2,'reviewer')",[f.workspaceId,{enabled:true,drafts:null,publishedVersions:null,sourceVersions:null,runtimeResults:null,trashGraceDays:7}]);
+  const trashed=await service.setDocumentState(f.ctx,'topic',{expectedRevision:0,state:'trash',reason:'정리'});
+  expect(typeof trashed.trashedAt).toBe('string');
+  expect(Date.parse(String(trashed.purgeAfter))-Date.parse(String(trashed.trashedAt))).toBe(7*86400000);
+  await f.pool.query("INSERT INTO resources(workspace_id,kind,id) VALUES($1,'page','sibling'),($1,'page','folder')",[f.workspaceId]);
+  for(const principal of ['reviewer','editor','reader']) await f.pool.query("INSERT INTO resource_readers(workspace_id,kind,resource_id,principal_id) VALUES($1,'page','sibling',$2),($1,'page','folder',$2)",[f.workspaceId,principal]);
+  for (const [id,title] of [['sibling',page.title],['folder','대상 폴더']]) {
+    await f.pool.query("INSERT INTO pages(workspace_id,id,data) VALUES($1,$2,$3)",[f.workspaceId,id,{...page,id,title}]);
+    await f.pool.query("INSERT INTO versions(workspace_id,page_id,number,data) VALUES($1,$2,1,$3)",[f.workspaceId,id,page.versions[0]]);
+  }
+  await expect(service.setDocumentState(f.ctx,'topic',{expectedRevision:1,state:'active',reason:'복구'})).rejects.toThrow('RESTORE_PATH_CONFLICT');
+  const restored=await service.setDocumentState(f.ctx,'topic',{expectedRevision:1,state:'active',restoreParentId:'folder',reason:'복구 위치 선택'});
+  expect(restored).toMatchObject({id:'topic',state:'active',parentId:'folder',trashedAt:null,purgeAfter:null});
+  expect((await f.pool.query("SELECT number FROM versions WHERE workspace_id=$1 AND page_id='topic'",[f.workspaceId])).rows).toEqual([{number:1}]);
+});
+
+test("trash recovery resolves a sibling conflict by explicitly choosing a new title", async () => {
+  await service.setDocumentState(f.ctx,'topic',{expectedRevision:0,state:'trash',reason:'정리'});
+  await f.pool.query("INSERT INTO resources(workspace_id,kind,id) VALUES($1,'page','duplicate')",[f.workspaceId]);
+  for(const principal of ['reviewer','editor','reader']) await f.pool.query("INSERT INTO resource_readers(workspace_id,kind,resource_id,principal_id) VALUES($1,'page','duplicate',$2)",[f.workspaceId,principal]);
+  await f.pool.query("INSERT INTO pages(workspace_id,id,data) VALUES($1,'duplicate',$2)",[f.workspaceId,{...page,id:'duplicate'}]);
+  await f.pool.query("INSERT INTO versions(workspace_id,page_id,number,data) VALUES($1,'duplicate',1,$2)",[f.workspaceId,page.versions[0]]);
+  const restored=await service.setDocumentState(f.ctx,'topic',{expectedRevision:1,state:'active',restoreTitle:'새 문서 제목',reason:'충돌 해결'});
+  expect(restored.id).toBe('topic');
+  expect((await f.pool.query("SELECT data->>'title' AS title FROM pages WHERE workspace_id=$1 AND id='topic'",[f.workspaceId])).rows[0].title).toBe('새 문서 제목');
+  expect((await f.pool.query("SELECT number,data FROM versions WHERE workspace_id=$1 AND page_id='topic'",[f.workspaceId])).rows[0].data.content).toBe(page.versions[0].content);
+});
+
+test("trash with no configured grace has no invented deadline and restore requires destination authority", async () => {
+  const trashed=await service.setDocumentState(f.ctx,'topic',{expectedRevision:0,state:'trash',reason:'정리'});
+  expect(trashed.trashedAt).toBeTruthy(); expect(trashed.purgeAfter).toBeNull();
+  await f.pool.query("INSERT INTO resources(workspace_id,kind,id) VALUES($1,'page','target')",[f.workspaceId]);
+  for(const principal of ['reviewer','editor','reader']) await f.pool.query("INSERT INTO resource_readers(workspace_id,kind,resource_id,principal_id) VALUES($1,'page','target',$2)",[f.workspaceId,principal]);
+  await f.pool.query("INSERT INTO pages(workspace_id,id,data) VALUES($1,'target',$2)",[f.workspaceId,{...page,id:'target',title:'대상'}]);
+  await f.pool.query("INSERT INTO versions(workspace_id,page_id,number,data) VALUES($1,'target',1,$2)",[f.workspaceId,page.versions[0]]);
+  const restricted=new WorkflowService(f.pool,new RuntimeService(f.pool),async (_db,_ctx,action,resource)=>{if(action==='knowledge.protect' && resource?.id==='target') throw Error('FORBIDDEN');});
+  await expect(restricted.setDocumentState(f.ctx,'topic',{expectedRevision:1,state:'active',restoreParentId:'target',reason:'복구'})).rejects.toThrow('FORBIDDEN');
+  expect((await f.pool.query("SELECT state,parent_id FROM workflow_document_state WHERE workspace_id=$1 AND page_id='topic'",[f.workspaceId])).rows[0]).toEqual({state:'trash',parent_id:null});
+});

@@ -1,5 +1,7 @@
 # agent-knowledge-hub
 
+현재 구현·연결·차단 조건은 [현재 현황](docs/CURRENT_STATUS.md), 다음 개발 순서와 보완 검증은 [요구사항 정비 기준](docs/requirements/MAINTENANCE.md)을 참고하세요.
+
 > **운영형 전환 작업:** Kubernetes/로컬 kind의 서버 연결 경로는 [운영 환경 설정](docs/OPERATIONAL_SETUP.md)을 참고하세요. 기본 웹 진입점 `/`는 위키의 목적과 Memory·RAG와의 관계를 설명하는 공개 소개입니다. 서버 지식 공간은 `/?app=1`, 기존 합성 데모는 `/?demo=1`로 명시적으로 엽니다. 아래 정적 데모 설명을 운영 기능·사내 인수 완료로 해석하지 마세요. 구현과 실제 검증·남은 조건은 [인계](docs/AGENT_HANDOFF.md)에 별도로 기록합니다.
 
 <picture>
@@ -7,7 +9,7 @@
   <img src="brand-kit/readme-banner-light.svg" alt="agent-knowledge-hub — Knowledge that compounds.">
 </picture>
 
-LLM으로 만든 업무 산출물을 근거와 함께 사내 지식에 연결하고, 사람이 검토한 변경을 발행하는 앱입니다. Ingest·Query·Lint로 연결된 위키를 축적하는 **실행 가능한 로컬 데모**이며 사내 레포에서 계속 개발하기 위한 출발점입니다.
+LLM으로 만든 업무 산출물을 근거와 함께 사내 지식에 연결하고, 사람이 검토한 변경을 발행하는 앱입니다. Ingest·Query·Lint로 연결된 위키를 축적하는 브라우저 합성 데모와 PostgreSQL·OIDC 기반 서버 실행 경로를 제공합니다. 사내 운영 인수와 지식 품질 검증은 진행 중입니다.
 
 장기 목표는 Karpathy의 LLM Wiki 패턴에 기반한 **Agent-Native Knowledge & Experience Platform**입니다. LLM이 원천 정보와 업무 경험을 기존 지식에 통합·연결·검증·갱신하고, 에이전트의 활용 결과가 다시 지식 개선으로 이어지는 순환을 지향합니다. 문서 수 증가가 아니라 근거와 적용 조건의 정확성, 후속 업무의 검증 가능한 개선으로 발전을 판단합니다. [North Star](docs/LLM_WIKI_CORE.md)에서 원전·프로젝트 확장·현재 구현을, [평가 계약](docs/EVALUATION.md)에서 앞으로 검증할 방법을 구분합니다. 이 목표 기능이 모두 구현된 것은 아닙니다.
 

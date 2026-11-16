@@ -151,18 +151,14 @@ test("large completed histories are bounded before content or answer retrieval",
   console.info(
     `large-history list: 100 rows, response ${Buffer.byteLength(JSON.stringify(list))} bytes, ${queries.length} queries including concurrent write, ${Math.round(elapsed)}ms`,
   );
-  await expect(f.service.readThread(f.reader, "large-001")).rejects.toThrow(
-    "QUESTION_HISTORY_LIMIT",
-  );
+  const detail = await f.service.readThread(f.reader, "large-001");
+  expect(detail.nextCursor).toBeTruthy();
+  expect(JSON.stringify(detail)).not.toContain("sensitive");
   const afterDetail = [...spyMap.values()]
     .flatMap((spy) => spy.mock.calls)
     .map((call) => String(call[0]));
-  expect(
-    afterDetail.some((sql) =>
-      /SELECT id,thread_id,principal_id,ordinal/i.test(sql),
-    ),
-  ).toBe(false);
-  expect(view).not.toHaveBeenCalled();
+  expect(afterDetail.some((sql) => /id=ANY\(\$4::text\[\]\)/i.test(sql))).toBe(true);
+  expect(view).toHaveBeenCalled();
   expect((await f.service.listThreads(f.ctx, { limit: 100 })).items).toEqual(
     [],
   );
@@ -230,7 +226,7 @@ test("history authorization work exceeding the input root budget is denied", asy
     "QUESTION_HISTORY_LIMIT",
   );
 });
-test("combined history byte budget blocks multiple individually bounded turns", async () => {
+test("combined history byte budget splits individually bounded turns", async () => {
   const f = await setup(),
     thread = await f.service.createThread(f.reader);
   const turn = await f.service.acceptTurn(f.reader, thread.id, {
@@ -247,11 +243,12 @@ test("combined history byte budget blocks multiple individually bounded turns", 
     "INSERT INTO question_turns(workspace_id,thread_id,id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed) SELECT workspace_id,thread_id,'copy-'||n,principal_id,n,'copy-'||n,request_hash,question,mode,status,sealed FROM question_turns CROSS JOIN generate_series(2,5) n WHERE workspace_id=$1 AND id=$2",
     [f.workspaceId, turn.turnId],
   );
-  await expect(f.service.readThread(f.reader, thread.id)).rejects.toThrow(
-    "QUESTION_HISTORY_LIMIT",
-  );
+  const first = await f.service.readThread(f.reader, thread.id);
+  expect(first.turns).toHaveLength(4);
+  expect(first.nextCursor).toBeTruthy();
+  expect((await f.service.readThread(f.reader, thread.id, first.nextCursor!)).turns).toHaveLength(1);
 });
-test("detail rejects an oversized workspace view before reconstructing it", async () => {
+test("detail ignores unrelated workspace batches while reconstructing scoped roots", async () => {
   const f = await setup(),
     thread = await f.service.createThread(f.reader);
   await f.service.acceptTurn(f.reader, thread.id, {
@@ -265,10 +262,8 @@ test("detail rejects an oversized workspace view before reconstructing it", asyn
     [f.workspaceId],
   );
   const view = vi.spyOn(f.runtime, "view");
-  await expect(f.service.readThread(f.reader, thread.id)).rejects.toThrow(
-    "QUESTION_HISTORY_LIMIT",
-  );
-  expect(view).not.toHaveBeenCalled();
+  expect((await f.service.readThread(f.reader, thread.id)).turns).toHaveLength(1);
+  expect(view).toHaveBeenCalled();
 });
 test("partially revoked completed history hides every stored ordinal", async () => {
   const f = await setup(),
@@ -288,8 +283,9 @@ test("partially revoked completed history hides every stored ordinal", async () 
     "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reader'",
     [f.workspaceId],
   );
+  const revokedThread = await f.service.readThread(f.reader, thread.id);
   const two = await f.service.acceptTurn(f.reader, thread.id, {
-    expectedRevision: 1,
+    expectedRevision: revokedThread.continuation!,
     nonce: "two",
     question: "visible",
     mode: "offline",
@@ -310,6 +306,18 @@ test("partially revoked completed history hides every stored ordinal", async () 
     revision: null,
   });
   expect(JSON.stringify(result)).not.toContain("hidden");
+  const continuation = (result as typeof result & { continuation: string }).continuation;
+  expect(continuation).toMatch(/^[a-f0-9]{64}$/);
+  await expect(f.service.acceptTurn(f.reader, thread.id, { expectedRevision: 2, nonce: "guess-hidden", question: "guess", mode: "offline" })).rejects.toThrow("STALE_VERSION");
+  await f.pool.query("INSERT INTO resource_readers VALUES($1,'source','source-a','reader')", [f.workspaceId]);
+  await expect(f.service.acceptTurn(f.reader, thread.id, { expectedRevision: continuation, nonce: "scope-changed", question: "old scope", mode: "offline" })).rejects.toThrow("STALE_VERSION");
+  await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id='source-a' AND principal_id='reader'", [f.workspaceId]);
+  const followup = await f.service.acceptTurn(f.reader, thread.id, { expectedRevision: continuation, nonce: "followup", question: "after revocation", mode: "offline" });
+  expect(followup.contextOmitted).toBe(true);
+  const restarted = new QuestionsService(f.pool,{runtime:f.runtime,authorize:async (...args)=>{await authorizeActionDb(...args);},runQuery:async()=>{throw Error("UNUSED");}});
+  expect((await restarted.acceptTurn(f.reader,thread.id,{expectedRevision:continuation,nonce:"followup",question:"after revocation",mode:"offline"})).turnId).toBe(followup.turnId);
+  await expect(restarted.acceptTurn(f.reader,thread.id,{expectedRevision:continuation,nonce:"post-restart",question:"again",mode:"offline"})).rejects.toThrow("STALE_VERSION");
+  await expect(f.service.acceptTurn(f.reader, thread.id, { expectedRevision: continuation, nonce: "replay", question: "again", mode: "offline" })).rejects.toThrow("STALE_VERSION");
 });
 test("listing 100 threads shares one current view and does not load it for empty threads", async () => {
   const f = await setup();
@@ -637,8 +645,9 @@ test("trusted adapter contract omits revoked prior raw question and rejects chan
     "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reader'",
     [f.workspaceId],
   );
+  const revokedThread = await f.service.readThread(f.reader, t.id);
   const next = await f.service.acceptTurn(f.reader, t.id, {
-    expectedRevision: 1,
+    expectedRevision: revokedThread.continuation!,
     nonce: "two",
     question: "새로운 질문",
     mode: "model",
@@ -844,4 +853,56 @@ test("migration103 snapshots search actual historical title/type/tags/environmen
       })
     ).items,
   ).toEqual([]);
+});
+
+test("bounded paginated history tolerates repeated roots and unrelated workspace rows", async () => {
+  const f=await setup(), thread=await f.service.createThread(f.reader);
+  const seed=await f.service.acceptTurn(f.reader,thread.id,{expectedRevision:0,nonce:"seed-paged",question:"paged",mode:"offline"});
+  const answer=await f.runtime.query(f.reader,"기존","offline");
+  await f.pool.query("UPDATE question_turns SET status='completed',answer_id=$3,answer_version=1 WHERE workspace_id=$1 AND id=$2",[f.workspaceId,seed.turnId,answer.id]);
+  await f.pool.query("INSERT INTO question_turns(workspace_id,thread_id,id,principal_id,ordinal,nonce,request_hash,question,mode,status,sealed,answer_id,answer_version) SELECT workspace_id,thread_id,'page-'||n,principal_id,n,'paged-'||n,request_hash,question,mode,status,sealed,answer_id,answer_version FROM question_turns CROSS JOIN generate_series(2,22) n WHERE workspace_id=$1 AND id=$2",[f.workspaceId,seed.turnId]);
+  await f.pool.query("UPDATE question_threads SET revision=22 WHERE workspace_id=$1 AND id=$2",[f.workspaceId,thread.id]);
+  await f.pool.query("INSERT INTO resources SELECT $1,'source','unrelated-'||n FROM generate_series(1,129) n",[f.workspaceId]);
+  await f.pool.query("INSERT INTO sources(workspace_id,id,data) SELECT $1,'unrelated-'||n,jsonb_build_object('id','unrelated-'||n) FROM generate_series(1,129) n",[f.workspaceId]);
+  const first=await f.service.readThread(f.reader,thread.id);
+  expect(first.turns).toHaveLength(20);
+  expect((first as typeof first & { nextCursor:string }).nextCursor).toBeTruthy();
+  const second=await f.service.readThread(f.reader,thread.id,(first as typeof first & { nextCursor:string }).nextCursor);
+  expect(second.turns).toHaveLength(2);
+  expect(JSON.stringify(second)).not.toContain("unrelated-");
+});
+
+test("normal admission of 22 turns stays readable with repeated page and source roots", async () => {
+  const f=await setup(), thread=await f.service.createThread(f.reader);
+  let revision:number|string=0;
+  for(let i=0;i<22;i++) {
+    const turn=await f.service.acceptTurn(f.reader,thread.id,{expectedRevision:revision,nonce:`normal-${i}`,question:`question ${i}`,mode:"offline"});
+    const answer=await f.runtime.query(f.reader,"기존","offline");
+    await f.pool.query("UPDATE question_turns SET status='completed',answer_id=$3,answer_version=1 WHERE workspace_id=$1 AND id=$2",[f.workspaceId,turn.turnId,answer.id]);
+    const current=await f.service.readThread(f.reader,thread.id);
+    revision=current.revision ?? current.continuation!;
+  }
+  const latest=await f.service.readThread(f.reader,thread.id);
+  expect(latest.nextCursor).toBeTruthy();
+  const older=await f.service.readThread(f.reader,thread.id,latest.nextCursor!);
+  expect(latest.turns.length+older.turns.length).toBe(22);
+  expect(latest.turns.every(t=>t.ordinal===null)).toBe(true);
+  await expect(f.service.readThread(f.ctx,thread.id,latest.nextCursor!)).rejects.toThrow("NOT_FOUND");
+  let sent: unknown;
+  const contract = new QuestionsService(f.pool,{runtime:f.runtime,authorize:async (...args)=>{await authorizeActionDb(...args);},runQuery:async (ctx,_q,_mode,_execution,context)=>{sent=await transaction(f.pool,f.workspaceId,async db=>context.resolve(db,(await f.runtime.view(db,ctx)).state));throw Error("INSPECT_WINDOW");}});
+  const contractView=await contract.readThread(f.reader,thread.id);
+  const next=await contract.acceptTurn(f.reader,thread.id,{expectedRevision:contractView.continuation!,nonce:"after-reading-old",question:"follow",mode:"offline"});
+  const adapter=contract.questionJobAdapter();
+  const prepared=await transaction(f.pool,f.workspaceId,db=>adapter.prepare(db,f.reader,{threadId:thread.id,turnId:next.turnId}));
+  await expect(adapter.execute(f.reader,prepared.payload,{} as RuntimeExecution)).rejects.toThrow("INSPECT_WINDOW");
+  expect(JSON.stringify(sent)).not.toContain("question 0");
+  expect(JSON.stringify(sent)).toContain("question 21");
+  await expect(f.service.readThread(f.reader,thread.id,latest.nextCursor!)).rejects.toThrow("STALE_CURSOR");
+}, 60000);
+
+test("admission rejects a source that would make its new history page unreadable", async () => {
+  const f=await setup(), thread=await f.service.createThread(f.reader);
+  await f.pool.query("UPDATE sources SET data=jsonb_set(data,'{content}',to_jsonb(repeat('x',270000))) WHERE workspace_id=$1 AND id='source-a'",[f.workspaceId]);
+  await expect(f.service.acceptTurn(f.reader,thread.id,{expectedRevision:0,nonce:"oversized-source",question:"question",mode:"offline"})).rejects.toThrow("QUESTION_HISTORY_LIMIT");
+  expect((await f.pool.query("SELECT count(*)::int AS n FROM question_turns WHERE workspace_id=$1 AND thread_id=$2",[f.workspaceId,thread.id])).rows[0].n).toBe(0);
 });

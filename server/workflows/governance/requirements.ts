@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import type { Context } from "../../service";
+import type { MetadataSnapshot } from "../versions/metadata";
 import type { Draft } from "../../../src/domain/wiki";
 
 export type PropertyWarning = {
@@ -13,6 +14,7 @@ export async function publicationRequirements(
   db: PoolClient,
   ctx: Context,
   updates: Draft[],
+  projections: Record<string, MetadataSnapshot> = {},
 ) {
   const present = await db.query(
     "SELECT to_regclass('governance_type_policies') AS policies",
@@ -51,7 +53,8 @@ export async function publicationRequirements(
         [ctx.workspaceId, d.id],
       )
     ).rows[0];
-    const type = p?.category || "연결된 지식";
+    const planned = projections[d.id];
+    const type = planned?.category || p?.category || "연결된 지식";
     const policy =
       policies.find((r) => r.document_type === type) ??
       policies.find((r) => r.document_type === "*");
@@ -60,19 +63,20 @@ export async function publicationRequirements(
       type,
       workflow: workflow ?? null,
       owner: owner ?? null,
+      ...(planned ? {planned} : {}),
     });
     if (!policy) continue;
-    const properties = workflow?.data?.properties ?? {};
+    const properties = planned?.properties ?? workflow?.data?.properties ?? {};
     for (const key of policy.required_keys as string[]) {
       const value =
         key === "businessOwner"
           ? owner?.owner_id
           : key === "reviewDue"
-            ? workflow?.data?.reviewDue
+            ? (planned ? planned.workflowData.reviewDue : workflow?.data?.reviewDue)
             : key === "summary"
               ? d.summary
               : key === "tags"
-                ? p?.tags
+                ? (planned?.tags ?? p?.tags)
                 : properties[key];
       if (
         value == null ||

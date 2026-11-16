@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ApiError, OperationalApi } from "./api";
-import { resolveJob } from "./jobs-client";
+import { ApiError, OperationalApi, snapshotPath } from "./api";
+import { isJobReceipt, resolveJob } from "./jobs-client";
 type Answer = {
   id: string;
   version: number;
@@ -10,7 +10,9 @@ type Answer = {
 };
 type Thread = {
   id: string;
-  revision: number;
+  revision: number | null;
+  continuation?: string;
+  nextCursor?: string | null;
   title: string;
   contextOmitted: boolean;
   turns: {
@@ -49,7 +51,7 @@ type FeedbackItem = {
 const root = "/questions";
 type TurnRequest = {
   threadId: string;
-  expectedRevision: number;
+  expectedRevision: number | string;
   question: string;
   mode: "offline" | "model";
   nonce: string;
@@ -57,7 +59,7 @@ type TurnRequest = {
 export function questionRequest(
   previous: TurnRequest | null,
   threadId: string,
-  revision: number,
+  revision: number | string,
   question: string,
   mode: "offline" | "model",
   makeNonce: () => string = () => crypto.randomUUID(),
@@ -86,12 +88,14 @@ export function QuestionsWorkbench({
   identityKey: string;
 }) {
   const [boundIdentity, setBoundIdentity] = useState(identityKey);
+  const [snapshot, setSnapshot] = useState<{title: string; version: {number: number; content: string}} | null>(null);
   const [thread, setThread] = useState<Thread | null>(null),
     [threads, setThreads] = useState<{ id: string; revision: number }[]>([]),
     [threadCursor, setThreadCursor] = useState<string | null>(null);
   const [question, setQuestion] = useState(""),
     [mode, setMode] = useState<"offline" | "model">("offline"),
     [busy, setBusy] = useState(false),
+    [activeJob, setActiveJob] = useState<string | null>(null),
     [notice, setNotice] = useState(""),
     [error, setError] = useState(""),
     [turnPage, setTurnPage] = useState(0);
@@ -129,7 +133,9 @@ export function QuestionsWorkbench({
     generation.current++;
     controller.current?.abort();
     setBusy(false);
+    setActiveJob(null);
     setThread(null);
+    setSnapshot(null);
     setThreads([]);
     setResults({ items: [], nextCursor: null });
     setQuestion("");
@@ -161,6 +167,7 @@ export function QuestionsWorkbench({
       ([401, 403, 404].includes(e.status) ||
         [
           "STALE_VERSION",
+          "STALE_CURSOR",
           "POLICY_CHANGED",
           "MODEL_POLICY_CHANGED",
           "FEATURE_DISABLED",
@@ -227,6 +234,44 @@ export function QuestionsWorkbench({
     document.addEventListener("visibilitychange", refresh);
     return () => document.removeEventListener("visibilitychange", refresh);
   }, [api, thread?.id]);
+  async function loadOlder() {
+    if (!thread?.nextCursor) return;
+    const current = generation.current;
+    try {
+      const latest = await api.get<Thread>(
+        `${root}/threads/${encodeURIComponent(thread.id)}`,
+      );
+      if (generation.current !== current) return;
+      if (
+        latest.continuation !== thread.continuation ||
+        latest.revision !== thread.revision
+      ) {
+        const pending = accepted.current;
+        clear();
+        accepted.current = pending;
+        setThread(latest);
+        setTurnPage(0);
+        setNotice("접근 범위가 변경되어 대화를 다시 불러왔습니다.");
+        return;
+      }
+      const older = await api.get<Thread>(
+        `${root}/threads/${encodeURIComponent(thread.id)}?cursor=${encodeURIComponent(thread.nextCursor)}`,
+      );
+      if (generation.current === current) {
+        if (older.continuation !== latest.continuation) {
+          const pending = accepted.current;
+          clear();
+          accepted.current = pending;
+          setNotice("접근 범위가 변경되어 대화를 지웠습니다. 다시 조회하세요.");
+          return;
+        }
+        setThread({ ...older, contextOmitted: older.contextOmitted || latest.contextOmitted || thread.contextOmitted, turns: [...older.turns, ...thread.turns] });
+        setTurnPage(0);
+      }
+    } catch (e) {
+      if (generation.current === current) fail(e);
+    }
+  }
   async function ask(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
@@ -236,8 +281,9 @@ export function QuestionsWorkbench({
     controller.current?.abort();
     const abort = new AbortController();
     controller.current = abort;
+    let target = thread;
+    let terminal = false;
     try {
-      let target = thread;
       if (!target) {
         const created = await api.post<{ id: string; revision: number }>(
           `${root}/threads`,
@@ -255,7 +301,7 @@ export function QuestionsWorkbench({
       accepted.current = questionRequest(
         accepted.current,
         target.id,
-        target.revision,
+        target.revision ?? target.continuation ?? "",
         question,
         mode,
       );
@@ -265,10 +311,13 @@ export function QuestionsWorkbench({
         request,
         request.nonce,
       );
+      if (generation.current === current && isJobReceipt(receipt))
+        setActiveJob(receipt.id);
       await resolveJob(api, receipt, {
         expectQueued: true,
         signal: abort.signal,
         onProgress: (j) => {
+          terminal = j.status === "dead" || j.status === "cancelled";
           if (generation.current === current)
             setNotice(
               `작업 ${j.id} · ${j.status} (접수는 답변 완료가 아닙니다)`,
@@ -286,9 +335,110 @@ export function QuestionsWorkbench({
       );
       await list();
     } catch (e) {
+      if (generation.current === current) {
+        if (terminal && target) {
+          try {
+            await read(target.id);
+            accepted.current = null;
+          } catch (refreshError) {
+            fail(refreshError);
+          }
+        }
+        fail(e);
+      }
+    } finally {
+      if (generation.current === current) {
+        setBusy(false);
+        setActiveJob(null);
+      }
+    }
+  }
+  async function cancelActive() {
+    if (!activeJob) return;
+    const current = generation.current;
+    try {
+      await api.post(`/jobs-v2/${encodeURIComponent(activeJob)}/cancel`, {});
+      if (generation.current === current) {
+        setNotice("취소를 요청했습니다. 작업 상태를 확인하세요.");
+      }
+    } catch (e) {
+      if (generation.current === current) fail(e);
+    }
+  }
+  async function resume(turnId: string) {
+    if (!thread || busy) return;
+    const current = generation.current;
+    setBusy(true);
+    setError("");
+    controller.current?.abort();
+    const abort = new AbortController();
+    controller.current = abort;
+    let terminal = false;
+    try {
+      const receipt = await api.post(
+        `${root}/threads/${encodeURIComponent(thread.id)}/turns/${encodeURIComponent(turnId)}/resume`,
+        {},
+      );
+      if (generation.current === current && isJobReceipt(receipt))
+        setActiveJob(receipt.id);
+      await resolveJob(api, receipt, {
+        signal: abort.signal,
+        onProgress: (job) => {
+          terminal = job.status === "dead" || job.status === "cancelled";
+          if (generation.current === current)
+            setNotice(`작업 ${job.id} · ${job.status}`);
+        },
+      });
+      if (generation.current === current) {
+        await read(thread.id);
+        setNotice("답변을 저장했습니다.");
+      }
+    } catch (e) {
+      if (generation.current === current) {
+        if (terminal) {
+          try {
+            await read(thread.id);
+            accepted.current = null;
+          } catch (refreshError) {
+            fail(refreshError);
+          }
+        }
+        fail(e);
+      }
+    } finally {
+      if (generation.current === current) {
+        setBusy(false);
+        setActiveJob(null);
+      }
+    }
+  }
+  async function cancel(jobId: string) {
+    if (!thread || busy) return;
+    const current = generation.current;
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/jobs-v2/${encodeURIComponent(jobId)}/cancel`, {});
+      if (generation.current === current) {
+        setNotice("취소를 요청했습니다. 작업 상태를 확인하세요.");
+        await read(thread.id);
+      }
+    } catch (e) {
       if (generation.current === current) fail(e);
     } finally {
       if (generation.current === current) setBusy(false);
+    }
+  }
+  async function openSnapshot(pageId: string, version: number) {
+    const current = generation.current;
+    try {
+      const value = await api.get<{
+        title: string;
+        version: { number: number; content: string };
+      }>(snapshotPath(pageId, version));
+      if (generation.current === current) setSnapshot(value);
+    } catch (e) {
+      if (generation.current === current) fail(e);
     }
   }
   function searchBody(cursor?: string | null) {
@@ -405,6 +555,12 @@ export function QuestionsWorkbench({
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {snapshot && <article><h3>{snapshot.title} · v{snapshot.version.number}</h3><p style={{whiteSpace:"pre-wrap"}}>{snapshot.version.content}</p><button type="button" onClick={() => setSnapshot(null)}>인용 본문 닫기</button></article>}
+      {activeJob && (
+        <button type="button" onClick={() => void cancelActive()}>
+          현재 작업 취소
+        </button>
+      )}
       <nav aria-label="내 대화">
         <button
           type="button"
@@ -451,6 +607,7 @@ export function QuestionsWorkbench({
               제외된 내용은 다시 보내지 않습니다.
             </p>
           )}
+          {thread.nextCursor && <button type="button" disabled={busy} onClick={() => void loadOlder()}>이전 대화 불러오기</button>}
           <ol>
             {thread.turns
               .slice(turnPage * 25, (turnPage + 1) * 25)
@@ -484,11 +641,9 @@ export function QuestionsWorkbench({
                       <ul>
                         {turn.answer.citations.map((c, i) => (
                           <li key={i}>
-                            <a
-                              href={`/api/v1/pages/${encodeURIComponent(c.pageId)}/versions/${c.version}`}
-                            >
+                            <button type="button" onClick={() => void openSnapshot(c.pageId, c.version)}>
                               {c.title} · v{c.version}
-                            </a>
+                            </button>
                           </li>
                         ))}
                       </ul>
@@ -507,6 +662,26 @@ export function QuestionsWorkbench({
                     <p>
                       답변 미완료 · {turn.status}
                       {turn.jobId ? ` · 작업 ${turn.jobId}` : ""}
+                      {turn.status === "pending" && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void resume(turn.id)}
+                          >
+                            작업 다시 확인
+                          </button>
+                          {turn.jobId && (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void cancel(turn.jobId!)}
+                            >
+                              취소 요청
+                            </button>
+                          )}
+                        </>
+                      )}
                     </p>
                   )}
                 </li>
@@ -632,11 +807,9 @@ export function QuestionsWorkbench({
               <ul>
                 {item.work.map((w) => (
                   <li key={`${w.pageId}:${w.version}`}>
-                    <a
-                      href={`/api/v1/pages/${encodeURIComponent(w.pageId)}/versions/${w.version}`}
-                    >
+                    <button type="button" onClick={() => void openSnapshot(w.pageId, w.version)}>
                       {w.pageId} · v{w.version}
-                    </a>{" "}
+                    </button>{" "}
                     ·{" "}
                     {w.status === "pending-unassigned"
                       ? "담당자 미배정"
@@ -719,9 +892,9 @@ export function QuestionsWorkbench({
       <ul>
         {results.items.map((item) => (
           <li key={`${item.pageId}:${item.version}`}>
-            <a href={item.href}>
+            <button type="button" onClick={() => void openSnapshot(item.pageId, item.version)}>
               {item.title ?? "과거 제목 기록 없음"} · v{item.version}
-            </a>
+            </button>
             <p>
               {item.historical
                 ? "과거 버전 · 현재 권고 아님"

@@ -1,5 +1,7 @@
 # 서버 API 제안 계약
 
+현재 마운트·차단 경로는 [현재 현황](CURRENT_STATUS.md) 및 `server/runtime/http.ts`를 따른다. 아래 제안 URL은 구현 경로의 전체 목록이 아니며, 과거 기반 단계 기록은 당시 범위다.
+
 후속 실행 경로: `server/runtime/http.ts`는 OIDC 세션·CSRF가 적용된 `/api/v1/me`, `pages`/고정 버전, `sources`, `members`, `changesets`/승인·발행·반려, `ingest`, `query`, `answers/:id/file`, `lint`, `jobs`, `model`, `usage`를 제공한다. 현행 스키마는 `server/runtime/schema.ts`가 기준이며 목록은 `{items}`, 오류는 `{code,requestId}`다. 아래 artifacts/manager/restore/shares 등 목표 계약 전체를 구현한 것은 아니다. [실제 설정/검증/제약](OPERATIONAL_SETUP.md)을 따른다.
 
 현재 실행 중계 API는 docs/MODEL_SETUP.md에 별도 정의한다. 아래는 여전히 프로덕션 서버의 목표 계약이다. MCP 도구 상세는 AGENT_INTERFACE.md를 따른다.

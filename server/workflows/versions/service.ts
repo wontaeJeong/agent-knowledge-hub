@@ -9,7 +9,7 @@ import {captureEnvelope,visiblePageIds,fingerprint,versionProvenance,type InputE
 import {current,draftOf,type Draft,type Batch} from "../../../src/domain/wiki";
 import {propose} from "../../publication";
 import {compareText,segmentAnchors,resolveAnchor,type Anchor} from "./diff";
-import {currentMetadata,validatePlannedMetadata,type MetadataSnapshot,type RestorePlan} from "./metadata";
+import {currentMetadata,validatePlannedMetadata,assertVersionPlansCurrent,type MetadataSnapshot,type RestorePlan} from "./metadata";
 export {capturePublishedVersionMetadata,beginVersionMetadataChange,finishVersionMetadataChange,assertVersionPlansCurrent,applyApprovedVersionMetadataPlans,validateVersionMetadataPlans} from "./metadata";
 export type {RestorePlan,MetadataSnapshot} from "./metadata";
 export type VersionAuthorizer=(db:PoolClient,ctx:Context,action:string,resource?:{kind:"page"|"source";id:string})=>Promise<void>;
@@ -102,7 +102,9 @@ export class VersionService {
   const ready=await this.run(ctx,"changeset.approve",async db=>{const checked=await this.batch(db,ctx,d.batchId,d.expectedHash),attribution=await this.decisionActor(db,ctx,checked.batch);if(!["pending","approved"].includes(checked.batch.status))throw Error("STALE_VERSION");
    const ids=new Set(d.pageIds);if(ids.size!==d.pageIds.length||d.pageIds.some(id=>!checked.batch.updates.some(p=>p.id===id)||!parsed.reasons[id]))throw Error("VALIDATION_FAILED");
    const chosen=new Set(checked.batch.updates.map(p=>p.id).filter(id=>d.decision==="approve"?ids.has(id):!ids.has(id)));if(closure(checked.batch,chosen,checked.state).length)throw Error("DEPENDENCY_CLOSURE_REQUIRED");
-   return {...checked,attribution,updates:checked.batch.updates.filter(p=>chosen.has(p.id)),stateHash:fingerprint(checked.state)};
+   await assertVersionPlansCurrent(db,ctx,d.batchId,d.expectedHash);
+   const plans=(await db.query("SELECT payload FROM version_restore_plans WHERE workspace_id=$1 AND batch_id=$2 ORDER BY page_id",[ctx.workspaceId,d.batchId])).rows.map(r=>r.payload as RestorePlan).filter(p=>chosen.has(p.pageId));
+   return {...checked,plans,attribution,updates:checked.batch.updates.filter(p=>chosen.has(p.id)),stateHash:fingerprint(checked.state)};
   });
   let result:{batchId:string|null;hash:string|null;decisionId:string}|undefined,retired=false;
   const retire=async(db:PoolClient)=>{const original=await this.batch(db,ctx,d.batchId,d.expectedHash);await this.decisionActor(db,ctx,original.batch);if(fingerprint(original.state)!==ready.stateHash||!["pending","approved"].includes(original.batch.status))throw Error("STALE_VERSION");await db.query("UPDATE batches SET data=jsonb_set(data,'{status}','\"rejected\"') WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,d.batchId]);await db.query("DELETE FROM approvals WHERE workspace_id=$1 AND batch_id=$2",[ctx.workspaceId,d.batchId]);retired=true;};
@@ -113,7 +115,7 @@ export class VersionService {
    await db.query("INSERT INTO versions_decisions(id,workspace_id,original_batch_id,original_hash,actor_id,decision,selected_page_ids,reasons,attribution,derived_batch_id,derived_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",[decisionId,ctx.workspaceId,d.batchId,d.expectedHash,ctx.principalId,d.decision,d.pageIds,parsed.reasons,ready.attribution,created?.id??null,derivedHash]);
    await db.query("UPDATE batches SET data=jsonb_set(data,'{status}','\"rejected\"') WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,d.batchId]);await db.query("DELETE FROM approvals WHERE workspace_id=$1 AND batch_id=$2",[ctx.workspaceId,d.batchId]);await audit(db,ctx,"versions.partial-decision",decisionId);result={batchId:created?.id??null,hash:derivedHash,decisionId};
   };
-  if(!ready.updates.length)await transaction(this.pool,ctx.workspaceId,db=>write(db));else {const options:TrustedProposalOptions={mode:ready.batch.mode,dependencyIds:ready.batch.contextDependencyIds,inputEnvelope:ready.batch.inputEnvelope,producer:ready.attribution.producer as Producer,onBeforeCreate:retire,onCreated:write};await propose(this.pool,ctx,ready.updates,ready.batch.snapshots.map(s=>s.id),options);}
+  if(!ready.updates.length)await transaction(this.pool,ctx.workspaceId,db=>write(db));else {const options:TrustedProposalOptions={mode:ready.batch.mode,versionMetadataPlans:ready.plans,dependencyIds:ready.batch.contextDependencyIds,inputEnvelope:ready.batch.inputEnvelope,producer:ready.attribution.producer as Producer,onBeforeCreate:retire,onCreated:write};await propose(this.pool,ctx,ready.updates,ready.batch.snapshots.map(s=>s.id),options);}
   return {...result!,status:result?.batchId?"pending":"rejected",originalStatus:"rejected",requiresIndependentReview:!!result?.batchId};
  }
 
@@ -151,10 +153,9 @@ export class VersionService {
   let result:{batchId:string;hash:string}|undefined;
   const options:TrustedProposalOptions={expectedStateHash:prepared.stateHash,dependencyIds:prepared.dependencies,inputEnvelope:prepared.envelope,producer:{kind:"structural"},versionMetadataPlans:prepared.payload.plans,onCreated:async(db,created)=>{
    for(const plan of prepared.payload.plans)await validatePlannedMetadata(db,ctx,plan);
-   const planHash=fingerprint(prepared.payload.plans),r=(await db.query("SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,created.id])).rows[0];
-   const data={...r.data,title:d.reason,versionRestorePlanHash:planHash,versionMetadataChanges:prepared.payload.plans.map(p=>({pageId:p.pageId,targetVersion:p.targetVersion,fields:p.fields,next:p.next}))};
+   const r=(await db.query("SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,created.id])).rows[0];
+   const data={...r.data,title:d.reason};
    const finalHash=fixedHash(data);await db.query("UPDATE batches SET data=$3,hash=$4 WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,created.id,data,finalHash]);
-   for(const plan of prepared.payload.plans)await db.query("INSERT INTO version_restore_plans VALUES($1,$2,$3,$4,$5,$6)",[ctx.workspaceId,created.id,finalHash,plan.pageId,fingerprint(plan),plan]);
    await audit(db,ctx,"versions.restore-propose",created.id);result={batchId:created.id,hash:finalHash};
   }};await propose(this.pool,ctx,prepared.updates,prepared.sourceIds,options);
   return {...result!,status:"pending",requiresIndependentReview:true};

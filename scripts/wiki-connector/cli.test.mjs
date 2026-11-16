@@ -52,6 +52,9 @@ test("CLI persists private work, exposes a frozen review, and publishes only wit
   await writeFile(file, JSON.stringify({ ...page, content: "CLI proposal" }));
   assert.equal((await command(["write", file])).pending, 1);
   await command(["sync"]);
+  const batchFile = path.join(dir, "batch.json");
+  await writeFile(batchFile, JSON.stringify({id:"batch",targetSpaceId:"team-a",selections:[{pageId:"guide",baseVersion:1,personalVersion:1}]}));
+  await assert.rejects(command(["propose-batch",batchFile]), error => error.stderr.trim() === "FEATURE_UNAVAILABLE");
   const proposalFile = path.join(dir, "pr.json");
   await writeFile(
     proposalFile,

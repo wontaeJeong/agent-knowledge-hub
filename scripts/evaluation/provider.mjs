@@ -5,6 +5,7 @@ export function createEvaluationAgent({
   apiKey,
   allowTransmission,
   thinking,
+  beforeTransmission,
 }) {
   if (!baseUrl || !model || !allowTransmission)
     throw Error("MODEL_NOT_CONFIGURED");
@@ -18,7 +19,7 @@ export function createEvaluationAgent({
     (thinking !== undefined && !["enabled", "disabled"].includes(thinking))
   )
     throw Error("MODEL_CONFIGURATION");
-  return async (input, tools, signal) => {
+  return async (input, tools, signal, onUsage) => {
     const serialized = JSON.stringify(input);
     if (Buffer.byteLength(serialized) > 300000)
       throw Error("MODEL_CONTEXT_LIMIT");
@@ -39,9 +40,20 @@ export function createEvaluationAgent({
     let tokens = 0,
       cost = 0,
       knownTokens = true,
-      knownCost = true;
+      knownCost = true,
+      pricedCalls = 0,
+      tokenCalls = 0;
+    const reportUsage = () =>
+      onUsage?.({
+        knownCost: cost,
+        knownTokens: tokens,
+        pricedCalls,
+        tokenCalls,
+      });
     for (let call = 0; call < input.budget.calls; call++) {
       let data;
+      let responseCost = null;
+      await beforeTransmission?.(input, endpoint.href);
       try {
         const res = await fetch(endpoint, {
           method: "POST",
@@ -78,6 +90,19 @@ export function createEvaluationAgent({
           }),
         });
         if (!res.ok) throw Error("MODEL_FAILED");
+        const costHeader = res.headers.get("x-litellm-response-cost");
+        if (
+          costHeader !== null &&
+          costHeader.trim() !== "" &&
+          Number.isFinite(Number(costHeader)) &&
+          Number(costHeader) >= 0
+        )
+          responseCost = Number(costHeader);
+        if (responseCost !== null) {
+          cost += responseCost;
+          pricedCalls++;
+          reportUsage();
+        }
         const reader = res.body?.getReader();
         if (!reader) throw Error("MODEL_FAILED");
         let raw = "",
@@ -101,22 +126,31 @@ export function createEvaluationAgent({
       if (
         Number.isInteger(data.usage?.total_tokens) &&
         data.usage.total_tokens >= 0
-      )
+      ) {
         tokens += data.usage.total_tokens;
-      else knownTokens = false;
-      if (
-        typeof data.usage?.cost === "number" &&
-        Number.isFinite(data.usage.cost) &&
-        data.usage.cost >= 0
-      )
-        cost += data.usage.cost;
-      else knownCost = false;
+        tokenCalls++;
+      } else knownTokens = false;
+      if (responseCost === null) {
+        const callCost = data.usage?.cost;
+        if (
+          typeof callCost === "number" &&
+          Number.isFinite(callCost) &&
+          callCost >= 0
+        ) {
+          cost += callCost;
+          pricedCalls++;
+        } else knownCost = false;
+      }
+      reportUsage();
       if (tokens > input.budget.maxTokens) throw Error("TOKEN_BUDGET_EXCEEDED");
       const choice = data.choices?.[0];
       if (!choice || !["stop", "tool_calls"].includes(choice.finish_reason))
         throw Error("MODEL_FAILED");
       const response = choice.message;
       if (response.tool_calls?.length) {
+        if (!knownTokens) throw Error("TOKEN_USAGE_UNKNOWN");
+        if (tokens >= input.budget.maxTokens)
+          throw Error("TOKEN_BUDGET_EXCEEDED");
         if (response.tool_calls.length > 10)
           throw Error("TOOL_BUDGET_EXCEEDED");
         messages.push(response);

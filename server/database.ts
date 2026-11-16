@@ -58,6 +58,23 @@ export async function migrate(pool: Pool): Promise<void> {
       if (previous.rowCount && previous.rows[0].hash !== hash)
         throw Error("Migration checksum mismatch");
       if (!previous.rowCount) {
+        if (version === 10) {
+          // Capture before the released transition removes session evidence. The
+          // transaction-local table cannot be reconstructed from post-upgrade FK rows.
+          const old = await db.query(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='access_principals' AND column_name='enabled'",
+          );
+          if (old.rowCount) {
+            await db.query(
+              "LOCK TABLE memberships,runtime_sessions,access_principals IN SHARE ROW EXCLUSIVE MODE",
+            );
+            await db.query(`CREATE TEMP TABLE legacy_preupgrade_memberships ON COMMIT DROP AS
+            SELECT m.workspace_id,m.principal_id,m.role,min(s.subject) AS subject
+            FROM memberships m JOIN runtime_sessions s ON s.workspace_id=m.workspace_id AND s.principal_id=m.principal_id
+            JOIN access_principals p ON p.id=m.principal_id AND p.enabled
+            GROUP BY m.workspace_id,m.principal_id,m.role HAVING count(DISTINCT s.subject)=1`);
+          }
+        }
         await db.query(sql);
         await db.query("INSERT INTO schema_migrations VALUES($1,$2)", [
           version,

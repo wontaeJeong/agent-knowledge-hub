@@ -29,6 +29,7 @@ import {
   selectContext,
   type Claim,
   type Evidence,
+  type ProposalCandidate,
 } from "./logic";
 import type { SemanticLintProvider } from "./semantic";
 import { semanticProviderEndpoint } from "./semantic";
@@ -648,6 +649,82 @@ export class RefinementService {
         throw Error("EXECUTION_CLAIM_MISMATCH");
     }
     return proofs;
+  }
+  /** Called only by the publication transaction after page versions are written. */
+  async publishCandidatesDb(
+    db: PoolClient,
+    ctx: Context,
+    batchId: string,
+    candidates: ProposalCandidate[],
+    versions: Record<string, number>,
+  ) {
+    const previous = await this.all<Claim>(db, ctx, "claims");
+    for (const [index, candidate] of candidates.entries()) {
+      const version = versions[candidate.pageId];
+      if (!version) throw Error("MODEL_INVALID");
+      await this.page(db, ctx, candidate.pageId, version);
+      const suffix = digest([batchId, index]).slice(0, 40);
+      const now = new Date().toISOString();
+      const evInput = evidenceInput.parse({
+        id: `ev_${suffix}`,
+        kind: "claim",
+        sourceId: candidate.sourceId,
+        sourceVersion: candidate.sourceVersion,
+        location: candidate.location,
+        parentIds: [],
+        assertedAt: now,
+        verifiedAt: null,
+        conditions: candidate.conditions,
+      });
+      const prepared = await this.prepareEvidence(db, ctx, evInput);
+      const evidence: Evidence = {
+        ...evInput,
+        root: prepared.root,
+        ...this.stamp(ctx),
+      };
+      await this.put(db, ctx, "evidence", evidence);
+      const claim = claimInput.parse({
+        id: `cl_${suffix}`,
+        pageId: candidate.pageId,
+        pageVersion: version,
+        key: candidate.key,
+        value: candidate.value,
+        kind: candidate.kind,
+        conditions: candidate.conditions,
+        exceptions: candidate.exceptions,
+        assertedAt: now,
+        validFrom: candidate.validFrom,
+        validTo: candidate.validTo,
+        verifiedAt: null,
+        evidenceIds: [evidence.id],
+        protected: false,
+        uncertainty: candidate.uncertainty,
+        supersedes: [],
+      });
+      const stored: Claim = { ...claim, ...this.stamp(ctx) };
+      const conflicts: { claimId: string; kind: string }[] = [];
+      for (const other of previous) {
+        try {
+          await this.claim(db, ctx, other.id);
+          const kind = compareClaims(stored, other);
+          if (kind !== "unrelated" && kind !== "agreement")
+            conflicts.push({ claimId: other.id, kind });
+        } catch (error) {
+          if (!(error instanceof Error && error.message === "NOT_FOUND"))
+            throw error;
+        }
+      }
+      await this.put(db, ctx, "claims", { ...stored, originBatchId: batchId });
+      await this.request(
+        db,
+        ctx,
+        [stored.id, ...conflicts.map((c) => c.claimId)],
+        "new-evidence",
+        `claim_${suffix}`,
+        { originBatchId: batchId, conflicts, authority: "review-candidate" },
+      );
+      previous.push(stored);
+    }
   }
   async addClaim(ctx: Context, input: unknown) {
     const d = claimInput.parse(input);

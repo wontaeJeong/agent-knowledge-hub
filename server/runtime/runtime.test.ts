@@ -13,6 +13,7 @@ test("filed answers retain citation snapshots through approval", async () => {
     const runtime = new RuntimeService(fresh.pool);
     const answer = await runtime.query(fresh.editor, "기존", "offline");
     const b = await runtime.file(fresh.editor, answer.id);
+    if ("outcome" in b) throw Error("expected proposal");
     await fresh.pool.query(
       "UPDATE pages SET data=jsonb_set(data,'{title}','\"changed\"') WHERE workspace_id=$1 AND id='topic'",
       [fresh.workspaceId],
@@ -190,7 +191,9 @@ test("ACL filtered sources and publication/query/file/lint persist across servic
   const answer = await service.query(f.editor, "재시도", "offline");
   expect(answer.citations.length).toBeGreaterThan(0);
   const restarted = new RuntimeService(f.pool);
-  expect((await restarted.file(f.editor, answer.id)).hash).toMatch(
+  const filed = await restarted.file(f.editor, answer.id);
+  if ("outcome" in filed) throw Error("expected proposal");
+  expect(filed.hash).toMatch(
     /^[a-f0-9]{64}$/,
   );
   expect((await restarted.lint(f.editor)).issues.length).toBeGreaterThan(0);

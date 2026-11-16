@@ -1014,3 +1014,33 @@ describe("timezone schedules", () => {
     ).rejects.toThrow("SCOPE_CONFLICT");
   });
 });
+
+it("completion takes shared mutation gate before queue mutex and effect", async () => {
+  const f=await setup(), gate=await f.pool.connect(), probe=await f.pool.connect();
+  let pending:Promise<void>|undefined;
+  try {
+    await f.service.enqueue(f.ctx,f.input);
+    const lease=(await f.service.claim('ordering-worker'))!;
+    await gate.query('BEGIN'); await gate.query('SELECT pg_advisory_xact_lock(822025)');
+    pending=f.service.complete(lease,{value:'done',noModelCalls:true,commit:async(db)=>{await db.query("INSERT INTO workflow_events(workspace_id,id,principal_id,kind,resource_id,data) VALUES($1,'ordered','editor','test','topic','{}')",[f.workspaceId]);}});
+    let waiting=0;
+    for(let i=0;i<1000&&!waiting;i++) waiting=(await gate.query("SELECT count(*)::int AS n FROM pg_locks WHERE locktype='advisory' AND objid=822025 AND mode='ShareLock' AND NOT granted AND database=(SELECT oid FROM pg_database WHERE datname=current_database())")).rows[0].n;
+    expect(waiting).toBeGreaterThan(0);
+    await probe.query('BEGIN');
+    expect((await probe.query('SELECT pg_try_advisory_xact_lock(822022) AS available')).rows[0].available).toBe(true);
+    await probe.query('ROLLBACK'); await gate.query('COMMIT'); await pending;
+    expect((await f.pool.query("SELECT 1 FROM workflow_events WHERE workspace_id=$1 AND id='ordered'",[f.workspaceId])).rowCount).toBe(1);
+  } finally {await probe.query('ROLLBACK');await gate.query('ROLLBACK');probe.release();gate.release();if(pending)await pending.catch(()=>{});}
+});
+
+it("enqueue takes the shared mutation gate before queue mutex, so retention sees late jobs", async () => {
+ const f=await setup(), gate=await f.pool.connect(), probe=await f.pool.connect();let pending:Promise<unknown>|undefined;
+ try {
+  await gate.query('BEGIN');await gate.query('SELECT pg_advisory_xact_lock(822025)');
+  pending=f.service.enqueue(f.ctx,f.input);
+  let waiting=0;for(let i=0;i<1000&&!waiting;i++) waiting=(await gate.query("SELECT count(*)::int n FROM pg_locks WHERE locktype='advisory' AND objid=822025 AND mode='ShareLock' AND NOT granted AND database=(SELECT oid FROM pg_database WHERE datname=current_database())")).rows[0].n;
+  expect(waiting).toBeGreaterThan(0);
+  await probe.query('BEGIN');expect((await probe.query('SELECT pg_try_advisory_xact_lock(822022) AS available')).rows[0].available).toBe(true);
+  await probe.query('ROLLBACK');await gate.query('COMMIT');await pending;
+ } finally {await gate.query('ROLLBACK');await probe.query('ROLLBACK');gate.release();probe.release();if(pending)await pending.catch(()=>{});}
+});

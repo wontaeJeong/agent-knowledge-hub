@@ -74,11 +74,11 @@ test("cross-workspace grants and audits do not disclose their presence but still
   const neighbor = await previewErasure(service, ownerB, input);
   expect(neighbor.agentDataBoundary.deviceGrants).toBe(true);
   expect(neighbor.agentDataBoundary.keyAudit).toBe(true);
-  await expect(executeErasure(service, ownerA, {...input, previewHash:after.previewHash, confirm:"ERASE_PREVIEWED_RESOURCE_LINEAGE"})).rejects.toThrow("ERASURE_AGENT_DATA_UNSUPPORTED");
+  await expect(executeErasure(service, ownerA, {...input, previewHash:after.previewHash, confirm:"ERASE_PREVIEWED_RESOURCE_LINEAGE"})).rejects.toThrow("ERASURE_CREDENTIAL_SCOPE_MISMATCH");
   const db = await a.pool.connect();
   try {
     await db.query("BEGIN");
-    await expect(replayProductErasure(db, a.workspaceId, [input.resource])).rejects.toThrow("ERASURE_AGENT_DATA_UNSUPPORTED");
+    await expect(replayProductErasure(db, a.workspaceId, [input.resource])).rejects.toThrow("ERASURE_CREDENTIAL_SCOPE_MISMATCH");
   } finally { await db.query("ROLLBACK"); db.release(); }
   expect((await a.pool.query("SELECT name FROM agent_api_keys WHERE id=$1", [key])).rows[0].name).toBe(secret);
 });

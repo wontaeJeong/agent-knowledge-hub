@@ -12,21 +12,24 @@ import {
 import { visiblePageIds } from "./provenance";
 import * as publication from "./publication";
 import { authorizeManaged, effectiveAccess } from "./access/index";
+import { legacyStoredRole } from "./access/legacy-compat";
 
 export interface Context {
   workspaceId: string;
   principalId: string;
   /** Generated at the authenticated transport boundary, never read from a caller DTO/header. */
-  requestId?:string;
+  requestId?: string;
   /** Server-resolved hashed credential, never parsed from a caller context. */
   credentialId?: string;
   /** Scoped machine credential; never accepted from a client-supplied DTO. */
-  agent?: {keyId:string;scope:"read"|"write"};
+  agent?: { keyId: string; scope: "read" | "write" };
   /** Server-created request capability; never accepted from a client DTO. */
   authorization?: {
     sessionId?: string;
     revalidate: () => Promise<void>;
     assertSession: (db: PoolClient) => Promise<void>;
+    /** Server-verified issuer, set only by the authenticated OIDC guard. */
+    verifiedIssuer?: string;
   };
 }
 export class KnowledgeService {
@@ -60,11 +63,16 @@ export class KnowledgeService {
         const managed = await authorizeManaged(db, ctx, "source.create");
         if (managed)
           for (const principalId of readers) {
-            const recipient = await effectiveAccess(db, {
-              workspaceId: ctx.workspaceId,
-              principalId,
-            });
-            if (!recipient.role) throw Error("VALIDATION_FAILED");
+            if (managed.legacyRole) {
+              if (!(await legacyStoredRole(db, ctx.workspaceId, principalId)))
+                throw Error("VALIDATION_FAILED");
+            } else {
+              const recipient = await effectiveAccess(db, {
+                workspaceId: ctx.workspaceId,
+                principalId,
+              });
+              if (!recipient.role) throw Error("VALIDATION_FAILED");
+            }
             await db.query(
               "INSERT INTO memberships VALUES($1,$2,'reader') ON CONFLICT DO NOTHING",
               [ctx.workspaceId, principalId],

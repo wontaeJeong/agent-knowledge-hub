@@ -71,6 +71,7 @@ export interface ClaimView {
   }[];
 }
 export interface ReviewRequest {
+  conflicts?: { claimId: string; kind: string }[];
   id: string;
   claimIds?: string[];
   reason?: string;
@@ -1083,6 +1084,7 @@ export function RefinementPanel({
                   {r.status ?? "pending-review"} · {r.result ?? "성과 미확인"}
                 </p>
                 {r.observations && <p>{r.observations}</p>}
+                {!!r.conflicts?.length && <ul>{r.conflicts.map((conflict) => <li key={conflict.claimId}>기존 주장 {conflict.claimId} · {conflict.kind} · 재검토 필요</li>)}</ul>}
                 <p>
                   {r.uncertainty ?? "검토 후보이며 독립 검증은 미확인"}{" "}
                   {r.limits}
