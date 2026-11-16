@@ -46,10 +46,26 @@ test("bulk preview does not change document metadata; apply preserves other prop
   });
   expect(
     (await service.document(f.ctx, "topic")).settings.data.properties,
-  ).toEqual({ environment: "prod", tags: "guide, 한글" });
+  ).toEqual({ environment: "prod", tags: "old" });
+  expect((await service.document(f.ctx, "topic")).page.tags).toEqual([
+    "guide",
+    "한글",
+  ]);
+  const { adoptFixture } = await import("../test-support");
+  await adoptFixture(f.pool, f.workspaceId);
+  const { ScopedSearch } = await import("../questions/search");
+  const search = new ScopedSearch(f.pool, {
+    runtime: service.runtime,
+    authorize: service.authorize,
+  });
+  expect(
+    (await search.search(f.ctx, { tags: ["guide"] })).items.map(
+      (i) => i.pageId,
+    ),
+  ).toContain("topic");
   expect(
     (await service.bulkApply(f.ctx, { token: preview.token })).items[0],
-  ).toMatchObject({ status: "failed", code: "STALE_VERSION" });
+  ).toMatchObject({ status: "applied", revision: 2 });
 });
 test("bulk operations keep per-target failures and reject forged or cross-user previews", async () => {
   const preview = await service.bulkPreview(f.ctx, {
@@ -85,8 +101,8 @@ test("permission changes after preview prevent bulk writes", async () => {
   );
   const result = await service.bulkApply(f.ctx, { token: preview.token });
   expect(result.items[0]).toMatchObject({
-    status: "failed",
-    code: "NOT_FOUND",
+    status: "unconfirmed",
+    code: "OUTCOME_UNCONFIRMED",
   });
 });
 test("native runtime bulk routes require authenticated current roles and CSRF", async () => {
@@ -173,4 +189,31 @@ test("native runtime bulk routes require authenticated current roles and CSRF", 
     await new Promise<void>((r) => host.close(() => r()));
     await new Promise<void>((r) => provider.close(() => r()));
   }
+});
+
+test("bulk recovers a committed result after response loss and reports unprocessed targets", async () => {
+  const preview = await service.bulkPreview(f.ctx, {
+    pageIds: ["topic"],
+    operation: { kind: "archive" },
+    reason: "복구 확인",
+  });
+  const apply = service.setDocumentState.bind(service);
+  let lost = true;
+  service.setDocumentState = async (
+    ...args: Parameters<typeof service.setDocumentState>
+  ) => {
+    const r = await apply(...args);
+    if (lost) {
+      lost = false;
+      throw Error("CONNECTION_LOST_AFTER_COMMIT");
+    }
+    return r;
+  };
+  expect(
+    (await service.bulkApply(f.ctx, { token: preview.token })).items[0],
+  ).toMatchObject({ status: "unconfirmed", code: "OUTCOME_UNCONFIRMED" });
+  expect(
+    (await service.bulkApply(f.ctx, { token: preview.token })).items[0],
+  ).toMatchObject({ status: "applied", revision: 1 });
+  expect((await service.document(f.ctx, "topic")).settings.revision).toBe(1);
 });

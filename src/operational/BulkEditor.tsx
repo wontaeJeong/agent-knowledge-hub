@@ -30,6 +30,7 @@ export function BulkEditor({
     [value, setValue] = useState(""),
     [reason, setReason] = useState(""),
     [preview, setPreview] = useState<Preview | null>(null),
+    [recovery, setRecovery] = useState<Preview | null>(null),
     [results, setResults] = useState<Outcome[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -38,6 +39,7 @@ export function BulkEditor({
     epoch.current++;
     setIds([]);
     setPreview(null);
+    setRecovery(null);
     setResults([]);
     setError("");
     setBusy(false);
@@ -48,6 +50,7 @@ export function BulkEditor({
   function change() {
     epoch.current++;
     setPreview(null);
+    setRecovery(null);
     setResults([]);
     setError("");
     setBusy(false);
@@ -58,13 +61,21 @@ export function BulkEditor({
     setError("");
     if (!apply) setPreview(null);
     try {
-      if (apply && preview) {
+      const chosen = preview ?? recovery;
+      if (apply && chosen) {
         const r = await api.post<{ items: Outcome[] }>(
           "/workflows/bulk/apply",
-          { token: preview.token },
+          { token: chosen.token },
         );
         if (request !== epoch.current) return;
         setResults(r.items);
+        setRecovery(
+          r.items.some(
+            (i) => i.status === "unconfirmed" || i.code === "NOT_PROCESSED",
+          )
+            ? chosen
+            : null,
+        );
         setPreview(null);
         try {
           await onChanged();
@@ -96,8 +107,12 @@ export function BulkEditor({
       }
     } catch (e) {
       if (request !== epoch.current) return;
+      if (apply) {
+        setRecovery(preview ?? recovery);
+      } else {
+        setResults([]);
+      }
       setPreview(null);
-      setResults([]);
       setError(e instanceof Error ? e.message : "요청 실패");
       if (
         typeof e === "object" &&
@@ -106,6 +121,8 @@ export function BulkEditor({
         [401, 403].includes(Number(e.status))
       ) {
         setIds([]);
+        setRecovery(null);
+        setResults([]);
         if (e.status === 401) onExpired();
       }
     } finally {
@@ -240,6 +257,11 @@ export function BulkEditor({
       )}
       {busy && <p role="status">처리 중입니다.</p>}
       {error && <p role="alert">{error}</p>}
+      {recovery && (
+        <Button disabled={busy} onClick={() => void run(true)}>
+          동일 요청의 처리 결과 다시 확인
+        </Button>
+      )}
       {results.length > 0 && (
         <section aria-label="일괄 변경 결과">
           <ul>
@@ -248,9 +270,11 @@ export function BulkEditor({
                 {pages.find((p) => p.id === r.id)?.title ?? "선택 문서"} ·{" "}
                 {r.status === "applied"
                   ? "적용됨"
-                  : r.status === "skipped"
-                    ? "제외됨"
-                    : "실패"}{" "}
+                  : r.status === "unconfirmed"
+                    ? "처리 확인 필요"
+                    : r.status === "skipped"
+                      ? "제외됨"
+                      : "실패"}{" "}
                 {r.code}
               </li>
             ))}
@@ -259,7 +283,14 @@ export function BulkEditor({
             onClick={() => {
               change();
               setIds(
-                results.filter((r) => r.status === "failed").map((r) => r.id),
+                results
+                  .filter(
+                    (r) =>
+                      r.status === "failed" ||
+                      r.status === "unconfirmed" ||
+                      r.code === "NOT_PROCESSED",
+                  )
+                  .map((r) => r.id),
               );
             }}
           >

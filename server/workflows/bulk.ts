@@ -1,4 +1,9 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 import { z } from "zod";
 import type { Context } from "../service";
 import type { WorkflowService } from "./service";
@@ -110,13 +115,7 @@ export async function bulkPreview(
           ancestor = parent.settings.parent_id;
         }
         patch = { parentId: d.operation.parentId };
-      } else
-        patch = {
-          properties: {
-            ...(doc.settings.data?.properties ?? {}),
-            tags: [...new Set(d.operation.tags)].join(", "),
-          },
-        };
+      } else patch = { tags: [...new Set(d.operation.tags)] };
       items.push({
         id: pageId,
         status: "ready",
@@ -164,11 +163,19 @@ export async function bulkApply(
       continue;
     }
     try {
-      const result = await service.setDocumentState(ctx, i.id, {
-        ...i.patch,
-        expectedRevision: i.expectedRevision,
-        reason: value.reason,
-      });
+      const result = await service.setDocumentState(
+        ctx,
+        i.id,
+        {
+          ...i.patch,
+          expectedRevision: i.expectedRevision,
+          reason: value.reason,
+        },
+        "bulk-" +
+          createHash("sha256")
+            .update(token + ":" + i.id)
+            .digest("hex"),
+      );
       items.push({
         id: i.id,
         status: "applied" as const,
@@ -177,16 +184,23 @@ export async function bulkApply(
     } catch (e) {
       if (
         e instanceof Error &&
-        [
-          "NOT_FOUND",
-          "FORBIDDEN",
-          "STALE_VERSION",
-          "VALIDATION_FAILED",
-          "POLICY_UNAVAILABLE",
-        ].includes(e.message)
+        ["STALE_VERSION", "VALIDATION_FAILED"].includes(e.message)
       )
         items.push({ id: i.id, status: "failed" as const, code: e.message });
-      else throw e;
+      else {
+        items.push({
+          id: i.id,
+          status: "unconfirmed" as const,
+          code: "OUTCOME_UNCONFIRMED",
+        });
+        for (const pending of value.items.slice(items.length))
+          items.push({
+            id: pending.id,
+            status: "skipped" as const,
+            code: "NOT_PROCESSED",
+          });
+        break;
+      }
     }
   }
   return { items };
