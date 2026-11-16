@@ -1,5 +1,15 @@
 # 에이전트 인계
 
+## 2026-11-17 최종 요청 인가 전후의 검토 알림 소실 수정
+
+- CLB-004/005, ACL-007/008, REV-003/004, JOB-002 및 CORE-008 관련. PR #48의 [리뷰 5921247928](https://github.com/wontaeJeong/agent-knowledge-hub/pull/48#pullrequestreview-5921247928)과 [후속 리뷰 5921544871](https://github.com/wontaeJeong/agent-knowledge-hub/pull/48#pullrequestreview-5921544871)에 이미 지적됐으나 미해결로 남았던 staged-authorization 알림 누락을 별도 수정한다. PR #56의 링크 계보 보완과 별개다.
+- 원인: migration 120이 `requestAuthorizationPending=true` 변경안에도 리뷰 이벤트를 만들었다. 스캐너는 canonical 검토 게이트의 `NOT_FOUND`를 받으면 이벤트를 소비했고, 최종 인가 해제 때 같은 이벤트 키 충돌로 실제 검토 가능 알림을 잃었다. PostgreSQL에서 해제 전 이벤트 생성·legacy 이벤트 소비·해제 시 재발행 실패를 RED로 확인했다.
+- 변경: 적용된 120의 체크섬은 보존한다. 신규 `server/migrations/130-staged-review-events.sql`은 비공개 staging 중 이벤트를 만들지 않고, 실제 true→해제 전환에서만 기존 이벤트의 `projected_at`과 구독 기준 시각을 실제 해제 시각으로 갱신한다. 이벤트 ID와 수신자별 알림 ID는 유지한다. `server/collaboration/events.ts`는 이전 릴리스가 남긴 staging 이벤트를 recipient 검사 전에 제외하여 소비하지 않는다. canonical `reviewNotificationDb`, 승인·발행·원본 상한은 변경하지 않았다.
+- 제한적 복구: 마이그레이션 실행 시 **현재 pending/model 변경안의 현재 해시와 일치하는 기존 소비 이벤트** 중 **아직 어떤 수신자에게도 리뷰 알림이 없는 이벤트**만 한 번 재투영한다. 원래 `created_at`을 유지하고 현재 검토 자격·원본 권한·원래 구독 cutoff를 재검사한다. 이미 알림이 있는 이벤트, 다른 해시/상태/offline, 아직 staging 중인 변경안, 사라진 이벤트는 복원하지 않는다. 재실행은 migration ledger와 알림 고정 ID로 중복을 막는다.
+- 복구 한계: 과거 해제 시각과 staging 이력은 저장되지 않아, 실제 누락과 당시 적격 수신자가 없던 model 이벤트를 완전히 구분할 수 없다. 위 범위의 후자도 현재 적격인 원래 구독자에게 처음 투영될 수 있다. staging 시작 이후 실제 해제 이전에 구독한 과거 사용자는 과거 cutoff 때문에 복구되지 않을 수 있다. 시각·이력·알림을 추정해 만들지 않는다. 새 릴리스의 해제 전환에는 실제 해제 cutoff가 적용된다. 데이터가 큰 운영 DB의 migration 소요 시간/잠금 부하는 미측정이다.
+- 검증: Node 24.22.2 `npm run check` 통과(프런트 212, Node 48, import 16, 평가 41, 요구사항 251, 서버 타입, 빌드, 정적 HTTP smoke). Vite의 기존 500kB chunk 경고는 남는다. 파일별 새 PostgreSQL DB로 협업·구독 HTTP·인증·runtime final-response guard·발행·계보 14파일 123시험 통과. 신규 16시험은 직접 제안/실제 `RuntimeService.ingest`의 final revalidation barrier, 성공/실패 cleanup, old consumed/unconsumed 이벤트, 실제 checksum-aware upgrade/retry, 동시 scan/고정 ID, 현재 원본/검토자 회수, release rollback을 검사했다. migration runner로 보강한 최종 16시험도 재실행 통과했다.
+- North Star: Ingest → 검토 가능한 변경 → 승인·발행의 사람 검토 연결과 현재 권한/중복 방지 불변식을 보완한다. 기존 지식 본문·근거·검토 결정은 바꾸지 않는다. 이 회귀는 알림 전달의 정확성을 검증하며 지식 품질·후속 에이전트 성과의 개선 측정은 아니다. UI·모델·SSO grant·인프라 변경은 없고 앱1/DB1을 유지한다. 새 PR의 독립 재검토·최종 원격 CI와 운영 인수는 별도다.
+
 ## 2026-11-16 문서 표시·이미지 첨부 — 로드맵 Task 3
 
 - 독립 리뷰의 Important 2건을 회귀로 재현해 수정했다. Sharp가 APNG의 pages를 생략하므로 실제 PNG 청크 경계를 검사해 acTL/fcTL/fdAT·손상/종료 뒤 데이터를 거부한다. 유효한 2프레임 합성 APNG는 실제 런타임에서415로 거부되고 blob 메타데이터가 생기지 않는다. 수식/다이어그램 세대와 별개인 이미지 요청 토큰은 새 선택·닫기·컨텍스트/언마운트에서 갱신하며 늦은 성공이 최신 권한 거부를 덮지 못한다. 대기 중 닫기도 지원한다. 이미지 object URL은 생성하지 않는다. 새 codec/React deferred/native HTTP 회귀 및 최종 전체 검사 결과는 화면 증거 README를 따른다.
