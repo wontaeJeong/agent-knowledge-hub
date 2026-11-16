@@ -62,3 +62,17 @@ EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행�
 - Default search/context uses canonical currentRecommendation, excluding active+replacementId, archived and future-effective pages. Explicit history/read stays available and is not described as current recommendation.
 - [API decisions, North Star invariants and remaining limits](implementation/2026-11-16-unified-search.md). Semantic selection and index operations are separate following units; no whole-requirement or company model quality/agent-performance acceptance claim.
 - Verified Task1a: final Node24 `npm run check` passed (src172 + Node48 + imports16 + evaluation41, requirements251, server typecheck, build/static HTTP smoke). Native PostgreSQL17 per-file runner passed 10 files/68 tests; final changed-search rerun passed 3 files/24 tests after cookie DTO compatibility mapping. No model/provider calls or semantic quality claim in this unit.
+
+## 2026-11-16 Task1b - configured semantic retrieval
+
+- Requirements: SRH-001/002/003/004/005/007 and CORE-009/010 implementation scope. Actual model selection over the complete authorized filtered corpus (up to100 versions, without lexical prefilter), exact quote checks, canonical historical metadata and current source/dependency checks. Durable budgets, actual telemetry and current result-read authorization remain enforced.
+- Connected authenticated REST, agent/cookie MCP and web mode admit/poll real jobs; unconfigured/policy/budget/limit/invalid-output cases remain failures. No answer/wiki/publication effect. [API, North Star decisions and limits](implementation/2026-11-16-semantic-search.md), [1440/390 browser evidence](pr-assets/semantic-search/README.md).
+- Company semantic quality, external CLI interoperability, large-wiki performance and downstream utility remain unverified acceptance; native provider replies are synthetic. Index freshness/rebuild is separate Task1c.
+- Validation Task1b: final Node24 npm run check passed (src173, Node48, imports16, evaluation41, requirements251, server typecheck, build/static HTTP smoke). PostgreSQL17 per-file isolated broad regression passed15 files/154 tests; final semantic11-test isolated rerun passed after malformed-schema repair. Browser1440/390 success/failure screenshots are explicitly synthetic UI evidence.
+
+### Task1b review corrections - semantic retry and key collisions
+
+- Stored job kind and sealed semantic payload are checked before accessing snapshotHash. Reusing an ordinary query/lint key returns IDEMPOTENCY_CONFLICT and creates no additional job/model call.
+- Web semantic search releases its key when job progress definitively reports dead/cancelled, allowing identical-filter retry to create a fresh job. Unknown admission, network interruption and poll timeout retain the original key to prevent duplicate uncertain jobs. No layout changed; existing screenshot evidence remains applicable to presentation.
+- Added native query/lint collision RED regressions and UI dead/cancelled/new-key plus admission-network/poll-network/poll-timeout/same-key checks. Final command/results recorded below after execution.
+- Review-fix validation: final Node24 npm run check passed (src178, Node48, imports16, evaluation41, requirements251, server typecheck, build/static smoke). Isolated PostgreSQL17 runtime52 plus semantic13 tests passed; UI semantic6 passed. Both terminal retry and uncertain same-key cases are executed regressions. git diff --check clean.
