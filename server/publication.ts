@@ -818,6 +818,20 @@ async function reviewQualification(
   };
 }
 
+/** Read-only notification gate shares the exact current review qualification and
+ * whole changeset/source/approval checks used by approval. Does not approve. */
+export async function reviewNotificationDb(
+  db: PoolClient,
+  ctx: Context,
+  id: string,
+  hash: string,
+) {
+  const batch = await checkedBatch(db, ctx, id, hash);
+  await reviewQualification(db, ctx, id, true);
+  if (batch.status !== "pending") throw Error("NOT_FOUND");
+  return batch;
+}
+
 export async function approve(
   pool: Pool,
   ctx: Context,

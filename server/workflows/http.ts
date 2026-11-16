@@ -32,15 +32,19 @@ export async function handleWorkflowRoute(
       return reply(await service.activity(ctx, "recent"));
     if (route === "/trash") return reply(await service.trash(ctx));
     if (route === "/preferences") return reply(await service.preferences(ctx));
-    const page = route.match(/^\/pages\/([^/]+)(?:\/(comments))?$/);
+    const page = route.match(/^\/pages\/([^/]+)(?:\/(comments|navigation))?$/);
     if (page)
       return reply(
-        page[2]
-          ? await service.comments(ctx, page[1])
-          : await service.document(ctx, page[1]),
+        page[2] === "navigation"
+          ? await service.navigation(ctx, page[1])
+          : page[2]
+            ? await service.comments(ctx, page[1])
+            : await service.document(ctx, page[1]),
       );
   }
   if (method !== "POST") return false;
+  if (route === "/links/search")
+    return reply(await service.linkSearch(ctx, body));
   if (route === "/drafts")
     return reply(await service.saveDraft(ctx, body), 201);
   if (route === "/templates")

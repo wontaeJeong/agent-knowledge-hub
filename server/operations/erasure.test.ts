@@ -55,3 +55,12 @@ test("actual lineage propagates source→page→draft→answer→claim/review; t
   expect(JSON.stringify(scrubbed)).not.toContain("secret");
   expect(scrubbed).toMatchObject({ sourceIds: ["s"], sha256: "a".repeat(64) });
 });
+test("publication event follows its originating batch into source erasure without a selected page", () => {
+  const rows = [
+    { table: "batches", locator: "(0,1)", data: { id: "batch", data: { snapshots: [{ sourceId: "source" }] } } },
+    { table: "collaboration_events", locator: "(0,2)", data: { id: "publication:batch:other-page", kind: "publication", page_id: "other-page", resource_id: "batch", revision: "1" } },
+    { table: "workflow_notifications", locator: "(0,3)", data: { id: "notice", data: { eventId: "publication:batch:other-page" } } },
+    { table: "pages", locator: "(0,4)", data: { id: "other-page", data: { title: "Independent page" } } },
+  ];
+  expect(selectErasureRows(rows, { kind: "source", id: "source" }).map((r) => r.table)).toEqual(["batches", "collaboration_events", "workflow_notifications"]);
+});
