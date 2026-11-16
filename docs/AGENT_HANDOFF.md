@@ -1,5 +1,12 @@
 # 에이전트 인계
 
+## 2026-11-17 Task1c — retention integration correction
+
+- SRH-006/008 and existing retention/erasure invariants: PR #55 head `1f1f555`, CI run `43891959528` / job `133385264883`, exposed unclassified `search_index_state` and `search_index_workspace_state`. Native reproduction identified the durable job's actual `RETENTION_GRAPH_UNSUPPORTED` error. The full CI log failed five files / 28 assertions, including retention jobs, inventory, ordinary retention and notification erasure; the original 152-test selection omitted positive retention jobs and inventory.
+- `server/retention/inventory.ts` now explicitly classifies these two tables as metadata only. Exact column/type/nullability signatures and exact foreign-key descriptors are frozen: global maintenance observations have no FK; workspace observations have only the validated, immediate, non-cascading workspace FK. New content columns, product FKs, type/nullability drift and changed FK actions remain fail closed. No new product-content root, unknown-table exemption, source ACL/hold relaxation or migration change is introduced; migration121 stays unchanged and122 unused.
+- Actual retention regression confirms an authorized expired non-head version disappears from the real indexed candidate query, the current version remains, committed workspace observation advances, global maintenance success/failure history survives, and resurrection remains fenced. Existing legal-hold, source-ceiling, rollback/recovery and workspace/source erasure regressions are included in the final native validation.
+- RED: original jobs reproduce dead; baseline controls reject; classification alone leaves two new product-FK tests incorrectly succeeding. GREEN: exact FK guard passes the targeted six retention jobs plus nine control tests. Node24 complete `npm run check` passed (src193, Node48, imports16, evaluation41, requirements251, server typecheck, build and static smoke). Expanded scripts/test-server.mjs validation passed: 23 files / 179 tests (retention HTTP/runtime7, all operations91, retention inventory/HTTP/recovery/service45, release25, index11). No UI/layout change; existing screen evidence applies. Independent scoped review and final remote CI remain required.
+
 ## 2026-11-16 일괄 결과의 호스트 재조회 경계 수정
 
 - PR #45 독립 검토에서 apply 직후 `onChanged` → App.load의 `dataReady=false` → WorkflowPanel unmount로 결과/복구 토큰이 사라지는 경계를 확인했다. 적용 응답 뒤 자동 부모 갱신을 제거하고, 결과·실패 대상 선택·같은 토큰 재확인을 보존한 뒤 사용자가 명시적으로 목록을 새로고침하게 했다. 명시적 갱신은 결과 화면을 닫는다.

@@ -589,3 +589,11 @@
 ### 2026-11-16 - Integration scheduling and native filter correction
 - Started the presentation merge before its final CI inspection, then cancelled only that uncommitted merge to integrate the already-CI-green bulk PR first. No committed or external changes were discarded. The presentation remote was already ff769e8; the initial stale-ref suspicion was incorrect.
 - A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.
+
+
+### 2026-11-17 — native index controls omitted from retention inventory
+
+- Context/evidence: PR #55 head1f1f555, CI run43891959528/job133385264883 failed five files/28 assertions. The initial three dead retention jobs expanded to ordinary retention, compatible controls and notification erasure. Isolated reproduction exposed the actual dead-job error `RETENTION_GRAPH_UNSUPPORTED`; both new search-index metadata tables were absent from the inventory's explicit table classes.
+- Cause/impact: the index's original native152-test selection covered release/index/erasure/runtime but omitted positive retention jobs and the fail-closed inventory. The public control tables therefore made ordinary retention unsupported after migration121. No production or real company data was involved; all reproduction and repair tests use per-file UUID databases through scripts/test-server.mjs, never the shared anchor schema.
+- Correction: explicitly classify only these two frozen metadata schemas; freeze their FK targets, columns, update/delete/match rules, validation and deferral too. Product-reference FKs fail even without added columns. Unknown tables and changed schemas still reject; metadata is not retained content lineage. Migration121 remains unchanged;122 unused. Add pruning/index-removal/current-version/observation-history regression and include all retention and operations tests in expanded validation.
+- Verification: native RED reproduced; schema-only classification left two new product-FK regressions failing, exact FK guard made them green. Targeted runtime6 + controls9 and full Node24 npm run check passed. Expanded native retention jobs, all operations/erasure, inventory/service/HTTP/recovery, index and release passed23 files/179 tests, exit0. Independent review and final PR CI follow.

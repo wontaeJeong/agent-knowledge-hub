@@ -8,6 +8,7 @@ import { ContentRetentionService } from "./service";
 import { draftRetirementId } from "./drafts";
 import { replayRetentionTombstones } from "./drafts";
 import { OperationsService } from "../operations/service";
+import { indexedContentMatches } from "../search/query";
 import { previewErasure, executeErasure } from "../operations/erasure";
 import { randomUUID } from "node:crypto";
 import { captureRecoveryLedger, readRecoveryLedger } from "../operations/recovery";
@@ -270,10 +271,10 @@ test("separately approved lawful erasure discovers autosave revision/idempotency
     ).not.toContain(secret);
 });
 
-test("explicit published version policy prunes only an unreferenced expired non-head version and fences resurrection", async () => {
+test("explicit published version policy prunes only an unreferenced expired non-head version, updates native index and fences resurrection", async () => {
   await f.pool.query("INSERT INTO resources(workspace_id,kind,id) VALUES($1,'page','isolated')",[f.workspaceId]);
   await f.pool.query("INSERT INTO pages(workspace_id,id,data) SELECT workspace_id,'isolated',jsonb_set(data,'{id}','\"isolated\"') FROM pages WHERE workspace_id=$1 AND id='topic'",[f.workspaceId]);
-  const older={...pageVersion(),sourceIds:[]};
+  const older={...pageVersion(),sourceIds:[],content:'retired-index-candidate'};
   const newer={...older,number:2,id:'v2',content:'kept latest',at:new Date(now).toISOString()};
   await f.pool.query("INSERT INTO versions(workspace_id,page_id,number,data) VALUES($1,'isolated',1,$2),($1,'isolated',2,$3)",[f.workspaceId,older,newer]);
   await f.pool.query("INSERT INTO resource_readers(workspace_id,kind,resource_id,principal_id) VALUES($1,'page','isolated','fixture-owner')",[f.workspaceId]);
@@ -281,8 +282,18 @@ test("explicit published version policy prunes only an unreferenced expired non-
   const preview=await service.previewRetention(admin());
   const candidate=preview.records.find(r=>r.kind==='publishedVersions'&&r.id==='isolated:1');
   expect(candidate?.eligible,JSON.stringify(candidate)).toBe(true);
-  const result=await service.executeRetention(admin(),{previewHash:preview.hash,policyRevision:1});
-  expect(result).toMatchObject({status:'completed',deleted:1});
+  const observerBefore=(await f.pool.query('SELECT revision FROM search_index_workspace_state WHERE workspace_id=$1',[f.workspaceId])).rows[0];
+  const globalBefore=(await f.pool.query('SELECT * FROM search_index_state ORDER BY id')).rows;
+  const db=await f.pool.connect();
+  try {
+    expect(await indexedContentMatches(db,f.workspaceId,'retired-index-candidate')).toEqual([{page_id:'isolated',number:1}]);
+    const result=await service.executeRetention(admin(),{previewHash:preview.hash,policyRevision:1});
+    expect(result).toMatchObject({status:'completed',deleted:1});
+    expect(await indexedContentMatches(db,f.workspaceId,'retired-index-candidate')).toEqual([]);
+    expect(await indexedContentMatches(db,f.workspaceId,'kept latest')).toEqual([{page_id:'isolated',number:2}]);
+    expect(BigInt((await db.query('SELECT revision FROM search_index_workspace_state WHERE workspace_id=$1',[f.workspaceId])).rows[0].revision)).toBe(BigInt(observerBefore.revision)+1n);
+    expect((await db.query('SELECT * FROM search_index_state ORDER BY id')).rows).toEqual(globalBefore);
+  } finally {db.release();}
   expect((await f.pool.query("SELECT number FROM versions WHERE workspace_id=$1 AND page_id='isolated' ORDER BY number",[f.workspaceId])).rows).toEqual([{number:2}]);
   await expect(f.pool.query("INSERT INTO versions(workspace_id,page_id,number,data) VALUES($1,'isolated',1,$2)",[f.workspaceId,older])).rejects.toThrow('RETENTION_VERSION_RETIRED');
 });

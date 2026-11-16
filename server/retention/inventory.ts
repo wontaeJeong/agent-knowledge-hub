@@ -65,17 +65,49 @@ export async function inventory(
     )
   ).rows;
   // These independently introduced control tables contain authority or host
-  // configuration metadata, never product content or resource lineage. Freeze
+  // configuration/index-maintenance metadata, never product content or resource lineage. Freeze
   // the exact SQL-visible schema: a future content column must fail closed.
   const compatibleControls: Record<string, string[]> = {
     legacy_compat_memberships: ["workspace_id:text:NO","principal_id:text:NO","role:text:NO","subject:text:NO","revoked:boolean:NO","captured_at:timestamp with time zone:NO"],
     legacy_compat_installation: ["singleton:boolean:NO","installation_id:uuid:NO","import_key_fingerprint:text:YES"],
     legacy_compat_manifest_imports: ["manifest_hash:text:NO","backup_hash:text:NO","key_fingerprint:text:NO","captured_at:timestamp with time zone:NO","issued_at:timestamp with time zone:NO","imported_at:timestamp with time zone:NO"],
+    search_index_state: ["id:text:NO","last_attempt_at:timestamp with time zone:YES","last_success_at:timestamp with time zone:NO","last_success_kind:text:NO","last_success_job_id:text:YES","last_failure_at:timestamp with time zone:YES","last_failure_code:text:YES","last_failure_job_id:text:YES"],
+    search_index_workspace_state: ["workspace_id:text:NO","observed_mutation_at:timestamp with time zone:NO","revision:bigint:NO"],
     storage_collector_connections: ["workspace_id:text:NO","id:text:NO","principal_id:text:NO","configuration_hash:text:NO","active:boolean:NO","revision:integer:NO","created_at:timestamp with time zone:NO"],
   };
   for (const [name, expected] of Object.entries(compatibleControls)) {
     const actual = columns.filter(c => c.table_name === name).map(c => `${c.column_name}:${c.data_type}:${c.is_nullable}`).sort();
     if (actual.length && JSON.stringify(actual) !== JSON.stringify([...expected].sort())) throw Error("RETENTION_GRAPH_UNSUPPORTED");
+  }
+  // Index observations are derived metadata, not content-retention roots.
+  // Freeze foreign keys too: unchanged columns must not silently gain lineage
+  // to a job/content row or acquire cascading deletion semantics.
+  const indexControlForeignKeys = (await db.query(`
+    SELECT src.relname AS name, target_ns.nspname AS target_schema,
+      target.relname AS target_table,
+      ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum,ord)
+        JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.attnum ORDER BY k.ord) AS columns,
+      ARRAY(SELECT a.attname::text FROM unnest(c.confkey) WITH ORDINALITY AS k(attnum,ord)
+        JOIN pg_attribute a ON a.attrelid=c.confrelid AND a.attnum=k.attnum ORDER BY k.ord) AS target_columns,
+      c.confupdtype::text AS on_update, c.confdeltype::text AS on_delete,
+      c.confmatchtype::text AS match, c.condeferrable AS deferrable,
+      c.condeferred AS initially_deferred, c.convalidated AS validated
+    FROM pg_constraint c JOIN pg_class src ON src.oid=c.conrelid
+      JOIN pg_namespace ns ON ns.oid=src.relnamespace
+      JOIN pg_class target ON target.oid=c.confrelid
+      JOIN pg_namespace target_ns ON target_ns.oid=target.relnamespace
+    WHERE c.contype='f' AND ns.nspname='public' AND src.relname=ANY($1::text[])
+  `, [["search_index_state", "search_index_workspace_state"]])).rows;
+  const expectedIndexForeignKeys: Record<string, unknown[]> = {
+    search_index_state: [],
+    search_index_workspace_state: [{ target_schema: "public", target_table: "workspaces",
+      columns: ["workspace_id"], target_columns: ["id"], on_update: "a", on_delete: "a",
+      match: "s", deferrable: false, initially_deferred: false, validated: true }],
+  };
+  for (const [name, expected] of Object.entries(expectedIndexForeignKeys)) {
+    if (!columns.some(c => c.table_name === name)) continue;
+    const actual = indexControlForeignKeys.filter(fk => fk.name === name).map(({name: _name, ...fk}) => JSON.stringify(fk)).sort();
+    if (JSON.stringify(actual) !== JSON.stringify(expected.map(fk => JSON.stringify(fk)).sort())) throw Error("RETENTION_GRAPH_UNSUPPORTED");
   }
   const tables = [...new Set<string>(columns.map((c) => c.table_name))].filter(
     (t) => productTables.has(t) || releasedImportTables.has(t),
@@ -85,10 +117,12 @@ export async function inventory(
   const controls = new Set(["access_audit","access_batch_authors","access_credentials","access_grants","access_review_rules","access_reviewers","access_shares","access_source_policy","access_spaces","access_triage","audit","content_retention_holds","content_retention_policies","content_retention_receipts","durable_budget_days","durable_budget_limits","feature_policies","legacy_v1_access_grants","legacy_v1_access_invitations","legacy_v1_access_reviewers","legacy_v1_access_spaces","legacy_v1_access_triage","memberships","operations_audit_archives","operations_audit_chain","operations_erased_artifacts","operations_erasure_receipts","operations_legal_holds","operations_policy","operations_recovery_acl","operations_tombstones","resource_readers","resources","runtime_sessions","storage_tickets","usage_events"]);
   controls.add("legacy_compat_memberships");
   controls.add("storage_collector_connections");
+  controls.add("search_index_workspace_state");
   const unknown = [...new Set<string>(columns.filter(c => c.column_name === "workspace_id").map(c => c.table_name))].filter(t => !tables.includes(t) && !controls.has(t));
   const globalControls = new Set(["access_group_members","access_groups","access_invitations","access_namespaces","access_principals","access_service_accounts","access_team_members","durable_job_fairness","durable_job_stops","identity_directory_bindings","identity_directory_edges","identity_directory_proofs","identity_events","identity_group_denies","identity_manual_group_members","identity_session_activity","legacy_v1_access_audit","legacy_v1_access_function_definitions","legacy_v1_access_org_members","legacy_v1_access_orgs","legacy_v1_access_principals","legacy_v1_access_team_members","legacy_v1_access_teams","legacy_v1_identity_subjects","model_destinations","oidc_logins","operations_alert_outbox","operations_backups","operations_recovery_releases","runtime_directory_status","schema_migrations","workspaces"]);
   globalControls.add("legacy_compat_installation");
   globalControls.add("legacy_compat_manifest_imports");
+  globalControls.add("search_index_state");
   const baseTables=(await db.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'")).rows;
   if (baseTables.some(r=>!tables.includes(r.table_name) && !controls.has(r.table_name) && !globalControls.has(r.table_name))) throw Error("RETENTION_GRAPH_UNSUPPORTED");
   const foreignRefs=(await db.query(`SELECT DISTINCT src.relname AS name FROM pg_constraint c JOIN pg_class src ON src.oid=c.conrelid JOIN pg_namespace ns ON ns.oid=src.relnamespace JOIN pg_class target ON target.oid=c.confrelid WHERE c.contype='f' AND ns.nspname='public' AND target.relname=ANY($1::text[])`,[["versions","sources","pages","storage_snapshots","storage_blobs","workflow_drafts"]])).rows;
