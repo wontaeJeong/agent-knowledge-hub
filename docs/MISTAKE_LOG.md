@@ -1,5 +1,15 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — C1 실행 환경·이동 회귀와 검증 harness 수정
+
+- 맥락/관련 작업: #49 C1, 격리 worktree `2ff4`, BASE `51129cb`. 원본 main과 다른 세션 worktree는 변경하지 않았다.
+- 사실과 영향: 최초 npm ci가 shell Node26에서 EBADENGINE으로 실패했고 추정한 Homebrew Node24 경로도 없었다. 캐시의 실제 Node24.22.2를 확인해 PATH에 고정한 뒤 offline install 및 baseline을 통과했다. 데이터 변경 영향은 없다.
+- 개발 중 확인: 새 union의 bare section 생성이 typecheck 2건을 실패시켰다. 첫 전체 check에서 공간 전환 시 무조건 overview로 바꿔 기존 published-list의 `둘째 공간 지식` 회귀가 실패했다. 모바일 미저장 이동 취소 후 메뉴가 닫히는 문제, 철회 검토를 활성 대상으로 여는 문제, 정확한 작업의 새로고침에서 기존 상세를 재인가하지 않는 문제도 각각 RED 시험으로 확인했다.
+- 원인/조치: bare section 타입을 보완하고, 공간 변경은 문서/개인/업무 ID만 제거하면서 기존 안전한 콘솔 탭을 유지했다. 취소된 이동은 false를 반환해 메뉴를 열어 두며, rejected로 저장되는 철회 검토는 일반 오류로 처리한다. 작업 상세는 매 수동 새로고침/변경 후 재조회하고 먼저 기존 상세를 비운다. 자동 편집 과정에서 잠시 잘못 바뀐 Boards key는 원복하고 Workflow key에 계정/문서 경계를 적용했다.
+- 시험 환경 실수: jsdom Vite가 없는 Navigation 모듈 import를 수집 단계에서 거부해 계약 stub 후 행동 RED를 다시 관찰했다. 잘못된 경로 시험의 문서 API fixture가 불완전해 별개 렌더 오류를 냈으며 실제 실패 경계의 404로 수정했다. 브라우저 init script가 DOM 생성 전 documentElement에 접근해 pageerror를 냈다. harness는 theme storage만 준비하도록 고친 뒤 전부 다시 실행했다. 제품 오류를 성공으로 숨기지 않았다.
+- 검증/상태: 위 회귀는 수정 후 통과했다. 최종 `npm run check`: frontend230/Node48/import16/evaluation41, 요구사항251, 서버 타입검사/build/smoke 통과. 별도 Chromium의 1440/390 light/dark 8장, 키보드 이동·초점·capability 표시 통과, pageerror0. [로그와 화면](pr-assets/convenience-navigation/README.md). 실서비스 OIDC/DB 인수와 동시 main 통합 뒤 재검증은 남아 있다.
+
+
 ### 2026-11-16 — 편의기능 설계의 원본 공개·정확한 이동·개인 공간 경계
 
 - 사실과 영향: 첫 설계는 새 문서의 원본 공개 승인 서비스를 기존 import-run 결합과 구분하지 않았고, 검토/작업/접근 요청의 정확한 대상 URL이 빠졌다. 보완 중 모든 최초 발행에 독립 검토자를 요구해 owner-only 개인 공간이 막히는 설계 결함도 발견했다. 제품 코드에 적용하기 전 독립 검토로 확인했다.

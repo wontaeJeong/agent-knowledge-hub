@@ -1,3 +1,6 @@
+import { convenienceHref, parseConvenienceLocation } from "./convenience/route";
+import { convenienceSections, type ConvenienceLocation } from "./convenience/types";
+import { ReviewSelection } from "./convenience/ReviewSelection";
 import {
   lazy,
   Suspense,
@@ -25,7 +28,7 @@ import { Button, Badge } from "../ui/primitives";
 import { ConsoleShell } from "./ConsoleShell";
 import { Overview } from "./Overview";
 import { DiscoveryDashboard } from "./DiscoveryDashboard";
-import { consoleLabel, readConsoleTab, summarizeConsole } from "./console";
+import { consoleLabel, summarizeConsole } from "./console";
 import type { ConsoleTab } from "./console";
 import { PreviewApi } from "./preview";
 import "./styles.css";
@@ -166,8 +169,7 @@ export default function OperationalApp({
       const params = new URLSearchParams(window.location.search);
       if (
         remembered &&
-        !params.has("space") &&
-        !params.has("document") &&
+        !["space", "document", "section", "draft", "view", "version", "anchor", "targetKind", "targetId"].some(key => params.has(key)) &&
         !window.location.hash
       ) {
         const restored = resumeWorkspaceLink(remembered);
@@ -186,10 +188,9 @@ export default function OperationalApp({
       preview={preview}
       spaceId={spaceId}
       onSpace={(id) => {
-        const url = new URL(window.location.href);
-        url.searchParams.set("space", id);
-        url.searchParams.delete("document");
-        window.history.replaceState(null, "", url);
+        if (!window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))) return;
+        const current = parseConvenienceLocation(window.location.search, window.location.hash);
+        window.history.replaceState(null, "", convenienceHref({ kind: "console", spaceId: id, tab: current.kind === "console" ? current.tab : "overview" }));
         setSpaceId(id);
       }}
     />
@@ -236,26 +237,45 @@ function OperationalWorkspace({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<ConsoleTab>(() =>
-    !preview && new URLSearchParams(window.location.search).has("document")
-      ? "workflows"
-      : readConsoleTab(
-          typeof window === "undefined" ? "" : window.location.hash,
-        ),
-  );
+  const [location, setLocation] = useState<ConvenienceLocation>(() => parseConvenienceLocation(window.location.search, window.location.hash));
+  const locationTab = (value: ConvenienceLocation): ConsoleTab => {
+    if (value.kind === "invalid") return "home";
+    if (value.kind === "console") return value.tab;
+    if (value.kind === "document") return "workflows";
+    if (value.section === "tasks" && value.targetKind) return value.targetKind === "review" ? "review" : value.targetKind === "job" ? "jobs" : "lifecycle";
+    return value.section;
+  };
+  const [tab, setTab] = useState<ConsoleTab>(() => locationTab(location));
   const navigate = useCallback((next: ConsoleTab) => {
+    if (!window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))) return false;
+    const section = convenienceSections.find(section => section === next);
+    const nextLocation: ConvenienceLocation = section && (spaceId || identity?.workspaceId)
+      ? { kind: "section", spaceId: spaceId || identity!.workspaceId, section }
+      : { kind: "console", ...(spaceId ? { spaceId } : {}), tab: next };
+    setLocation(nextLocation);
     setTab(next);
-    window.location.hash = next;
+    window.history.pushState(null, "", convenienceHref(nextLocation));
     requestAnimationFrame(() => {
       document.getElementById("op-main")?.focus();
       window.scrollTo(0, 0);
     });
-  }, []);
+    return true;
+  }, [spaceId, identity?.workspaceId]);
   useEffect(() => {
-    const onHash = () => setTab(readConsoleTab(window.location.hash));
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+    const onLocation = () => {
+      if (!window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))) {
+        if (location.kind !== "invalid") window.history.pushState(null, "", convenienceHref(location));
+        return;
+      }
+      const next = parseConvenienceLocation(window.location.search, window.location.hash);
+      setLocation(next); setTab(locationTab(next));
+    };
+    window.addEventListener("hashchange", onLocation);
+    window.addEventListener("popstate", onLocation);
+    return () => { window.removeEventListener("hashchange", onLocation); window.removeEventListener("popstate", onLocation); };
+  }, [location]);
+  const target = location.kind === "section" && location.section === "tasks" && location.targetKind ? location : undefined;
+  const pendingDestination = location.kind === "section" && !target || location.kind === "document" && (location.version !== undefined || !!location.anchor);
   const [pages, setPages] = useState<PublishedPage[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<ChangeSet[]>([]);
@@ -311,6 +331,10 @@ function OperationalWorkspace({
       setDataReady(false);
       currentScope.current = "";
       setIdentity(null);
+      const safeLocation: ConvenienceLocation = { kind: "console", ...(spaceId ? { spaceId } : {}), tab: "overview" };
+      setLocation(safeLocation);
+      setTab("overview");
+      window.history.replaceState(null, "", convenienceHref(safeLocation));
       setPages([]);
       setSources([]);
       setChanges([]);
@@ -647,6 +671,8 @@ function OperationalWorkspace({
       preview={preview}
       tab={tab}
       navigate={navigate}
+      identity={identity}
+      active={location.kind === "section" ? location.section : tab}
       account={
         identity && !preview
           ? {
@@ -660,6 +686,7 @@ function OperationalWorkspace({
                     : "독자",
               busy,
               onLogout: () => {
+                if (!window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))) return;
                 void perform(async () => {
                   await api.logout();
                   clearProtected();
@@ -672,6 +699,7 @@ function OperationalWorkspace({
     >
       <main id="op-main" className="op-main" tabIndex={-1}>
         <h1>{consoleLabel(tab)}</h1>
+        {location.kind === "invalid" && <p className="op-error" role="alert">{location.error}</p>}
         {error && (
           <div className="op-error" role="alert">
             <strong>요청을 완료하지 못했습니다.</strong>
@@ -726,6 +754,7 @@ function OperationalWorkspace({
           </section>
         ) : (
           <>
+            {pendingDestination && <section className="op-panel"><h2>{location.kind === "section" ? consoleLabel(location.section) : "문서 위치"}</h2><p role="status">이 화면은 아직 연결되지 않았습니다. 현재 주소의 대상은 유지됩니다.</p></section>}
             {!preview && spaces.length > 0 && (
               <div className="op-context">
                 <label>
@@ -754,6 +783,7 @@ function OperationalWorkspace({
                 </label>
               </div>
             )}
+            {location.kind !== "invalid" && !pendingDestination && <>
             {![
               "overview",
               "discovery",
@@ -1156,10 +1186,9 @@ function OperationalWorkspace({
                 principalId={identity.principalId}
                 spaceId={identity.workspaceId}
                 initialPageId={
-                  new URLSearchParams(window.location.search).get("document") ??
-                  undefined
+                  location.kind === "document" ? location.document : undefined
                 }
-                key={identity.workspaceId}
+                key={`${identity.workspaceId}:${identity.principalId}:${location.kind === "document" ? location.document : ""}`}
                 api={api}
                 pages={pages}
                 capabilities={identity.capabilities ?? []}
@@ -1225,6 +1254,8 @@ function OperationalWorkspace({
               <GovernanceWorkbench
                 api={policyApi}
                 capabilities={identity.capabilities ?? []}
+                initialAccessRequestId={target?.targetKind === "access-request" ? target.targetId : undefined}
+                key={`${identity.workspaceId}:${identity.principalId}`}
                 onChanged={load}
                 onExpired={clearProtected}
               />
@@ -1436,14 +1467,15 @@ function OperationalWorkspace({
               </>
             )}
             {tab === "review" && dataReady && (
-              <section className="op-panel">
+              <ReviewSelection api={api} initialTargetId={target?.targetKind === "review" ? target.targetId : undefined} items={changes} key={`${identity.workspaceId}:${identity.principalId}`}>
+              {(selectedChanges) => <section className="op-panel">
                 <h2>변경 집합 검토</h2>
                 <p>
                   의존 페이지는 함께 발행됩니다. 내용·원본·기준 버전·권한이
                   바뀌면 다시 검토해야 합니다.
                 </p>
-                {!changes.length && <p>아직 변경 제안이 없습니다.</p>}
-                {pageItems(changes, changePage).map((c) => (
+                {!selectedChanges.length && <p>아직 변경 제안이 없습니다.</p>}
+                {pageItems(selectedChanges, target ? 0 : changePage).map((c) => (
                   <article key={c.id} className="op-change">
                     <div className="op-section-head">
                       <h3>
@@ -1623,10 +1655,11 @@ function OperationalWorkspace({
                 ))}
                 <ListPager
                   page={changePage}
-                  count={changes.length}
+                  count={selectedChanges.length}
                   change={setChangePage}
                 />
-              </section>
+              </section>}
+              </ReviewSelection>
             )}
             {tab === "query" && dataReady && (
               <section className="op-panel">
@@ -1833,11 +1866,14 @@ function OperationalWorkspace({
                     api={api}
                     capabilities={identity.capabilities ?? []}
                     executionIdentities={executionIdentities}
+                    initialJobId={target?.targetKind === "job" ? target.targetId : undefined}
+                    key={`${identity.workspaceId}:${identity.principalId}`}
                     onExpired={clearProtected}
                   />
                 </>
               )}
-            {tab === "jobs" &&
+            {tab === "jobs" && target?.targetKind === "job" && !identity.capabilities?.includes("jobs.read") && <p role="alert">대상이 없거나 현재 접근할 수 없습니다.</p>}
+            {tab === "jobs" && !target &&
               !identity.capabilities?.includes("jobs.read") && (
                 <section className="op-panel">
                   <div className="op-section-head">
@@ -1939,6 +1975,7 @@ function OperationalWorkspace({
                 )}
               </section>
             )}
+            </>}
           </>
         )}
         <footer className="op-footer">

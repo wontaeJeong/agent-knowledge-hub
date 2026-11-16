@@ -1,0 +1,18 @@
+{
+  "screenshots": 8,
+  "widths": [
+    1440,
+    390
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "keyboard": "Enter navigation, menu closes, focus returns to main",
+  "roles": [
+    "reader",
+    "writer",
+    "maintainer"
+  ],
+  "pageErrors": []
+}

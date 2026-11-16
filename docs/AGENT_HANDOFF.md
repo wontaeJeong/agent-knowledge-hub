@@ -1,5 +1,14 @@
 # 에이전트 인계
 
+## 2026-11-17 C1 사용자 메뉴와 호환 경로 (#49)
+
+- 범위: capability 기반 기본/개인/도구/관리 메뉴와 모바일 상단 검색·새 문서·기존 알림 진입, 검증된 `section/draft/view/version/anchor/targetKind/targetId` 계약과 동일 앱 로그인 복귀를 연결했다. 문서·댓글·공유·기존 탭 URL과 계정/세션 화면을 유지한다. UX-001/003/004/006, SHR-001~003, REV-001/002, ACL-008, IAM-004/005/009의 관련 이동 경계를 보강하며 기존 251개 수용 기준/상태를 바꾸지 않는다.
+- 정확한 검토/작업/접근 요청은 ID를 초기 선택 props로 전달하고 현재 인가된 응답으로 다시 확인한다. `/changesets`와 governance access-inbox는 canonical 서비스에서 LIMIT 없는 전체 인가 목록임을 확인했으며 30번째 대상을 회귀 검증했다. 작업은 기존 `/jobs-v2/:id`와 telemetry를 사용한다. 삭제/거부/철회는 일반 오류이며 다른 작업으로 대체하지 않는다. 현재 서버에서 철회 검토는 rejected로 저장되므로 rejected review deep link도 일반 오류로 처리한다.
+- 변경 파일: `src/operational/convenience/{types,route,Navigation,ReviewSelection}`와 시험, `App`, `ConsoleShell`, `console`, `api`, `jobs`, `governance`, `workflows`. 계정/공간/세션 변경 시 대상과 보호 상태를 비우고, 문서 편집의 기존 미저장 조건을 메뉴·브라우저 종료 경고에도 연결했다. 안전한 기존 공간 전환 탭은 유지한다.
+- 검증: Node24.22.2 `npm run check` 통과 — frontend 47파일/230시험, Node48, import16, evaluation41, 요구사항251, 서버 타입검사, build, static HTTP smoke. RED→GREEN 기록과 실제 1440/390 light/dark 8장·키보드·capability 조합 확인은 [증거](pr-assets/convenience-navigation/README.md) 및 작업 보고서에 있다.
+- 한계/인계: UXC-01~10의 공통 이동 기반만 이번 범위다. 새 개인 목록·검색·작성·일반 작업함·저장 보기와 버전/문단 위치의 실제 화면은 후속 작업 전까지 명시적 미연결 상태다. 모델 호출·지식 효과·실제 SSO/DB/운영 인수를 검증한 변경이 아니다. BASE `51129cb`에서 구현했으며 별도 세션의 #44/#59 main 통합 후 충돌 해결·재검증과 독립 검토가 필요하다. push/PR/merge는 이 작업 에이전트가 수행하지 않았다.
+
+
 ## 2026-11-16 필수 편의기능 설계와 구현 플랜
 
 - 사용자 요청: 열린 PR 병합과, 검토한 필수 편의기능 10개 전체의 설계·플랜 작성. 이 문서 PR은 후속 제품 코드 구현을 포함하지 않는다. [설계](superpowers/specs/2026-11-16-essential-convenience-design.md)와 [플랜](superpowers/plans/2026-11-16-essential-convenience.md)에 기존 요구사항·현재 경로·API/저장/권한·인수 기준·12개 PR 의존성을 연결했다. 기준 251개 요구사항과 보호 문서의 의미를 바꾸지 않았다.
