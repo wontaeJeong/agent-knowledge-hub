@@ -898,278 +898,289 @@ export async function approve(
   );
 }
 
+export type PublicationResult = {
+  batchId: string;
+  versions: Record<string, number>;
+  warnings?: PropertyWarning[];
+};
+/** Trusted server-only preparation in the canonical workspace transaction.
+ * Shares all current checks and the domain transition without publication effects. */
+export async function preparePublicationDb(
+  db: PoolClient,
+  ctx: Context,
+  id: string,
+  hash: string,
+  key: string,
+) {
+  if (!key.trim() || key.length > 200) throw Error("VALIDATION_FAILED");
+  const batch = await checkedBatch(db, ctx, id, hash);
+  const qualification = await reviewQualification(db, ctx, id, false);
+  const requestHash = digest([id, hash]);
+  const replay = await db.query(
+    "SELECT hash,result FROM requests WHERE workspace_id=$1 AND principal_id=$2 AND key=$3",
+    [ctx.workspaceId, ctx.principalId, key],
+  );
+  if (replay.rowCount) {
+    if (replay.rows[0].hash !== requestHash)
+      throw Error("IDEMPOTENCY_CONFLICT");
+    return { replay: replay.rows[0].result as PublicationResult };
+  }
+  const receipt = await db.query(
+    "SELECT result FROM publications WHERE workspace_id=$1 AND batch_id=$2",
+    [ctx.workspaceId, id],
+  );
+  if (receipt.rowCount)
+    return { replay: receipt.rows[0].result as PublicationResult };
+  const approval = await db.query(
+    "SELECT hash,acl_hash,principal_id,policy_version FROM approvals WHERE workspace_id=$1 AND batch_id=$2",
+    [ctx.workspaceId, id],
+  );
+  if (!approval.rowCount || approval.rows[0].hash !== hash)
+    throw Error("APPROVAL_STALE");
+  const permissionSnapshot = await permissions(
+    db,
+    ctx,
+    batch.updates,
+    batch.snapshots.map((s) => s.id),
+    (batch as RuntimeBatch).contextDependencyIds,
+    false,
+    (await assertVersionPlansCurrent(db, ctx, id, hash)).projections,
+  );
+  if (permissionSnapshot.hash !== approval.rows[0].acl_hash)
+    throw Error("APPROVAL_STALE");
+  if (qualification) {
+    let valid = 0;
+    for (const ap of approval.rows) {
+      if (
+        ap.hash !== hash ||
+        ap.acl_hash !== permissionSnapshot.hash ||
+        ap.policy_version !== qualification.policy_version
+      )
+        continue;
+      if (!qualification.personal && ap.principal_id === qualification.authorId)
+        continue;
+      try {
+        await reviewQualification(
+          db,
+          { workspaceId: ctx.workspaceId, principalId: ap.principal_id },
+          id,
+          true,
+          "legacy" in qualification ? qualification.verifiedIssuer : undefined,
+        );
+        await permissions(
+          db,
+          { workspaceId: ctx.workspaceId, principalId: ap.principal_id },
+          batch.updates,
+          batch.snapshots.map((s) => s.id),
+          (batch as RuntimeBatch).contextDependencyIds,
+          true,
+          (
+            await assertVersionPlansCurrent(
+              db,
+              {
+                workspaceId: ctx.workspaceId,
+                principalId: ap.principal_id,
+              },
+              id,
+              hash,
+            )
+          ).projections,
+        );
+        valid++;
+      } catch {
+        /* Revoked or newly restricted approvals never qualify. */
+      }
+    }
+    if (valid < (qualification.personal ? 1 : qualification.minimum_approvals))
+      throw Error("APPROVAL_STALE");
+    if ("legacy" in qualification && qualification.legacy) {
+      const author = await legacyStoredRole(
+        db,
+        ctx.workspaceId,
+        qualification.authorId,
+        qualification.verifiedIssuer,
+      );
+      if (!author || author === "reader") throw Error("APPROVAL_STALE");
+    } else
+      await authorizeActionDb(
+        db,
+        {
+          workspaceId: ctx.workspaceId,
+          principalId: qualification.authorId,
+        },
+        "changeset.propose",
+      );
+  }
+  // Refresh the same-transaction receipt for the publishing actor after validating all reviewers.
+  await assertVersionPlansCurrent(db, ctx, id, hash);
+  const state = await loadState(db, ctx.workspaceId);
+  let next;
+  try {
+    next = decideBatch(state, id, "publish");
+  } catch {
+    throw Error("APPROVAL_STALE");
+  }
+  const published = memory(next).batches.find((b) => b.id === id)!;
+  if (published.status !== "published") throw Error("STALE_VERSION");
+  return { batch, qualification, permissionSnapshot, state, next, published };
+}
+
+export async function publishInTransaction(
+  pool: Pool,
+  db: PoolClient,
+  ctx: Context,
+  id: string,
+  hash: string,
+  key: string,
+): Promise<PublicationResult> {
+  const prepared = await preparePublicationDb(db, ctx, id, hash, key);
+  let result: PublicationResult;
+  if ("replay" in prepared) result = prepared.replay!;
+  else {
+    const { batch, qualification, permissionSnapshot, state, next, published } =
+      prepared;
+    const versions: Record<string, number> = {};
+    const proposerRow = await db.query(
+      "SELECT principal_id FROM access_batch_authors WHERE workspace_id=$1 AND batch_id=$2",
+      [ctx.workspaceId, id],
+    );
+    const originalAuthor =
+      proposerRow.rows[0]?.principal_id ??
+      (
+        await db.query(
+          "SELECT principal_id FROM audit WHERE workspace_id=$1 AND operation='batch.propose' AND resource_id=$2 ORDER BY at LIMIT 1",
+          [ctx.workspaceId, id],
+        )
+      ).rows[0]?.principal_id ??
+      null;
+    for (const d of batch.updates) {
+      const p = next.pages.find((p) => p.id === d.id)!;
+      const { versions: history, ...metadata } = p;
+      delete metadata.verifiedAt;
+      if (qualification?.personal) {
+        metadata.status = "미검증";
+        metadata.owner = qualification.authorId;
+      }
+      const old = state.pages.find((p) => p.id === d.id);
+      if (old?.status === "공식 기준") metadata.status = "공식 기준";
+      const inherited = old
+        ? inheritedProvenance(old)
+        : { pageIds: [], sourceIds: [] };
+      const dependencyIds = [
+        ...new Set([
+          ...inherited.pageIds,
+          ...d.links,
+          ...((batch as RuntimeBatch).contextDependencyIds ?? []),
+        ]),
+      ].filter((id) => id !== d.id);
+      const provenance: Provenance = {
+        pageIds: dependencyIds,
+        sourceIds: [
+          ...new Set([
+            ...inherited.sourceIds,
+            ...d.sourceIds,
+            ...dependencyIds.flatMap((id) => {
+              const p = state.pages.find((p) => p.id === id);
+              return p ? inheritedProvenance(p).sourceIds : [];
+            }),
+          ]),
+        ],
+      };
+      const v = {
+        ...history.at(-1)!,
+        author: ctx.principalId,
+        batchId: id,
+        proposedBy: originalAuthor,
+        responsibleUserId:
+          (batch as RuntimeBatch).responsibleUserId ?? originalAuthor,
+        publishedBy: ctx.principalId,
+        producer: (batch as RuntimeBatch).producer ?? { kind: "unknown" },
+        provenance,
+        sourceIds: [
+          ...new Set([...history.at(-1)!.sourceIds, ...provenance.sourceIds]),
+        ],
+      };
+      if (d.baseVersion === 0)
+        await addResource(
+          db,
+          ctx.workspaceId,
+          "page",
+          d.id,
+          permissionSnapshot.audiences.get(d.id)!,
+        );
+      await db.query(
+        "INSERT INTO pages(workspace_id,id,data) VALUES($1,$2,$3) ON CONFLICT(workspace_id,id) DO UPDATE SET data=excluded.data",
+        [ctx.workspaceId, d.id, metadata],
+      );
+      await db.query("INSERT INTO versions VALUES($1,$2,$3,$4)", [
+        ctx.workspaceId,
+        d.id,
+        v.number,
+        v,
+      ]);
+      versions[d.id] = v.number;
+    }
+    const candidates =
+      (batch as Batch & { candidates?: ProposalCandidate[] }).candidates ?? [];
+    if (candidates.length) {
+      const refinement = new RefinementService(
+        pool,
+        async (client, actor, action, resource) => {
+          if (action !== "knowledge.read") throw Error("FORBIDDEN");
+          await authorizeManaged(client, actor, "knowledge.read", resource);
+        },
+      );
+      await refinement.publishCandidatesDb(db, ctx, id, candidates, versions);
+    }
+    await applyApprovedVersionMetadataPlans(db, ctx, id, hash, versions);
+    for (const [pageId, number] of Object.entries(versions))
+      await capturePublishedVersionMetadata(db, ctx, pageId, number);
+    // Source bodies remain unchanged; processing state is separate from the immutable input.
+    await db.query(
+      "UPDATE batches SET data=$3 WHERE workspace_id=$1 AND id=$2",
+      [ctx.workspaceId, id, published],
+    );
+    result = {
+      batchId: id,
+      versions,
+      ...(permissionSnapshot.warnings.length
+        ? { warnings: permissionSnapshot.warnings }
+        : {}),
+    };
+    await db.query("INSERT INTO publications VALUES($1,$2,$3)", [
+      ctx.workspaceId,
+      id,
+      result,
+    ]);
+    await audit(db, ctx, "batch.publish", id);
+  }
+  const requestHash = digest([id, hash]);
+  const request = await db.query(
+    "SELECT hash FROM requests WHERE workspace_id=$1 AND principal_id=$2 AND key=$3",
+    [ctx.workspaceId, ctx.principalId, key],
+  );
+  if (!request.rowCount)
+    await db.query("INSERT INTO requests VALUES($1,$2,$3,$4,$5)", [
+      ctx.workspaceId,
+      ctx.principalId,
+      key,
+      requestHash,
+      result,
+    ]);
+  return result;
+}
+
 export async function publish(
   pool: Pool,
   ctx: Context,
   id: string,
   hash: string,
   key: string,
-): Promise<{
-  batchId: string;
-  versions: Record<string, number>;
-  warnings?: PropertyWarning[];
-}> {
+): Promise<PublicationResult> {
   return transaction(
     pool,
     ctx.workspaceId,
-    async (db) => {
-      if (!key.trim() || key.length > 200) throw Error("VALIDATION_FAILED");
-      const batch = await checkedBatch(db, ctx, id, hash);
-      const qualification = await reviewQualification(db, ctx, id, false);
-      const requestHash = digest([id, hash]);
-      const replay = await db.query(
-        "SELECT hash,result FROM requests WHERE workspace_id=$1 AND principal_id=$2 AND key=$3",
-        [ctx.workspaceId, ctx.principalId, key],
-      );
-      if (replay.rowCount) {
-        if (replay.rows[0].hash !== requestHash)
-          throw Error("IDEMPOTENCY_CONFLICT");
-        return replay.rows[0].result;
-      }
-      const receipt = await db.query(
-        "SELECT result FROM publications WHERE workspace_id=$1 AND batch_id=$2",
-        [ctx.workspaceId, id],
-      );
-      let result: {
-        batchId: string;
-        versions: Record<string, number>;
-        warnings?: PropertyWarning[];
-      };
-      if (receipt.rowCount) result = receipt.rows[0].result;
-      else {
-        const approval = await db.query(
-          "SELECT hash,acl_hash,principal_id,policy_version FROM approvals WHERE workspace_id=$1 AND batch_id=$2",
-          [ctx.workspaceId, id],
-        );
-        if (!approval.rowCount || approval.rows[0].hash !== hash)
-          throw Error("APPROVAL_STALE");
-        const permissionSnapshot = await permissions(
-          db,
-          ctx,
-          batch.updates,
-          batch.snapshots.map((s) => s.id),
-          (batch as RuntimeBatch).contextDependencyIds,
-          false,
-          (await assertVersionPlansCurrent(db, ctx, id, hash)).projections,
-        );
-        if (permissionSnapshot.hash !== approval.rows[0].acl_hash)
-          throw Error("APPROVAL_STALE");
-        if (qualification) {
-          let valid = 0;
-          for (const ap of approval.rows) {
-            if (
-              ap.hash !== hash ||
-              ap.acl_hash !== permissionSnapshot.hash ||
-              ap.policy_version !== qualification.policy_version
-            )
-              continue;
-            if (
-              !qualification.personal &&
-              ap.principal_id === qualification.authorId
-            )
-              continue;
-            try {
-              await reviewQualification(
-                db,
-                { workspaceId: ctx.workspaceId, principalId: ap.principal_id },
-                id,
-                true,
-                "legacy" in qualification
-                  ? qualification.verifiedIssuer
-                  : undefined,
-              );
-              await permissions(
-                db,
-                { workspaceId: ctx.workspaceId, principalId: ap.principal_id },
-                batch.updates,
-                batch.snapshots.map((s) => s.id),
-                (batch as RuntimeBatch).contextDependencyIds,
-                true,
-                (
-                  await assertVersionPlansCurrent(
-                    db,
-                    {
-                      workspaceId: ctx.workspaceId,
-                      principalId: ap.principal_id,
-                    },
-                    id,
-                    hash,
-                  )
-                ).projections,
-              );
-              valid++;
-            } catch {
-              /* Revoked or newly restricted approvals never qualify. */
-            }
-          }
-          if (
-            valid <
-            (qualification.personal ? 1 : qualification.minimum_approvals)
-          )
-            throw Error("APPROVAL_STALE");
-          if ("legacy" in qualification && qualification.legacy) {
-            const author = await legacyStoredRole(
-              db,
-              ctx.workspaceId,
-              qualification.authorId,
-              qualification.verifiedIssuer,
-            );
-            if (!author || author === "reader") throw Error("APPROVAL_STALE");
-          } else
-            await authorizeActionDb(
-              db,
-              {
-                workspaceId: ctx.workspaceId,
-                principalId: qualification.authorId,
-              },
-              "changeset.propose",
-            );
-        }
-        // Refresh the same-transaction receipt for the publishing actor after validating all reviewers.
-        await assertVersionPlansCurrent(db, ctx, id, hash);
-        const state = await loadState(db, ctx.workspaceId);
-        let next;
-        try {
-          next = decideBatch(state, id, "publish");
-        } catch {
-          throw Error("APPROVAL_STALE");
-        }
-        const published = memory(next).batches.find((b) => b.id === id)!;
-        if (published.status !== "published") throw Error("STALE_VERSION");
-        const versions: Record<string, number> = {};
-        const proposerRow = await db.query(
-          "SELECT principal_id FROM access_batch_authors WHERE workspace_id=$1 AND batch_id=$2",
-          [ctx.workspaceId, id],
-        );
-        const originalAuthor =
-          proposerRow.rows[0]?.principal_id ??
-          (
-            await db.query(
-              "SELECT principal_id FROM audit WHERE workspace_id=$1 AND operation='batch.propose' AND resource_id=$2 ORDER BY at LIMIT 1",
-              [ctx.workspaceId, id],
-            )
-          ).rows[0]?.principal_id ??
-          null;
-        for (const d of batch.updates) {
-          const p = next.pages.find((p) => p.id === d.id)!;
-          const { versions: history, ...metadata } = p;
-          delete metadata.verifiedAt;
-          if (qualification?.personal) {
-            metadata.status = "미검증";
-            metadata.owner = qualification.authorId;
-          }
-          const old = state.pages.find((p) => p.id === d.id);
-          if (old?.status === "공식 기준") metadata.status = "공식 기준";
-          const inherited = old
-            ? inheritedProvenance(old)
-            : { pageIds: [], sourceIds: [] };
-          const dependencyIds = [
-            ...new Set([
-              ...inherited.pageIds,
-              ...d.links,
-              ...((batch as RuntimeBatch).contextDependencyIds ?? []),
-            ]),
-          ].filter((id) => id !== d.id);
-          const provenance: Provenance = {
-            pageIds: dependencyIds,
-            sourceIds: [
-              ...new Set([
-                ...inherited.sourceIds,
-                ...d.sourceIds,
-                ...dependencyIds.flatMap((id) => {
-                  const p = state.pages.find((p) => p.id === id);
-                  return p ? inheritedProvenance(p).sourceIds : [];
-                }),
-              ]),
-            ],
-          };
-          const v = {
-            ...history.at(-1)!,
-            author: ctx.principalId,
-            batchId: id,
-            proposedBy: originalAuthor,
-            responsibleUserId:
-              (batch as RuntimeBatch).responsibleUserId ?? originalAuthor,
-            publishedBy: ctx.principalId,
-            producer: (batch as RuntimeBatch).producer ?? { kind: "unknown" },
-            provenance,
-            sourceIds: [
-              ...new Set([
-                ...history.at(-1)!.sourceIds,
-                ...provenance.sourceIds,
-              ]),
-            ],
-          };
-          if (d.baseVersion === 0)
-            await addResource(
-              db,
-              ctx.workspaceId,
-              "page",
-              d.id,
-              permissionSnapshot.audiences.get(d.id)!,
-            );
-          await db.query(
-            "INSERT INTO pages(workspace_id,id,data) VALUES($1,$2,$3) ON CONFLICT(workspace_id,id) DO UPDATE SET data=excluded.data",
-            [ctx.workspaceId, d.id, metadata],
-          );
-          await db.query("INSERT INTO versions VALUES($1,$2,$3,$4)", [
-            ctx.workspaceId,
-            d.id,
-            v.number,
-            v,
-          ]);
-          versions[d.id] = v.number;
-        }
-        const candidates =
-          (batch as Batch & { candidates?: ProposalCandidate[] }).candidates ??
-          [];
-        if (candidates.length) {
-          const refinement = new RefinementService(
-            pool,
-            async (client, actor, action, resource) => {
-              if (action !== "knowledge.read") throw Error("FORBIDDEN");
-              await authorizeManaged(client, actor, "knowledge.read", resource);
-            },
-          );
-          await refinement.publishCandidatesDb(
-            db,
-            ctx,
-            id,
-            candidates,
-            versions,
-          );
-        }
-        await applyApprovedVersionMetadataPlans(db, ctx, id, hash, versions);
-        for (const [pageId, number] of Object.entries(versions))
-          await capturePublishedVersionMetadata(db, ctx, pageId, number);
-        // Source bodies remain unchanged; processing state is separate from the immutable input.
-        await db.query(
-          "UPDATE batches SET data=$3 WHERE workspace_id=$1 AND id=$2",
-          [ctx.workspaceId, id, published],
-        );
-        result = {
-          batchId: id,
-          versions,
-          ...(permissionSnapshot.warnings.length
-            ? { warnings: permissionSnapshot.warnings }
-            : {}),
-        };
-        await db.query("INSERT INTO publications VALUES($1,$2,$3)", [
-          ctx.workspaceId,
-          id,
-          result,
-        ]);
-        await audit(db, ctx, "batch.publish", id);
-      }
-      await db.query("INSERT INTO requests VALUES($1,$2,$3,$4,$5)", [
-        ctx.workspaceId,
-        ctx.principalId,
-        key,
-        requestHash,
-        result,
-      ]);
-      return result;
-    },
+    (db) => publishInTransaction(pool, db, ctx, id, hash, key),
     { principalId: ctx.principalId, operation: "batch.publish" },
   );
 }

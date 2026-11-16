@@ -10,6 +10,7 @@ import {
 } from "./common";
 
 export const features = [
+  "scheduledPublication",
   "models",
   "ingest",
   "query",
@@ -25,6 +26,7 @@ export const features = [
 ] as const;
 export type Feature = (typeof features)[number];
 const defaults: Record<Feature, boolean> = {
+  scheduledPublication: true,
   models: true,
   ingest: true,
   query: true,

@@ -1,3 +1,4 @@
+import { ScheduledPublicationService } from "../jobs/scheduled-publication";
 import { QuestionsService } from "../questions/service";
 import { createServer } from "node:http";
 import { Pool } from "pg";
@@ -258,6 +259,23 @@ if (process.argv.includes("--migrate")) {
       );
     },
   });
+  const scheduledPublications = new ScheduledPublicationService(
+    pool,
+    (row) => auth.backgroundContext(row),
+    auth.sessionPolicy,
+  );
+  const publicationLoop = new OperationsLoop(
+    () => scheduledPublications.runDue(),
+    {
+      intervalMs: 15000,
+      onError: async () => {
+        await operationalHost.service.queueAlert(
+          "PUBLICATION_SCHEDULE_SCAN_FAILED",
+          `publication-schedule-scan-failed:${Math.floor(Date.now() / 300000)}`,
+        );
+      },
+    },
+  );
   const server = createServer(
     createRuntimeHandler({
       pool,
@@ -287,6 +305,7 @@ if (process.argv.includes("--migrate")) {
   if (process.env.AKH_COLLABORATION_DISPATCHER_ID) collaboration.worker.start();
   monitor.start();
   handoffs.start();
+  publicationLoop.start();
   const stopImports =
     process.env.IMPORT_WORKER_ENABLED === "false"
       ? () => {}
@@ -299,6 +318,7 @@ if (process.argv.includes("--migrate")) {
       await collaboration.worker.stop();
       await monitor.stop();
       await handoffs.stop();
+      await publicationLoop.stop();
       await shutdown.drain(8000);
       await pool.end();
       process.exit(0);

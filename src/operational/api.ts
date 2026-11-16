@@ -148,6 +148,11 @@ export class OperationalApi {
           ? data.code
           : "REQUEST_FAILED";
       const messages: Record<string, string> = {
+        SCHEDULE_AUTHORIZATION_EXPIRES: "예약 시각이 현재 세션의 유효 기간을 넘습니다. 다시 로그인하거나 더 이른 시각을 선택하세요.",
+        SCHEDULE_TIME_INVALID: "미래의 예약 시각을 선택하세요.",
+        SCHEDULE_PREVIEW_STALE: "예약 미리보기 기준이 변경되었습니다. 다시 확인하세요.",
+        SCHEDULE_ALREADY_EXISTS: "이 변경 집합에 실행 대기 중인 예약이 있습니다.",
+        SCHEDULE_FINISHED: "이미 실행되거나 종료된 예약은 취소할 수 없습니다.",
         RESTORE_PATH_CONFLICT: "같은 위치에 같은 제목의 문서가 있습니다. 다른 복구 위치를 선택하세요.",
         LAST_OWNER:
           "마지막 Organization Owner를 제거하거나 강등할 수 없습니다. 다른 멤버가 Owner 초대를 수락한 뒤 변경하세요.",

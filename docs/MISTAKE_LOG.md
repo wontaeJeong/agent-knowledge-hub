@@ -655,3 +655,18 @@
 - The first integration capture omitted shared token/shell styles and was replaced after inspecting the real screenshot. Final captures use tokens.css, operational-app/op-main/op-panel; only the final1440/390 evidence is retained.
 
 - Independent integration re-review found pending Mermaid source was marked as text then asynchronously replaced by SVG, leaving a stale find count. Controlled deferred-Mermaid regression reproduced marks0/status1. Excluded the entire pending/resolved diagram container, matching the existing SVG exclusion; regular code/table search remains supported.
+
+### 2026-11-17 — 예약 발행 미리보기의 subtransaction 가정 및 화면 하네스 수정
+- 맥락: Task14 / REV-011, 분리 worktree0444.
+- 사실과 영향: 최초 canonical 발행을 SAVEPOINT 안에서 실행한 후 롤백하는 미리보기 실험이 `VERSION_METADATA_OUTSIDE_PUBLICATION`으로 회귀12개 실패했다. 해당 메타데이터 검사는 버전 xmin이 top-level txid와 같아야 하며 subtransaction 삽입은 허용하지 않았다. 실패는 UUID 격리 DB에 한정됐고 원본 체크아웃/운영 자료 영향은 없다. 초기 리팩터링 자동 편집의 들여쓰기 가정도 실패하여 소스 변경 없이 중단했다.
+- 원인: DB 전용 부작용이면 SAVEPOINT 시뮬레이션이 가능하다고 가정했으나 버전 메타데이터의 top-level 트랜잭션 경계를 먼저 확인하지 않았다.
+- 조치: 해당 보호를 완화하지 않고 검증·도메인 전이 계산을 정본 `preparePublicationDb`로 추출했다. 미리보기는 발행 효과 없이 계산하고 실행은 정본 트랜잭션에서만 효과를 기록한다. 실패 효과는 전체 롤백 후 아직 대기 상태인 예약만 실패로 기록한다.
+- 추가 하네스 실패: 최초 화면 전용 import가 React CJS를 직접 가리켜 default export 오류가 발생했다. 표준 번들 import와 앱 공통 CSS로 고쳤으며 초기 이미지로 증거를 주장하지 않았다. 화면 데이터는 합성 API라는 경계를 유지한다.
+- 검증: 수정 후 실제 PG 예약12/정본25/버전8, 실제 OIDC HTTP1, 전체 npm run check 통과. 브라우저1440/390의 별도 동의/UTC/취소/가로 맞춤과 오류 없음 확인. 최종 추가 회귀 결과는 PR/작업 보고서를 따른다.
+- 상태: 수정됨, 독립 최종 리뷰와 CI는 별도 확인한다.
+
+### 2026-11-17 — 예약 상태 폴링 회귀의 세션 시간 fixture 정정
+- 맥락: Task14 최종 OIDC HTTP 추가 회귀.
+- 사실/원인: 유휴 폴링이 세션을 연장하지 않음을 검사하려고 last_seen_at만 과거로 옮겨 created_at 이상이어야 하는 DB 제약에 걸렸다. 앱의 실패가 아닌 합성 테스트 시간 준비 오류였다.
+- 조치: created_at도 더 이른 시각으로 설정해 실제 시간 불변식을 유지했다. DB 제약과 제품 세션 규칙은 바꾸지 않았다.
+- 검증/상태: 수정 후 실제 OIDC HTTP1 및 관련 서버9개 파일114개 회귀 통과.

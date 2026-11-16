@@ -87,3 +87,9 @@ EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행�
 - Web semantic search releases its key when job progress definitively reports dead/cancelled, allowing identical-filter retry to create a fresh job. Unknown admission, network interruption and poll timeout retain the original key to prevent duplicate uncertain jobs. No layout changed; existing screenshot evidence remains applicable to presentation.
 - Added native query/lint collision RED regressions and UI dead/cancelled/new-key plus admission-network/poll-network/poll-timeout/same-key checks. Final command/results recorded below after execution.
 - Review-fix validation: final Node24 npm run check passed (src178, Node48, imports16, evaluation41, requirements251, server typecheck, build/static smoke). Isolated PostgreSQL17 runtime52 plus semantic13 tests passed; UI semantic6 passed. Both terminal retry and uncertain same-key cases are executed regressions. git diff --check clean.
+
+## 2026-11-17 — 검토된 변경 집합의 예약 발행
+
+REV-011의 서버/UI 경로를 추가했다. 사람이 승인된 고정 집합과 미리보기 시각을 확인하고 현재 세션에 묶어 예약하며, App1 스캐너가 도래 시 정본 즉시 발행과 같은 현재 권한·검토자·해시·원본 상한·정책·기준 버전을 재검사한다. 취소/성공과 발행 영수증은 DB 잠금으로 직렬화하고 중복 worker/재시작에서 중복 버전을 만들지 않는다. 승인/발행 권한을 에이전트 job이나 서비스에 부여하지 않는다.
+
+`scheduledPublication` 사이트/공간 정책은 생성과 실제 worker 양쪽에서 적용하며 조회/취소는 비활성화 중에도 가능하다. 예약 기간은 현재 세션·절대·유휴 만료 안으로 제한하고 장기 예약을 보장하지 않는다. 실제 운영 검증과 정각 SLA는 미완료다. [계약·설정·검증 범위](implementation/2026-11-17-scheduled-publication.md), [화면 증거의 합성 API 경계](pr-assets/scheduled-publication/README.md)를 참조한다.

@@ -1,3 +1,4 @@
+import { PublicationSchedule } from "./scheduled-publication";
 import { ReviewRejection } from "./review-rejection";
 import {
   lazy,
@@ -1632,6 +1633,21 @@ function OperationalWorkspace({
                           />
                         </div>
                       )}
+                    {!preview && (
+                      <PublicationSchedule
+                        key={`${identity.workspaceId}:${identity.principalId}:${c.id}:${c.hash}`}
+                        api={api}
+                        batchId={c.id}
+                        hash={c.hash}
+                        canSchedule={
+                          review &&
+                          c.status === "approved" &&
+                          (identity.personalSpace ||
+                            !identity.spaceRole ||
+                            c.proposedBy !== identity.principalId)
+                        }
+                      />
+                    )}
                   </article>
                 ))}
                 <ListPager
