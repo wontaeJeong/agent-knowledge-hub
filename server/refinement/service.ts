@@ -726,6 +726,79 @@ export class RefinementService {
       previous.push(stored);
     }
   }
+  /** Source lifecycle hook: records impact without changing immutable claims or implying verification.
+   * Per-page requests keep independent ACLs from hiding every affected page behind one inaccessible item. */
+  async sourceCorrectionDb(
+    db: PoolClient,
+    ctx: Context,
+    sourceId: string,
+    replacementId: string,
+    reason: string,
+  ) {
+    const versions = (
+      await db.query(
+        "SELECT page_id,number,data FROM versions WHERE workspace_id=$1",
+        [ctx.workspaceId],
+      )
+    ).rows;
+    const claims = await this.all<Claim>(db, ctx, "claims");
+    const evidence = await this.all<Evidence>(db, ctx, "evidence");
+    const byEvidence = new Map(evidence.map((e) => [e.id, e]));
+    const dependsOnSource = (
+      eid: string,
+      seen = new Set<string>(),
+    ): boolean => {
+      if (seen.has(eid)) return false;
+      seen.add(eid);
+      const e = byEvidence.get(eid);
+      return (
+        !!e &&
+        (e.sourceId === sourceId ||
+          e.parentIds.some((p) => dependsOnSource(p, seen)))
+      );
+    };
+    const affected = new Map<
+      string,
+      { page_id: string; version: number; claimIds: string[] }
+    >();
+    for (const v of versions)
+      if (
+        v.data.sourceIds?.includes(sourceId) ||
+        v.data.provenance?.sourceIds?.includes(sourceId)
+      )
+        affected.set(`${v.page_id}:${v.number}`, {
+          page_id: v.page_id,
+          version: v.number,
+          claimIds: [],
+        });
+    for (const c of claims)
+      if (c.evidenceIds.some((e) => dependsOnSource(e))) {
+        const key = `${c.pageId}:${c.pageVersion}`;
+        const group = affected.get(key) ?? {
+          page_id: c.pageId,
+          version: c.pageVersion,
+          claimIds: [],
+        };
+        group.claimIds.push(c.id);
+        affected.set(key, group);
+      }
+    for (const v of affected.values())
+      await this.request(
+        db,
+        ctx,
+        v.claimIds,
+        "source-correction",
+        `correction_${digest([sourceId, replacementId, v.page_id, v.version]).slice(0, 40)}`,
+        {
+          sourceId,
+          replacementId,
+          correctionReason: reason,
+          usedVersions: [{ page_id: v.page_id, version: v.version }],
+          rootLineage: [{ sourceId }, { sourceId: replacementId }],
+          authority: "review-candidate",
+        },
+      );
+  }
   async addClaim(ctx: Context, input: unknown) {
     const d = claimInput.parse(input);
     return this.run(

@@ -1,4 +1,5 @@
 import { bulkPreview, bulkApply } from "./bulk";
+import { RefinementService } from "../refinement/service";
 import {
   beginVersionMetadataChange,
   finishVersionMetadataChange,
@@ -1609,6 +1610,31 @@ export class WorkflowService {
         const audience = await readers(db, ctx.workspaceId, "source", sourceId);
         if (original.readers.some((who) => !audience.includes(who)))
           throw Error("SOURCE_SCOPE_CONFLICT");
+        await new RefinementService(
+          this.pool,
+          this.authorize,
+        ).sourceCorrectionDb(db, ctx, sourceId, d.id, d.reason);
+        // Approval was based on superseded evidence; immutable original sources remain readable.
+        const pending = await db.query(
+          "SELECT id,data FROM batches WHERE workspace_id=$1 AND data->>'status' IN ('pending','approved') FOR UPDATE",
+          [ctx.workspaceId],
+        );
+        for (const b of pending.rows)
+          if (
+            b.data.snapshots.some((s: { id: string }) => s.id === sourceId) ||
+            b.data.updates.some((u: { sourceIds: string[] }) =>
+              u.sourceIds.includes(sourceId),
+            )
+          ) {
+            await db.query(
+              "UPDATE batches SET data=jsonb_set(data,'{status}','\"conflict\"') WHERE workspace_id=$1 AND id=$2",
+              [ctx.workspaceId, b.id],
+            );
+            await db.query(
+              "DELETE FROM approvals WHERE workspace_id=$1 AND batch_id=$2",
+              [ctx.workspaceId, b.id],
+            );
+          }
         await db.query(
           "INSERT INTO workflow_events VALUES($1,$2,$3,'source.correct',$4,$5,now())",
           [
