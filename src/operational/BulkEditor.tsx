@@ -77,14 +77,6 @@ export function BulkEditor({
             : null,
         );
         setPreview(null);
-        try {
-          await onChanged();
-        } catch {
-          if (request === epoch.current)
-            setError(
-              "적용 결과는 아래에 표시됩니다. 문서 목록을 새로고침하지 못했습니다.",
-            );
-        }
       } else {
         const operation =
           kind === "tags"
@@ -264,6 +256,10 @@ export function BulkEditor({
       )}
       {results.length > 0 && (
         <section aria-label="일괄 변경 결과">
+          <p>
+            아래 결과와 재확인 대상을 확인하세요. 문서 목록을 새로고침하면 이
+            결과 화면을 닫고 현재 권한으로 다시 불러옵니다.
+          </p>
           <ul>
             {results.map((r) => (
               <li key={r.id}>
@@ -295,6 +291,18 @@ export function BulkEditor({
             }}
           >
             실패 대상 다시 미리보기
+          </Button>
+          <Button
+            disabled={busy}
+            onClick={() => {
+              const request = epoch.current;
+              void onChanged().catch(() => {
+                if (request === epoch.current)
+                  setError("적용 결과는 유지됩니다. 문서 목록을 새로고침하지 못했습니다.");
+              });
+            }}
+          >
+            결과 확인 후 문서 목록 새로고침
           </Button>
         </section>
       )}
