@@ -62,3 +62,7 @@ EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행�
 - Default search/context uses canonical currentRecommendation, excluding active+replacementId, archived and future-effective pages. Explicit history/read stays available and is not described as current recommendation.
 - [API decisions, North Star invariants and remaining limits](implementation/2026-11-16-unified-search.md). Semantic selection and index operations are separate following units; no whole-requirement or company model quality/agent-performance acceptance claim.
 - Verified Task1a: final Node24 `npm run check` passed (src172 + Node48 + imports16 + evaluation41, requirements251, server typecheck, build/static HTTP smoke). Native PostgreSQL17 per-file runner passed 10 files/68 tests; final changed-search rerun passed 3 files/24 tests after cookie DTO compatibility mapping. No model/provider calls or semantic quality claim in this unit.
+
+## 2026-11-17 Task 7 — 주간 지식 유지관리·월간 운영 검토
+
+MGR-003/004와 관련 MGR-005/006의 운영 일정 API/worker/UI를 연결했다. Weekly는 Daily와 분리되어 기존 발행본·명시 주장·적용 조건·예외·시간·연결의 구조 검토 목록 또는 실제 설정 모델의 여러 문서 변경 제안을 만든다. Monthly는 확인된 업무 담당자/미확인 상태, 선택 문서의 보존 분류·정책·법적 보류, 실행 서비스 주체의 해당 공간 두 달 실측 비용 비교를 제안만 한다. 소유권·권한·정책 변경이나 폐기를 수행하지 않는다. 월간 현지 날짜·말일 clamp/skip·윤년·휴일·DST·누락 실행·동일 회차 및 제안 중복 방지를 기존 durable queue에 연결했다. [계약·North Star 판단·검증·한계](implementation/2026-11-16-maintenance-cycles.md). 합성 HTTP 모델 및 PostgreSQL/OIDC 회귀는 실제 의미 품질·운영 인수가 아니다. 혼합 원본 범위는 분리 승인한 일정이 필요하고 비용은 다른 사용자의 사적 사용량을 포함하지 않는다.

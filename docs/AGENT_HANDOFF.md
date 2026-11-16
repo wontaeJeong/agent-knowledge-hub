@@ -541,3 +541,10 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 
 - `LinkCompletion`의 지연 권한 응답이 최신 삽입 콜백을 사용하고, `WorkflowPanel`이 현재 초안/계정 바인딩과 활성 자동 저장 편집기의 최신 본문을 사용해 대기 중 입력을 보존하도록 수정했다. EDT-007과 초안 저장 경계에 해당한다. 기존 요청 세대/대상 철회 검사는 유지한다.
 - `src/operational/navigation-draft.test.tsx`에서 과거 콜백 호출·실제 편집창의 입력 유실 RED를 확인한 뒤 수정했다. React 입력과 실제 DraftAutosave→OperationalApi의 합성 저장소에 동일한 최신 본문·링크가 남는 통합 회귀를 포함한다. 전체 `npm run check`(프런트180)와 native 인증 HTTP 탐색·CSRF·원본 철회 회귀를 재통과했다. 시각 변경은 없어 기존 캡처를 유지한다.
+
+## 2026-11-17 Task 7 — Weekly maintenance / Monthly proposals
+
+- MGR-003/004, 관련 MGR-005/006·CORE-007/008/011. `server/refinement/maintenance.ts`, `server/jobs/{runtime,service,schedule,types}.ts`, feature/model/error contracts, `src/operational/jobs.tsx`와 회귀를 변경했다. 기존 Daily 편입은 유지하고 Weekly를 기존 지식·주장·연결·공백·오래된 내용의 구조 후보/실제 모델 다중 문서 제안으로 분리했다. 정확한 입력과 적용 조건·근거 버전/인용·기준 버전·정책·보호·예산과 독립 검토/발행 경계를 유지한다.
+- Monthly는 담당자 증거가 없으면 unknown, 보존 분류/현 정책/보류와 영향 문서, 실행 주체의 공간별 실측 비용 두 달 비교를 제안만 한다. 소유권·정책·권한·보존/삭제 API를 호출하지 않는다. 누락 가격은 비용 0으로 승격하지 않는다. 달력 기준 월간 현지 일정과 명시 clamp/skip, 실제 회차·승인 revision 시간대, 제한 보충과 원자적 체크포인트/재시도를 연결했다. 추가 인프라는 없다.
+- [상세 설계/계약](implementation/2026-11-16-maintenance-cycles.md). Node24 전체 `npm run check` 통과(192 source + 48 Node + 16 import + 41 evaluation, 251 요구사항, server types, build/smoke). 파일별 UUID DB의 PG jobs 전체 115시험 통과 후 주장/unknown meter 2회귀를 추가해 maintenance runtime 9/9 통과. 실제 loopback OIDC/HTTP/CSRF/일정 실행·원본 철회와 실제 HTTP 모델의 2문서 제안·독립 검토/발행, stale/protection, 커밋 중단 후 동일 제안 재사용을 확인했다. 최종 head 검증과 1440/390 화면은 PR/자산 기록을 따른다.
+- 한계: 의미 품질·업무 효과와 사내 운영 인수 미검증. 혼합 source scope 종합은 별도 승인한 일정으로 나눈다. 현재 monthly 비용은 서비스 주체의 공간별 usage ceiling이며 전사/타인 비용 전체를 보여 주지 않는다. 기존 인증 잠금 문제 수정은 별도 PR이며 Task7 브랜치에 포함하지 않는다.

@@ -115,7 +115,10 @@ export interface JobRun {
 }
 export type JobHandler = (run: JobRun) => Promise<Completion>;
 export interface ScheduleSpec {
-  cadence: "daily" | "weekly";
+  cadence: "daily" | "weekly" | "monthly";
+  dayOfMonth?: number;
+  /** Missing calendar day: explicitly clamp to month end or skip that month. */
+  invalidDay?: "clamp" | "skip";
   time: string;
   timezone: string;
   weekday?: number;

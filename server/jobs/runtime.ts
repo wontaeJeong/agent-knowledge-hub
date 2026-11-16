@@ -18,6 +18,7 @@ import { modelConfig, MODEL_CONTRACT_VERSION } from "../runtime/model";
 import { ingestInput, queryInput } from "../runtime/schema";
 import { JobService, parseJobInput, type JobOptions } from "./service";
 import { JobWorker } from "./worker";
+import { MaintenanceService } from "../refinement/maintenance";
 import { ContentRetentionService } from "../retention/service";
 import type { JobInput, JobHooks, JobRun, ExecutionIdentity } from "./types";
 import {
@@ -85,7 +86,7 @@ export function runtimeCapabilities(
   return [...result];
 }
 const actionFor = (kind: string): Action =>
-  kind === "retention" ? "knowledge.read" : kind === "query"
+  kind === "retention" || kind === "monthly" ? "knowledge.read" : kind === "query"
     ? "knowledge.read"
     : kind === "lint"
       ? "lint.run"
@@ -156,7 +157,11 @@ function payloadFor(
   if (kind === "retention") return (internal
     ? z.object({policyRevision:z.number().int().positive(),manager:z.unknown().optional()}).strict()
     : z.object({policyRevision:z.number().int().positive()}).strict()).parse(payload);
-  if (kind === "daily" || kind === "weekly")
+  if (kind === "monthly")
+    return z.object({ mode: z.literal("offline").default("offline"), ...(internal ? {manager:z.unknown().optional()} : {}) }).strict().parse(payload);
+  if (kind === "weekly")
+    return z.object({mode:z.enum(["offline","model"]).default("offline"), ...(internal ? {manager:z.unknown().optional()} : {})}).strict().parse(payload);
+  if (kind === "daily")
     return z
       .object({
         mode: z.enum(["offline", "model"]).default("offline"),
@@ -377,7 +382,7 @@ export function createRuntimeJobs(
       )
         throw Error("EXECUTION_SCOPE_CONFLICT");
       if (
-        (input.kind === "daily" || input.kind === "weekly") &&
+        (input.kind === "daily" || input.kind === "weekly" || input.kind === "monthly") &&
         ctx.credentialId
       )
         await serviceIdentity(db, {
@@ -902,6 +907,7 @@ export function createRuntimeJobs(
       },
     };
   };
+  const maintenance = new MaintenanceService(pool, service);
   const handler = async (run: JobRun) => {
     if (run.lease.input.kind === "retention") {
       const payload=payloadFor("retention",run.lease.input.payload,true);
@@ -924,6 +930,11 @@ export function createRuntimeJobs(
     const input = run.lease.input,
       payload = payloadFor(input.kind, input.payload, true);
     let value: unknown;
+    if (input.kind === "weekly" || input.kind === "monthly") {
+      const occurrence = (await pool.query("SELECT COALESCE(r.scheduled_at,j.created_at) AS at,v.config->>'timezone' AS timezone FROM durable_jobs j LEFT JOIN durable_schedule_runs r ON r.job_id=j.id LEFT JOIN durable_schedule_versions v ON v.schedule_id=j.input#>>'{payload,manager,scheduleId}' AND v.revision=(j.input#>>'{payload,manager,revision}')::int WHERE j.id=$1", [run.lease.id])).rows[0];
+      value = await maintenance.run(ctx, input.kind, payload.mode as "offline" | "model", e, occurrence.at, occurrence.timezone ?? "UTC");
+      return { value, noModelCalls: !e.modelWasUsed() };
+    }
     if (input.kind === "query" && typeof payload.threadId === "string") {
       if (!options.questions) throw Error("QUESTION_JOBS_NOT_CONFIGURED");
       value = await options.questions.execute(
@@ -1092,6 +1103,7 @@ export function createRuntimeJobs(
           lint: handler,
           daily: handler,
           weekly: handler,
+          monthly: handler,
           retention: handler,
         },
         {

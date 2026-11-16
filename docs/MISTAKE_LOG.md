@@ -583,3 +583,11 @@
 ### 2026-11-16 - Integration scheduling and native filter correction
 - Started the presentation merge before its final CI inspection, then cancelled only that uncommitted merge to integrate the already-CI-green bulk PR first. No committed or external changes were discarded. The presentation remote was already ff769e8; the initial stale-ref suspicion was incorrect.
 - A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.
+
+### 2026-11-17 — Task 7 캘린더 조회·체크포인트와 검증 환경
+
+- 맥락: MGR-003/004 주간·월간 유지관리 worktree. 초기 baseline runtime 52시험 중 `an omitted response model is unknown...` 1건이 기본 5초 제한으로 시간 초과됐다. 전체 jobs 재실행에서는 runtime 52/52, 총115시험이 통과했다. 근거 없이 원인을 제품 결함으로 확정하거나 실패를 생략하지 않았다.
+- 발견/영향: 최초 월간 장기 보충 구현은 분 단위로 수년을 순회해 신규 회귀가 5초를 초과했다. 주간 제안 commit 직후 실패를 주입하자 재시도가 기존 effect와 충돌해 VALIDATION_FAILED가 됐다. 잘못된 월간 누락 정책은 HTTP에서 503으로 표시됐다. 모두 합성 데이터에서 재현했고 실제 운영 자료/원격 상태 변경은 없다.
+- 조치: 월간은 최대14개 실제 달력 날짜를 조회한다. 주간 입력·모델·제안·결과를 각각 고정하고 기존 제안/모델 응답을 재사용한다. 명시한 일정 오류 코드를 400으로 매핑한다. 동작 회귀의 RED 후 GREEN을 확인했다. 신규 DB fixture의 pages INSERT 컬럼/리소스 FK 순서 오류도 수정했다. DB는 파일별 UUID 실행기로만 격리했다.
+- 브라우저: 실제 pool6 초기 화면의 병렬 인증 갱신 후 세션이 폐기되는 기존 auth lock-order 문제가 재현됐다. 승인된 별도 인증 수정이 있는 독립 검증 worktree에서만 화면을 재검증하고 provenance를 기록한다. Task7 기능 브랜치에 인증 변경을 섞지 않는다. 첫 Playwright 보조 탭은 다른 공유 컨텍스트의 종료 영향도 있어 이후 독립 context를 사용한다.
+- 상태: 캘린더·제안 재시도·HTTP 오류·계보·unknown meter 회귀 통과. 최종 검증·독립 리뷰·원격 CI와 화면 근거는 PR 기록을 따른다. 실제 회사 모델 의미 품질과 운영 인수는 미검증이다.

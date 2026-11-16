@@ -37,7 +37,9 @@ interface Schedule {
   last_error: string | null;
   config: {
     timezone: string;
-    cadence: "daily" | "weekly";
+    cadence: "daily" | "weekly" | "monthly";
+    dayOfMonth?: number;
+    invalidDay?: "clamp" | "skip";
     time: string;
     weekday?: number;
     holidays: string[];
@@ -45,6 +47,8 @@ interface Schedule {
     catchupLimit?: number;
     job: {
       kind: string;
+      model?: string;
+      payload?: {mode?: "offline" | "model"};
       pageIds: string[];
       sourceIds: string[];
       reservation: { tokens: number; costMicros: number };
@@ -124,7 +128,9 @@ export function JobUsage({ items }: { items: Usage[] }) {
 }
 interface ScheduleForm {
   key: string;
-  cadence: "daily" | "weekly";
+  cadence: "daily" | "weekly" | "monthly";
+    dayOfMonth?: number;
+    invalidDay?: "clamp" | "skip";
   time: string;
   timezone: string;
   weekday: number;
@@ -138,11 +144,14 @@ interface ScheduleForm {
   catchupLimit?: number;
   expectedRevision?: number;
   retentionPolicyRevision?: number;
+  mode?: "offline" | "model";
+  model?: string;
 }
 export function scheduleRequest(form: ScheduleForm) {
   return {
     key: form.key,
     cadence: form.cadence,
+    ...(form.cadence === "monthly" ? {dayOfMonth:form.dayOfMonth ?? 1,invalidDay:form.invalidDay ?? "clamp"} : {}),
     time: form.time,
     timezone: form.timezone,
     ...(form.cadence === "weekly" ? { weekday: form.weekday } : {}),
@@ -163,10 +172,11 @@ export function scheduleRequest(form: ScheduleForm) {
     approvedSourceIds: form.retentionPolicyRevision ? [] : form.sourceIds,
     job: {
       kind: form.retentionPolicyRevision ? "retention" : form.cadence,
-      payload: form.retentionPolicyRevision ? {policyRevision:form.retentionPolicyRevision} : { mode: "offline" },
+      payload: form.retentionPolicyRevision ? {policyRevision:form.retentionPolicyRevision} : { mode: form.cadence === "monthly" ? "offline" : form.mode ?? "offline" },
+      ...(!form.retentionPolicyRevision && form.cadence !== "monthly" && form.mode === "model" ? {model:form.model} : {}),
       pageIds: form.retentionPolicyRevision ? [] : form.pageIds,
       sourceIds: form.retentionPolicyRevision ? [] : form.sourceIds,
-      reservation: form.retentionPolicyRevision ? {tokens:0,costMicros:0} : { tokens: form.tokens, costMicros: form.costMicros },
+      reservation: form.retentionPolicyRevision || form.cadence === "monthly" ? {tokens:0,costMicros:0} : { tokens: form.tokens, costMicros: form.costMicros },
       timeoutMs: 60000,
       maxAttempts: 3,
       limits: { documents: 200, changes: 20 },
@@ -200,11 +210,12 @@ export function JobsPanel({
     [stopped, setStopped] = useState(false);
   const [scheduleKind, setScheduleKind] = useState<"knowledge"|"retention">("knowledge");
   const [key, setKey] = useState("daily"),
-    [cadence, setCadence] = useState<"daily" | "weekly">("daily"),
+    [cadence, setCadence] = useState<"daily" | "weekly" | "monthly">("daily"),
     [time, setTime] = useState("09:00"),
     [zone, setZone] = useState("Asia/Seoul"),
     [weekday, setWeekday] = useState(1),
     [credential, setCredential] = useState("");
+  const [dayOfMonth,setDayOfMonth] = useState(1), [invalidDay,setInvalidDay] = useState<"clamp"|"skip">("clamp"), [mode,setMode] = useState<"offline"|"model">("offline"), [model,setModel] = useState("");
   const [pages, setPages] = useState(""),
     [sources, setSources] = useState(""),
     [tokens, setTokens] = useState(0),
@@ -487,6 +498,10 @@ export function JobsPanel({
                     setTime(s.config.time);
                     setZone(s.config.timezone);
                     setWeekday(s.config.weekday ?? 1);
+                    setDayOfMonth(s.config.dayOfMonth ?? 1);
+                    setInvalidDay(s.config.invalidDay ?? "clamp");
+                    setMode(s.config.job.payload?.mode ?? "offline");
+                    setModel(s.config.job.model ?? "");
                     setHolidays(s.config.holidays.join(", "));
                     setCatchup(s.config.catchup);
                     setCatchupLimit(s.config.catchupLimit ?? 3);
@@ -588,6 +603,7 @@ export function JobsPanel({
                       time,
                       timezone: zone,
                       weekday,
+                      dayOfMonth,invalidDay,mode,model,
                       pageIds: split(pages),
                       sourceIds: split(sources),
                       tokens,
@@ -626,11 +642,12 @@ export function JobsPanel({
                 <select
                   value={cadence}
                   onChange={(e) =>
-                    setCadence(e.target.value as "daily" | "weekly")
+                    setCadence(e.target.value as "daily" | "weekly" | "monthly")
                   }
                 >
                   <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
+                  <option value="weekly">Weekly · 지식 종합 검토</option>
+                  <option value="monthly">Monthly · 담당자·보존·비용 검토</option>
                 </select>
               </label>
               <label>
@@ -665,6 +682,11 @@ export function JobsPanel({
                   </select>
                 </label>
               )}
+              {cadence === "monthly" && <><label>실행일 (매월)
+                <input required type="number" min={1} max={31} value={dayOfMonth} onChange={e=>setDayOfMonth(Number(e.target.value))}/>
+              </label><label>해당 일이 없는 달
+                <select value={invalidDay} onChange={e=>setInvalidDay(e.target.value as "clamp"|"skip")}><option value="clamp">그 달의 마지막 날 실행</option><option value="skip">그 달 건너뛰기</option></select>
+              </label>{scheduleKind === "knowledge" && <p>월간 검토는 담당자·보존 정책·실측 비용의 제안만 만듭니다. 소유권·권한·정책을 변경하거나 자료를 삭제하지 않습니다. 비용은 실행 주체의 해당 공간 사용량이며 다른 사람의 사용량을 포함하지 않습니다.</p>}</>}
               <label>
                 건너뛸 휴일 (YYYY-MM-DD, 쉼표 구분)
                 <textarea
@@ -741,7 +763,9 @@ export function JobsPanel({
                   세션으로 대신 실행하지 않습니다.
                 </p>
               )}
-              {scheduleKind !== "retention" && <><label>
+              {scheduleKind !== "retention" && cadence !== "monthly" && <><label>실행 방식
+                <select value={mode} onChange={e=>setMode(e.target.value as "offline"|"model")}><option value="offline">구조 점검 · 의미 종합 없음</option><option value="model">설정된 모델로 변경 제안</option></select>
+              </label>{mode === "model" && <label>서버에 설정된 모델 이름<input required value={model} onChange={e=>setModel(e.target.value)}/></label>}<label>
                 실행 전체 토큰 예약 상한
                 <input
                   type="number"
