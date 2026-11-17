@@ -81,11 +81,16 @@ const convenienceLabels: Record<ConvenienceSection, string> = {
 };
 export const consoleLabel = (tab: ConsoleTab): string =>
   consoleItems.find((x) => x.id === tab)?.label ?? convenienceLabels[tab as ConvenienceSection];
-export function readConsoleTab(hash: string): ConsoleTab {
+export function readConsoleTab(
+  hash: string,
+  mode: "workspace" | "preview" = "workspace",
+): ConsoleTab {
   const id = hash.replace(/^#/, "");
   return consoleItems.some((x) => x.id === id)
     ? (id as ConsoleTab)
-    : hash ? "overview" : "home";
+    : hash || mode === "preview"
+      ? "overview"
+      : "home";
 }
 export function summarizeConsole(data: {
   pages: Pick<PublishedPage, "id">[];

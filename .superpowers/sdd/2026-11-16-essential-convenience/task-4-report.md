@@ -1,6 +1,6 @@
 # Task 4 report — personal Home / My Tasks
 
-Status: **DONE_WITH_CONCERNS** (local implementation and required verification complete; independent review, exact-head CI and PR/main integration are controller work).
+Status: **DONE_WITH_CONCERNS** — I1 fix round1 local implementation/verification is complete; controller re-review, exact-head CI and PR72 integration remain pending. Initial-package counts/hashes below are historical; the I1 closure section supplies current447 checks/52 captures and new hashes.
 
 ## Ownership and commits
 
@@ -70,7 +70,7 @@ All paths below are under `.superpowers/sdd/2026-11-16-essential-convenience/log
 
 Native carry accounting is explicit: governance14 + workflows36 from corrected evidence, and collaboration inbox21 + personal7 + personal HTTP4 + jobs48 from preceding green files = **6 carried files130**. With current4 files50 this is **10 unique files180**, **not one final180-test execution**. `c4-final-native.log` contains the earlier148-test selection with2 failures (strict legacy DTO and invalid overlapping fixture), both identified and corrected; its failures are not hidden as a green batch. Pre-isolation/pre-scroll browser runs are superseded by the final44-state capture.
 
-## Final source and UI binding
+## Initial package source and UI binding (superseded by I1 round below)
 
 - Complete production fingerprint: `2339ac55d3eb86a5d3c9d5a4915d0031fe9143276a59a235acbc729599d43f98`.
 - Source manifest SHA256: `877d910cbf39b7a6182307202ecf72eb69de860322b4c1026d70324a95d667d9`.
@@ -101,3 +101,72 @@ Native carry accounting is explicit: governance14 + workflows36 from corrected e
 - Existing Vite629/1499kB chunk warnings remain. Real IdP, production operational/security acceptance, screen readers/OS IME and live corporate data are not validated here.
 - North Star contribution is navigability back to current drafts, evidence-aware review and failures in the human review→publication loop. Home read does not alter knowledge/evidence/approvals/publication. Better knowledge quality/downstream agent performance remains a goal until EVALUATION controlled comparisons; no such effect is claimed.
 - C6 prerequisite completion was controller-verified: PR71/main0def475/final1bd418a/CI44068230799 all8. Plan/handoff now reflect that completion; C4 remains local verification pending independent review, exact-head CI and merge. No further discretionary product polishing is included.
+
+
+## I1 fix round1/5 — complete open finding closure
+
+FIX_BASE: `d8dfa94feee7baa904223b724c59f3d2726897ce`. The supplied task review found0 Critical/1 Important/0 new Minor; its complete text is preserved in `c4-i1-task-review.log`. This round addresses that one finding only. The fix commit is the commit containing this section; the concrete SHA is supplied to the controller in the final handoff.
+
+### I1 supplied finding (verbatim)
+
+- **I1 — Represent the default Home with a route that survives serialization, and keep preview's supported landing.** `src/operational/console.ts:89` changes the empty legacy hash to `home`, but `home` is not in the legacy `consoleItems` recognized by the same function. `parseConvenienceLocation` therefore produces `{kind:'console', tab:'home'}` (`src/operational/convenience/route.ts:140`), while `convenienceHref` serializes that value to `#home` (`src/operational/convenience/route.ts:153`); reparsing it returns `overview`. A focused execution on this head produced exactly:
+
+  ```text
+  parse('?app=1&space=team', '')
+    => {kind:'console', spaceId:'team', tab:'home'}
+  convenienceHref(...)
+    => /?app=1&space=team#home
+  parse(the generated href)
+    => {kind:'console', spaceId:'team', tab:'overview'}
+  ```
+
+  This affects a real existing flow: OperationalApp's space-change handler preserves `current.tab` for console locations and passes it through `convenienceHref` (`src/operational/App.tsx:178`). Changing space from the new implicit Home consequently writes `#home` and mounts the operations destination in the new space. It violates the new personal default's preservation through navigation and the route codec's meaning-preservation contract.
+
+  The same root change is unconditional across modes. The probe also confirmed `parse('?preview=1','') => {kind:'console',tab:'home'}`. App sets `personalLanding` only for `!preview` (`src/operational/App.tsx:531`) and renders Overview only for `tab === 'overview'` (`src/operational/App.tsx:1109`). Thus the previously supported bare preview URL now selects neither its Overview nor a Home body. This rendering consequence follows directly from the branch conditions; I did not run a new browser session.
+
+  Make the implicit workspace Home a valid, mode-aware route (for example, canonical `section=home`), and preserve a supported preview default. Ensure any resulting console Home value round-trips if it remains part of the codec. Add focused regressions for the generated-href round-trip, default-Home space change, and bare preview rendering; the new navigation test currently checks the initial workspace title and explicit overview link only (`src/operational/convenience/Navigation.test.tsx:712`).
+
+### Verified cause and scoped repair
+
+The reported behavior was reproduced in pure-code and actual App regressions. Initial focused RED was8 failures/86 pass across94 tests; the explicit unsupported-mode guard added a ninth failure across95 tests. These are behavior failures on the fix base, not fixture/import/setup failures.
+
+`readConsoleTab` now receives the rendering mode. The existing `entryMode` helper supplies the route parser's mode, preserving app-over-preview precedence. The canonical implicit workspace Home route has no hash; `convenienceHref` no longer invents legacy #home. A workspace-only implicit Home passed to the preview builder is explicitly rejected rather than serialized into a different meaning. Bare preview parses to its supported Overview. Explicit #overview and old unknown/malformed/#home fallback remain Overview in both modes. No URL key, parallel codec, App navigation engine or backend behavior was added.
+
+The real existing onSpace handler continues preserving current.tab. Because the same codec now serializes/reparses Home correctly, actual selector change remains Home in the new space, without downloading operations aggregates. No additional App production hunk was necessary. Only `src/operational/console.ts` and `src/operational/convenience/route.ts` changed among the322 production manifest paths; the other320 production hashes, including every backend/SQL file, match the pre-fix manifest. Tests changed in console.test.ts, route.test.ts and Navigation.test.tsx. Existing Home/Composer/Overview integration tests were exercised unchanged.
+
+### Exact commands, outputs and evidence
+
+All commands ran in the assigned native isolated worktree with Node24.22.2 on PATH; logs are `.superpowers/sdd/2026-11-16-essential-convenience/logs/`.
+
+| Command / file | Observed output / exit |
+| --- | --- |
+| `npx vitest run src/operational/convenience/route.test.ts src/operational/console.test.ts src/operational/convenience/Navigation.test.tsx` → c4-i1-red.log |3 files,8 fail/86 pass(94), exit1: generated href drift, preview default, actual Home space selection and bare preview body. |
+| Same command after adding unsupported-preview-Home serialization case → c4-i1-red-mode-guard.log |3 files,9 fail/86 pass(95), exit1. |
+| `npx vitest run src/operational/convenience/route.test.ts src/operational/console.test.ts src/operational/convenience/Navigation.test.tsx src/operational/convenience/home.test.tsx src/operational/convenience/composer.test.tsx src/operational/Overview.test.tsx` → c4-i1-green-focused.log |6 files121 pass, exit0. |
+| `npm run check` → c4-i1-final-check.log |Final447 frontend/48 Node/16 imports/41 evaluation/251 requirements/server types/build/static HTTP smoke, exit0. Run once after settling I1 bytes; inherited large-chunk warning remains. |
+| `node docs/ui-validation/2026-11-17-personal-home/manifest.mjs --frontend-start` then `npm run dev -- --host 127.0.0.1 --port 5194 --strictPort` |Fresh frontend source fingerprint recorded; c4-i1-frontend.log records ready5194. |
+| `AKH_C4_SYNTHETIC_CAPTURE=1 TEST_DATABASE_URL=<authorized loopback test DB> npx tsx docs/ui-validation/2026-11-17-personal-home/home-runtime.ts` |Fresh owned synthetic runtime4394 ready; c4-i1-runtime.log. No model environment is used. |
+| `AKH_C4_SYNTHETIC_CAPTURE=1 TEST_DATABASE_URL=<same loopback test DB> PLAYWRIGHT_MODULE=/Users/wt.jeong/.npm/_npx/9833c18b2d85bc59/node_modules/playwright/index.mjs node docs/ui-validation/2026-11-17-personal-home/capture.mjs` → c4-i1-final-browser.log |1440 light/dark and390 light/dark all pass, exit0;13 states per configuration,52 PNG. |
+| `node docs/ui-validation/2026-11-17-personal-home/manifest.mjs` and `--verify` |Verified322 production/3 harness/54 artifacts/42 logs. Logs have only line-ending whitespace/EOF normalization; all substantive failures/results remain. |
+
+**Native carry, not a new native run:** no scripts/test-server.mjs/native suite was run in I1 because backend bytes are unchanged. Previous4 files50(Home10/HTTP1/C6 manual9/new-document30) and6 files130(governance14/workflows36/collaboration21/personal7/personal HTTP4/jobs48) are all carried for this round. Unique10 files180 is not a current single-run count. The task review's warning about complete unchanged exact-detail/login and production ACL/retention machinery remains controller cross-task/final-review context; this focused route fix does not claim a new broad audit.
+
+### Fresh source-bound actual UI proof
+
+- Current production fingerprint: `ec5dfbbab8d29cc2e4bdb90e12960f1da6442451c264440cd116279ff071eb76`.
+- Current source-manifest SHA256: `ba2756b38dcf59f1dd2353c411b0eae6569516da010c46dfebf7ed53b331e7fd`.
+- Fresh backend start `2026-11-17T12:33:37.539Z`, frontend start `2026-11-17T12:33:37.737Z`. Browser asserts both start fingerprints match current production bytes; the old2339 fingerprint is not reused on this code.
+-13 states: preview, empty, space-change, loading, home, keyboard-bottom, partial-error, tasks, page-draft-resume, new-draft-resume, other-owner-denied, acl-revoked, account-switched. Current52 PNG, browser-results and cleanup are54 manifest artifacts.
+- In every viewport/theme: actual bare `?preview=1` renders Overview and no Home widgets, with0 native API calls; actual default Home space selector change retains the Home body and emits no operations pages/sources/members/jobs aggregate request. Existing real table-outage isolation,25-item keyboard/native scrolling/continuation, older exact page-bound and page-less resume, source ACL and actor switch proof still pass.
+- Visually inspected final preview1440-light and space-change390-dark images. This is actual preview UI and synthetic authenticated native UI, not production IdP/accessibility certification.
+- Prior package source manifest is preserved as c4-i1-prior-manifest.log, and all previous failure proofs/logs remain. Prior44 PNG/436-check package is recoverable at FIX_BASE; it is historical evidence, not the current snapshot.
+
+### Cleanup, mistakes and remaining scope
+
+Final cleanup.json records0 owned DBs/profiles/orphan Chromium processes, ports4394/5194 free and parent PostgreSQL alive. Only the owned runtime/frontend were stopped. The initial cleanup checker unexpectedly flagged incomplete; subsequent concrete inventory showed all resources0. Its exact cause was not established. Chromium executable filtering replaced generic command-text matching to avoid possible wrapper matches, then cleanup was reverified; no cleanup success was fabricated from the failed check and no unrelated processes were killed.
+
+The implementation mistake was changing the empty legacy default without jointly testing serialization, actual space switching and preview's supported body. Added RED→GREEN and actual browser flows now cover each boundary. MISTAKE_LOG, handoff and plan record the correction. There were no I1 product test failures after the repair and no additional product changes after finalcheck/capture. Existing process-local cursor/digest scan/large bundle/wrapping-label/production IdP/OS accessibility/model quality limits remain unchanged.
+
+I1 is locally repaired with current evidence. Controller scoped re-review, whole-branch final review, new exact-head CI and PR72 push/merge remain pending; the implementer did not push, create reviewers or merge.
+
+Packaging note: checked git add stopped on ignored `.superpowers` ancestry despite staging the tracked report. The owned report/new I1 logs were explicitly force-added, leaving baseline/brief files untouched; checked diff/manifest gates then precede commit. This was packaging/tool handling, not a product or test failure.

@@ -61,3 +61,8 @@ test("overview preserves pending publication, own failures and unexecuted lint",
     issues: null,
   });
 });
+
+test("legacy default distinguishes supported workspace Home and preview Overview",()=>{
+ expect(readConsoleTab("","workspace")).toBe("home");expect(readConsoleTab("","preview")).toBe("overview");
+ for(const mode of ["workspace","preview"] as const){expect(readConsoleTab("#overview",mode)).toBe("overview");expect(readConsoleTab("#home",mode)).toBe("overview");expect(readConsoleTab("#unknown",mode)).toBe("overview");}
+});

@@ -1,3 +1,4 @@
+import { entryMode } from "../../entry";
 import { consoleItems, readConsoleTab } from "../console";
 import { convenienceSections, type ConvenienceLocation } from "./types";
 const id = /^[a-zA-Z0-9_-]{1,100}$/;
@@ -137,7 +138,10 @@ export function parseConvenienceLocation(
   return {
     kind: "console",
     ...(spaceId ? { spaceId } : {}),
-    tab: readConsoleTab(hash),
+    tab: readConsoleTab(
+      hash,
+      entryMode(search) === "preview" ? "preview" : "workspace",
+    ),
   };
 }
 export function convenienceHref(
@@ -150,7 +154,13 @@ export function convenienceHref(
   );
   if (location.spaceId) params.set("space", location.spaceId);
   let hash = "";
-  if (location.kind === "console") hash = `#${location.tab}`;
+  if (location.kind === "console") {
+    if (location.tab === "home") {
+      if (mode === "preview")
+        throw Error("개인 홈은 서버 연결 모드에서 열 수 있습니다.");
+      // The implicit workspace Home is the no-hash route, never legacy #home.
+    } else hash = `#${location.tab}`;
+  }
   if (location.kind === "share") hash = `#share-${location.share}`;
   if (location.kind === "document") {
     params.set("document", location.document);

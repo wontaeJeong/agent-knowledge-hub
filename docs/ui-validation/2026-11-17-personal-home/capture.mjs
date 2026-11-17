@@ -145,6 +145,17 @@ try {
           fullPage: true,
         });
       };
+      const beforePreview = state.requests.length;
+      await page.goto("http://127.0.0.1:5194/?preview=1");
+      await page.locator(".console-overview").waitFor();
+      assert.equal(await page.locator("h1").innerText(), "운영 개요");
+      assert.equal(await page.locator("[data-home-widget]").count(), 0);
+      assert.equal(
+        state.requests.length,
+        beforePreview,
+        "bare preview uses its supported local body without native API",
+      );
+      await shot("preview");
       await go(fixture.emptySpace);
       await page
         .locator('[data-home-widget="favorites"]')
@@ -152,6 +163,27 @@ try {
         .waitFor();
       assert.equal(await page.locator("[data-home-widget]").count(), 8);
       await shot("empty");
+      const beforeSpaceChange = state.requests.length;
+      page.once("dialog", (dialog) => dialog.accept());
+      await page.locator(".op-context select").selectOption(f.spaceId);
+      await page.waitForURL(
+        (url) => url.searchParams.get("space") === f.spaceId && url.hash === "",
+      );
+      await page.locator('[data-home-widget="drafts"] li').first().waitFor();
+      assert.equal(await page.locator("h1").innerText(), "홈");
+      assert.equal(await page.locator(".console-overview").count(), 0);
+      assert.equal(
+        state.requests
+          .slice(beforeSpaceChange)
+          .some((x) =>
+            /^\/api\/v1\/(pages|sources|members|jobs(?:-v2)?)(?:[?]|$)/.test(
+              x.path,
+            ),
+          ),
+        false,
+        "space-changed default Home stays independent of operations aggregates",
+      );
+      await shot("space-change");
       let release;
       state.hold = new Promise((r) => (release = r));
       state.held = false;
@@ -361,6 +393,8 @@ try {
         theme,
         space: f.spaceId,
         checks: [
+          "bare-preview-supported-overview-no-native-api",
+          "actual-default-home-space-change",
           "empty",
           "actual-response-loading",
           "own-only",

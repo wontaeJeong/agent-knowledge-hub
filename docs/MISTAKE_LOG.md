@@ -1076,3 +1076,15 @@ Final fresh-runtime four-condition capture passed. Its intentional12 HTTP503 res
 - 상태/후속 작업: 제품 회귀는 위 증거로 수정 확인. inherited wrapping-label 접근성 한계, workspace digest의 DB scan 비용, 기존 큰 Vite chunk와 운영 IdP/OS·스크린리더/성능·의미 품질 인수는 미검증/후속 사항이다. 부모 PostgreSQL/다른 작업은 정리 대상이 아니다.
 
 - C4 packaging 후속: 첫 feature commit 직전 `git diff --cached --check`가 원본 terminal log의 trailing whitespace/EOF 빈 줄을 경고했는데 shell이 다음 명령으로 진행해 commit됐다. 제품 검사 실패는 아니지만 packaging gate 진행 제어 실수다. 로그의 줄 끝 공백/EOF 빈 줄만 정규화하고 실제 실패·결과·본문은 유지했다. log SHA manifest를 다시 생성했으며 후속 staging/전체 base diff 검사는 check=True gate로 통과 확인한 뒤 commit한다. 제품 source·실행 결과·캡처는 바꾸거나 재실행하지 않는다.
+
+
+### 2026-11-17 — C4 I1 기본 Home codec/preview 회귀
+- 맥락/관련 PR: PR72 Draft, task review0 Critical/1 Important. FIX_BASE d8dfa94.
+- 사실과 영향: implicit Home의 parser 결과를 serializer가 알 수 없는 legacy `#home`으로 바꾸어 실제 공간 selector 변경 후 운영 개요로 이동했다. 같은 empty-hash default를 preview에 적용해 bare preview에는 Home도 Overview도 없었다. 초기 첫 화면/명시적 운영 링크 검증만으로 serializer와 실제 공간 전환의 의미 보존을 검증했다고 볼 수 없었다.
+- 원인: workspace default를 legacy helper에 추가하면서 route serializer 및 preview 모드의 지원 본문을 함께 점검하지 않은 구현 누락이다.
+- 조치: 기존 route codec/entryMode 안에서 workspace no-hash Home과 preview Overview를 구분하고 implicit Home의 canonical no-hash 직렬화를 유지한다. 지원하지 않는 preview Home builder는 명시 오류로 막는다. 별도 codec/URL key/권한·backend 변경은 없다.
+- 검증: c4-i1-red.log8실패/86통과, c4-i1-red-mode-guard.log9실패/86통과(exit1); focused121, 최종447/48/16/41/251/types/build/smoke 및 네 조건52 실제 캡처 exit0. same-backend native50+130을 carry하고 재실행으로 표시하지 않는다. 실제 공간 전환·bare preview 본문/no-native-API까지 검사한다.
+- 도구 관찰: 첫 cleanup checker가 incomplete를 보고했으나 바로 뒤 진단은 DB/profile/process0이었다. 원인은 확정하지 않았으며 plain process command-text 필터의 wrapper 일치 가능성을 배제하도록 Chromium 실행 파일까지 확인했다. 수정된 verifier로 DB/profile/orphan0·포트 해제·parentPG 생존을 재확인했다. 실제 잔여 자원/제품 실패를 추정하거나 성공으로 덮지 않았다.
+- 상태/후속: I1 local 수정·검증 완료, controller exact-head 재리뷰/CI/merge 대기. 기존 accessibility/digest scan/운영 IdP/큰 bundle·의미 품질 제한은 유지한다.
+
+- I1 packaging 관찰: 일반 git add가 tracked report를 stage하면서도 ignored `.superpowers` 부모 경고로 exit1을 반환했다. check=True가 commit 진행을 중단했다. 소유 report/new I1 logs만 명시적 `-f`로 stage하고 diff/manifest gates 후 commit한다. 기존 작업이나 ignored baseline/brief는 stage하지 않는다.

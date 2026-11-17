@@ -1,5 +1,13 @@
 # 에이전트 인계
 
+## 2026-11-17 #49 C4 I1 — default Home route 보존·bare preview 복구
+
+- FIX_BASE `d8dfa94feee7baa904223b724c59f3d2726897ce`, task review0 Critical/1 Important의 I1만 수정했다. implicit Home을 `#home`으로 직렬화해 공간 전환에서 운영 개요로 바꾸던 원인과 preview의 unrendered Home 기본값을 RED로 재현했다.
+- `console.ts`와 기존 `convenience/route.ts`만 제품 동작을 바꾼다. 기존 entryMode 우선순위를 사용해 workspace의 no-hash Home과 preview의 Overview를 구별하고, implicit Home은 no-hash로 직렬화한다. 지원하지 않는 preview Home 직렬화는 거부한다. 기존 onSpace/current tab 경로·명시적 `#overview`·unknown hash fallback을 보존하며 새 URL key/route codec/App·backend 변경은 없다.
+- RED8/94와 mode guard RED9/95 exit1, route/console/Navigation/Home/Composer/Overview focused121 exit0. 최종 fullcheck frontend447/Node48/import16/eval41/requirements251/types/build/smoke exit0. native는 재실행하지 않았다: backend 동일 바이트이므로 이전4파일50 +6파일130, 고유10파일180을 carry한다(단일 현재180 실행 아님).
+- 새 backend/frontend의 actual 네 조건52PNG exit0. bare preview Overview와 native API0, 실제 기본 Home 공간 선택 후 Home 유지/운영 aggregate 요청0, 기존25항목·continuation·정확한 resume·ACL·위젯 outage·keyboard를 확인했다. 새 production fingerprint `ec5dfbbab8d29cc2e4bdb90e12960f1da6442451c264440cd116279ff071eb76`, source-manifest SHA `ba2756b38dcf59f1dd2353c411b0eae6569516da010c46dfebf7ed53b331e7fd`; [현재 증거](ui-validation/2026-11-17-personal-home/README.md).
+- 소유 DB/profile/orphan0·4394/5194 해제·parentPG 생존을 다시 확인했다. 기존 실패 증거와 이전 manifest는 보존한다. I1 수정 local 검증이며 controller re-review/PR72 exact-head CI/병합은 대기다. North Star/251기준/기존 운영·모델·접근성·digest 비용 한계는 그대로다.
+
 ## 2026-11-17 #49 C4 — 개인 홈·내 작업
 
 - 로컬 feature commit `cb0d42f2e8ffcd7a115db3b3e3b505a9efa94fdb`; 독립 review/CI/merge는 대기다.

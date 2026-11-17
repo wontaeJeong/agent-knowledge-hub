@@ -1,0 +1,147 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ src/operational/convenience/route.test.ts (54 tests | 5 failed) 9ms
+   × implicit ?app=1&space=team landing preserves meaning through its generated workspace href 3ms
+   × implicit ?app=1 landing preserves meaning through its generated workspace href 0ms
+   × implicit ?app=1&preview=1&space=team landing preserves meaning through its generated workspace href 0ms
+   × implicit ?preview=1 landing preserves meaning through its generated preview href 1ms
+   × implicit ?preview=1&space=team landing preserves meaning through its generated preview href 0ms
+ ❯ src/operational/console.test.ts (5 tests | 1 failed) 11ms
+   × legacy default distinguishes supported workspace Home and preview Overview 2ms
+ ❯ src/operational/convenience/Navigation.test.tsx (35 tests | 2 failed) 333ms
+   × actual space selection preserves the implicit personal Home rather than drifting to operations 10ms
+   × bare preview renders its supported Overview body without calling authenticated Home 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/console.test.ts > legacy default distinguishes supported workspace Home and preview Overview
+AssertionError: expected 'home' to be 'overview' // Object.is equality
+
+Expected: "overview"
+Received: "home"
+
+ ❯ src/operational/console.test.ts:66:91
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  src/operational/convenience/Navigation.test.tsx > actual space selection preserves the implicit personal Home rather than drifting to operations
+AssertionError: expected '#home' not to be '#home' // Object.is equality
+ ❯ src/operational/convenience/Navigation.test.tsx:739:114
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  src/operational/convenience/Navigation.test.tsx > bare preview renders its supported Overview body without calling authenticated Home
+AssertionError: expected '홈' to be '운영 개요' // Object.is equality
+
+Expected: "운영 개요"
+Received: "홈"
+
+ ❯ src/operational/convenience/Navigation.test.tsx:743:53
+    741| test("bare preview renders its supported Overview body without calling…
+    742|  const container=await mount("/?preview=1",()=>{throw Error("preview m…
+    743|  expect(container.querySelector("h1")?.textContent).toBe("운영 개요");expe…
+       |                                                     ^
+    744| });
+    745|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  src/operational/convenience/route.test.ts > implicit ?app=1&space=team landing preserves meaning through its generated workspace href
+ FAIL  src/operational/convenience/route.test.ts > implicit ?app=1&preview=1&space=team landing preserves meaning through its generated workspace href
+AssertionError: expected { kind: 'console', …(2) } to deeply equal { kind: 'console', …(2) }
+
+- Expected
++ Received
+
+  {
+    "kind": "console",
+    "spaceId": "team",
+-   "tab": "home",
++   "tab": "overview",
+  }
+
+ ❯ src/operational/convenience/route.test.ts:165:49
+    163|  const location=parse(search);expect(location).toMatchObject({kind:"co…
+    164|  const generated=new URL(route.convenienceHref(location,mode),"https:/…
+    165|  expect(parse(generated.search,generated.hash)).toEqual(location);expe…
+       |                                                 ^
+    166| });
+    167| test.each(["workspace","preview"] as const)("%s explicit operations an…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  src/operational/convenience/route.test.ts > implicit ?app=1 landing preserves meaning through its generated workspace href
+AssertionError: expected { kind: 'console', tab: 'overview' } to deeply equal { kind: 'console', tab: 'home' }
+
+- Expected
++ Received
+
+  {
+    "kind": "console",
+-   "tab": "home",
++   "tab": "overview",
+  }
+
+ ❯ src/operational/convenience/route.test.ts:165:49
+    163|  const location=parse(search);expect(location).toMatchObject({kind:"co…
+    164|  const generated=new URL(route.convenienceHref(location,mode),"https:/…
+    165|  expect(parse(generated.search,generated.hash)).toEqual(location);expe…
+       |                                                 ^
+    166| });
+    167| test.each(["workspace","preview"] as const)("%s explicit operations an…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  src/operational/convenience/route.test.ts > implicit ?preview=1 landing preserves meaning through its generated preview href
+AssertionError: expected { kind: 'console', tab: 'home' } to match object { kind: 'console', tab: 'overview' }
+
+- Expected
++ Received
+
+  {
+    "kind": "console",
+-   "tab": "overview",
++   "tab": "home",
+  }
+
+ ❯ src/operational/convenience/route.test.ts:163:48
+    161|  ["?preview=1&space=team","preview","overview"],
+    162| ] as const)("implicit %s landing preserves meaning through its generat…
+    163|  const location=parse(search);expect(location).toMatchObject({kind:"co…
+       |                                                ^
+    164|  const generated=new URL(route.convenienceHref(location,mode),"https:/…
+    165|  expect(parse(generated.search,generated.hash)).toEqual(location);expe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  src/operational/convenience/route.test.ts > implicit ?preview=1&space=team landing preserves meaning through its generated preview href
+AssertionError: expected { kind: 'console', …(2) } to match object { kind: 'console', tab: 'overview' }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "kind": "console",
+-   "tab": "overview",
++   "tab": "home",
+  }
+
+ ❯ src/operational/convenience/route.test.ts:163:48
+    161|  ["?preview=1&space=team","preview","overview"],
+    162| ] as const)("implicit %s landing preserves meaning through its generat…
+    163|  const location=parse(search);expect(location).toMatchObject({kind:"co…
+       |                                                ^
+    164|  const generated=new URL(route.convenienceHref(location,mode),"https:/…
+    165|  expect(parse(generated.search,generated.hash)).toEqual(location);expe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  8 failed | 86 passed (94)
+   Start at  21:29:55
+   Duration  1.04s (environment 39%, tests 31%, import 19%, transform 10%, worker 1%)

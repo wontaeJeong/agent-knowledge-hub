@@ -1,8 +1,8 @@
 {
-  "capturedAt": "2026-11-17T12:09:23.973Z",
-  "runtimeStartedAt": "2026-11-17T12:07:54.716Z",
-  "frontendStartedAt": "2026-11-17T12:07:56.347Z",
-  "productionFingerprint": "2339ac55d3eb86a5d3c9d5a4915d0031fe9143276a59a235acbc729599d43f98",
+  "capturedAt": "2026-11-17T12:35:13.112Z",
+  "runtimeStartedAt": "2026-11-17T12:33:37.539Z",
+  "frontendStartedAt": "2026-11-17T12:33:37.737Z",
+  "productionFingerprint": "ec5dfbbab8d29cc2e4bdb90e12960f1da6442451c264440cd116279ff071eb76",
   "origin": "http://127.0.0.1:5194",
   "backend": "http://127.0.0.1:4394",
   "authentication": "Explicit synthetic loopback actor adapter; production canonical APIs/current ACL; no fabricated DTO",
@@ -10,8 +10,10 @@
     {
       "width": 1440,
       "theme": "light",
-      "space": "f8c9b9e9-ca9b-44ab-9f1f-b912e37109f6",
+      "space": "f5d0a27a-ea6a-451b-9afc-f5bbc8bac12b",
       "checks": [
+        "bare-preview-supported-overview-no-native-api",
+        "actual-default-home-space-change",
         "empty",
         "actual-response-loading",
         "own-only",
@@ -28,14 +30,16 @@
         "nested-list-keyboard25-next-no-trap",
         "account-switch"
       ],
-      "requestCount": 131,
+      "requestCount": 139,
       "errors": []
     },
     {
       "width": 1440,
       "theme": "dark",
-      "space": "7424ec53-ee75-4b60-8a0e-f5e761e1c39e",
+      "space": "aed2461d-00e3-4413-bdf0-e4f0c5451e6a",
       "checks": [
+        "bare-preview-supported-overview-no-native-api",
+        "actual-default-home-space-change",
         "empty",
         "actual-response-loading",
         "own-only",
@@ -52,14 +56,16 @@
         "nested-list-keyboard25-next-no-trap",
         "account-switch"
       ],
-      "requestCount": 131,
+      "requestCount": 139,
       "errors": []
     },
     {
       "width": 390,
       "theme": "light",
-      "space": "16b5f495-8c35-4d7f-a66b-71c95c32eec7",
+      "space": "46bc9e7a-439e-49ae-9e05-b3943a8f93e9",
       "checks": [
+        "bare-preview-supported-overview-no-native-api",
+        "actual-default-home-space-change",
         "empty",
         "actual-response-loading",
         "own-only",
@@ -76,14 +82,16 @@
         "nested-list-keyboard25-next-no-trap",
         "account-switch"
       ],
-      "requestCount": 131,
+      "requestCount": 139,
       "errors": []
     },
     {
       "width": 390,
       "theme": "dark",
-      "space": "e9374251-e2c8-4c54-a0e4-9564f3025bd8",
+      "space": "1a3e3ed4-a092-4735-b6b3-df6a55b385b2",
       "checks": [
+        "bare-preview-supported-overview-no-native-api",
+        "actual-default-home-space-change",
         "empty",
         "actual-response-loading",
         "own-only",
@@ -100,7 +108,7 @@
         "nested-list-keyboard25-next-no-trap",
         "account-switch"
       ],
-      "requestCount": 131,
+      "requestCount": 139,
       "errors": []
     }
   ]

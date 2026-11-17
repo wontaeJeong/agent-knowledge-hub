@@ -106,6 +106,8 @@
 
 **승인된 계획 예외/확장:** `Overview.tsx`는 무수정이다. 기존 컴포넌트/`#overview` URL을 그대로 명시적 운영 목적지로 보존하고 default/미조회 aggregate chrome 경계를 App/console에 연결했으므로 cosmetic hunk를 만들지 않는다. 작은 canonical own 요청·접근 feed, drafts/review 선택적 paging, JobService own failure filter, C6 cursor helper의 서버 고정 feed 선택, 기존 Composer/WorkflowPanel의 own exact page-bound 분기와 Home-only CSS/HTTP 회귀를 추가했다. 공개 요청은 별도 새 위젯 대신 own-request metadata에 합치며 body를 내려받거나 foreign draft 일반 권한을 부여하지 않는다. Home native scroll은25개와 true cursor/키보드를 보존하며 nested scroll 비용이 있다. 공통 ACL/source/erasure fence는 유지하고 대규모 DB digest scan 비용은 미검증이다.
 
+**C4 task review I1 수정:** FIX_BASE d8dfa94에서 default Home 직렬화/실제 공간 변경 및 bare preview 렌더링 회귀를 RED9/95로 확인했다. 기존 entryMode·codec의 no-hash Home/preview Overview 구별로 수정하고 focused121/fullcheck447/48/16/41/251/types/build/smoke 및 새 네 조건52캡처를 통과했다. backend 동일 바이트의 native50+130을 carry하며 재실행으로 표시하지 않는다. 새 fingerprint `ec5dfbbab8d29cc2e4bdb90e12960f1da6442451c264440cd116279ff071eb76`; 이전44캡처/hash는 과거 근거이고 PR72 controller 재리뷰/CI/병합은 대기다.
+
 ## Task 5: 전역 검색과 Quick Open
 
 **Files:** Create `src/operational/convenience/QuickOpen.tsx`, `SearchPage.tsx`, `search-client.ts`, `search.test.tsx`; Modify `server/questions/search.ts`, `server/questions/service.test.ts`, `src/operational/questions.tsx`, `ConsoleShell.tsx`, `App.tsx`.
