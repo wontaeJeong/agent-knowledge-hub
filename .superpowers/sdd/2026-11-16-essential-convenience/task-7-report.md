@@ -126,7 +126,7 @@ Outstanding concerns are explicit scoped-agent C7 unavailability pending admissi
 
 # Task review fix Round1 / 5 — current evidence
 
-FIX_BASE: `9e77efaccb7f6176cb0759418b29553f9ec1f2d0`. Status: **DONE_WITH_CONCERNS**, I1/I2/I3/I4 addressed locally; controller scoped review, CI and integration pending. Fix commit: **PENDING_ROUND1_COMMIT**. No helper/reviewer agent, push, PR mutation or merge performed by implementer. Parent created PR73 after the original submission; this report does not claim its final review/CI status. Original479/check/captures/fingerprint42e9... remain historical in original commits; they are not current Round1 evidence.
+FIX_BASE: `9e77efaccb7f6176cb0759418b29553f9ec1f2d0`. Status: **DONE_WITH_CONCERNS**, I1/I2/I3/I4 addressed locally; controller scoped review, CI and integration pending. Fix commit: `57a08eb3db8e06c05dc957d5d30183b9d845aa9a`. No helper/reviewer agent, push, PR mutation or merge performed by implementer. Parent created PR73 after the original submission; this report does not claim its final review/CI status. Original479/check/captures/fingerprint42e9... remain historical in original commits; they are not current Round1 evidence.
 
 ## Verbatim task review received
 
@@ -270,3 +270,5 @@ I1/I2/I4 were reproduced with meaningful behavior RED; I3 endpoint absence and o
 Fixture mistakes were unsupported link syntax and a wrong201-status expectation; both failures are preserved and not attributed to production. Initial Round1 fullcheck/capture were superseded when transport narrowing changed source. No final browser failure was hidden; both intermediate and final executions passed their then-current source. MISTAKE_LOG records the initial spec gap and product races as actual defects, not waived limitations.
 
 North Star/251 criteria unchanged. This round supplies the previously missing agent-native exact C7 operation path without weakening source/approval/evidence boundaries. Copy is still private, derived and version-aware; no claim of independent evidence, publication, semantic quality or improved agent outcomes. Remaining concerns: independent security/spec review of new explicit admission; short-lived parent-session-dependent grants (not durable unattended service authority), inherited full-state policy/digest/rank costs and process-local cursors, pre-existing M2 large bundles, real corporate IdP/data/operating retention/load/device/IME/screen reader/model-quality acceptance unverified. Controller owns remaining review/CI/merge; no product acceptance criterion is reduced.
+
+Round1 packaging verification: fail-fast `git diff --cached --check` and manifest verification passed; all410 manifest paths plus this report were confirmed tracked in the index before the fix commit. This documentation-only follow-up records the fix hash; production/harness/test/artifact/log bytes are unchanged.

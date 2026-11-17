@@ -162,6 +162,8 @@
 
 **Round1 I1/I2/I4 및 최종 근거:** linked duplicate normalized hash replay, post-move selection generation, delayed mobile destination focus/외부의도 취소를 수정했다. focused63, 최종check486/48/16/41/251/types/build/smoke; 최종transport native3파일4 및 최종HTTP2 보강, 이번라운드 source-compatible6파일77+이전12파일178 carry(고유21파일259, 단일현재실행 아님). 새4config/10PNG의 실제 machine+linked retry+지연 race/focus와 cleanup을 확인했다. 이전479/42e9...는 초기 제출 근거이며 controller 재리뷰/CI/merge 대기다.
 
+Round1 local fix/evidence commit: `57a08eb3db8e06c05dc957d5d30183b9d845aa9a`. 독립 재리뷰/원격 CI/merge는 별도 controller 단계다.
+
 ## Task 8: 내부 연결·백링크
 
 **Files:** Create `server/migrations/120-published-page-links.sql`, `server/convenience/links.ts`, `links.test.ts`, `src/operational/convenience/LinkAutocomplete.tsx`, `Backlinks.tsx`, `links.test.tsx`; Modify `server/publication.ts`, `server/operations/product-erasure.ts`, `server/convenience/http.ts`, `src/operational/convenience/DocumentComposer.tsx`.
