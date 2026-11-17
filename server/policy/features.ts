@@ -235,6 +235,10 @@ export async function assertJobFeatures(
   ctx: Context,
   operation: string,
 ) {
+  if (operation === "monthly") {
+    await assertFeature(db, ctx, "lint", undefined, "knowledge.read");
+    return;
+  }
   if (operation === "daily" || operation === "weekly") {
     await assertFeature(db, ctx, "lint", undefined, "lint.run");
     await assertFeature(db, ctx, "ingest", undefined, "changeset.propose");

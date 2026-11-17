@@ -8,7 +8,7 @@ export function localDate(timezone: string, date: Date): string {
     day: "2-digit",
   }).format(date);
 }
-/** Wall-clock daily/weekly schedule. Nonexistent DST minutes are skipped. During
+/** Wall-clock daily/weekly/monthly schedule. Nonexistent DST minutes are skipped. During
  * a fold only the FIRST matching minute is eligible; durable local-date keys
  * also protect against timezone edits and duplicate scheduler processes. */
 export function nextOccurrence(spec: ScheduleSpec, after: Date): Date {
@@ -17,6 +17,15 @@ export function nextOccurrence(spec: ScheduleSpec, after: Date): Date {
   if (
     spec.cadence === "weekly" &&
     (!Number.isInteger(spec.weekday) || spec.weekday! < 0 || spec.weekday! > 6)
+  )
+    throw Error("INVALID_SCHEDULE");
+  if (
+    !["daily", "weekly", "monthly"].includes(spec.cadence) ||
+    (spec.cadence === "monthly" &&
+      (!Number.isInteger(spec.dayOfMonth) ||
+        spec.dayOfMonth! < 1 ||
+        spec.dayOfMonth! > 31 ||
+        !["clamp", "skip"].includes(spec.invalidDay!)))
   )
     throw Error("INVALID_SCHEDULE");
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -35,6 +44,42 @@ export function nextOccurrence(spec: ScheduleSpec, after: Date): Date {
     initialDate = `${initial.year}-${initial.month}-${initial.day}`;
   const initialTime = `${initial.hour}:${initial.minute}`;
   const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  if (spec.cadence === "monthly") {
+    // Search at most fourteen calendar dates, rather than scanning several years
+    // minute by minute during catchup. Match local wall time to preserve DST.
+    for (let offset = 0; offset < 14; offset++) {
+      const month = new Date(
+        Date.UTC(Number(initial.year), Number(initial.month) - 1 + offset, 1),
+      );
+      const last = new Date(
+        Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0),
+      ).getUTCDate();
+      const day =
+        spec.invalidDay === "clamp"
+          ? Math.min(spec.dayOfMonth!, last)
+          : spec.dayOfMonth!;
+      if (day > last) continue;
+      const date = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      if (spec.holidays.includes(date)) continue;
+      const rough = Date.parse(date + "T" + spec.time + ":00Z");
+      for (
+        let t = rough - 18 * 3600000;
+        t <= rough + 18 * 3600000;
+        t += 60000
+      ) {
+        const p = parts(new Date(t));
+        if (
+          `${p.year}-${p.month}-${p.day}` === date &&
+          `${p.hour}:${p.minute}` === spec.time
+        ) {
+          // First matching minute only, including when after falls within a fold.
+          if (t > +after && t <= +after + 370 * 86400000) return new Date(t);
+          break;
+        }
+      }
+    }
+    throw Error("SCHEDULE_HORIZON_EXCEEDED");
+  }
   // 370 days supports a bounded holiday calendar without unbounded CPU work.
   for (
     let t = Math.floor(+after / 60000) * 60000 + 60000;
