@@ -10,7 +10,11 @@
     "arrivalFifthFocus": true,
     "revokedSafeFocus": true,
     "tabCycle": true,
-    "firstHref": "/?app=1&space=42592932-b3bb-49f8-9277-290466e997e8&document=topic#comment-84712bb0-c903-49b9-94b9-3fd8060cd69f",
+    "fullArrivalFocus": true,
+    "fullMutationFocus": true,
+    "fullRevokedFocus": true,
+    "fullScrollPreserved": true,
+    "firstHref": "/?app=1&space=2e0868bc-e1de-47b2-9b80-ba06ef34776a&document=topic#comment-9cb5664f-42fb-41b6-a9e9-d2a442734361",
     "errors": []
   },
   {
@@ -24,7 +28,11 @@
     "arrivalFifthFocus": true,
     "revokedSafeFocus": true,
     "tabCycle": true,
-    "firstHref": "/?app=1&space=42592932-b3bb-49f8-9277-290466e997e8&document=topic#comment-c63544f1-ef01-4ed2-a7af-d7ff8d34d31c",
+    "fullArrivalFocus": true,
+    "fullMutationFocus": true,
+    "fullRevokedFocus": true,
+    "fullScrollPreserved": true,
+    "firstHref": "/?app=1&space=2e0868bc-e1de-47b2-9b80-ba06ef34776a&document=topic#comment-52ce092d-6acf-49f5-909a-e62678afd4d8",
     "errors": []
   },
   {
@@ -38,7 +46,11 @@
     "arrivalFifthFocus": true,
     "revokedSafeFocus": true,
     "tabCycle": true,
-    "firstHref": "/?app=1&space=42592932-b3bb-49f8-9277-290466e997e8&document=topic#comment-0583cc54-cab1-4c85-abb8-444893fde86f",
+    "fullArrivalFocus": true,
+    "fullMutationFocus": true,
+    "fullRevokedFocus": true,
+    "fullScrollPreserved": true,
+    "firstHref": "/?app=1&space=2e0868bc-e1de-47b2-9b80-ba06ef34776a&document=topic#comment-be614249-ea65-43a6-8d14-661a0675bba5",
     "errors": []
   },
   {
@@ -52,7 +64,11 @@
     "arrivalFifthFocus": true,
     "revokedSafeFocus": true,
     "tabCycle": true,
-    "firstHref": "/?app=1&space=42592932-b3bb-49f8-9277-290466e997e8&document=topic#comment-204182c1-f2f1-4f17-97bf-704624ba52ed",
+    "fullArrivalFocus": true,
+    "fullMutationFocus": true,
+    "fullRevokedFocus": true,
+    "fullScrollPreserved": true,
+    "firstHref": "/?app=1&space=2e0868bc-e1de-47b2-9b80-ba06ef34776a&document=topic#comment-27a7940a-1995-4d18-b367-fbb9acf017e0",
     "errors": []
   }
 ]

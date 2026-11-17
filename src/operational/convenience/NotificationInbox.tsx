@@ -7,6 +7,7 @@ import {
   type InboxProps,
 } from "./inbox-client";
 import "./inbox.css";
+import { useInboxFocus } from "./inbox-focus";
 export function NotificationInbox(props: InboxProps) {
   const [state, setState] = useState("all"),
     [type, setType] = useState(""),
@@ -18,15 +19,18 @@ export function NotificationInbox(props: InboxProps) {
     ...(cursor ? { cursor } : {}),
   }).toString();
   const inbox = useInbox(props, query);
+  const focus = useInboxFocus<HTMLElement>();
   return (
-    <section className="op-panel personal-inbox" aria-label="개인 알림함">
+    <section ref={focus.container} onFocusCapture={focus.onFocusCapture} className="op-panel personal-inbox" aria-label="개인 알림함">
       <h2>알림함</h2>
+      <span className="inbox-live" role="status">{focus.notice}</span>
       <p>읽음과 보관은 검토·작업 상태를 변경하지 않습니다.</p>
       <div className="inbox-filters">
         <label>
           상태{" "}
           <select
             aria-label="알림 상태"
+            data-inbox-focus-fallback
             value={state}
             onChange={(e) => {
               setState(e.target.value);
@@ -85,7 +89,7 @@ export function NotificationInbox(props: InboxProps) {
           <p>읽지 않음 {inbox.page.unreadCount}건</p>
           <ul className="inbox-list">
             {inbox.page.items.map((item) => (
-              <li key={item.id}>
+              <li key={item.id} data-inbox-row>
                 <div>
                   <span>
                     {inboxTypeLabels[item.type]} ·{" "}

@@ -335,3 +335,59 @@ test("completion of an old filter mutation cannot clear a newer operation's busy
   await act(async () => pending[1](item(9)));
   expect(mark().disabled).toBe(false);
 });
+
+test.each(["arrival", "revoked-empty", "revoked-error"].flatMap(change => ["link", "read", "archive"].map(control => [change, control]))) (
+  "full inbox keeps authorized keyboard position after %s removes focused %s", async (change, control) => {
+    let changed = false;
+    const api = { get: async () => {
+      if (!changed) return inboxPage(Array.from({ length: 25 }, (_, n) => item(n)));
+      if (change === "revoked-error") throw Error("접근할 수 없습니다.");
+      return inboxPage(change === "arrival" ? [item(25), ...Array.from({ length: 24 }, (_, n) => item(n))] : []);
+    } } as unknown as OperationalApi;
+    const element = await mountInbox(api);
+    const row = element.querySelectorAll(".inbox-list li")[24];
+    const focused = row.querySelectorAll<HTMLElement>("a,button")[control === "link" ? 0 : control === "read" ? 1 : 2];
+    focused.focus(); expect(document.activeElement).toBe(focused);
+    changed = true;
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(element.textContent).not.toContain("문서 24");
+    expect(element.contains(document.activeElement), `removed row focus became ${document.activeElement?.tagName}`).toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
+    if (change === "arrival") {
+      const currentRow = element.querySelectorAll(".inbox-list li")[24];
+      expect(document.activeElement).toBe(currentRow.querySelectorAll("a,button")[control === "link" ? 0 : control === "read" ? 1 : 2]);
+    } else expect(document.activeElement).toBe(element.querySelector('select[aria-label="알림 상태"]'));
+  },
+);
+test.each([
+  ["all", "보관"], ["unread", "읽음으로 표시"], ["archived", "보관 해제"],
+])("full inbox preserves a neighboring action after mutation removes its focused row in %s", async (state, label) => {
+  let removed = false;
+  const api = {
+    get: async () => ({ ...inboxPage([]), items: (removed ? [item(0)] : [item(0), item(1)]).map(i => ({ ...i, archivedAt: state === "archived" ? "2026-11-17T01:00:00Z" : null })) }),
+    post: async () => { removed = true; return {}; },
+  } as unknown as OperationalApi;
+  const element = await mountInbox(api);
+  const filter = element.querySelector('select[aria-label="알림 상태"]') as HTMLSelectElement;
+  if (state !== "all") await act(async () => { filter.value = state; filter.dispatchEvent(new Event("change", { bubbles: true })); });
+  const last = element.querySelectorAll(".inbox-list li")[1];
+  const button = [...last.querySelectorAll("button")].find(b => b.textContent === label)!;
+  button.focus();
+  await act(async () => button.click());
+  expect(element.textContent).not.toContain("문서 1");
+  expect(document.activeElement).toBe([...element.querySelectorAll(".inbox-list button")].find(b => b.textContent === label));
+});
+test.each(["outside-control", "filter", "outside-pointer"])("full inbox refresh does not steal focus after user leaves via %s", async (destination) => {
+  let changed = false;
+  const api = { get: async () => inboxPage(changed ? [] : [item(0)]) } as unknown as OperationalApi;
+  const element = await mountInbox(api);
+  (element.querySelector(".inbox-list a") as HTMLElement).focus();
+  const outside = document.createElement("button");document.body.append(outside);
+  if (destination === "outside-control") outside.focus();
+  else if (destination === "filter") (element.querySelector("select") as HTMLElement).focus();
+  else document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+  const prior = document.activeElement;
+  changed = true;await act(async () => window.dispatchEvent(new Event("focus")));
+  if (destination === "outside-pointer") expect(document.activeElement).toBe(document.body);
+  else expect(document.activeElement).toBe(prior);
+});

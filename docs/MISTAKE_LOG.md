@@ -937,3 +937,11 @@
 - #55/58/61/57/64의 최종 각8개 원격 검사와 독립 리뷰를 확인하고 순서대로 통합했다. 예약 발행이 기존 publish 본문을 preparePublicationDb/publishInTransaction으로 추출하므로, 가져오기 복원의 applyPublishedImportAttachments를 그 코어 안에서 metadata plan 적용 뒤·published snapshot 캡처 전에 보존했다. 질문/예약 UI import와 CSS, 문서/실패 기록도 양쪽을 보존했다.
 - 통합 native 5파일49시험(예약 서비스14·HTTP1, 가져오기10, version publication8, staged 알림16)이 통과했다. 첫 전체 check는 기존 C1 Navigation 공유 URL 사례만 AccessManager의 capabilities.manageOrganization undefined로 실패했다. 다른298프런트 시험은 통과했지만 해당 전체검사를 통과로 취급하지 않는다. 같은 사례가 Task16의 무변경 UI 검증에서도 일시 실패했었다.
 - 원인: 시험 mock의 미처리 /access 요청에 유효한 AccessState 대신 {items:[]}와200을 반환했고, lazy 관리자 화면이 늦게 완료되는 순서에 따라 오류가 나타났다. 이 공유 링크 시험과 무관한 관리 API 응답만 실제 가능한403 FORBIDDEN으로 명시했다. 제품 코드/인가/모든 기존 assertion과 다른 fixture 경로는 그대로다. 최종 전체 check(299프런트/48Node/16import/41평가/251요구사항/서버타입/build/smoke)가 통과했다. fixture의 좁은 독립 리뷰와 최종 원격 검사는 별도다.
+
+
+### 2026-11-17 — 최종 C2 전체 목록 초점 누락과 실제 main 통합
+
+- 최종 whole-branch 리뷰는 서버/이전4개 수정을 확인했으나, 다섯 건 미리보기만 복구하고 전체25건 목록에는 같은 처리가 없던 누락을 발견했다. 새 도착·원본 철회로 마지막 행을 제거하면 링크/읽음/보관 버튼의 초점이 BODY로 빠졌다. 리뷰어의 별도 arrival/revoked2재현을 확인하고 프로젝트에서 오류 응답과 자기 mutation 제거까지12실패를 재현했다. 이전 회귀/브라우저 성공을 이 미검증 경계의 성공으로 확대하지 않는다.
+- 먼저 main537ba7a(#68)의 실제 검색 index/질문 scope/collector/roundtrip/예약 발행 변경을 true base6366597로 병합했다. docs양쪽 기록, retention의 inbox 및 index 제어, App의 C2와 질문/예약 UI를 모두 보존했다. App의 포맷 차이로 어긋난 JSX conflict는 기능 위치에 문맥 수정하고 읽기 전용 정규화 비교로 main 기능이 전부 남았음을 확인했다. CIserver20/마이그레이션140은 유지한다. 첫 Badge anchor assertion은 App 쓰기 전에 실패했고, 충돌 상태에서 정규화하려다 큰 parser 로그를 출력했다. 실제 공백에 맞는 문맥을 사용하고 오류 출력을 제한해 다시 검증했다. 커밋된 기존 작업 폐기/재구성·미관 정리는 하지 않았다.
+- 조치: 미리보기와 전체 목록에 공통 focus helper를 적용해 제거된 제어만 현재 인가된 이웃 행의 같은 제어 또는 안정된 상태 필터로 옮긴다. 사용자 focus/pointer가 밖으로 이동하면 복구하지 않는다. preventScroll 및 현재 범위 안의 조상/viewport scroll을 유지하며 보호된 과거 행을 캐시하지 않는다.
+- 검증: UI RED12→GREEN31; 통합 최종 한 번 npm run check(frontend330/Node48/import16/evaluation41/251요구사항/서버types/build/smoke) exit0, C2 및 새 main의 공유 발행·가져오기·검색·질문·탐색 경계21native파일 모두 통과(상세 수는 인계/task report). 실제1440/390 light/dark26장과 실제 도착·보관·철회·scroll/focus assertion을 재검증했다. 이전8c1be04의 remote run44004491997 필수8jobs 성공은 컨트롤러가 확인했지만, 이 새로운 통합/focus HEAD의 CI를 대신하지 않는다. 기존 chunk 경고 및 실제 운영 인수 한계는 유지한다.

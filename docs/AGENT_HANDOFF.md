@@ -798,3 +798,12 @@ FIX_BASE be613da의 I1/I2/I3/M1을 실제 실패로 확인한 뒤 수정했다. 
 
 - main #59의6366597을 보존한 뒤 #55 인덱스, #58 질문 범위, #61 실제 추가 수집기, #57 구조/이력 왕복을 각각 최종8검사·독립 승인과 통합 회귀 후 머지했다. #64 예약 발행은 같은 원자 발행 코어 안에 가져오기 첨부 훅을 보존해 통합한다. 요구사항SRH-001~010/QNA-004/CORE-010/COL-004/LIF-008/009/REV 발행 관련이며 전체251개 기준·현재 권한/원본 상한은 유지한다.
 - 통합 전체check299/48/16/41/251 및 native49시험이 통과했다. 처음 전체검사의 무효한 관리 API fixture 실패와 수정은 MISTAKE_LOG에 보존했다. 원격 최종 CI와 통합 broad review를 통과한 뒤 다음 main PR로 반영한다. 실제 회사 SSO/모델 품질·운영 인수와 성능 효과는 주장하지 않는다. 1노드/App1/DB1 최소리소스 기준을 유지한다.
+
+
+## 2026-11-17 C2 최종 main 통합·전체 목록 초점 수정
+
+main537ba7a를 true base6366597로 병합한 체크포인트a2a76e2에서 #55index/#58scope/#61collector/#57roundtrip/#64scheduled publication과 C2를 모두 유지했다. App 읽기 전용 정규화 diff는 main 대비 C2 Bell/Inbox 연결만 남는다. 공통 발행 코어/가져오기 attachment 적용, 현재 질문 범위, retention index/inbox schema/FK 검사를 유지한다. CIserver20과 migration140은 변경하지 않았다.
+
+최종 리뷰의 전체25건 목록 focus→BODY를12실패로 재현한 뒤 현재 DOM의 이웃 행·동일 제어 또는 상태 필터로 복구했다. Bell과 작은 helper를 공유하며 접근 불가 행을 보존하지 않고, 사용자가 밖으로 이동했으면 초점을 가져오지 않는다. UI31시험 통과. 최종 한 번 npm run check exit0(frontend330/Node48/import16/evaluation41/251요구사항/types/build/smoke), 파일별 disposable PG의21파일215시험 exit0. C2기존13파일에 예약 발행 service/realOIDC HTTP, roundtrip, version publication, search index, question scope core/HTTP, native navigation을 더해 실제 main 공유 경계를 검증했다.
+
+[실제26장과 전체25건 도착/보관/철회 focus·scroll 결과](ui-validation/2026-11-17-personal-inbox/README.md). 원시 로그는 local task report의 `c2-logs/akh-c2-final-wave-*`. 기존8c1be04 remote run44004491997 all8 성공은 과거 HEAD 증거이며, 최종 통합+focus HEAD의 독립 재리뷰/필수CI/병합은 별도다. 기능 범위는 C2로 유지하며 다음 C 작업이나 운영·지식품질 인수를 완료로 올리지 않는다.
