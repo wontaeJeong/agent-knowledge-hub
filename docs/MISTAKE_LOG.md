@@ -832,3 +832,11 @@
 - 컨트롤러가 이전 C2 head be613da의 run44000325932/job133762488115 로그를 진단했다. 서버 job은02:04:59에 시작해02:20:10에 명시적 operation canceled로 끝났다. 132파일 중131파일이 통과했고 FAIL 기록 없이 `[132/132] workflows.test.ts`에서 중단됐다. 취소된 실행은 전체 통과가 아니며 마지막 파일 성공도 확인할 수 없는 상태다.
 - 기존 `.github/workflows/ci.yml`의 server job timeout-minutes가15임을 직접 확인했다. 전체 suite가 job 예산을 초과한 것이 현재 증거에 맞는 가설이며 제품 assertion 실패나 마지막 파일 결함을 확인한 것은 아니다. 컨트롤러가8d1cb9a에서 정확한 마지막 파일을 전용 PG32769로 실행한 로그는36/36 pass,3.15초,exit0이다(`/private/tmp/akh-c2-ci-last-file.log`). 이 집중 결과를 취소된 전체 실행의 통과로 대체하지 않는다.
 - 조치: server job의 한 값만15→20분으로 조정했다. 개별 시험 예산/assertion, 제품 timeout, 다른 job, 실행 파일/단계는 유지했다. sharding/skip/새 인프라는 추가하지 않았다. YAML parse와 이전 커밋 대비 구조 비교에서 허용한 job 예산 이외의 차이가 없는지 확인했다. config/docs 변경에 전체 제품 검사를 반복하지 않았으며, 최종 새 HEAD의 CI가 전체132개 이상 파일을 끝까지 실행하고 필수 검사를 통과해야 한다.
+
+
+### 2026-11-17 — C2 CI workflow 게시의 Git 자격 증명 범위와 정상 경로
+
+- 컨트롤러의17093a6 Git push는 OAuth token에 workflow scope가 없어 GitHub에서 거절됐다. 원격 게시 성공으로 기록하지 않았으며 토큰 권한을 확대하지 않았다. 제품 수정8d1cb9a는 일반 push로 게시했다.
+- 기존 `.github/workflows/ci.yml`의 확인된 blob4bfef13을 대상으로 정상 GitHub connector `update_file`을 사용해 동일한 server job15→20 변경을c569e9f로 기록했다. 이어 컨트롤러가17093a6과c569e9f를 부모로 하는cd1ccfc를 만들고 expected c569e9f/force=false의 정상 ref 갱신으로 양쪽 이력을 보존했다. 이 경로는 기존 정상 도구 권한을 사용했으며 추가 scope 부여나 강제 덮어쓰기를 하지 않았다.
+- 로컬 e5a9에서 직접 확인: HEADcd1ccfcc07b9989abb72705de9391890226420fb, 부모17093a6/c569e9f, `git diff17093a6..cd1ccfc` empty/exit0, 양쪽 tree42cbe67269efcd056551cf1ee5e7078e31452ab4 동일, tracked clean. workflow/제품 결과가 동일하므로 제품 suite를 반복하지 않았다. task review fix1의4개 지적은 승인됐으나 final review와 exact-head CI는 별도 미완료 gate다.
+- 보고 준비 오류: 컨트롤러의 첫 job-log 조회가 큰 구조화 로그를 출력했다. 이후 필요한 구간만 제한 추출했으며 제품 변경은 없었다. 로그는 GitHub masking 및 테스트 전용 값이었고 실제 비밀 노출은 보고되지 않았다. 이 기록은 전체 CI 통과를 의미하지 않는다.
