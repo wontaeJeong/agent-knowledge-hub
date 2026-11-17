@@ -321,7 +321,7 @@ export class WorkflowService {
         dependencies,
       );
     }
-    return { dependencyVersions: dependencies, sourceIds: [...sources] };
+    return { dependencyVersions: dependencies, sourceIds: [...sources], templateIds: [...new Set<string>(history.rows.flatMap(row => typeof row.data.templateId === "string" ? [row.data.templateId] : []))].sort() };
   }
 
   async saveDraft(ctx: Context, input: unknown) {
@@ -468,7 +468,7 @@ export class WorkflowService {
       await db.query("DELETE FROM workflow_draft_disclosures WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3 AND batch_id IS NULL",[ctx.workspaceId,ctx.principalId,draftId]);
       // Retain the server registration edge for source-root erasure of surviving
       // templates/caches; the deleted private snapshot itself is no longer needed.
-      await db.query("UPDATE workflow_draft_disclosures SET snapshot='{}',decisions='{}' WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3 AND batch_id IS NOT NULL",[ctx.workspaceId,ctx.principalId,draftId]);
+      await db.query("UPDATE workflow_draft_disclosures SET snapshot=CASE WHEN jsonb_array_length(COALESCE(snapshot->'templateIds','[]'::jsonb))>0 THEN jsonb_build_object('templateIds',snapshot->'templateIds') ELSE '{}'::jsonb END,decisions='{}' WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3 AND batch_id IS NOT NULL",[ctx.workspaceId,ctx.principalId,draftId]);
       await audit(db, ctx, "draft.delete", draftId);
       return { id: draftId };
     });
@@ -1685,12 +1685,18 @@ export class WorkflowService {
         const lineage = await this.plainTemplateAccess(db, ctx, {
           ...t,
           originVersion: previous?.originVersion ?? draftOriginVersion,
+          sourceIds: previous?.sourceIds,
+          dependencyVersions: previous?.dependencyVersions,
         });
         const { expectedRevision: _, ...rest } = t;
-        const data = {
-          ...rest,
-          ...lineage,
-        };
+        // Only validated owner-scoped producer IDs survive template replacement.
+        // This private erasure relation is not an input or a public template field.
+        const producerDraftIds = [...new Set<string>([
+          ...(previous?.producerDraftIds ?? []),
+          ...(previous?.sourceDraftId ? [previous.sourceDraftId] : []),
+          ...(t.sourceDraftId ? [t.sourceDraftId] : []),
+        ])].sort();
+        const data = { ...rest, ...lineage, producerDraftIds };
         await db.query(
           "INSERT INTO workflow_templates VALUES($1,$2,$3,$4,$5) ON CONFLICT(workspace_id,owner_id,id) DO UPDATE SET revision=excluded.revision,data=excluded.data",
           [
@@ -1701,7 +1707,7 @@ export class WorkflowService {
             data,
           ],
         );
-        return { ...data, revision: t.expectedRevision + 1 };
+        return { ...rest, ...lineage, revision: t.expectedRevision + 1 };
       },
     );
   }
@@ -1715,7 +1721,8 @@ export class WorkflowService {
       for (const r of rows.rows) {
         try {
           await this.plainTemplateAccess(db, ctx, r.data);
-          items.push({ id: r.id, revision: r.revision, ...r.data });
+          const { producerDraftIds: _internal, ...visible } = r.data;
+          items.push({ id: r.id, revision: r.revision, ...visible });
         } catch (e) {
           if (!(
             e instanceof Error &&

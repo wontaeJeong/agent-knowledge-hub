@@ -57,10 +57,99 @@ test("actual lineage propagates source→page→draft→answer→claim/review; t
 });
 test("publication event follows its originating batch into source erasure without a selected page", () => {
   const rows = [
-    { table: "batches", locator: "(0,1)", data: { id: "batch", data: { snapshots: [{ sourceId: "source" }] } } },
-    { table: "collaboration_events", locator: "(0,2)", data: { id: "publication:batch:other-page", kind: "publication", page_id: "other-page", resource_id: "batch", revision: "1" } },
-    { table: "workflow_notifications", locator: "(0,3)", data: { id: "notice", data: { eventId: "publication:batch:other-page" } } },
-    { table: "pages", locator: "(0,4)", data: { id: "other-page", data: { title: "Independent page" } } },
+    {
+      table: "batches",
+      locator: "(0,1)",
+      data: { id: "batch", data: { snapshots: [{ sourceId: "source" }] } },
+    },
+    {
+      table: "collaboration_events",
+      locator: "(0,2)",
+      data: {
+        id: "publication:batch:other-page",
+        kind: "publication",
+        page_id: "other-page",
+        resource_id: "batch",
+        revision: "1",
+      },
+    },
+    {
+      table: "workflow_notifications",
+      locator: "(0,3)",
+      data: { id: "notice", data: { eventId: "publication:batch:other-page" } },
+    },
+    {
+      table: "pages",
+      locator: "(0,4)",
+      data: { id: "other-page", data: { title: "Independent page" } },
+    },
   ];
-  expect(selectErasureRows(rows, { kind: "source", id: "source" }).map((r) => r.table)).toEqual(["batches", "collaboration_events", "workflow_notifications"]);
+  expect(
+    selectErasureRows(rows, { kind: "source", id: "source" }).map(
+      (r) => r.table,
+    ),
+  ).toEqual(["batches", "collaboration_events", "workflow_notifications"]);
+});
+test("only the persisted disclosure registration carries an affected owned draft into its source and publication descendants", () => {
+  const row = (table: string, id: string, data: Record<string, unknown>) => ({
+    table,
+    locator: id,
+    data: { id, ...data },
+  });
+  const rows = [
+    row("sources", "origin", {}),
+    row("workflow_draft_disclosures", "origin-review", {
+      owner_id: "owner",
+      draft_id: "origin-draft",
+      source_id: "origin",
+    }),
+    row("workflow_templates", "template", {
+      owner_id: "owner",
+      data: { sourceDraftId: "origin-draft" },
+    }),
+    row("workflow_drafts", "copy", {
+      owner_id: "owner",
+      data: { templateId: "template" },
+    }),
+    row("workflow_draft_disclosures", "copy-review", {
+      owner_id: "owner",
+      draft_id: "copy",
+      source_id: "copy-source",
+    }),
+    row("sources", "copy-source", {}),
+    row("batches", "copy-batch", {
+      data: { snapshots: [{ sourceId: "copy-source" }] },
+    }),
+    row("versions", "v", {
+      page_id: "copy-page",
+      data: { sourceIds: ["copy-source"] },
+    }),
+    row("workflow_draft_disclosures", "other-owner", {
+      owner_id: "other",
+      draft_id: "copy",
+      source_id: "unrelated-source",
+    }),
+    row("sources", "unrelated-source", {}),
+    row("sources", "forged", {
+      data: {
+        manualOwnerId: "owner",
+        manualDraftId: "copy",
+        source_id: "unrelated-source",
+      },
+    }),
+  ];
+  expect(
+    selectErasureRows(rows, { kind: "source", id: "origin" }).map(
+      (r) => r.data.id,
+    ),
+  ).toEqual([
+    "origin",
+    "origin-review",
+    "template",
+    "copy",
+    "copy-review",
+    "copy-source",
+    "copy-batch",
+    "v",
+  ]);
 });

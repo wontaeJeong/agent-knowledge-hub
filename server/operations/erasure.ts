@@ -212,8 +212,13 @@ function own(row: ProductRow) {
   if (typeof d.owner_id === "string") {
     if (t === "workflow_drafts" && typeof id === "string")
       return new Set(["owned-draft:" + JSON.stringify([d.owner_id,id])]);
-    if (["workflow_draft_disclosures","workflow_draft_revision_history"].includes(t) && typeof d.draft_id === "string")
-      return new Set(["owned-draft:" + JSON.stringify([d.owner_id,d.draft_id])]);
+    if (["workflow_draft_disclosures","workflow_draft_revision_history"].includes(t) && typeof d.draft_id === "string") {
+      result.add("owned-draft:" + JSON.stringify([d.owner_id,d.draft_id]));
+      // A selected registration also owns the immutable source it created.
+      // Follow this server column, never arbitrary Source JSON claims.
+      if (t === "workflow_draft_disclosures" && typeof d.source_id === "string") result.add("source:" + d.source_id);
+      return result;
+    }
     if (t === "workflow_templates" && typeof id === "string")
       return new Set(["owned-template:" + JSON.stringify([d.owner_id,id])]);
   }
@@ -265,6 +270,16 @@ function lineageRefs(row: ProductRow) {
     const binding = row.data.binding as {id?:unknown}|undefined;
     const draftId = row.data.draft_id ?? (row.table === "workflow_draft_recovery_grants" ? binding?.id : data?.sourceDraftId);
     if (typeof draftId === "string") result.add("owned-draft:" + JSON.stringify([row.data.owner_id,draftId]));
+    if (row.table === "workflow_templates") {
+      const producers = (row.data.data as {producerDraftIds?:unknown}|undefined)?.producerDraftIds;
+      if (Array.isArray(producers)) for (const producer of producers)
+        if (typeof producer === "string") result.add("owned-draft:" + JSON.stringify([row.data.owner_id,producer]));
+    }
+    if (row.table === "workflow_draft_disclosures") {
+      const templates = (row.data.snapshot as {templateIds?:unknown}|undefined)?.templateIds;
+      if (Array.isArray(templates)) for (const template of templates)
+        if (typeof template === "string") result.add("owned-template:" + JSON.stringify([row.data.owner_id,template]));
+    }
     // templateId is authoritative only on owner-scoped, server-validated saved
     // drafts/history. An arbitrary Source JSON field confers no deletion edge.
     if (["workflow_drafts","workflow_draft_revision_history"].includes(row.table)) {

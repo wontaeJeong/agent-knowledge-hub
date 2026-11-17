@@ -49,8 +49,10 @@
 
 페이지 없는 복구는 실제 owner의 저장 초안과 `draft.write`, 동일 Context의 `effectiveAccess.local.copy`를 먼저 확인하고, 현재/이력/본문 참조/상위 위치의 모든 page/source를 정본 `local.copy`와 명시 원본 정책으로 검사한다. 페이지 권한을 가짜로 만들거나 credential context를 제거하지 않는다. 발급 정책상 draft.write 위임 토큰은 존재하지 않으므로 실제 발급 가능한 read/local.copy 토큰의 draft.write 거부와 인간 owner 경계를 각각 시험했다.
 
-`workflow_draft_disclosures`와 source의 `manualProvenance`는 현재 inventory/법정 삭제 그래프에 포함된다. snapshot/decisions/submission/audience는 inventory에 본문으로 반환하지 않는다. 서버 등록 관계만 owner+draft 삭제 edge가 되며 다른 owner의 동명 초안은 보존한다. private draft 삭제 후에도 등록 관계는 남고 snapshot/decisions는 지운다. 원계보 source 삭제와 manual source 자체 삭제의 실제 DB redaction, 완료된 workspace erasure 뒤 새 저장/공개 요청 차단을 검증했다. 기존 hold/restore/replay와 물리 purge의 한계는 그대로다.
+`workflow_draft_disclosures`와 source의 `manualProvenance`는 현재 inventory/법정 삭제 그래프에 포함된다. snapshot/decisions/submission/audience는 inventory에 본문으로 반환하지 않는다. 서버 등록 관계만 owner+draft 삭제 edge가 되며 다른 owner의 동명 초안은 보존한다. private draft 삭제 후에도 등록 관계와 내부 templateIds는 남고 본문·사유·decisions는 지운다. 원계보 source 삭제와 manual source 자체 삭제의 실제 DB redaction, 완료된 workspace erasure 뒤 새 저장/공개 요청 차단을 검증했다. 기존 hold/restore/replay와 물리 purge의 한계는 그대로다.
 
 C6 Chromium 실제 브라우저 프로세스 재시작·오프라인·두 탭 충돌·1440/390 light/dark 증거는 [검증 기록](../../docs/ui-validation/2026-11-17-new-document/README.md)에 있다. 합성 PG17/loopback 인증 어댑터를 사용하며 운영 IdP/OS IME/품질 인수로 승격하지 않는다. 템플릿 본문은 정본 계보 저장 성공 후 편집기/복구 캐시에 들어오고, 정확한 요청 초안이 현재 ACL에서 사라지면 캐시를 비운다.
 
 C6 리뷰 수정 1차에서는 등록 전 생성한 명시 templateId 사본까지 owner-scoped template token과 초안 이력을 통해 같은 삭제 walk에 포함한다. 현재 metadata에서 templateId를 제거해도 과거 이력이 사본의 owner/draft token을 연결한다. 실제 erasure로 본문·save mutation·이력 및 recovery grant 무효화를 검사하며 원초안 삭제 후와 다른 owner의 동일 template/draft ID 보존을 모두 확인했다. inventory는 template/sourceDraft ID를 보존하되 본문과 새 공개 요청/결정 사유는 해시 projection 뒤에 둔다.
+
+C6 리뷰 수정 2차는 등록된 파생 사본의 disclosure.source_id까지 같은 owner/workspace 그래프를 전파한다. 보호 snapshot.templateIds(현재+전체 이력)와 template.producerDraftIds(CAS 갱신 누적)는 private 삭제·생산자 필드 생략 이후의 최소 관계다. inventory는 이 ID만 투영하고 본문/사유는 해시 뒤에 둔다. 공개 DTO/외부 입력에는 내부 관계를 허용하지 않는다. 실제 submitted/published 사본의 source/batch/version redaction, derived/private 원초안 삭제 변형, 파생 page hold의 삭제 거부, 다른 owner/Source JSON spoof 보존을 검증했다. 템플릿 삭제 API는 없고 기존 법정 삭제 closure가 삭제 전 관계를 포착한다. 이미 이전 버전에서 소실된 관계는 임의 본문 추론으로 복구하지 않는다.

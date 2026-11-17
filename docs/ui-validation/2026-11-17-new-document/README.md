@@ -2,7 +2,7 @@
 
 2026-11-17, Node24.22.2, cached Playwright Chromium, 1440×1000 / 390×844, light/dark. 스크린샷은 전체 페이지 높이다. 실제 React/Vite → 실제 runtime HTTP → disposable PostgreSQL17을 실행했다. `composer-runtime.ts`의 명시적 `AKH_C6_SYNTHETIC_CAPTURE=1` loopback 인증 어댑터와 합성 업무 자료를 사용했으며 DTO/모델 성공을 위조하지 않았다. 운영 OIDC/회사 자료/품질 인수는 아니다.
 
-최종 backend runtime는 **18:06:37 KST** 시작한 PID32929이며 마지막 backend 변경 뒤 재시작했다. Vite PID32943는 최종 frontend 파일을 실제 모듈 요청으로 제공했다. 최종 제품 소스는 [source-manifest.json](source-manifest.json)의 17개 변경 production 파일이다. 해당 manifest를 포함하는 커밋이 검증 소스 커밋이다. [browser-results.json](browser-results.json)의 결과는 harness의 실제 assertion을 통과한 후에만 기록했다. 초기 성공/실패 실행과 최종 결과를 구분한다.
+최종 backend runtime는 **18:36:31 KST** 시작한 PID42429이며 마지막 backend 변경 뒤 재시작했다. Vite PID42457는 최종 frontend 파일을 실제 모듈 요청으로 제공했다. 최종 제품 소스는 [source-manifest.json](source-manifest.json)의 17개 변경 production 파일이다. 해당 manifest를 포함하는 커밋이 검증 소스 커밋이다. [browser-results.json](browser-results.json)의 결과는 harness의 실제 assertion을 통과한 후에만 기록했다. 초기 성공/실패 실행과 최종 결과를 구분한다.
 
 네 조건 모두 확인:
 
@@ -45,8 +45,10 @@ AKH_C6_SYNTHETIC_CAPTURE=1 PLAYWRIGHT_MODULE=/Users/wt.jeong/.npm/_npx/9833c18b2
 node docs/ui-validation/2026-11-17-new-document/manifest.mjs --verify
 ```
 
-최종 `npm run check` exit0: frontend421/65파일, Node48, imports16, evaluation41, requirements251, server types/build/static HTTP smoke. Native15파일230 exit0. Vite 기존500kB chunk 경고를 유지했다. 최종 로그 원문은 작업 디렉터리 `.superpowers/sdd/2026-11-16-essential-convenience/logs/c6-r1-final-check.log`, `c6-r1-final-native.log`, `c6-r1-browser-final.log`에 보존한다. 최초 네이티브 RED7/기존4통과, 클라이언트 RED3/기존5통과와 후속 실패/수정은 작업 report 및 MISTAKE_LOG에 기록했다.
+최종 `npm run check` exit0: frontend421/65파일, Node48, imports16, evaluation41, requirements251, server types/build/static HTTP smoke. Native15파일239 exit0. Vite 기존500kB chunk 경고를 유지했다. 최종 로그 원문은 작업 디렉터리 `.superpowers/sdd/2026-11-16-essential-convenience/logs/c6-r2-final-check.log`, `c6-r2-final-native.log`, `c6-r2-browser-final.log`에 보존한다. 최초 네이티브 RED7/기존4통과, 클라이언트 RED3/기존5통과와 후속 실패/수정은 작업 report 및 MISTAKE_LOG에 기록했다.
 
-완료 후 commandline으로 소유권을 확인한 PID32929/32943만 SIGTERM했다. owned `akh_c6_ui_*` DB 0, `akh_c6_profile_*` 0, 4396/5196 closed를 별도 검증했다. 부모 PG17 컨테이너는 계속 유지했다. 독립 리뷰·원격8CI·PR/병합은 controller가 수행한다.
+완료 후 commandline으로 소유권을 확인한 PID42429/42457만 SIGTERM했다. owned `akh_c6_ui_*` DB 0, `akh_c6_profile_*` 0, 4396/5196 closed를 별도 검증했다. 부모 PG17 컨테이너는 계속 유지했다. 독립 리뷰·원격8CI·PR/병합은 controller가 수행한다.
 
-최종 round1 manifest 검증:17 production +3 harness +41 artifacts(40화면/resultsJSON). `c6-r1-cleanup.log` exit0은 own DB/profile0 및4396/5196 closed를 별도로 확인한다. 이전 capture는 초기 커밋의 이력이며 이 파일과 source manifest는 round1 최종 코드의 새 실행을 가리킨다.
+최종 round2 manifest 검증:17 production +3 harness +41 artifacts(40화면/resultsJSON). `c6-r2-cleanup.log` exit0은 own DB/profile0 및4396/5196 closed를 별도로 확인한다. 이전 capture는 초기 커밋의 이력이며 이 파일과 source manifest는 round2 최종 코드의 새 실행을 가리킨다.
+
+리뷰 수정2차는 UI/harness 변경 없이 backend 삭제 수명주기를 보완했다. 위 runtime은 마지막 backend 수정 뒤 시작한 새 프로세스이며 같은 네 조건을 전체 재실행했다(`c6-r2-browser-final.log` exit0). 이전 캡처에 새 파일 해시만 덮어쓰지 않았다. 원본 등록 전 등록된 template 사본의 source/batch/발행 payload 삭제·private 양쪽 삭제·template 갱신·hold는 native239에서 검증하며 브라우저 화면을 삭제 증거로 대신하지 않는다. 새 캡처는 I1/I3/I4와 최초 발행/복구 UI의 현행 코드 호환 증거다. UI-only 동작, 합성 인증/PG17, OS IME/품질/운영 한계는 그대로다.

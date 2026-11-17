@@ -39,6 +39,8 @@ export interface DisclosureRow {
   snapshot: {
     title: string;
     requestReason?: string;
+    /** Server-validated current/history template consumption, retained only for erasure. */
+    templateIds?: string[];
     content: string;
     sourceIds: string[];
     dependencyVersions: Record<string, number>;
@@ -148,7 +150,7 @@ export class ManualDraftDisclosureService {
       sourceIds: lineage.sourceIds,
       dependencyVersions: lineage.dependencyVersions,
     };
-    return { snapshot, envelope, contentHash: fingerprint(snapshot) };
+    return { snapshot: { ...snapshot, ...(lineage.templateIds.length ? { templateIds: lineage.templateIds } : {}) }, envelope, contentHash: fingerprint(snapshot) };
   }
   private async policy(
     db: PoolClient,
@@ -354,7 +356,11 @@ export class ManualDraftDisclosureService {
             hash: row.hash,
             audience: row.audience,
             parentId: row.parent_id,
-            ...row.snapshot,
+            title: row.snapshot.title,
+            content: row.snapshot.content,
+            sourceIds: row.snapshot.sourceIds,
+            dependencyVersions: row.snapshot.dependencyVersions,
+            requestReason: row.snapshot.requestReason,
             submission: row.submission?.result,
             decision: Object.values(row.decisions).find((d) => d.decision)
               ?.decision,

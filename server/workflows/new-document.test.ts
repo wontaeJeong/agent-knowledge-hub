@@ -714,3 +714,259 @@ test.each([false, true])(
     ).toBe(secret);
   },
 );
+test.each([
+  [false, false, false],
+  [true, false, false],
+  [false, true, false],
+  [true, true, false],
+  [true, true, true],
+])(
+  "origin source erasure reaches a registered copy (published=%s, deleted=%s, templateUpdated=%s)",
+  async (published, removeDerived, updateTemplate) => {
+    const secret = "C6_REGISTERED_DESCENDANT_BODY";
+    const register = async (
+      draftId: string,
+      title: string,
+      expectedRevision = 1,
+    ) => {
+      const disclosure = await s.manualDisclosures.request(f.editor, draftId, {
+        expectedRevision,
+        title,
+        parentId: null,
+        readers: ["editor", "reviewer"],
+        reviewerId: "reviewer",
+        reason: "등록 사유 " + secret,
+        mutationId: randomUUID(),
+      });
+      await s.manualDisclosures.decide(f.ctx, disclosure.id, {
+        hash: disclosure.hash,
+        decision: "approve",
+        reason: "검토 사유 " + secret,
+        mutationId: randomUUID(),
+      });
+      expect(
+        (await s.manualDisclosures.list(f.ctx)).items.find(
+          (item) => item.id === disclosure.id,
+        ),
+      ).not.toHaveProperty("templateIds");
+      return {
+        disclosure,
+        ...(await s.submitNewDraft(f.editor, draftId, {
+          expectedRevision,
+          title,
+          parentId: null,
+          reason: "발행 제안",
+          disclosureId: disclosure.id,
+          disclosureHash: disclosure.hash,
+          mutationId: randomUUID(),
+        })),
+      };
+    };
+    await s.saveDraft(f.editor, {
+      id: "registration-origin",
+      expectedRevision: 0,
+      title: "원본",
+      content: secret,
+    });
+    await s.saveTemplate(f.editor, {
+      id: "registration-template",
+      expectedRevision: 0,
+      title: "원본 템플릿",
+      content: secret,
+      retainLineage: true,
+      sourceDraftId: "registration-origin",
+      sourceDraftRevision: 1,
+    });
+    const copy = await s.saveDraft(f.editor, {
+      id: "registered-copy",
+      expectedRevision: 0,
+      title: "등록할 사본",
+      content: secret,
+      templateId: "registration-template",
+      templateRevision: 1,
+      mutationId: randomUUID(),
+    });
+    const { DraftRecoveryService } = await import("../retention/recovery");
+    const recovery = new DraftRecoveryService(f.pool),
+      grant = await recovery.permission(f.editor, {
+        kind: "draft",
+        id: copy.id,
+        draftId: copy.id,
+        expectedRevision: 1,
+        sourceIds: [],
+        dependencyVersions: {},
+      });
+    await s.saveDraft(f.editor, {
+      id: copy.id,
+      expectedRevision: 1,
+      title: copy.title,
+      content: secret,
+      mutationId: randomUUID(),
+    });
+    const derived = await register(copy.id, copy.title, 2);
+    if (published) {
+      await s.runtime.core.approve(f.ctx, derived.batchId, derived.hash);
+      await s.runtime.core.publish(
+        f.ctx,
+        derived.batchId,
+        derived.hash,
+        randomUUID(),
+      );
+      expect(
+        (
+          await f.pool.query(
+            "SELECT data FROM versions WHERE workspace_id=$1 AND page_id=$2",
+            [f.workspaceId, "document-" + derived.disclosure.id],
+          )
+        ).rows[0].data.content,
+      ).toBe(secret);
+    }
+    if (updateTemplate) {
+      const updated = await s.saveTemplate(f.editor, {
+        id: "registration-template",
+        expectedRevision: 1,
+        title: "갱신한 템플릿",
+        content: secret,
+      });
+      expect(updated).not.toHaveProperty("producerDraftIds");
+      expect((await s.templates(f.editor)).items[0]).not.toHaveProperty(
+        "producerDraftIds",
+      );
+    }
+    if (removeDerived) await s.deleteDraft(f.editor, copy.id, 2);
+    const origin = await register("registration-origin", "원본");
+    if (published) await s.deleteDraft(f.editor, "registration-origin", 1);
+    await s.saveDraft(f.ctx, {
+      id: "registered-copy",
+      expectedRevision: 0,
+      title: "독립된 소유자",
+      content: secret,
+    });
+    await f.pool.query(
+      "INSERT INTO resource_readers SELECT workspace_id,kind,id,'fixture-owner' FROM resources WHERE workspace_id=$1 ON CONFLICT DO NOTHING",
+      [f.workspaceId],
+    );
+    const { OperationsService } = await import("../operations/service"),
+      { previewErasure, executeErasure } =
+        await import("../operations/erasure");
+    const ops = new OperationsService(f.pool, authorizeInTransaction),
+      admin = { workspaceId: f.workspaceId, principalId: "fixture-owner" },
+      input = {
+        scope: "resource",
+        resource: { kind: "source", id: origin.sourceId },
+      };
+    if (published) {
+      await f.pool.query(
+        "INSERT INTO operations_legal_holds(workspace_id,id,resource_kind,resource_id,placed_by) VALUES($1,'descendant-hold','page',$2,'fixture-owner')",
+        [f.workspaceId, "document-" + derived.disclosure.id],
+      );
+      const held = await previewErasure(ops, admin, input);
+      expect(held.legalHold).toBe(true);
+      await expect(
+        executeErasure(ops, admin, {
+          ...input,
+          previewHash: held.previewHash,
+          confirm: "ERASE_PREVIEWED_RESOURCE_LINEAGE",
+        }),
+      ).rejects.toThrow("LEGAL_HOLD");
+      expect(
+        (
+          await f.pool.query(
+            "SELECT data FROM sources WHERE workspace_id=$1 AND id=$2",
+            [f.workspaceId, derived.sourceId],
+          )
+        ).rows[0].data.content,
+      ).toBe(secret);
+      await f.pool.query(
+        "UPDATE operations_legal_holds SET active=false WHERE workspace_id=$1 AND id='descendant-hold'",
+        [f.workspaceId],
+      );
+    }
+    const preview = await previewErasure(ops, admin, input);
+    expect(
+      (
+        await executeErasure(ops, admin, {
+          ...input,
+          previewHash: preview.previewHash,
+          confirm: "ERASE_PREVIEWED_RESOURCE_LINEAGE",
+        })
+      ).status,
+    ).toBe("completed");
+    expect(
+      JSON.stringify(
+        (
+          await f.pool.query(
+            "SELECT data FROM sources WHERE workspace_id=$1 AND id=$2",
+            [f.workspaceId, derived.sourceId],
+          )
+        ).rows,
+      ),
+    ).not.toContain(secret);
+    expect(
+      JSON.stringify(
+        (
+          await f.pool.query(
+            "SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",
+            [f.workspaceId, derived.batchId],
+          )
+        ).rows,
+      ),
+    ).not.toContain(secret);
+    if (published) {
+      expect(
+        JSON.stringify(
+          (
+            await f.pool.query(
+              "SELECT data FROM versions WHERE workspace_id=$1 AND page_id=$2",
+              [f.workspaceId, "document-" + derived.disclosure.id],
+            )
+          ).rows,
+        ),
+      ).not.toContain(secret);
+      await expect(
+        s.document(f.editor, "document-" + derived.disclosure.id),
+      ).rejects.toThrow();
+    }
+    await expect(
+      recovery.validate(f.editor, { binding: grant }),
+    ).rejects.toThrow();
+    expect(
+      (
+        await f.pool.query(
+          "SELECT data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id='reviewer' AND id='registered-copy'",
+          [f.workspaceId],
+        )
+      ).rows[0].data.content,
+    ).toBe(secret);
+  },
+);
+
+test("clients cannot inject internal producer or template-erasure relations", async () => {
+  await expect(
+    s.saveTemplate(f.editor, {
+      id: "spoof-producer",
+      expectedRevision: 0,
+      title: "위조",
+      content: "independent",
+      producerDraftIds: ["victim"],
+    }),
+  ).rejects.toThrow();
+  await s.saveDraft(f.editor, {
+    id: "spoof-consumer",
+    expectedRevision: 0,
+    title: "위조",
+    content: "independent",
+  });
+  await expect(
+    s.manualDisclosures.request(f.editor, "spoof-consumer", {
+      expectedRevision: 1,
+      title: "위조",
+      parentId: null,
+      readers: ["editor", "reviewer"],
+      reviewerId: "reviewer",
+      reason: "검토",
+      mutationId: randomUUID(),
+      templateIds: ["victim"],
+    }),
+  ).rejects.toThrow();
+});

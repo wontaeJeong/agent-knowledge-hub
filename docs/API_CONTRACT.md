@@ -138,8 +138,10 @@ migration `142-new-document-disclosure.sql`은 `workflow_draft_disclosures`에 w
 
 새 `sources.data.manualProvenance`는 기존 captureEnvelope에서 얻은 page/source ID만 보존하며 원본 직접 읽기·목록도 모든 현재/과거 계보의 canonical readers 교집합을 따른다. 외부 source DTO에 이 메타데이터 주입 권한은 없다. 초기 parent 위치는 hash-bound batch의 trusted `initialDocument`로 저장하고 실제 발행 시에만 정본 문서 위치가 된다.
 
-삭제 권위는 Source JSON의 임의 owner/draft 주장이 아니라 `workflow_draft_disclosures.source_id → owner_id,draft_id` 관계다. private draft 삭제 시 미제출 요청과 본문 이력/복구 grant를 삭제하고, 제출된 관계는 snapshot/decisions를 비운 채 유지하여 템플릿 사본을 이후 원본 삭제 그래프에서 찾는다. 원계보 source 삭제와 등록된 manual source 자체 삭제 모두 기존 법정 삭제 walk를 사용한다. 보존 inventory는 비공개 본문을 해시로 투영하고 계보 ID만 유지한다. 기존 hold·retirement·workspace erasure write fence를 우회하지 않는다.
+삭제 권위는 Source JSON의 임의 owner/draft 주장이 아니라 `workflow_draft_disclosures.source_id → owner_id,draft_id` 관계다. private draft 삭제 시 미제출 요청과 본문 이력/복구 grant를 삭제하고, 제출된 관계는 본문·사유·decisions를 지우고 snapshot의 서버 소유 templateIds만 남겨 템플릿 사본을 이후 원본 삭제 그래프에서 찾는다. 원계보 source 삭제와 등록된 manual source 자체 삭제 모두 기존 법정 삭제 walk를 사용한다. 보존 inventory는 비공개 본문을 해시로 투영하고 계보 ID만 유지한다. 기존 hold·retirement·workspace erasure write fence를 우회하지 않는다.
 
 C6 리뷰 수정 1차: 공개 요청의 `reason`은 보호 snapshot의 `requestReason`, 결정 사유는 기존 `decisions`의 `{decision,reason,principalId}`로 저장한다. authorized list는 이를 `requestReason`/`decision`으로 반환한다. 동일 mutation의 다른 사유는 idempotency conflict이며, 별도 댓글 권한이나 공개 감사 평문을 만들지 않는다. 이전 버전이 폐기한 사유는 없음으로 표시한다. 목록은 예상 권한/기준/retirement 거부만 제외하고 정책 의존성·SQL·프로그램 실패는 오류로 반환한다.
 
 명시적 templateId 복사 계보는 owner-scoped template→draft/history token으로 기존 삭제 그래프에 연결한다. 원본 등록 전 복사도 포함하며, 현재 초안에서 templateId를 지워도 서버 이력은 유지한다. 다른 소유자의 동명 템플릿/초안이나 연결 없는 동일 본문에는 삭제 권위를 부여하지 않는다. UI는 고정 공개 독자/검토자와 새 선택을 구분하고 선택이 바뀌면 fresh disclosure 없이 이전 승인으로 제출하지 않는다.
+
+C6 등록된 파생 사본의 삭제는 disclosure의 정본 `source_id`까지 전파하여 source/batch/발행 version을 같은 그래프에 포함한다. 공개 요청 snapshot의 내부 `templateIds`는 서버가 확인한 해당 owner의 현재+과거 초안에서 수집한다. 템플릿 내부 `producerDraftIds`는 검증한 생산 초안 ID를 누적하여 CAS 갱신에서 sourceDraftId를 생략해도 삭제 관계를 유지한다. 두 필드는 외부 입력 schema에서 허용하지 않고 save/list DTO에 노출하지 않는다. 이전 sourceIds/dependencyVersions 상한도 갱신에 보존하며 제거하려는 요청은 기존 scope 검사를 통과해야 한다. 새 테이블·삭제 API·동일 텍스트 추론은 추가하지 않는다.

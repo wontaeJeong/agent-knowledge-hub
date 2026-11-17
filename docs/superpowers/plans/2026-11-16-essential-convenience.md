@@ -130,6 +130,8 @@
 
 **리뷰 수정 1차:** I1 승인 독자/검토자 표시·선택 변경 무효화, I2 등록 전 템플릿 파생 초안의 owner-scoped 삭제 계보, I3 공개 요청/결정 사유 저장·readback, I4 예상 denial만 목록에서 제외하도록 수정했다. 최종 fullcheck frontend421/native15파일230 및 새 런타임4조건 증거를 갱신했다. M1 Composer 책임 분리는 최종 broad triage로, M2 기존 chunk debt는 별도 측정 개선으로 보류한다.
 
+**리뷰 수정 2차:** I2 등록된 파생 사본의 정본 source_id 전파, private 삭제·template CAS 갱신 뒤 최소 내부 관계 및 기존 source/page 상한 보존을 추가했다. 실제 제출/발행/hold 변형을 포함한 native15파일239와 fullcheck421이 exit0이다. 새 runtime/현재 소스 증거는 C6 검증 폴더에 기록하며 독립 재검토·새 head CI·PR71 병합은 아직 controller 단계다.
+
 ## Task 7: 문서 트리·이동·복제
 
 **Files:** Create `server/migrations/119-document-order.sql`, `server/convenience/structure.ts`, `structure.test.ts`, `src/operational/convenience/PageTree.tsx`, `Breadcrumbs.tsx`, `structure.test.tsx`; Modify `server/workflows/service.ts`, `server/convenience/http.ts`, `src/operational/App.tsx`, `workflows.tsx`.

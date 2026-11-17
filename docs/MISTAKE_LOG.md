@@ -1,5 +1,12 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — C6 등록된 파생 사본의 삭제 closure 누락
+
+- I2 재검토 probe가 원초안→템플릿→사본의 등록을 원본 등록보다 먼저 완료한 뒤 실제 원본 삭제를 해도 파생 source/batch 본문이 남음을 확인했다. 이전230 native의 private 사본 범위만으로 등록/발행 후까지 해결됐다고 판단한 것이 부족했다.
+- RED: source_id 연결 누락3실패(erasure1/new-document2), derived private 삭제·template CAS 생략3실패, template source/page 상한 제거2실패를 실제 회귀로 확인했다. source 등록 관계 전파와 기존 보호 메타데이터의 서버 소유 최소 관계, DTO 명시 projection, 갱신 상한 보존으로 수정했다.
+- 중간 실행에 존재하지 않는 server/workflows/lineage.test.ts를 지정하여 INVALID_SERVER_TEST_FILTER exit1이었다(c6-r2-lifecycle-green.log). 테스트가 실행되지 않은 결과를 GREEN으로 세지 않고 실제 lineage-closure.test.ts로 정정했다. c6-r2-lifecycle-green-corrected.log는56통과, 최종 c6-r2-final-native.log는15파일239 exit0이며 fullcheck는421/48/16/41/251/types/build/smoke exit0이다. 파일명이 아니라 실제 exit와 summary로 판정한다.
+- 제출된 사본/실제 발행 version·파생 hold, 원본 및 파생 private 삭제, template 갱신, 현재 label 제거/과거 계보, 다른 owner/조작 입력 보존을 확인했다. 원래 그래프·보호 JSON만 확장했다. 운영/품질 인수와 독립 재검토/CI는 별도다.
+
 ### 2026-11-17 — C6 task review의 승인 표시·명시 사본 삭제·사유·오류 누락
 
 - 리뷰 I1–I4를 실제 코드와 native probe로 확인했다. 고정 승인 audience/reviewer를 폼 선택과 비교하지 않아 재개 시 owner만 보이거나 reader 제거 후에도 과거 넓은 승인을 제출할 수 있었다. 등록 전 수동 초안→템플릿→사본은 sourceIds가 비어 있어 명시 templateId 이력을 기존 삭제 그래프가 따라가지 못했다. 사유는 hash에만 남았고 목록 catch-all은 예기치 않은 실패를200/빈 목록으로 바꿨다.
