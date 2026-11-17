@@ -167,6 +167,15 @@ try {
         .getByRole("button", { name: "즐겨찾기 해제", exact: true })
         .waitFor();
       await controls.scrollIntoViewIfNeeded();
+      await page.evaluate((t) => {
+        document.documentElement.dataset.theme = t;
+      }, theme);
+      if (
+        (await page.evaluate(() => document.documentElement.dataset.theme)) !==
+        theme
+      )
+        throw Error("Document theme did not apply");
+
       await page.screenshot({
         path: `${output}/document-state-${width}-${theme}.png`,
       });
@@ -219,6 +228,7 @@ try {
         focusRestored: true,
         mobileNavigation: true,
         currentStateToggle: true,
+        documentThemeVerified: theme,
         listsDoNotVisit: true,
         currentAclRevocation: true,
         noHiddenPersistence: true,

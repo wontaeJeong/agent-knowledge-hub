@@ -959,3 +959,9 @@
 - 실제 재현: 현재 사용자는 계속 읽을 수 있지만 의존 원본의 다른 reader가 바뀌면 cursor가 그대로 수락됐다(RED1). focus refresh가 pending favorite/reorder보다 먼저 완료되면 현재 mutation의 readback을 이전 request sequence가 버려 잘못된 상태를 남겼다(RED2). 첫 항목으로 이동한 뒤 비활성 위로 버튼을 다시 초점 대상으로 잡았다(RED1).
 - 조치: cursor/replay에 canonical captureEnvelope의 내용/reader hash를 바인딩했다. pending mutation 중 자동 refresh를 직렬화하고 현재 성공에만 재인가 readback/변경 신호를 적용한다. scope/API 교체 시 session key를 바꾸어 이전 read/mutation을 무효화한다. reorder 뒤 현재 인가된 행의 활성 방향 버튼으로 초점을 복구하며 old title을 복구 캐시에 저장하지 않는다. 첫 focus 수정의 busy 타이밍 문제는 활성화 이후 복구로 바로잡았다.
 - 검증: native6와 UI14 focused pass. 최종 native/전체check와 실제4브라우저조건24PNG에서 끝 이동·모바일·철회/no-storage까지 확인했다. 합성 증거가 운영 부하/실제 SSO 또는 지식 품질 효과를 증명하지는 않는다.
+
+### 2026-11-17 — C3 문서 상태 다크 캡처의 테마 초기화
+
+- 첫 로컬 feature commit28b2fcb의 artifact 점검에서 document-state dark/light 파일이 각 viewport에서 같은 바이트임을 발견했다. 목록 캡처는 화면 로드 뒤 테마를 적용했지만 문서 goto 뒤에는 앱의 기본 테마 초기화를 다시 처리하지 않았다. 영향은 document-state4PNG의 theme 검증 공백이며 실제 잘못된 표시는 dark2장이다. 다른 목록·철회 캡처와 제품 기능/테스트 결과를 이 실패로 바꾸지 않되, 기존 네 조건 성공 주장이 이 문서 다크 표시까지 증명하지 않았음을 명시한다.
+- 조치: 실제 문서 제어 로드/toggle 뒤, PNG 직전에 요청 테마를 적용하고 DOM dataset과 일치하는지 assert한다. 새 owned runtime/합성 DB로 전체24장을 다시 수집하고 결과에 documentThemeVerified를 기록했다. source16파일 fingerprint가 기존 ffc48255와 같아 제품 검사는 반복하지 않았다.
+- 검증: c3-browser-final3.log exit0,4조건 pageerrors[]/overflowfalse 및 기존 키보드/모바일/ACL/no-storage assertion 통과.1440/390 dark/light 문서 PNG의 SHA256이 각각 다르고 실제 mobile/dark 이미지를 열어 다크 제어를 확인했다. owned runtime/DB/Vite를 다시 정리했다. 최종 evidence-only commit과 독립 리뷰/원격 CI는 별도다.
