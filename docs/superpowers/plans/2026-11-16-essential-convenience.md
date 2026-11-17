@@ -166,6 +166,8 @@ Round1 local fix/evidence commit: `57a08eb3db8e06c05dc957d5d30183b9d845aa9a`. �
 
 **Round2 N1:** 같은 document/API/actor/space 재선택은 현재 token을 보존해 진행 조회1회가 정상 표시되게 했다. desktop/mobile RED2→focused65/fullcheck488 통과. fresh4config/14PNG는 초기화된 App의 pending same-item 단일GET/390focus와 기존 전체 C7 흐름을 확인한다. 첫 nested-locator 실패는 보존하며 initial-load 직접 증거는 WorkflowPanel 회귀다. backend 무수정/native81+178 전체carry, scoped 재리뷰·CI·merge는 대기다.
 
+Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; scoped 재리뷰/CI/merge 대기.
+
 ## Task 8: 내부 연결·백링크
 
 **Files:** Create `server/migrations/120-published-page-links.sql`, `server/convenience/links.ts`, `links.test.ts`, `src/operational/convenience/LinkAutocomplete.tsx`, `Backlinks.tsx`, `links.test.tsx`; Modify `server/publication.ts`, `server/operations/product-erasure.ts`, `server/convenience/http.ts`, `src/operational/convenience/DocumentComposer.tsx`.

@@ -276,7 +276,7 @@ Round1 packaging verification: fail-fast `git diff --cached --check` and manifes
 
 # Task review fix Round2 / 5 — N1
 
-FIX_BASE `78c1974337c67650e58cf9b156ca8292f54896f9`. Status: **DONE_WITH_CONCERNS**; local N1 fix/verification complete, controller scoped re-review and CI/merge pending. Fix commit: **PENDING_ROUND2_COMMIT**. No backend/API/credential/schema changes, helpers, reviewer agents, push, PR or merge by implementer.
+FIX_BASE `78c1974337c67650e58cf9b156ca8292f54896f9`. Status: **DONE_WITH_CONCERNS**; local N1 fix/verification complete, controller scoped re-review and CI/merge pending. Fix commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`. No backend/API/credential/schema changes, helpers, reviewer agents, push, PR or merge by implementer.
 
 ## Verbatim scoped Round1 review
 
@@ -342,3 +342,5 @@ Cleanup `2026-11-17T17:26:13.467Z`: owned DB/profile/Chromium0,4397/5197 closed,
 ## Self-review and remaining limits
 
 N1 was a real regression introduced by Round1's unconditional token replacement; it is recorded in MISTAKE_LOG without relabelling it as a test error. The new RED demonstrated both affected surfaces, and GREEN retains distinct-identity race protection and destination-ready focus. Review compared the tiny product diff, unchanged backend, test call count assertions and actual held canonical response harness. Previous Round1 486/f729... screenshots/check are historical after this UI change; native remains compatible because backend is unchanged. North Star and251 criteria remain unchanged. M2 bundles, full-state policy costs, short parent-session C7 grants, real corporate IdP/data/operational/IME/screen-reader/model-quality limits remain. Independent scoped re-review/CI/merge is controller-owned.
+
+Round2 packaging: fail-fast cached diff check and manifest verification passed. All421 manifest paths and report were tracked in the index; explicit diff gate confirmed no server changes from FIX_BASE. This metadata-only follow-up records the fix hash without changing tested product/evidence bytes.
