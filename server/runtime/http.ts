@@ -1037,7 +1037,7 @@ export function createRuntimeHandler(options: {
               ),
             );
           }
-          return send(200, await service.query(ctx, b.question, b.mode));
+          return send(200, await service.query(ctx, b.question, b.mode, undefined, undefined, b.scope));
         }
         if (path === "/api/v1/lint") {
           z.object({}).strict().parse(body);

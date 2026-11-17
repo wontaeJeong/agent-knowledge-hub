@@ -50,8 +50,34 @@ export const drafts = z
 export const ingestInput = z
   .object({ sourceIds: z.array(id).min(1).max(20), mode })
   .strict();
+export const queryScope = z
+  .object({
+    project: z.string().trim().min(1).max(200).optional(),
+    topic: z.string().trim().min(1).max(200).optional(),
+    historical: z.boolean().default(false),
+    periodFrom: z.iso.datetime().optional(),
+    periodTo: z.iso.datetime().optional(),
+    environment: z
+      .record(z.string().min(1).max(100), z.string().min(1).max(500))
+      .refine((v) => Object.keys(v).length <= 30)
+      .default({}),
+  })
+  .strict()
+  .refine(
+    (s) =>
+      (!s.periodFrom && !s.periodTo) ||
+      (s.historical &&
+        (!s.periodFrom ||
+          !s.periodTo ||
+          Date.parse(s.periodFrom) <= Date.parse(s.periodTo))),
+  );
+export type QueryScope = z.input<typeof queryScope>;
 export const queryInput = z
-  .object({ question: z.string().trim().min(1).max(2000), mode })
+  .object({
+    question: z.string().trim().min(1).max(2000),
+    mode,
+    scope: queryScope.optional(),
+  })
   .strict();
 export const approvalInput = z
   .object({ hash: z.string().regex(/^[a-f0-9]{64}$/) })
