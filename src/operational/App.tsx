@@ -1,3 +1,4 @@
+import { PersonalLibrary } from "./convenience/PersonalLibrary";
 import { NotificationBell } from "./convenience/NotificationBell";
 import { NotificationInbox } from "./convenience/NotificationInbox";
 import {
@@ -380,7 +381,7 @@ function OperationalWorkspace({
       ? location
       : undefined;
   const pendingDestination =
-    (location.kind === "section" && !target) ||
+    (location.kind === "section" && !target && !["favorites","recent","subscriptions"].includes(location.section)) ||
     (location.kind === "document" &&
       (location.version !== undefined || !!location.anchor));
   const [pages, setPages] = useState<PublishedPage[]>([]);
@@ -908,6 +909,18 @@ function OperationalWorkspace({
           </section>
         ) : (
           <>
+            {location.kind === "section" &&
+              (location.section === "favorites" || location.section === "recent" || location.section === "subscriptions") &&
+              !preview && dataReady && (
+                <PersonalLibrary
+                  api={api}
+                  spaceId={identity.workspaceId}
+                  principalId={identity.principalId}
+                  kind={location.section}
+                  onError={e => { if (e instanceof ApiError && [401,403].includes(e.status)) clearProtected(); }}
+                  onNavigate={() => window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))}
+                />
+              )}
             {pendingDestination && (
               <section className="op-panel">
                 <h2>

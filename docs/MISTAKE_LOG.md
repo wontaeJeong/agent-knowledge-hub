@@ -945,3 +945,17 @@
 - 먼저 main537ba7a(#68)의 실제 검색 index/질문 scope/collector/roundtrip/예약 발행 변경을 true base6366597로 병합했다. docs양쪽 기록, retention의 inbox 및 index 제어, App의 C2와 질문/예약 UI를 모두 보존했다. App의 포맷 차이로 어긋난 JSX conflict는 기능 위치에 문맥 수정하고 읽기 전용 정규화 비교로 main 기능이 전부 남았음을 확인했다. CIserver20/마이그레이션140은 유지한다. 첫 Badge anchor assertion은 App 쓰기 전에 실패했고, 충돌 상태에서 정규화하려다 큰 parser 로그를 출력했다. 실제 공백에 맞는 문맥을 사용하고 오류 출력을 제한해 다시 검증했다. 커밋된 기존 작업 폐기/재구성·미관 정리는 하지 않았다.
 - 조치: 미리보기와 전체 목록에 공통 focus helper를 적용해 제거된 제어만 현재 인가된 이웃 행의 같은 제어 또는 안정된 상태 필터로 옮긴다. 사용자 focus/pointer가 밖으로 이동하면 복구하지 않는다. preventScroll 및 현재 범위 안의 조상/viewport scroll을 유지하며 보호된 과거 행을 캐시하지 않는다.
 - 검증: UI RED12→GREEN31; 통합 최종 한 번 npm run check(frontend330/Node48/import16/evaluation41/251요구사항/서버types/build/smoke) exit0, C2 및 새 main의 공유 발행·가져오기·검색·질문·탐색 경계21native파일 모두 통과(상세 수는 인계/task report). 실제1440/390 light/dark26장과 실제 도착·보관·철회·scroll/focus assertion을 재검증했다. 이전8c1be04의 remote run44004491997 필수8jobs 성공은 컨트롤러가 확인했지만, 이 새로운 통합/focus HEAD의 CI를 대신하지 않는다. 기존 chunk 경고 및 실제 운영 인수 한계는 유지한다.
+
+### 2026-11-17 — C3 개발 환경·탐색·fixture와 검증 계약 갱신
+
+- 맥락: C1/C2 병합 뒤 개인 문서 목록 C3의 격리 worktree931e. 초기 Docker port 조회와 후속 owned-runtime PID 조회의 sandbox 거절은 인가된 읽기 전용 escalation으로 재시도했고 다른 컨테이너/작업을 변경하지 않았다. 부모의 존재하지 않는 workflows/access.ts 탐색과 구현자의 미존재 convenience/inbox·이전 migration 경로/ConsoleShell 위치 가정도 읽기 전용 탐색 실패로 묶는다. 실제 imports·rg --files로 경로를 확인했다. 이는 행동 RED가 아니다.
+- fixture: 추가 pages를 implicit INSERT해 data 컬럼 위치를 잘못 가정한 준비 오류로3시험이 실패했다. 기존 fixture의 명시적 `(workspace_id,id,data)` 패턴으로 수정했고 같은 focused suite4시험이 통과했다. 이후141 upgrade/restart에서 legacy5값 workflow_activity INSERT 호환을 별도로 실행했다.
+- 개발 도구: Prettier에 SQL을 포함해 parser 부재 exit2가 났다(다른 신규 TS/CSS는 포맷됨, SQL은 미변경). 삽입부 포맷용 JS helper에 Python 삼중 따옴표를 잘못 써 SyntaxError가 났고 source 쓰기 전에 종료됐다. JS 문법을 고친 문맥 포맷으로 재실행했다. 읽기/해시 집계 호출에 JSON 쓰기를 잘못 섞어 workspace sandbox가 해당 쓰기를 거절한 시도도 있었으며, 인가된 escalation에서만 같은 증거 파일을 생성했다. 어느 시도도 기존 작업 폐기/전체 파일 복구에 사용하지 않았다.
+- 검증 계약: 첫 전체 check는 C1의 'favorites 미연결' 기대1개와 실제 C3 연결이 충돌했다(336pass/1fail). 미구현 saved-views에서 같은 경고/활성 메뉴 guard를 유지하고 개인3경로 시험을 추가했다. 최종 check340/48/16/41/251+types/build/smoke exit0. native21 중 navigation의 이전 exact `{items:[]}` 기대만 additive nextCursor/revision과 충돌했다. 현재권한·공간·정확 이동 단언을 유지하고 exact `{items:[],nextCursor:null,revision:1}`로 명시해 관련3파일10시험을 재검증했다. 다른20파일234시험 성공은 그대로이며 최초21파일 실행의 exit1을 전체 성공으로 바꾸지 않는다.
+- 상태: 위 실패들은 수정·재검증됨. 기존 Vite chunk 경고는 별도 미해결/범위 밖이다. raw 로그는 task-3-report.md에 연결하며 독립 리뷰·원격 CI·병합은 아직 대기다.
+
+### 2026-11-17 — C3 자체 점검의 cursor·비동기 변경·키보드 경계
+
+- 실제 재현: 현재 사용자는 계속 읽을 수 있지만 의존 원본의 다른 reader가 바뀌면 cursor가 그대로 수락됐다(RED1). focus refresh가 pending favorite/reorder보다 먼저 완료되면 현재 mutation의 readback을 이전 request sequence가 버려 잘못된 상태를 남겼다(RED2). 첫 항목으로 이동한 뒤 비활성 위로 버튼을 다시 초점 대상으로 잡았다(RED1).
+- 조치: cursor/replay에 canonical captureEnvelope의 내용/reader hash를 바인딩했다. pending mutation 중 자동 refresh를 직렬화하고 현재 성공에만 재인가 readback/변경 신호를 적용한다. scope/API 교체 시 session key를 바꾸어 이전 read/mutation을 무효화한다. reorder 뒤 현재 인가된 행의 활성 방향 버튼으로 초점을 복구하며 old title을 복구 캐시에 저장하지 않는다. 첫 focus 수정의 busy 타이밍 문제는 활성화 이후 복구로 바로잡았다.
+- 검증: native6와 UI14 focused pass. 최종 native/전체check와 실제4브라우저조건24PNG에서 끝 이동·모바일·철회/no-storage까지 확인했다. 합성 증거가 운영 부하/실제 SSO 또는 지식 품질 효과를 증명하지는 않는다.

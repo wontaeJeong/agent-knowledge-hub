@@ -1,3 +1,4 @@
+import { DocumentPersonalControls } from "./convenience/PersonalLibrary";
 import { BulkEditor } from "./BulkEditor";
 import { NavigationProtection } from "./convenience/Navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -843,6 +844,7 @@ export function WorkflowPanel({
           key={identityScope}
           api={api}
           spaceId={spaceId}
+          principalId={principalId ?? ""}
           refreshKey={`${selected}:${notice}:${detail?.page.versions.at(-1)?.number}`}
           onError={fail}
         />
@@ -917,50 +919,9 @@ export function WorkflowPanel({
             · 보호: {detail.settings.data.protected ? "설정됨" : "설정 안 됨"}
           </p>
           <div className="op-actions">
-            <Button
-              disabled={busy}
-              onClick={() =>
-                action(async () => {
-                  await api.post(`${pagePath}/favorite`, { enabled: true });
-                  setNotice("즐겨찾기에 추가했습니다.");
-                })
-              }
-            >
-              즐겨찾기 추가
-            </Button>
-            <Button
-              disabled={busy}
-              onClick={() =>
-                action(async () => {
-                  await api.post(`${pagePath}/favorite`, { enabled: false });
-                  setNotice("즐겨찾기에서 해제했습니다.");
-                })
-              }
-            >
-              즐겨찾기 해제
-            </Button>
-            <Button
-              disabled={busy}
-              onClick={() =>
-                action(async () => {
-                  await api.post(`${pagePath}/subscribe`, { enabled: true });
-                  setNotice("문서 변경 알림을 구독했습니다.");
-                })
-              }
-            >
-              알림 구독
-            </Button>
-            <Button
-              disabled={busy}
-              onClick={() =>
-                action(async () => {
-                  await api.post(`${pagePath}/subscribe`, { enabled: false });
-                  setNotice("구독을 해제했습니다.");
-                })
-              }
-            >
-              구독 해제
-            </Button>
+            {spaceId && principalId && (
+              <DocumentPersonalControls api={api} spaceId={spaceId} principalId={principalId} pageId={selected} onError={fail}/>
+            )}
             {write && (
               <Button
                 disabled={busy || !!draft || detail.settings.state !== "active"}

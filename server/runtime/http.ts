@@ -926,7 +926,7 @@ export function createRuntimeHandler(options: {
       }
       if (
         await handleWorkflowRoute(
-          { method: req.method ?? "GET", path, body, ctx, send },
+          { method: req.method ?? "GET", path, query:url.searchParams, body, ctx, send },
           new WorkflowService(
             options.pool,
             service,

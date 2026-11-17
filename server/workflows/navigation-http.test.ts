@@ -234,7 +234,7 @@ test("authenticated native navigation, completion and personal lists remove revo
     );
     expect((await call("/pages/topic/navigation")).status).toBe(404);
     for (const path of ["/favorites", "/recent"])
-      expect(await (await call(path)).json()).toEqual({ items: [] });
+      expect(await (await call(path)).json()).toEqual({ items: [], nextCursor: null, revision: 1 });
     expect(
       await (await call("/links/search", { query: "주제" })).json(),
     ).toMatchObject({ items: [] });

@@ -1,0 +1,47 @@
+.personal-library-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+.personal-library-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.personal-library-list li > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.personal-library-list time {
+  display: block;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+.personal-library-order {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.op-personal-documents {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 1rem;
+}
+.personal-library .op-actions {
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .personal-library-list li {
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .personal-library-order {
+    flex-direction: column;
+  }
+  .personal-library button {
+    min-height: 44px;
+  }
+}
