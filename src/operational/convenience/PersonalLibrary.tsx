@@ -9,6 +9,7 @@ import {
   type LibraryKind,
   type LibraryPage,
 } from "./personal-client";
+import { useCurrentListFocus } from "./list-focus";
 import "./personal.css";
 interface Scope {
   api: OperationalApi;
@@ -45,10 +46,16 @@ function LibrarySession({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const page = result?.cursor === cursor ? result.page : null;
+  const listFocus = useCurrentListFocus<HTMLElement>({
+    enabled: !busy,
+    rowSelector: "[data-personal-page]",
+    fallbackSelector: "[data-personal-fallback]",
+    message: "문서 목록이 변경되어 현재 표시된 항목으로 초점을 옮겼습니다.",
+  });
+  const container = listFocus.container;
   const active = useRef(false),
     mutationBusy = useRef(false),
     sequence = useRef(0),
-    container = useRef<HTMLElement>(null),
     interaction = useRef<{ node: HTMLButtonElement; left: boolean } | null>(
       null,
     ),
@@ -159,17 +166,19 @@ function LibrarySession({
     };
     interaction.current = currentInteraction;
     mutationBusy.current = true;
-    const ids = page.items.map((item) => item.id);
-    [ids[index], ids[index + step]] = [ids[index + step], ids[index]];
     const seq = ++sequence.current;
     setBusy(true);
     setError("");
     try {
-      await api.post("/workflows/favorites/reorder", {
-        pageIds: ids,
-        expectedRevision: page.revision,
-        mutationId: crypto.randomUUID(),
-      });
+      const moved = await api.post<{ revision: number; cursor: string | null }>(
+        "/workflows/favorites/move",
+        {
+          pageId: page.items[index].id,
+          direction: step < 0 ? "up" : "down",
+          expectedRevision: page.revision,
+          mutationId: crypto.randomUUID(),
+        },
+      );
       if (!active.current || seq !== sequence.current) return;
       mutationBusy.current = false;
       focus.current = {
@@ -177,7 +186,8 @@ function LibrarySession({
         direction: step,
         interaction: currentInteraction,
       };
-      if (cursor) setCursor(null);
+      const nextCursor = moved.cursor ?? null;
+      if (cursor !== nextCursor) setCursor(nextCursor);
       else await refresh();
     } catch (e) {
       if (active.current && seq === sequence.current) {
@@ -195,10 +205,12 @@ function LibrarySession({
   return (
     <section
       ref={container}
+      onFocusCapture={listFocus.onFocusCapture}
       className={compact ? "personal-library" : "op-panel personal-library"}
       aria-label={libraryLabels[kind]}
     >
       <h3>{libraryLabels[kind]}</h3>
+      <span role="status">{listFocus.notice}</span>
       <div className="op-actions">
         <Button
           disabled={busy}
@@ -253,8 +265,13 @@ function LibrarySession({
                           aria-label={label}
                           disabled={
                             busy ||
-                            index + step < 0 ||
-                            index + step >= page.items.length
+                            (step < 0
+                              ? !(item.canMoveUp ?? (index > 0 || !!cursor))
+                              : !(
+                                  item.canMoveDown ??
+                                  (index + 1 < page.items.length ||
+                                    !!page.nextCursor)
+                                ))
                           }
                           onClick={(event) =>
                             void reorder(index, step, event.currentTarget)

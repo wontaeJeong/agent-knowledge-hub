@@ -2,7 +2,14 @@ import { useRef } from "react";
 import { ApiError, type OperationalApi } from "../api";
 export type LibraryKind = "favorites" | "recent" | "subscriptions";
 export interface LibraryPage {
-  items: { id: string; title: string; version: number; at: string | null }[];
+  items: {
+    id: string;
+    title: string;
+    version: number;
+    at: string | null;
+    canMoveUp?: boolean;
+    canMoveDown?: boolean;
+  }[];
   nextCursor: string | null;
   revision: number;
 }

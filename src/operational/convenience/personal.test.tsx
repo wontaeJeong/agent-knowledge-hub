@@ -85,8 +85,9 @@ test("keyboard-friendly move buttons use current revision and refresh authorized
   move.focus();
   await act(async () => move.click());
   expect(mutations[0]).toMatchObject({
-    path: "/workflows/favorites/reorder",
-    pageIds: ["b", "a"],
+    path: "/workflows/favorites/move",
+    pageId: "b",
+    direction: "up",
     expectedRevision: 1,
   });
   expect(
@@ -426,3 +427,169 @@ test("reorder readback does not reclaim focus when departure happens after POST 
   await act(async () => release());
   expect(document.activeElement).toBe(outside);
 });
+
+test.each(["favorites", "recent", "subscriptions"])(
+  "ordinary %s refresh removal keeps current authorized keyboard position",
+  async (kind) => {
+    const { PersonalLibrary } = await components();
+    let ids = ["a", "b"];
+    const api = { get: async () => page(ids) } as unknown as OperationalApi;
+    const { element } = await mount(PersonalLibrary, {
+      api,
+      spaceId: "s",
+      principalId: "p",
+      kind,
+    });
+    element
+      .querySelector<HTMLAnchorElement>('[data-personal-page="b"] a')!
+      .focus();
+    ids = ["a"];
+    await act(async () =>
+      window.dispatchEvent(new Event("akh:personal-changed")),
+    );
+    expect(element.textContent).not.toContain("문서 b");
+    expect(document.activeElement).toBe(
+      element.querySelector('[data-personal-page="a"] a'),
+    );
+  },
+);
+test.each(
+  ["favorites", "recent", "subscriptions"].flatMap((kind) =>
+    ["empty", "error"].map((outcome) => ({ kind, outcome })),
+  ),
+)(
+  "ordinary $kind refresh $outcome uses a stable safe focus control without retaining rows",
+  async ({ kind, outcome }) => {
+    const { PersonalLibrary } = await components();
+    let changed = false;
+    const api = {
+      get: async () => {
+        if (changed && outcome === "error") throw Error("현재 조회 실패");
+        return page(changed ? [] : ["a"]);
+      },
+    } as unknown as OperationalApi;
+    const { element } = await mount(PersonalLibrary, {
+      api,
+      spaceId: "s",
+      principalId: "p",
+      kind,
+    });
+    element.querySelector("a")!.focus();
+    changed = true;
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(element.querySelector("[data-personal-page]")).toBeNull();
+    expect(document.activeElement).toBe(
+      element.querySelector("[data-personal-fallback]"),
+    );
+  },
+);
+test("favorite26 can move up into page1 and25 can move down into page2 while preserving context", async () => {
+  const { PersonalLibrary } = await components();
+  let shifted = false;
+  const calls: any[] = [];
+  const first = () => ({
+    ...page(
+      Array.from({ length: 25 }, (_, i) => `p${i + 1}`),
+      "page2",
+    ),
+    items: Array.from({ length: 25 }, (_, i) => ({
+      ...row(`p${i + 1}`),
+      canMoveUp: i > 0,
+      canMoveDown: true,
+    })),
+  });
+  const api = {
+    get: async (path: string) =>
+      path.includes("cursor=page2")
+        ? {
+            ...page(["p26"]),
+            items: [{ ...row("p26"), canMoveUp: true, canMoveDown: false }],
+          }
+        : shifted
+          ? {
+              ...first(),
+              items: [
+                ...first().items.slice(0, 24),
+                { ...row("p26"), canMoveUp: true, canMoveDown: true },
+              ],
+            }
+          : first(),
+    post: async (path: string, input: any) => {
+      calls.push({ path, ...input });
+      shifted = input.direction === "up";
+      return { revision: 2, cursor: shifted ? null : "page2" };
+    },
+  } as unknown as OperationalApi;
+  const { element } = await mount(PersonalLibrary, {
+    api,
+    spaceId: "s",
+    principalId: "p",
+    kind: "favorites",
+  });
+  await act(async () => button(element, "다음 25개").click());
+  const up = element.querySelector<HTMLButtonElement>(
+    '[aria-label="문서 p26 위로 이동"]',
+  )!;
+  expect(up.disabled).toBe(false);
+  up.focus();
+  await act(async () => up.click());
+  expect(element.querySelectorAll("a")).toHaveLength(25);
+  expect(document.activeElement?.getAttribute("aria-label")).toBe(
+    "문서 p26 위로 이동",
+  );
+  const down = element.querySelector<HTMLButtonElement>(
+    '[aria-label="문서 p26 아래로 이동"]',
+  )!;
+  expect(down.disabled).toBe(false);
+  down.focus();
+  await act(async () => down.click());
+  expect(element.querySelectorAll("a")).toHaveLength(1);
+  expect(document.activeElement?.getAttribute("aria-label")).toBe(
+    "문서 p26 위로 이동",
+  );
+  expect(calls.map((x) => x.path)).toEqual([
+    "/workflows/favorites/move",
+    "/workflows/favorites/move",
+  ]);
+});
+
+test.each(
+  ["favorites", "recent", "subscriptions"].flatMap((kind) =>
+    ["keyboard", "pointer"].map((departure) => ({ kind, departure })),
+  ),
+)(
+  "ordinary $kind delayed refresh respects outside $departure departure",
+  async ({ kind, departure }) => {
+    const { PersonalLibrary } = await components();
+    let hold = false,
+      release: () => void = () => {};
+    const api = {
+      get: async () => {
+        if (hold)
+          await new Promise<void>((r) => {
+            release = r;
+          });
+        return page(hold ? ["a"] : ["a", "b"]);
+      },
+    } as unknown as OperationalApi;
+    const { element } = await mount(PersonalLibrary, {
+      api,
+      spaceId: "s",
+      principalId: "p",
+      kind,
+    });
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    element
+      .querySelector<HTMLAnchorElement>('[data-personal-page="b"] a')!
+      .focus();
+    hold = true;
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    if (departure === "keyboard") outside.focus();
+    else outside.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    await act(async () => release());
+    expect(element.textContent).not.toContain("문서 b");
+    if (departure === "keyboard") expect(document.activeElement).toBe(outside);
+    else expect(element.contains(document.activeElement)).toBe(false);
+  },
+);

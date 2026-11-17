@@ -1,5 +1,5 @@
 {
-  "sha256": "2c5571bdef21713848605543526dc4629388abead85218708fc067cd3e090705",
+  "sha256": "3edf1bff927ce44e5953650fd18dc2b7913c8284f71b778ae956ab8037547846",
   "algorithm": "SHA256 of sorted relative path + NUL + bytes + NUL",
   "files": [
     "server/convenience/http.ts",
@@ -14,6 +14,8 @@
     "src/operational/App.tsx",
     "src/operational/api.ts",
     "src/operational/convenience/PersonalLibrary.tsx",
+    "src/operational/convenience/inbox-focus.ts",
+    "src/operational/convenience/list-focus.ts",
     "src/operational/convenience/personal-client.ts",
     "src/operational/convenience/personal.css",
     "src/operational/document-navigation.tsx",

@@ -972,3 +972,11 @@
 - 원인: 상태 읽기 때 same-scope 제어를 불필요하게 unmount했고, reorder 완료 시 initiating interaction의 현재 의도를 추적하지 않았다. 초기 즉시 응답·성공 위치 시험만으로 키보드 연속성을 확인했다고 범위를 넓힌 것이 검증 공백이었다.
 - 조치: 프로젝트에서 delayed favorite/subscribe2·focus refresh2·외부 keyboard/pointer departure2·POST 이후 readback departure1, 총7RED를 확인했다. readback 동안 기존 제어를 유지하고 aria-disabled와 기존 mutation guard로 변경을 막으며 오류/권한 철회 시 상태를 비운다. reorder는 시작 제어에서 다른 곳으로의 focusin/pointerdown을 기록해 같은 interaction일 때만 활성 방향 초점을 복구한다. readback 실패/cleanup 시 남은 의도를 지운다.
 - 검증: c3-r1-red.log7fail/7pass exit1 → c3-r1-green-final.log 관련3파일49pass exit0. 최종 한 번 c3-r1-check-final.log347/48/16/41/251+types/build/smoke exit0. 실제 native 응답 전달만 지연한 c3-r1-browser-final.log4조건24PNG의 양 toggle readback/refresh와 외부 keyboard/pointer no-steal 및 기존조건 pass. server/schema/authority 무변경이라 native package 재반복은 하지 않았다. 실제 사내 SSO·부하·모델/지식 효과 검증이 아니며 기존 chunk M1·독립 재리뷰/원격CI/병합은 별도다.
+
+### 2026-11-17 — C3 최종 리뷰의 페이지 경계 순서와 일반 refresh 초점 공백
+
+- 독립 final review F1은26번째 즐겨찾기가 page2 단독 행이면 두 방향이 막혀 첫25행으로 올릴 수 없고25번째도 아래로 못 움직이는 공백을 확인했다. F2는 일반 refresh로 focused row를 지우면 세 목록 모두 BODY로 초점이 남는3RED를 독립 실행했다. 앞선 immediate/same-page 성공 또는 page-local 제약 문서는 이 수용 기준을 완료/면제하지 않았다.
+- 원인: UI가 현재25개 배열만 reorder하고 배열 경계를 전역 경계로 판단했으며, focus 복구를 pending reorder intent에만 적용했다. 부모는25행은 view bound라고 확정했고 native1/UI6 RED로 프로젝트에 재현했다. 테스트 후 검증 범위를 늘리는 것만으로 결함을 숨기지 않았다.
+- 조치: canonical move와 기존 reorder를 한 private primitive로 모으고 현재 authorized 인접 이웃/CAS/receipt와 fresh target cursor를 연결했다. 현재 전역 방향 flags만 노출하고 보호 이웃ID/옛cursor는 저장하지 않는다. C2 현재 DOM focus helper를 공용화/compat wrapper로 보존해 ordinary 제거·empty/error·outside intent와 이전 지연I1/I2를 함께 처리한다.141은 미변경이다.
+- 준비 실패: 확장 capture helper에서 기존 const down과 새 cross-page down을 같은 scope에 선언해 node --check SyntaxError가1회 났다. 제품/browser 시험 전 helper의 local 이름만 crossDown으로 바꾸어 syntax check를 통과했다. 행동 RED나 제품 실패로 바꾸지 않았다.
+- 검증: 집중5UI파일100pass(C2inbox31), 최종 onecheck363/48/16/41/251+types/build/smoke exit0, 영향native13파일162pass exit0. 실제4config24PNG에서26→25→26 persisted/focus, 실제ACL제거/empty/실제capacity409 error·외부intent, 기존지연/theme/nonvisit/no-storage 모두 pass.18-file manifest가 전체 변경 product 집합과 일치함을 비교했다. 현재 소스의 새로운 원격CI·ONE scoped 재리뷰·병합은 별도 미완료이며 이전47da8green을 대신 사용하지 않는다.

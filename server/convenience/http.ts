@@ -41,6 +41,10 @@ export async function handlePersonalRoute(
     send(200, await service.documentState(ctx, state[1]));
     return true;
   }
+  if (method === "POST" && path === "/api/v1/workflows/favorites/move") {
+    send(200, await service.moveFavorite(ctx, input.body));
+    return true;
+  }
   if (method === "POST" && path === "/api/v1/workflows/favorites/reorder") {
     send(200, await service.reorderFavorites(ctx, input.body));
     return true;

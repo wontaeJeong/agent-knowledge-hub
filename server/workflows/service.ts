@@ -1406,72 +1406,110 @@ export class WorkflowService {
     ctx: Context,
     input: { pageIds: string[]; expectedRevision: number; mutationId: string },
   ) {
-    return this.run(ctx, "knowledge.read", undefined, async (db) => {
-      const items = await this.personalRows(db, ctx, "favorites");
-      if (input.pageIds.some((id) => !items.some((item) => item.id === id)))
-        throw Error("NOT_FOUND");
-      const visibilityHash = fingerprint(
-        await captureEnvelope(
-          db,
-          ctx,
-          await loadState(db, ctx.workspaceId),
-          items.map((item) => item.id).sort(),
-        ),
-      );
-      const payloadHash = fingerprint(input);
-      const old = (
-        await db.query(
-          "SELECT payload_hash,visibility_hash,revision FROM workflow_personal_library_mutations WHERE workspace_id=$1 AND principal_id=$2 AND mutation_id=$3",
-          [ctx.workspaceId, ctx.principalId, input.mutationId],
-        )
-      ).rows[0];
-      if (old) {
-        if (old.payload_hash !== payloadHash) throw Error("MUTATION_CONFLICT");
-        if (old.visibility_hash !== visibilityHash)
-          throw Error("STALE_VERSION");
-        return { revision: Number(old.revision) };
-      }
+    return this.run(ctx, "knowledge.read", undefined, (db) =>
+      this.updatePersonalFavorites(db, ctx, input),
+    );
+  }
+  async movePersonalFavorite(
+    ctx: Context,
+    input: {
+      pageId: string;
+      direction: "up" | "down";
+      expectedRevision: number;
+      mutationId: string;
+    },
+  ) {
+    return this.run(ctx, "knowledge.read", undefined, (db) =>
+      this.updatePersonalFavorites(db, ctx, input),
+    );
+  }
+  private async updatePersonalFavorites(
+    db: PoolClient,
+    ctx: Context,
+    input:
+      | { pageIds: string[]; expectedRevision: number; mutationId: string }
+      | {
+          pageId: string;
+          direction: "up" | "down";
+          expectedRevision: number;
+          mutationId: string;
+        },
+  ) {
+    const items = await this.personalRows(db, ctx, "favorites");
+    const requested = "pageIds" in input ? input.pageIds : [input.pageId];
+    if (requested.some((id) => !items.some((item) => item.id === id)))
+      throw Error("NOT_FOUND");
+    const visibilityHash = fingerprint(
+      await captureEnvelope(
+        db,
+        ctx,
+        await loadState(db, ctx.workspaceId),
+        items.map((item) => item.id).sort(),
+      ),
+    );
+    const payloadHash = fingerprint(
+      "pageIds" in input ? input : { operation: "move", ...input },
+    );
+    const old = (
       await db.query(
-        "INSERT INTO workflow_personal_library_state(workspace_id,principal_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
+        "SELECT payload_hash,visibility_hash,revision FROM workflow_personal_library_mutations WHERE workspace_id=$1 AND principal_id=$2 AND mutation_id=$3",
+        [ctx.workspaceId, ctx.principalId, input.mutationId],
+      )
+    ).rows[0];
+    if (old) {
+      if (old.payload_hash !== payloadHash) throw Error("MUTATION_CONFLICT");
+      if (old.visibility_hash !== visibilityHash) throw Error("STALE_VERSION");
+      return { revision: Number(old.revision) };
+    }
+    await db.query(
+      "INSERT INTO workflow_personal_library_state(workspace_id,principal_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
+      [ctx.workspaceId, ctx.principalId],
+    );
+    const row = (
+      await db.query(
+        "SELECT revision FROM workflow_personal_library_state WHERE workspace_id=$1 AND principal_id=$2 FOR UPDATE",
         [ctx.workspaceId, ctx.principalId],
-      );
-      const row = (
-        await db.query(
-          "SELECT revision FROM workflow_personal_library_state WHERE workspace_id=$1 AND principal_id=$2 FOR UPDATE",
-          [ctx.workspaceId, ctx.principalId],
-        )
-      ).rows[0];
-      if (Number(row.revision) !== input.expectedRevision)
-        throw Error("STALE_VERSION");
+      )
+    ).rows[0];
+    if (Number(row.revision) !== input.expectedRevision)
+      throw Error("STALE_VERSION");
+    let order: string[];
+    if ("pageIds" in input) {
       const selected = new Set(input.pageIds);
       let offset = 0;
-      const order = items.map((item) =>
+      order = items.map((item) =>
         selected.has(item.id) ? input.pageIds[offset++] : item.id,
       );
-      for (const [position, pageId] of order.entries())
-        await db.query(
-          "UPDATE workflow_activity SET position=$4 WHERE workspace_id=$1 AND principal_id=$2 AND page_id=$3 AND kind='favorite'",
-          [ctx.workspaceId, ctx.principalId, pageId, position],
-        );
-      const revision = input.expectedRevision + 1;
+    } else {
+      order = items.map((item) => item.id);
+      const index = order.indexOf(input.pageId),
+        next = index + (input.direction === "up" ? -1 : 1);
+      if (next < 0 || next >= order.length) throw Error("FAVORITE_BOUNDARY");
+      [order[index], order[next]] = [order[next], order[index]];
+    }
+    for (const [position, pageId] of order.entries())
       await db.query(
-        "UPDATE workflow_personal_library_state SET revision=$3 WHERE workspace_id=$1 AND principal_id=$2",
-        [ctx.workspaceId, ctx.principalId, revision],
+        "UPDATE workflow_activity SET position=$4 WHERE workspace_id=$1 AND principal_id=$2 AND page_id=$3 AND kind='favorite'",
+        [ctx.workspaceId, ctx.principalId, pageId, position],
       );
-      await db.query(
-        "INSERT INTO workflow_personal_library_mutations(workspace_id,principal_id,mutation_id,payload_hash,visibility_hash,revision) VALUES($1,$2,$3,$4,$5,$6)",
-        [
-          ctx.workspaceId,
-          ctx.principalId,
-          input.mutationId,
-          payloadHash,
-          visibilityHash,
-          revision,
-        ],
-      );
-      await audit(db, ctx, "favorite.reorder", ctx.principalId);
-      return { revision };
-    });
+    const revision = input.expectedRevision + 1;
+    await db.query(
+      "UPDATE workflow_personal_library_state SET revision=$3 WHERE workspace_id=$1 AND principal_id=$2",
+      [ctx.workspaceId, ctx.principalId, revision],
+    );
+    await db.query(
+      "INSERT INTO workflow_personal_library_mutations(workspace_id,principal_id,mutation_id,payload_hash,visibility_hash,revision) VALUES($1,$2,$3,$4,$5,$6)",
+      [
+        ctx.workspaceId,
+        ctx.principalId,
+        input.mutationId,
+        payloadHash,
+        visibilityHash,
+        revision,
+      ],
+    );
+    await audit(db, ctx, "favorite.reorder", ctx.principalId);
+    return { revision };
   }
   /** Templates currently carry one origin only. Additional draft lineage must
    * stay in a private draft until templates have a reviewed multi-root contract. */

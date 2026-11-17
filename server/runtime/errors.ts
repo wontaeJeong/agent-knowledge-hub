@@ -7,6 +7,7 @@ export const extensionErrorStatuses: Readonly<Record<string, number>> =
       ...executionErrorStatuses,
       ...governanceErrorStatuses,
       PERSONAL_LIBRARY_CAPACITY:409,
+      FAVORITE_BOUNDARY:409,
       SEMANTIC_JOB_REQUIRED:409,
       INVALID_SCHEDULE:400,
       INVALID_SCHEDULE_KIND:400,

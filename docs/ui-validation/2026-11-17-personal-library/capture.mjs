@@ -30,7 +30,8 @@ try {
         errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       let stateGate = null,
-        reorderGate = null;
+        reorderGate = null,
+        listGate = null;
       const delay = (kind) => {
         let entered, release;
         const wait = new Promise((resolve) => {
@@ -52,6 +53,7 @@ try {
           enter: () => entered(),
         };
         if (kind === "state") stateGate = gate;
+        else if (kind === "list") listGate = gate;
         else reorderGate = gate;
         return gate;
       };
@@ -69,11 +71,21 @@ try {
         // Only delay actual canonical responses; never fabricate API DTOs.
         const gate = u.pathname.endsWith("/personal-state")
           ? stateGate
-          : u.pathname.endsWith("/favorites/reorder")
+          : u.pathname.endsWith("/favorites/move")
             ? reorderGate
-            : null;
+            : /^\/api\/v1\/workflows\/(favorites|recent|subscriptions)$/.test(
+                  u.pathname,
+                )
+              ? listGate
+              : null;
         if (gate) {
           if (u.pathname.endsWith("/personal-state")) stateGate = null;
+          else if (
+            /^\/api\/v1\/workflows\/(favorites|recent|subscriptions)$/.test(
+              u.pathname,
+            )
+          )
+            listGate = null;
           else reorderGate = null;
           gate.enter();
           await gate.wait;
@@ -90,6 +102,22 @@ try {
           ).rows[0].n,
         );
       const before = await visits();
+      const native = async (path, body) => {
+        const response = await fetch("http://127.0.0.1:4393/api/v1" + path, {
+          method: body ? "POST" : "GET",
+          headers: {
+            cookie: "synthetic-session",
+            origin: "http://127.0.0.1:5193",
+            "x-csrf-token": "test-only-csrf",
+            "content-type": "application/json",
+          },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        });
+        if (!response.ok)
+          throw Error(`Canonical fixture request failed ${response.status}`);
+        return response.json();
+      };
+
       const go = async (kind) => {
         await page.goto(
           `http://127.0.0.1:5193/?app=1&space=${fixture.workspaceId}&section=${kind}`,
@@ -186,17 +214,81 @@ try {
         )
           throw Error("Reorder stole intentional outside pointer focus");
       }
+      for (const id of ["library-27", "library-28"])
+        await native(`/workflows/pages/${id}/favorite`, { enabled: false });
+      await go("favorites");
+      const beforeCross = await native("/workflows/favorites");
+      const original25 = beforeCross.items[24].id;
       await page
         .getByRole("button", { name: "다음 25개", exact: true })
         .click();
       await page.waitForFunction(
         () =>
-          document.querySelectorAll(".personal-library-list li").length === 3,
+          document.querySelectorAll(".personal-library-list li").length === 1,
       );
       const lastCount = await page.locator(".personal-library-list li").count();
+      const crossTitle = await page
+        .locator(".personal-library-list a")
+        .innerText();
+      const crossId = new URL(
+        await page.locator(".personal-library-list a").getAttribute("href"),
+        "http://127.0.0.1:5193",
+      ).searchParams.get("document");
+      const up = page.getByRole("button", {
+        name: `${crossTitle} 위로 이동`,
+        exact: true,
+      });
+      if (!(await up.isEnabled())) throw Error("Favorite26 cannot move upward");
+      await up.focus();
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(
+        (title) =>
+          document.querySelectorAll(".personal-library-list a").length === 25 &&
+          document.querySelectorAll(".personal-library-list a")[24]
+            ?.textContent === title,
+        crossTitle,
+      );
+      await page.waitForFunction(
+        (title) =>
+          document.activeElement?.getAttribute("aria-label") ===
+          `${title} 위로 이동`,
+        crossTitle,
+      );
+      const promoted = await native("/workflows/favorites");
+      if (promoted.items[24].id !== crossId)
+        throw Error("Cross-page promotion did not persist");
+      const swapped = await native(
+        "/workflows/favorites?cursor=" +
+          encodeURIComponent(promoted.nextCursor),
+      );
+      if (swapped.items[0].id !== original25)
+        throw Error("Favorite25 was not demoted");
+      const crossDown = page.getByRole("button", {
+        name: `${crossTitle} 아래로 이동`,
+        exact: true,
+      });
+      await crossDown.focus();
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(
+        (title) =>
+          document.querySelectorAll(".personal-library-list a").length === 1 &&
+          document.querySelector(".personal-library-list a")?.textContent ===
+            title,
+        crossTitle,
+      );
+      await page.waitForFunction(
+        (title) =>
+          document.activeElement?.getAttribute("aria-label") ===
+          `${title} 위로 이동`,
+        crossTitle,
+      );
+      if ((await native("/workflows/favorites")).items[24].id !== original25)
+        throw Error("Cross-page demotion did not persist");
       await page.screenshot({
         path: `${output}/favorites-next-${width}-${theme}.png`,
       });
+      for (const id of ["library-27", "library-28"])
+        await native(`/workflows/pages/${id}/favorite`, { enabled: true });
       await page.evaluate(() => scrollTo(0, 0));
       if (width === 390) await page.locator(".console-menu-toggle").click();
       await page
@@ -223,6 +315,105 @@ try {
       await page.screenshot({
         path: `${output}/subscriptions-${width}-${theme}.png`,
       });
+      for (const kind of ["favorites", "recent", "subscriptions"]) {
+        for (const departure of ["stay", "keyboard", "pointer"]) {
+          await go(kind);
+          const link = page.locator(".personal-library-list a").last();
+          const id = new URL(
+            await link.getAttribute("href"),
+            "http://127.0.0.1:5193",
+          ).searchParams.get("document");
+          await link.focus();
+          await db.query(
+            "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id=$2 AND principal_id='reviewer'",
+            [fixture.workspaceId, id],
+          );
+          const gate = delay("list");
+          await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+          await gate.entered;
+          const outside = page
+            .locator(".console-topbar")
+            .getByRole("button", { name: "검색", exact: true });
+          if (departure === "keyboard") await outside.focus();
+          if (departure === "pointer")
+            await page.locator(".console-topbar strong").click();
+          const readback = page.waitForResponse((r) =>
+            r.url().includes("/workflows/" + kind + "?"),
+          );
+          gate.release();
+          await readback;
+          await page.waitForFunction(
+            (id) =>
+              ![...document.querySelectorAll(".personal-library-list a")].some(
+                (a) => new URL(a.href).searchParams.get("document") === id,
+              ),
+            id,
+          );
+          if (
+            departure === "stay" &&
+            !(await page.evaluate(() =>
+              document
+                .querySelector(".personal-library")
+                ?.contains(document.activeElement),
+            ))
+          )
+            throw Error("Ordinary refresh lost keyboard position");
+          if (
+            departure === "keyboard" &&
+            !(await outside.evaluate((e) => document.activeElement === e))
+          )
+            throw Error("Ordinary refresh stole outside focus");
+          if (
+            departure === "pointer" &&
+            (await page.evaluate(() =>
+              document
+                .querySelector(".personal-library")
+                ?.contains(document.activeElement),
+            ))
+          )
+            throw Error("Ordinary refresh stole outside pointer intent");
+          await db.query(
+            "INSERT INTO resource_readers VALUES($1,'page',$2,'reviewer') ON CONFLICT DO NOTHING",
+            [fixture.workspaceId, id],
+          );
+        }
+        await go(kind);
+        await page.locator(".personal-library-list a").last().focus();
+        await db.query(
+          "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id='source-a' AND principal_id='reviewer'",
+          [fixture.workspaceId],
+        );
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await page.waitForFunction(
+          () =>
+            document
+              .querySelector(".personal-library")
+              ?.textContent.includes("표시할 문서 없음") &&
+            document.activeElement ===
+              document.querySelector("[data-personal-fallback]"),
+        );
+        await db.query(
+          "INSERT INTO resource_readers VALUES($1,'source','source-a','reviewer') ON CONFLICT DO NOTHING",
+          [fixture.workspaceId],
+        );
+      }
+      await go("favorites");
+      await page.locator(".personal-library-list a").last().focus();
+      await db.query(
+        "INSERT INTO workflow_activity(workspace_id,principal_id,page_id,kind,at) SELECT $1,'reviewer','capacity-'||n,'favorite',now() FROM generate_series(1,10001)n",
+        [fixture.workspaceId],
+      );
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await page.waitForFunction(
+        () =>
+          document.querySelector(".personal-library [role=alert]") &&
+          document.activeElement ===
+            document.querySelector("[data-personal-fallback]"),
+      );
+      await db.query(
+        "DELETE FROM workflow_activity WHERE workspace_id=$1 AND principal_id='reviewer' AND page_id LIKE 'capacity-%'",
+        [fixture.workspaceId],
+      );
       await go("recent");
       await page.screenshot({ path: `${output}/recent-${width}-${theme}.png` });
       if ((await visits()) !== before)
@@ -363,6 +554,12 @@ try {
         subscriptions,
         keyboardReorder: true,
         boundaryFocusFallback: true,
+        crossPage26To25AndBack: true,
+        crossPageOrderPersisted: true,
+        ordinaryAllKindsRemovedFocus: true,
+        ordinaryEmptyFocus: true,
+        ordinaryCanonicalErrorFocus: true,
+        ordinaryOutsideKeyboardPointerNoSteal: true,
         focusRestored: true,
         mobileNavigation: true,
         currentStateToggle: true,

@@ -4,6 +4,8 @@ export interface LibraryItem {
   title: string;
   version: number;
   at: string | null;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
 }
 export interface LibraryPage {
   items: LibraryItem[];

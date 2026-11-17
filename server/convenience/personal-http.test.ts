@@ -227,3 +227,114 @@ test("concurrent favorite toggles and reorder share a revision lock; post-comput
     await f.pool.end();
   }
 });
+
+test("native adjacent favorite move enforces compatible CAS/replay, current authority and explicit global edges", async () => {
+  const f = await fixture();
+  await adoptFixture(f.pool, f.workspaceId);
+  const runtime = new RuntimeService(f.pool),
+    workflows = new WorkflowService(f.pool, runtime, authorizeInTransaction);
+  await f.pool.query("INSERT INTO resources VALUES($1,'page','second')", [
+    f.workspaceId,
+  ]);
+  await f.pool.query(
+    "INSERT INTO resource_readers VALUES($1,'page','second','reader')",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    'INSERT INTO pages(workspace_id,id,data) SELECT workspace_id,\'second\',data||\'{"id":"second","title":"합성 두번째"}\' FROM pages WHERE workspace_id=$1 AND id=\'topic\'',
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO versions SELECT workspace_id,'second',number,data FROM versions WHERE workspace_id=$1 AND page_id='topic'",
+    [f.workspaceId],
+  );
+  await workflows.favorite(f.reader, "topic", true);
+  await workflows.favorite(f.reader, "second", true);
+  await workflows.reorderPersonalFavorites(f.reader, {
+    pageIds: ["topic", "second"],
+    expectedRevision: 2,
+    mutationId: "seed-order",
+  });
+  const auth = {
+    authenticate: async (req: any) =>
+      req.headers.cookie
+        ? {
+            ...(req.headers.cookie === "editor" ? f.editor : f.reader),
+            csrfToken: "csrf",
+          }
+        : null,
+    requestGuard: () => ({
+      revalidate: async () => {},
+      assertSession: async () => {},
+    }),
+  };
+  const server = createServer(
+    createRuntimeHandler({
+      pool: f.pool,
+      service: runtime,
+      origin: "https://knowledge.example.test",
+      workspaceId: f.workspaceId,
+      auth,
+    } as any),
+  );
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${(server.address() as any).port}/api/v1/workflows`,
+    headers = {
+      cookie: "reader",
+      origin: "https://knowledge.example.test",
+      "content-type": "application/json",
+      "x-csrf-token": "csrf",
+    };
+  const input = {
+    pageId: "second",
+    direction: "up",
+    expectedRevision: 3,
+    mutationId: "native-move",
+  };
+  const post = (body: unknown, extra = {}) =>
+    fetch(base + "/favorites/move", {
+      method: "POST",
+      headers: { ...headers, ...extra },
+      body: JSON.stringify(body),
+    });
+  try {
+    expect((await post(input, { "x-csrf-token": "wrong" })).status).toBe(403);
+    const moved = await post(input);
+    expect(moved.status).toBe(200);
+    expect(await moved.json()).toEqual({ revision: 4, cursor: null });
+    expect(await (await post(input)).json()).toEqual({
+      revision: 4,
+      cursor: null,
+    });
+    const list = (await (
+      await fetch(base + "/favorites", { headers })
+    ).json()) as any;
+    expect(
+      list.items.map((i: any) => [i.id, i.canMoveUp, i.canMoveDown]),
+    ).toEqual([
+      ["second", false, true],
+      ["topic", true, false],
+    ]);
+    expect((await post({ ...input, mutationId: "stale" })).status).toBe(409);
+    expect((await post({ ...input, direction: "down" })).status).toBe(409);
+    expect(
+      (await post({ ...input, direction: "sideways", mutationId: "invalid" }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await post({ ...input, expectedRevision: 4, mutationId: "edge" }))
+        .status,
+    ).toBe(409);
+    expect((await post(input, { cookie: "editor" })).status).toBe(404);
+    await f.pool.query(
+      "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reader'",
+      [f.workspaceId],
+    );
+    const denied = await post(input);
+    expect(denied.status).toBe(404);
+    expect(await denied.text()).not.toContain("second");
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+    await f.pool.end();
+  }
+});
