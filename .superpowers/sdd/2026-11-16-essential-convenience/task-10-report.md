@@ -1,5 +1,21 @@
 # Task 10 — document property forms and reviewed bulk actions
 
+## Review fix round 2 — current and historical environment search
+
+Fix base `1d0ff9894f49abe9b39e45122d571f73d6043f3c`, PR 76. Round 1's three review items were accepted by the scoped reviewer. This round addresses the newly reproduced string search regression in EDT-005 and SRH-002/003/004.
+
+The only production file changed is `server/questions/search.ts`. The search projection calls canonicalEnvironment and returns a string when the resolved value is a string. Current results use the current workflow row. Historical results use the immutable snapshot for that individual version, including older snapshots with no top-level environment. Explicit null, empty string and structured maps take precedence over a conflicting nested string. The query schema still rejects an object-valued filter. No metadata alias, migration, permission change or change to publication was needed.
+
+**Actual PG RED and GREEN.** With Node 24.22.2 and the existing synthetic PG17 parent, `node scripts/test-server.mjs server/questions/service.test.ts` initially failed 5 of 25 tests. Canonical Fedora, null, empty and structured fields resolved to the obsolete nested value. A legacy Ubuntu v1 matched before and after independent approval, then disappeared from current search immediately after the summary-only publication. The service-level assertions reproduce the reviewer's external probe. See c10-r2-search-red.log.
+
+The corrected query service suite passed 25/25, c10-r2-search-green.log. The fixture includes a hash-valid legacy v1 snapshot without a canonical environment and a parent page with its own readers. The same reader matches v2 after the summary-only proposal, rejected self-approval, independent approval and publication. A later independently approved map-valued v3 preserves the canonical map with no nested alias. Current Ubuntu no longer matches, and historical Ubuntu still matches exactly v2 and v1. A direct matrix checks current and freshly captured historical snapshots when canonical keys conflict with old values. Removing then restoring the reader's original source or current ancestor permission hides then restores the current result and historical v2/v1 results respectively.
+
+**Current commands.**
+
+- `node scripts/test-server.mjs server/questions/scope.test.ts server/questions/semantic-search.test.ts server/questions/http.test.ts server/questions/runtime-http.test.ts server/search/index.test.ts server/agents/search-regression.test.ts server/runtime/search-mcp.test.ts server/workflows/versions server/workflows/governance/publication.test.ts` exited 0, 11 files / 80 tests in c10-r2-native.log. Together with the separate service suite, this round ran 12 distinct native files / 105 tests successfully. The UUID-owned database wrapper removed each suite's database. The older 23-file / 297-test run remains round-1 evidence.
+- `npm run check` exited 0 in c10-r2-current-check.log. Counts were frontend 546, Node 48, imports 16, evaluation 41 and 251 requirement records, followed by TypeScript, production build and static HTTP smoke. The existing Vite bundle-size warning remains.
+- `node docs/ui-validation/2026-11-18-properties-bulk/manifest.mjs` and `node docs/ui-validation/2026-11-18-properties-bulk/manifest.mjs --verify` bind the current production and test evidence. Current fingerprint `0a54e6c4629e3b56c42140de9d7fe49b983cf20860fcb301d27930befd161cb5`. The carried browser fingerprint remains `15b61085b6725a050e0aa9f316a2b1f4316c1d50369a516fc9b2e32c5cbd0a01` from `e474468c118906cd4cac7de36a3c08e0496142da`. The verifier compares all 18 PNGs, observed browser results, capture script, runtime and cleanup with that commit's original manifest. Only search.ts differs among production files. Chromium was not rerun in round 2. Company IdP, production deployment/load and knowledge quality remain unverified.
+
 ## Review fix round 1 — PR 76
 
 Reviewed delivery commit `e474468c118906cd4cac7de36a3c08e0496142da`, [draft PR 76](https://github.com/wontaeJeong/agent-knowledge-hub/pull/76). The subsequent report-only commit records this stable evidence reference. Independent re-review and exact-head CI belong to the controller.

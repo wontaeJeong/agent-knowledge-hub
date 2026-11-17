@@ -1,0 +1,97 @@
+[1/1] server/questions/service.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ server/questions/service.test.ts (25 tests | 5 failed) 35195ms
+   × current and historical environment prefer canonical string to an obsolete nested string 129ms
+   × current and historical environment prefer explicit null to an obsolete nested string 100ms
+   × current and historical environment prefer explicit empty string to an obsolete nested string 89ms
+   × current and historical environment prefer structured map to an obsolete nested string 89ms
+   × a summary-only publication keeps legacy string search, preserves version-bound history through a map edit and rechecks current lineage 707ms
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 20 passed (25)
+   Start at  08:47:26
+   Duration  35.39s (tests 100%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/questions/service.test.ts > current and historical environment prefer canonical string to an obsolete nested string
+AssertionError: expected 'obsolete' to be 'Fedora' // Object.is equality
+
+Expected: "Fedora"
+Received: "obsolete"
+
+ ❯ server/questions/service.test.ts:802:41
+    800|     const page = results.items.find(item => item.pageId === "topic" &&…
+    801|     expect(page).toBeDefined();
+    802|     expect(page!.metadata?.environment).toBe(expected);
+       |                                         ^
+    803|     expect((await f.service.search(f.reader, { historical, environment…
+    804|     if (expected) expect((await f.service.search(f.reader,{historical,…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  server/questions/service.test.ts > current and historical environment prefer explicit null to an obsolete nested string
+ FAIL  server/questions/service.test.ts > current and historical environment prefer structured map to an obsolete nested string
+AssertionError: expected 'obsolete' to be undefined // Object.is equality
+
+- Expected:
+undefined
+
++ Received:
+"obsolete"
+
+ ❯ server/questions/service.test.ts:802:41
+    800|     const page = results.items.find(item => item.pageId === "topic" &&…
+    801|     expect(page).toBeDefined();
+    802|     expect(page!.metadata?.environment).toBe(expected);
+       |                                         ^
+    803|     expect((await f.service.search(f.reader, { historical, environment…
+    804|     if (expected) expect((await f.service.search(f.reader,{historical,…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  server/questions/service.test.ts > current and historical environment prefer explicit empty string to an obsolete nested string
+AssertionError: expected 'obsolete' to be '' // Object.is equality
+
+- Expected
++ Received
+
++ obsolete
+
+ ❯ server/questions/service.test.ts:802:41
+    800|     const page = results.items.find(item => item.pageId === "topic" &&…
+    801|     expect(page).toBeDefined();
+    802|     expect(page!.metadata?.environment).toBe(expected);
+       |                                         ^
+    803|     expect((await f.service.search(f.reader, { historical, environment…
+    804|     if (expected) expect((await f.service.search(f.reader,{historical,…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  server/questions/service.test.ts > a summary-only publication keeps legacy string search, preserves version-bound history through a map edit and rechecks current lineage
+AssertionError: expected [] to deeply equal [ { version: 2, …(1) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "environment": "Ubuntu",
+-     "version": 2,
+-   },
+- ]
++ []
+
+ ❯ server/questions/service.test.ts:834:41
+    832|   expect(await matches(false,"Ubuntu")).toEqual(previous);
+    833|   await knowledge.publish(independent,summaryOnly.id,summaryOnly.hash,…
+    834|   expect(await matches(false,"Ubuntu")).toEqual(published);
+       |                                         ^
+    835|   expect(await matches(true,"Ubuntu")).toEqual(published);
+    836|   const map={os:"linux",version:"17"};
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+

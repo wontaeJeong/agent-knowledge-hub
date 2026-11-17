@@ -1,3 +1,4 @@
+import { canonicalEnvironment } from "../../src/domain/document-properties";
 import { indexedContentMatches } from "../search/query";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
@@ -31,6 +32,14 @@ export type SearchMetadata = {
   archived?: boolean;
   properties?: Record<string, unknown>;
 };
+function searchEnvironment(data: {
+  environment?: unknown;
+  properties?: Record<string, unknown>;
+}) {
+  const value = canonicalEnvironment(data);
+  return typeof value === "string" ? value : undefined;
+}
+
 /** Host supplies immutable migration103 snapshots; null means unknown, never current fallback. */
 export type MetadataReader = (
   db: PoolClient,
@@ -254,10 +263,7 @@ export class ScopedSearch {
                 archived: snapshot.lifecycle === "archived",
                 reviewDate: snapshot.workflowData?.reviewDue ?? null,
                 project: snapshot.properties?.project,
-                environment:
-                  typeof snapshot.environment === "string"
-                    ? snapshot.environment
-                    : snapshot.properties?.environment,
+                environment: searchEnvironment(snapshot),
                 properties: snapshot.properties,
                 businessOwner: snapshot.businessOwner,
               }
@@ -405,10 +411,7 @@ export class ScopedSearch {
         typeof flag?.data.reviewDue === "string" ? flag.data.reviewDue : null,
       project:
         typeof properties.project === "string" ? properties.project : undefined,
-      environment:
-        typeof properties.environment === "string"
-          ? properties.environment
-          : undefined,
+      environment: searchEnvironment(flag?.data ?? {}),
       archived: flag?.state === "archived",
       properties,
     };

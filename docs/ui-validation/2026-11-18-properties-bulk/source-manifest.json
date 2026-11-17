@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-17T23:37:25.728Z",
+  "generatedAt": "2026-11-17T23:52:29.554Z",
   "base": "29a892b06b1edc089ffab678835a46a936241306",
   "production": {
     "package-lock.json": "32dc1c6d76ab2b08f988e203da5a35efa7b686901b4429947a3e7afb0f3f4199",
@@ -152,7 +152,7 @@
     "server/questions/feedback.ts": "3f9dff8f80fb35f2ef5d79243644511138d62e259bc0c4447d682145dce10bf0",
     "server/questions/http.ts": "345aa2e393e720478b1078346df12513d6d355fe1050f0c334239b584f8a6fbb",
     "server/questions/scope.ts": "33a850c216f3e799cd3e1aca004e6292343175e905e55bf8b28631d532670535",
-    "server/questions/search.ts": "f2a23f1f0832d15ddd539e2fca611773094a08d1220d1579189ce56988efbb71",
+    "server/questions/search.ts": "88c0d7f46b18fb69dc4061d6fcb29c833021bc83e4eca4bacdaa6598850ac8d9",
     "server/questions/semantic.ts": "1ba62733d88eb36b5be8159da4f8d97916f7c033b97bb663077aa3b9ebbf97e9",
     "server/questions/service.ts": "3e21ac80d26ab76b2f52e97ca70f5caa0b2b32fd350364cbc6d95483896a568d",
     "server/refinement/execution-fixture.ts": "12c609bfd2f27db4c6ea9dd7092d40800c46faef8d5c89d14ab54228db59c91e",
@@ -346,7 +346,14 @@
     "src/vite-env.d.ts": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
     "vite.config.ts": "70a0f098ea4a8bd39fb7bb15f33a27d4643b3f93533caaa47b37490f1a422622"
   },
-  "productionFingerprint": "15b61085b6725a050e0aa9f316a2b1f4316c1d50369a516fc9b2e32c5cbd0a01",
+  "productionFingerprint": "0a54e6c4629e3b56c42140de9d7fe49b983cf20860fcb301d27930befd161cb5",
+  "browserCapture": {
+    "productionFingerprint": "15b61085b6725a050e0aa9f316a2b1f4316c1d50369a516fc9b2e32c5cbd0a01",
+    "captureCommit": "e474468c118906cd4cac7de36a3c08e0496142da",
+    "changedProductionFiles": [
+      "server/questions/search.ts"
+    ]
+  },
   "evidence": {
     ".superpowers/sdd/2026-11-16-essential-convenience/c10-browser-current.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     ".superpowers/sdd/2026-11-16-essential-convenience/c10-browser-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -387,6 +394,10 @@
     ".superpowers/sdd/2026-11-16-essential-convenience/c10-r1-pg-red.log": "c5a7deaf00300d6627a602dac9d3e4c2786629794850858faf35f066b0f81f43",
     ".superpowers/sdd/2026-11-16-essential-convenience/c10-r1-ui-green.log": "d458a929af1e8343c64c306771e4ad046f7071d279b7da14c6091e8449f845c7",
     ".superpowers/sdd/2026-11-16-essential-convenience/c10-r1-ui-red.log": "691fa078d7ee02605a8fddf04f559fbe567c8c5d95b8005928a95807e1b3fc8f",
+    ".superpowers/sdd/2026-11-16-essential-convenience/c10-r2-current-check.log": "1832aa39984620fcae0b4820dbae7d6ea01a682306061ef9b4f2525ca557bf95",
+    ".superpowers/sdd/2026-11-16-essential-convenience/c10-r2-native.log": "c0472f425dc8765ec1a17e8f37dd9e641e3cf74cc8e12c50e84c197d945b2a83",
+    ".superpowers/sdd/2026-11-16-essential-convenience/c10-r2-search-green.log": "2b9c70b11ea1b9e21ece167585a46aabf0fc351790ba6f481539cfa264968f7d",
+    ".superpowers/sdd/2026-11-16-essential-convenience/c10-r2-search-red.log": "ae41f7e5c0b6ed04508f63f50c438726d549bbcf00b87c1f85f544749af2fb71",
     ".superpowers/sdd/2026-11-16-essential-convenience/c10-replay-final.log": "129b4ff9eec78176561754845ed7ac4e7f74ef76d0e6e702a72fd66db20e258d",
     ".superpowers/sdd/2026-11-16-essential-convenience/c10-runtime-rerun.log": "fa5187149dc86874a17b56d92e8a8bdcb755e0d24468977e171d5ac8281733ab",
     ".superpowers/sdd/2026-11-16-essential-convenience/c10-session-read-red.log": "f85e04b196d847bbf7d3cc9c1e6864d456cc1b764f4727854b723defa8ad5b5b",
@@ -410,15 +421,16 @@
     "docs/ui-validation/2026-11-18-properties-bulk/390-light-partial.png": "bded7d7c30f9ffe5257c5909c976bc284171d20e337aef8f03284d1dbcc2a93e",
     "docs/ui-validation/2026-11-18-properties-bulk/390-light-preview.png": "a54b3c4b0ab5a81a78bdd6bcdf7eedc7b9f309182340b72ed1d1edb787af20f8",
     "docs/ui-validation/2026-11-18-properties-bulk/390-light-properties.png": "865ea130a28b52f21005a756d9a8ef4661b9852b8941a986329eddc9666aea5a",
-    "docs/ui-validation/2026-11-18-properties-bulk/README.md": "2f520a9c11b13eee23534873caafddf7b4e04d75cac5a028f0693b574a23a200",
+    "docs/ui-validation/2026-11-18-properties-bulk/README.md": "b281aba37a098d047dad06e6e9dc23e230b3457da0cfa4df57fe7a4101120e9d",
     "docs/ui-validation/2026-11-18-properties-bulk/browser-results.json": "054cacbdcd07bd430d730b679cf8b68700711bba55b7ef1dcdd916433f34dcb5",
     "docs/ui-validation/2026-11-18-properties-bulk/capture.mjs": "24b57c3de17064b0dc3f9a731d5688e69934caae0c5d467e3e46f9a9bcda774a",
     "docs/ui-validation/2026-11-18-properties-bulk/cleanup.json": "b4b695a8f30df59fc4c01cf04a559470b357694f3167c580c158c4d018b2f577",
-    "docs/ui-validation/2026-11-18-properties-bulk/manifest.mjs": "5ef9ff6ad099adf1b8f14c0280f1817cbdc8995a361d7f3e679338c53deaaa6b",
+    "docs/ui-validation/2026-11-18-properties-bulk/manifest.mjs": "6660c23e82106ebbb24102ab73ab26f253a1ff0ce34ff0fc98137c0bff9125e1",
     "docs/ui-validation/2026-11-18-properties-bulk/runtime.ts": "1b6179422fbb36305bef7d025dcf5eb42b64ce08c216eee769356067567c00f8",
     "server/convenience/bulk-migration.test.ts": "12f6e919f84e9c99d558b2709e1048c62fbf7af1ef976a48a3b922beeabca591",
     "server/convenience/bulk.test.ts": "9f2aa07ceee2b0d0c9df990436fcff99c817ebc9ed92c5dd7377ba45e69b3801",
     "server/jobs/maintenance-runtime.test.ts": "48334408a8ee06af74453f27bb566801182a04f959b7c20a2e0c0300230c200d",
+    "server/questions/service.test.ts": "ccd731e4ffaf62f74e88891b9612c353d04afbf080d1ed275e06dce1fecc2c94",
     "server/workflows/bulk.test.ts": "b6f59f07b60d023747ad24235c9dec2e815b65d2ea57efd28880b21bc20c0480",
     "src/operational/BulkEditor.test.tsx": "2e9d2a373dbce93b5e261e2e85591c46ec4d1352abfc0b8608f36bba5e399193",
     "src/operational/convenience/bulk.test.tsx": "b9a5a45bebaabfa40d6aa181d0cfb767842504d953278ecba3cf49a660fcf294",
