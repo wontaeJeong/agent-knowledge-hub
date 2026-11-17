@@ -1,3 +1,6 @@
+import { DocumentPropertiesService } from "../convenience/properties";
+import { fingerprint } from "../provenance";
+import { currentMetadata } from "./versions/metadata";
 import {
   createHash,
   createHmac,
@@ -38,6 +41,8 @@ const item = z
     status: z.enum(["ready", "unavailable"]),
     expectedRevision: z.number().int().nonnegative().optional(),
     patch: change.optional(),
+    metadataHash: z.string().optional(),
+    expectedVersion: z.number().int().positive().optional(),
   })
   .strict();
 const sealed = z
@@ -116,7 +121,21 @@ export async function bulkPreview(
         }
         patch = { parentId: d.operation.parentId };
       } else patch = { tags: [...new Set(d.operation.tags)] };
+      const metadata = await transaction(
+        service.pool,
+        ctx.workspaceId,
+        async (db) => {
+          await ctx.authorization?.assertSession(db);
+          await service.authorize(db, ctx, "knowledge.read", {
+            kind: "page",
+            id: pageId,
+          });
+          return currentMetadata(db, ctx, pageId);
+        },
+      );
       items.push({
+        metadataHash: fingerprint(metadata),
+        expectedVersion: metadata.number,
         id: pageId,
         status: "ready",
         expectedRevision: doc.settings.revision,
@@ -163,6 +182,39 @@ export async function bulkApply(
       continue;
     }
     try {
+      if (i.patch?.tags) {
+        const properties = new DocumentPropertiesService(service);
+        const current = await properties.read(ctx, i.id),
+          m = current.metadata;
+        const digest = createHash("sha256")
+          .update(token + ":" + i.id)
+          .digest("hex");
+        const mutationId = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-4${digest.slice(13, 16)}-8${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+        const result = await properties.propose(
+          ctx,
+          i.id,
+          {
+            category: m.category,
+            summary: m.summary,
+            tags: i.patch.tags,
+            properties: m.properties,
+            environment: m.environment ?? m.properties.environment ?? "",
+            reviewDue: m.workflowData.reviewDue ?? null,
+            expectedVersion: i.expectedVersion ?? m.number,
+            expectedRevision: i.expectedRevision,
+            reason: value.reason,
+            mutationId,
+          },
+          i.metadataHash,
+        );
+        items.push({
+          id: i.id,
+          status: "needs-review" as const,
+          batchId: result.id,
+          hash: result.hash,
+        });
+        continue;
+      }
       const result = await service.setDocumentState(
         ctx,
         i.id,
@@ -195,7 +247,9 @@ export async function bulkApply(
         throw e;
       if (
         e instanceof Error &&
-        ["STALE_VERSION", "VALIDATION_FAILED"].includes(e.message)
+        ["STALE_VERSION", "VALIDATION_FAILED", "PROPERTY_REQUIRED"].includes(
+          e.message,
+        )
       )
         items.push({ id: i.id, status: "failed" as const, code: e.message });
       else {
@@ -216,7 +270,8 @@ export async function bulkApply(
   }
   await ctx.authorization?.revalidate();
   for (const outcome of items) {
-    if (outcome.status !== "applied") continue;
+    if (outcome.status !== "applied" && outcome.status !== "needs-review")
+      continue;
     const original = value.items.find((i) => i.id === outcome.id)!;
     await transaction(service.pool, ctx.workspaceId, async (db) => {
       await membership(db, ctx);

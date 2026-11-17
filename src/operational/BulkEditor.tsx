@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { OperationalApi } from "./api";
 import { Button } from "../ui/primitives";
 type Preview = {
   token: string;
+  previewToken?: string;
   expiresAt: string;
   items: {
     id: string;
     status: string;
     expectedRevision?: number;
     patch?: unknown;
+    before?: unknown;
   }[];
 };
 type Outcome = { id: string; status: string; code?: string; revision?: number };
@@ -26,6 +28,7 @@ export function BulkEditor({
   onExpired: () => void;
 }) {
   const [ids, setIds] = useState<string[]>([]),
+    [hiddenIds, setHiddenIds] = useState<string[]>([]),
     [kind, setKind] = useState("tags"),
     [value, setValue] = useState(""),
     [reason, setReason] = useState(""),
@@ -34,10 +37,34 @@ export function BulkEditor({
     [results, setResults] = useState<Outcome[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const epoch = useRef(0);
-  useEffect(() => {
+  const epoch = useRef(0),
+    mutation = useRef(crypto.randomUUID());
+  const [receipt, setReceipt] = useState<string | null>(null),
+    [jobStatus, setJobStatus] = useState("");
+  async function readReceipt(id: string, request: number) {
+    const r = await api.get<{
+      status: string;
+      error?: string;
+      items: Outcome[];
+    }>(`/workflows/bulk/${id}`);
+    if (request !== epoch.current) return;
+    const visible = new Set(r.items.map((i) => i.id));
+    const omitted = [...ids, ...results.map((i) => i.id)].filter(
+      (id) => !visible.has(id),
+    );
+    setHiddenIds((old) => [...new Set([...old, ...omitted])]);
+    setIds((old) => old.filter((id) => visible.has(id)));
+    setResults(r.items);
+    setJobStatus(r.status);
+    if (r.error) setError(r.error);
+  }
+
+  useLayoutEffect(() => {
     epoch.current++;
+    setReceipt(null);
+    setJobStatus("");
     setIds([]);
+    setHiddenIds([]);
     setPreview(null);
     setRecovery(null);
     setResults([]);
@@ -48,6 +75,9 @@ export function BulkEditor({
     };
   }, [scope, api]);
   function change() {
+    mutation.current = crypto.randomUUID();
+    setReceipt(null);
+    setJobStatus("");
     epoch.current++;
     setPreview(null);
     setRecovery(null);
@@ -63,19 +93,35 @@ export function BulkEditor({
     try {
       const chosen = preview ?? recovery;
       if (apply && chosen) {
-        const r = await api.post<{ items: Outcome[] }>(
+        const r = await api.post<{
+          id?: string;
+          status?: string;
+          items?: Outcome[];
+        }>(
           "/workflows/bulk/apply",
-          { token: chosen.token },
+          chosen.previewToken
+            ? {
+                previewToken: chosen.previewToken,
+                mutationId: mutation.current,
+              }
+            : { token: chosen.token },
         );
         if (request !== epoch.current) return;
-        setResults(r.items);
-        setRecovery(
-          r.items.some(
-            (i) => i.status === "unconfirmed" || i.code === "NOT_PROCESSED",
-          )
-            ? chosen
-            : null,
-        );
+        if (r.id) {
+          setReceipt(r.id);
+          setJobStatus(r.status ?? "queued");
+          setRecovery(null);
+          await readReceipt(r.id, request);
+        } else if (r.items) {
+          setResults(r.items);
+          setRecovery(
+            r.items.some(
+              (i) => i.status === "unconfirmed" || i.code === "NOT_PROCESSED",
+            )
+              ? chosen
+              : null,
+          );
+        }
         setPreview(null);
       } else {
         const operation =
@@ -95,7 +141,17 @@ export function BulkEditor({
           operation,
           reason,
         });
-        if (request === epoch.current) setPreview(r);
+        if (request === epoch.current) {
+          const unavailable = r.items
+            .filter((i) => i.status !== "ready")
+            .map((i) => i.id);
+          setHiddenIds((old) => [...new Set([...old, ...unavailable])]);
+          setIds((old) => old.filter((id) => !unavailable.includes(id)));
+          setPreview({
+            ...r,
+            items: r.items.filter((i) => i.status === "ready"),
+          });
+        }
       }
     } catch (e) {
       if (request !== epoch.current) return;
@@ -112,6 +168,7 @@ export function BulkEditor({
         "status" in e &&
         [401, 403].includes(Number(e.status))
       ) {
+        setHiddenIds(pages.map((p) => p.id));
         setIds([]);
         setRecovery(null);
         setResults([]);
@@ -126,28 +183,38 @@ export function BulkEditor({
       <summary>여러 문서의 태그·위치·보관 변경</summary>
       <p>
         최대 50개 문서를 선택해 변경 내용을 확인합니다. 적용은 문서별로 처리하며
-        권한이나 기준이 달라진 대상은 실패로 표시합니다.
+        권한이나 기준이 달라진 대상은 별도 표시합니다. 태그 변경은 검토 요청으로
+        접수합니다.
       </p>
+      {hiddenIds.length > 0 && (
+        <p role="status">
+          현재 접근하거나 변경할 수 없는 선택을 제거했습니다. 필요한 문서는
+          권한을 확인한 뒤 다시 선택하세요.
+        </p>
+      )}
       <fieldset disabled={busy}>
         <legend>대상 문서</legend>
-        {pages.slice(0, 1000).map((p) => (
-          <label key={p.id} style={{ display: "block" }}>
-            <input
-              type="checkbox"
-              checked={ids.includes(p.id)}
-              disabled={!ids.includes(p.id) && ids.length >= 50}
-              onChange={(e) => {
-                change();
-                setIds((v) =>
-                  e.target.checked
-                    ? [...v, p.id]
-                    : v.filter((id) => id !== p.id),
-                );
-              }}
-            />
-            {p.title}
-          </label>
-        ))}
+        {pages
+          .filter((p) => !hiddenIds.includes(p.id))
+          .slice(0, 1000)
+          .map((p) => (
+            <label key={p.id} style={{ display: "block" }}>
+              <input
+                type="checkbox"
+                checked={ids.includes(p.id)}
+                disabled={!ids.includes(p.id) && ids.length >= 50}
+                onChange={(e) => {
+                  change();
+                  setIds((v) =>
+                    e.target.checked
+                      ? [...v, p.id]
+                      : v.filter((id) => id !== p.id),
+                  );
+                }}
+              />
+              {p.title}
+            </label>
+          ))}
       </fieldset>
       <label>
         변경 종류
@@ -192,6 +259,7 @@ export function BulkEditor({
           >
             <option value="">최상위</option>
             {pages
+              .filter((p) => !hiddenIds.includes(p.id))
               .filter((p) => !ids.includes(p.id))
               .map((p) => (
                 <option key={p.id} value={p.id}>
@@ -225,7 +293,10 @@ export function BulkEditor({
           <ul>
             {preview.items.map((i) => (
               <li key={i.id}>
-                {pages.find((p) => p.id === i.id)?.title ?? "선택 문서"} ·{" "}
+                {i.status === "ready"
+                  ? (pages.find((p) => p.id === i.id)?.title ?? "선택 문서")
+                  : "선택 문서"}{" "}
+                ·{" "}
                 {i.status === "ready"
                   ? `적용 가능 · 기준 ${i.expectedRevision}`
                   : "접근 또는 변경 불가"}
@@ -233,7 +304,9 @@ export function BulkEditor({
                   <pre
                     style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
                   >
-                    {JSON.stringify(i.patch, null, 2)}
+                    {i.before !== undefined &&
+                      `변경 전: ${JSON.stringify(i.before)}\n`}
+                    {`변경 후: ${JSON.stringify(i.patch)}`}
                   </pre>
                 )}
               </li>
@@ -254,6 +327,43 @@ export function BulkEditor({
           동일 요청의 처리 결과 다시 확인
         </Button>
       )}
+      {receipt && (
+        <section aria-label="일괄 작업 상태">
+          <p role="status">
+            {jobStatus === "queued"
+              ? "접수됨 · 작업자 처리 대기"
+              : jobStatus === "running"
+                ? "처리 중"
+                : jobStatus === "succeeded"
+                  ? "항목 처리 완료 · 아래 결과 확인"
+                  : "작업 중단 · 결과와 사유 확인"}
+          </p>
+          <Button
+            disabled={busy}
+            onClick={() => {
+              const request = ++epoch.current;
+              setBusy(true);
+              void readReceipt(receipt, request)
+                .catch((e) => {
+                  if (request === epoch.current) {
+                    setHiddenIds((old) => [
+                      ...new Set([...old, ...ids, ...results.map((i) => i.id)]),
+                    ]);
+                    setIds([]);
+                    setResults([]);
+                    setError(e instanceof Error ? e.message : "결과 조회 실패");
+                    if (e?.status === 401) onExpired();
+                  }
+                })
+                .finally(() => {
+                  if (request === epoch.current) setBusy(false);
+                });
+            }}
+          >
+            처리 결과 새로고침
+          </Button>
+        </section>
+      )}
       {results.length > 0 && (
         <section aria-label="일괄 변경 결과">
           <p>
@@ -263,14 +373,26 @@ export function BulkEditor({
           <ul>
             {results.map((r) => (
               <li key={r.id}>
-                {pages.find((p) => p.id === r.id)?.title ?? "선택 문서"} ·{" "}
+                {r.status === "denied"
+                  ? "선택 문서"
+                  : (pages.find((p) => p.id === r.id)?.title ??
+                    "선택 문서")}{" "}
+                ·{" "}
                 {r.status === "applied"
                   ? "적용됨"
-                  : r.status === "unconfirmed"
-                    ? "처리 확인 필요"
-                    : r.status === "skipped"
-                      ? "제외됨"
-                      : "실패"}{" "}
+                  : r.status === "needs-review"
+                    ? "검토 필요"
+                    : r.status === "pending"
+                      ? "대기"
+                      : r.status === "denied"
+                        ? "변경 권한 없음"
+                        : r.status === "stale"
+                          ? "기준 변경 · 다시 미리보기"
+                          : r.status === "unconfirmed"
+                            ? "처리 확인 필요"
+                            : r.status === "skipped"
+                              ? "제외됨"
+                              : "실패"}{" "}
                 {r.code}
               </li>
             ))}
@@ -282,6 +404,8 @@ export function BulkEditor({
                 results
                   .filter(
                     (r) =>
+                      r.status === "stale" ||
+                      r.status === "denied" ||
                       r.status === "failed" ||
                       r.status === "unconfirmed" ||
                       r.code === "NOT_PROCESSED",
@@ -298,7 +422,9 @@ export function BulkEditor({
               const request = epoch.current;
               void onChanged().catch(() => {
                 if (request === epoch.current)
-                  setError("적용 결과는 유지됩니다. 문서 목록을 새로고침하지 못했습니다.");
+                  setError(
+                    "적용 결과는 유지됩니다. 문서 목록을 새로고침하지 못했습니다.",
+                  );
               });
             }}
           >

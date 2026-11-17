@@ -1,0 +1,67 @@
+{
+  "startedAt": "2026-11-17T22:52:01.617Z",
+  "productionFingerprint": "32567056187ae489f3b75ebac85aac4f62d6d99eb8c8e7edbf4f98fdd86e0333",
+  "browser": "Chromium",
+  "results": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "checks": [
+        "canonical property policy",
+        "keyboard Tab",
+        "reviewed metadata no direct publish",
+        "queued acceptance",
+        "partial applied/stale",
+        "denied target filtered",
+        "no horizontal overflow"
+      ],
+      "requests": 74,
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "checks": [
+        "canonical property policy",
+        "keyboard Tab",
+        "reviewed metadata no direct publish",
+        "queued acceptance",
+        "partial applied/stale",
+        "denied target filtered",
+        "no horizontal overflow"
+      ],
+      "requests": 74,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "checks": [
+        "canonical property policy",
+        "keyboard Tab",
+        "reviewed metadata no direct publish",
+        "queued acceptance",
+        "partial applied/stale",
+        "denied target filtered",
+        "no horizontal overflow"
+      ],
+      "requests": 74,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "checks": [
+        "canonical property policy",
+        "keyboard Tab",
+        "reviewed metadata no direct publish",
+        "queued acceptance",
+        "partial applied/stale",
+        "denied target filtered",
+        "no horizontal overflow"
+      ],
+      "requests": 74,
+      "errors": []
+    }
+  ]
+}

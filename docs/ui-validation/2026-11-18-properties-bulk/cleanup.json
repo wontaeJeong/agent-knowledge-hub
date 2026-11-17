@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-11-17T22:55:46.927Z",
+  "ownedDatabasesRemaining": 0,
+  "portsListening": {
+    "4400": false,
+    "5200": false
+  },
+  "parentPostgreSQLPreserved": true,
+  "stoppedPids": [
+    89399,
+    82643
+  ],
+  "note": "Runtime signal handler dropped its exact random database; exact ad-hoc knowledge_c10_20261118 dropped. Parent PG and other worktrees untouched."
+}

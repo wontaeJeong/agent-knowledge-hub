@@ -91,7 +91,7 @@ export async function validatePlannedMetadata(db:PoolClient,ctx:Context,plan:Res
   if(current.number!==plan.baseVersion||current.settingsRevision!==plan.settingsRevision||fingerprint(current)!==plan.currentHash)throw Error("STALE_VERSION");
  }
  const policy=(await db.query("SELECT policy_version FROM access_spaces WHERE workspace_id=$1 AND active",[ctx.workspaceId])).rows[0];if(!policy||policy.policy_version!==plan.policyVersion)throw Error("APPROVAL_STALE");
- if(plan.fields.some(f=>["properties","environment","lifecycle","parentId","category"].includes(f)))await authorizeActionDb(db,ctx,"knowledge.protect",plan.baseVersion?{kind:"page",id:plan.pageId}:undefined);
+ if(plan.fields.some(f=>["properties","environment","lifecycle","parentId","category","reviewDue"].includes(f)))await authorizeActionDb(db,ctx,"knowledge.protect",plan.baseVersion?{kind:"page",id:plan.pageId}:undefined);
  if(plan.fields.includes("parentId")){
   await authorizeActionDb(db,ctx,"space.admin",plan.baseVersion?{kind:"page",id:plan.pageId}:undefined);
   const seen=new Set([plan.pageId]);let parent=plan.next.parentId;
@@ -153,8 +153,8 @@ export async function applyApprovedVersionMetadataPlans(db:PoolClient,ctx:Contex
   await authorizeActionDb(db,ctx,"knowledge.protect",{kind:"page",id:p.pageId});
   const {readers}=await import("../../repository");const before=await readers(db,ctx.workspaceId,"page",p.pageId);
   const old=(await db.query("SELECT data FROM workflow_document_state WHERE workspace_id=$1 AND page_id=$2",[ctx.workspaceId,p.pageId])).rows[0]?.data??{};
-  const data={...old,properties:p.next.properties,environment:p.next.environment};
-  if(p.fields.some(f=>["properties","environment","parentId","lifecycle"].includes(f)))await db.query("INSERT INTO workflow_document_state(workspace_id,page_id,parent_id,state,revision,data) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(workspace_id,page_id) DO UPDATE SET parent_id=excluded.parent_id,state=excluded.state,revision=excluded.revision,data=excluded.data",[ctx.workspaceId,p.pageId,p.next.parentId,p.next.lifecycle,p.settingsRevision+1,data]);
+  const data={...old,properties:p.next.properties,environment:p.next.environment,...(p.fields.includes("reviewDue")?{reviewDue:p.next.workflowData.reviewDue}: {})};
+  if(p.fields.some(f=>["properties","environment","parentId","lifecycle","reviewDue"].includes(f)))await db.query("INSERT INTO workflow_document_state(workspace_id,page_id,parent_id,state,revision,data) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(workspace_id,page_id) DO UPDATE SET parent_id=excluded.parent_id,state=excluded.state,revision=excluded.revision,data=excluded.data",[ctx.workspaceId,p.pageId,p.next.parentId,p.next.lifecycle,p.settingsRevision+1,data]);
   const metadata=(await db.query("SELECT data FROM pages WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,p.pageId])).rows[0].data;
   await db.query("UPDATE pages SET data=$3 WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,p.pageId,{...metadata,title:p.next.title,summary:p.next.summary,category:p.next.category,tags:p.next.tags}]);
   const after=await readers(db,ctx.workspaceId,"page",p.pageId);if(after.some(id=>!before.includes(id)))throw Error("RESTORE_SCOPE_EXPANSION");

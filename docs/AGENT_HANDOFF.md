@@ -1,5 +1,16 @@
 # 에이전트 인계
 
+## 2026-11-18 C10 속성 폼·검토되는 일괄 정리
+
+UXC-09 / EDT-005·012, LIF-001~004, VER-004, REV-004·005. 기존 PR45의 50건/10분 preview/apply와 BulkEditor를 확장했다. canonical 속성 폼·담당자/대체자 attribution·필수 정책·선택 JSON, reviewed metadata 계획, 원래 사람 세션의 exact bulk grant와 durable per-item receipt, SIGKILL/restart 멱등성, source/ancestor/erasure/current-ACL 조회를 연결했다. Migration145만 추가한다. 임시 무자격 Context는 trusted bulk executor 트랜잭션 안에서만 사용하고 일반 credential ceiling은 확대하지 않는다.
+
+승인된 호환 변경: 기존 `{token}` 이동/보관은 동기 계약 유지, 태그만 즉시 applied 대신 reviewed needs-review/batch/hash를 반환한다. 단일 `/state` tags는409 METADATA_REVIEW_REQUIRED로 안내한다. 기타 운영 properties/구조/보호/수명주기 계약은 보존한다. 일반 jobs 결과/checkpoint는 bulk에 null이며 원래 session queue 상태만 제공한다. 교체/철회 세션·다른 actor/hash/mutation으로 실행/조회할 수 없다. 일부 대상 철회는 그 항목을 숨기고 denied로 처리하며 다른 인가 항목은 진행한다. 상세 입력/응답과 만료 경계는 API_CONTRACT 참조.
+
+최종 `npm run check` exit0: frontend539/Node48/import16/evaluation41/251 요구사항/server types/build/static smoke. 최종 native3파일26(새 bulk17+legacy8+공개 오류1) 통과. 직전 실행의 migration1/jobs48/runtime52 및 기존 broad16파일146은 별도 carried coverage이며 하나의 최종 전체 실행으로 합산하지 않는다. 광범위 실행1건 runtime timeout, generic jobs 완전차단 중간 replay 실패2건, expired-grant fixture CHECK 실패1건은 로그와 MISTAKE_LOG에 그대로 남겼다. 최종 소스 actual1440/390 light/dark HTTP+PG/keyboard 캡처와 cleanup/source manifest는 `docs/ui-validation/2026-11-18-properties-bulk/` 참조.
+
+North Star/원본251 수용 기준은 변경하지 않았다. 실제 모델·회사 IdP·운영 배포/부하/OS IME·종합 접근성은 검증하지 않았다. 기존 번들 크기 경고 유지. grant 기본120초/부모 session 경계 때문에 worker 지연·재시작 후 명시 재승인이 필요할 수 있고 legacy HMAC preview는 프로세스 재시작 시 만료된다. 독립 task/whole review와 최종 CI/병합은 controller 소유다. 상세 현재/이전 로그, 보안 판단·실수와 정리 근거: `.superpowers/sdd/2026-11-16-essential-convenience/task-10-report.md`.
+
+
 ## C8 post-final CI fix: scoped erasure dependencies (authoritative)
 
 CI44161579437/job134316519258 at44d73b97 failed all four physical storage-graph tests. This was a C8 regression: globally treating targetPageId as provenance followed a Source routing hint into an independent source, erased its readers/import references and released retained shared bytes. Clean3b8f310 passed4/4; C8 failed4/4; an actual-PG differential probe isolated the hint. Prior local green did not cover this suite and is not CI acceptance.

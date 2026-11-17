@@ -942,6 +942,7 @@ export function createRuntimeHandler(options: {
             authorizeInTransaction,
             options.origin,
           ),
+          options.jobs,
         )
       )
         return;

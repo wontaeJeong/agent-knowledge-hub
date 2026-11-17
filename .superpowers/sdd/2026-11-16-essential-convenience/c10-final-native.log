@@ -1,0 +1,82 @@
+[1/5] server/convenience/bulk-migration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  07:47:03
+   Duration  579ms (tests 89%, import 9%, transform 3%)
+
+[2/5] server/convenience/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ server/convenience/bulk.test.ts (16 tests | 2 failed) 8760ms
+   × accepted archive is durable, replayable and applied once after worker restart 653ms
+   × expired preview replays only the admitted original job, actor, mutation and input hash 202ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 14 passed (16)
+   Start at  07:47:04
+   Duration  8.97s (tests 98%, import 1%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/bulk.test.ts > accepted archive is durable, replayable and applied once after worker restart
+Error: NOT_FOUND
+ ❯ Object.validateScope server/jobs/runtime.ts:421:38
+
+ ❯ JobService.readable server/jobs/service.ts:405:5
+ ❯ server/jobs/service.ts:417:7
+ ❯ JobService.tx server/jobs/service.ts:143:21
+ ❯ JobService.request server/jobs/service.ts:167:20
+ ❯ BulkDocumentService.execute server/convenience/bulk.ts:329:17
+ ❯ server/convenience/bulk.test.ts:62:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  server/convenience/bulk.test.ts > expired preview replays only the admitted original job, actor, mutation and input hash
+Error: NOT_FOUND
+ ❯ Object.validateScope server/jobs/runtime.ts:421:38
+
+ ❯ JobService.readable server/jobs/service.ts:405:5
+ ❯ server/jobs/service.ts:417:7
+ ❯ JobService.tx server/jobs/service.ts:143:21
+ ❯ JobService.request server/jobs/service.ts:167:20
+ ❯ BulkDocumentService.execute server/convenience/bulk.ts:329:17
+ ❯ server/convenience/bulk.test.ts:552:10
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+[3/5] server/jobs/jobs.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  07:47:13
+   Duration  4.42s (tests 97%, import 2%, transform 1%)
+
+[4/5] server/jobs/runtime.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  52 passed (52)
+   Start at  07:47:17
+   Duration  84.16s (tests 100%)
+
+[5/5] server/workflows/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  07:48:42
+   Duration  2.23s (tests 95%, import 4%, transform 2%)
+

@@ -1,6 +1,18 @@
 # 실수와 교훈 기록
 
 
+### 2026-11-18 — C10 실제 경계 회귀와 검증 실패
+
+- 초기 missing module RED 뒤 구현했고, frozen item patch 변조가 적용되는 실제 PG 실패를 발견했다. 실행 트랜잭션마다 원래 정렬된 항목/patch/기준/원본·부모 목록과 reason hash를 재계산하여 고쳤다. 새 version 발행 fixture가 preview 후 독자를 추가해 STALE_VERSION이 된 것은 올바른 방어였고, ACL 준비를 preview 전으로 옮겼다. 기준 검사를 약화하지 않았다.
+- 실제 source erasure가 queue lane CHECK 제약에서 실패했다. erasure의 일반 text scrub이 닫힌 enum과 unique idempotency key까지 치환한 것이 원인이다. lane을 보존하고 idempotency key는 content 없는 고유 `erased:<job-id>`로 바꿨다. source→bulk item/request/job lineage와 실제 취소/patch redact를 검증했다.
+- canonical environment가 문자열 맵일 때 UI 공유 schema가 문자열로만 받아 거절했다. 실제 RED 뒤 기존 맵을 보존한다. 일괄 요청 fallback 문자열 치환이 적용되지 않았는데 첫 fullcheck 실패 후 확인을 충분히 하지 않아 두 번째 같은 실패가 났다. 실제 코드와 집중 회귀를 확인한 후 fullcheck를 다시 통과했다. 실패 로그를 보존했다.
+- 마지막 점검에서 queue admission 실패 뒤 mutation 표시만으로 preview expiry가 연장되는 실제 RED를 발견했다. 실제 동일 actor/key/hash의 durable job 존재만 만료 후 replay를 허용한다. 교체 세션의 bulk receipt 접근도 실제 PG RED로 재현해 원래 session에 결박했다. 일반 jobs read를 전부 거절한 중간 수정은 내부 replay의 jobs.get을 깨뜨렸고 2개 회귀가 실패했다. 일반 jobs DTO는 원래 session의 queue 상태만 허용하고 result/checkpoint는 null로 숨기며 항목별 결과는 전용 current-ACL projection에서만 제공하도록 수정했다.
+- 실제 모바일 캡처에서 결과는 숨겼지만 기존 선택 체크박스에 철회된 제목이 남았다. DOM RED로 재현한 뒤 현재 preview/receipt에서 제외된 후보·선택·제목을 제거하고 수 없는 일반 안내를 추가했다. 원래 인가된 선택은 유지하고 identity/space 변경과 늦은 응답은 epoch와 pre-paint reset으로 분리한다. 네 환경 화면은 수정 후 다시 캡처한다.
+- 넓은 실제 PG 실행에서 runtime semantic adapter 테스트 1개가 기본 5초 timeout으로 실패했다. 원인은 확정하지 않았으며 당시 check/browser도 실행 중이었다는 사실만 기록한다. 단독 runtime 52개 재실행은 통과했고 실패 로그는 유지한다. 초기 브라우저의 exact select accessible-label 오류, synthetic opt-in 누락으로 의도대로 거절된 runtime 시작, reason/identityScope 타입 오류도 fixture/호출 수정 후 재검사했다. 초기 전체-page 이미지가 너무 길어 변경 영역 element screenshot으로 바꿨으며 viewport는 실제 1440/390 그대로다.
+- 마지막 expired-grant fixture가 expires_at만 과거로 바꿔 created<expires 제약을 위반한 setup 실패를 수정했다(두 시각을 함께 이동). HTTP worker 미설정이 일반 DEPENDENCY_UNAVAILABLE로 가려지는 RED도 명시 BULK_WORKER_NOT_CONFIGURED/503 공개 코드로 수정했고 최종 native26개가 통과했다.
+- 원본 251 요구사항/수용 기준과 실패 증거는 보존한다. 최종 명령·소스 지문·현재/이전 결과 구분은 task-10-report 및 UI evidence에 기록하며 CI/독립 검토는 별도다.
+
+
 ### 2026-11-18 — C9 final review: shared read authority, math identity and revalidation state
 
 - Context: PR75 whole-branch review at4615153 independently reproduced older manual success restoring a revoked body, two display-math wrappers sharing one ID, and each60s refresh discarding query/focus. The previous tests covered background requests separately, plain Markdown positions and denial, missing these cross-path and unchanged-success cases.

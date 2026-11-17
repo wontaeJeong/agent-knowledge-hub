@@ -1,0 +1,54 @@
+
+> agent-knowledge-hub@0.2.0-demo check
+> npm run doctor && npm test && npm run test:imports && npm run test:evaluation && npm run check:requirements && npm run check:server && npm run build && npm run test:smoke
+
+
+> agent-knowledge-hub@0.2.0-demo doctor
+> node scripts/doctor.mjs
+
+PASS Node 24.22.2
+PASS 개발 의존성 설치됨 (잠금 파일 동기화는 npm ci로 확인)
+모델 키·Docker는 기본 개발/검증에 필요하지 않습니다. 전체 검사: npm run check
+
+> agent-knowledge-hub@0.2.0-demo test
+> vitest run src && node --test scripts/model-api.test.mjs scripts/migrate.test.mjs scripts/doctor.test.mjs scripts/smoke.test.mjs scripts/wiki-connector/cli.test.mjs scripts/wiki-connector/client.test.mjs scripts/wiki-connector/mcp.test.mjs scripts/wiki-connector/service.test.mjs
+
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ src/operational/BulkEditor.test.tsx (3 tests | 1 failed) 133ms
+   × bulk editing requires preview, displays partial failures and selects only failures for retry 68ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/BulkEditor.test.tsx > bulk editing requires preview, displays partial failures and selects only failures for retry
+AssertionError: expected { previewToken: 'sealed', …(1) } to deeply equal { token: 'sealed' }
+
+- Expected
++ Received
+
+  {
+-   "token": "sealed",
++   "mutationId": "56d774af-01b6-4b1b-aff9-4f4e15823fb0",
++   "previewToken": "sealed",
+  }
+
+ ❯ src/operational/BulkEditor.test.tsx:60:27
+     58|     await act(async () => button("미리보기 내용 적용").click());
+     59|     expect(el.textContent).toContain("STALE_VERSION");
+     60|     expect(calls[1].body).toEqual({ token: "sealed" });
+       |                           ^
+     61|     await act(async () => button("실패 대상 다시 미리보기").click());
+     62|     expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 73 passed (74)
+      Tests  1 failed | 536 passed (537)
+   Start at  07:31:39
+   Duration  4.83s (environment 42%, tests 35%, import 19%, transform 4%, worker 1%)
+
+    Isolate  74 workers spawned · ~288ms startup each (spawn + environment, per file)
+             at least ~2.08s faster with isolate: false — reuses workers across files instead of one per file
+

@@ -21,7 +21,7 @@ const identifier = z.string().min(1).max(200);
 const integer = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const jobSchema = z
   .object({
-    kind: z.enum(["ingest", "query", "lint", "daily", "weekly", "monthly", "index", "retention"]),
+    kind: z.enum(["ingest", "query", "lint", "daily", "weekly", "monthly", "index", "retention", "bulk"]),
     key: identifier,
     payload: z.record(z.string(), z.unknown()),
     pageIds: z.array(identifier).max(200),
@@ -383,8 +383,8 @@ export class JobService {
       updatedAt: row.updated_at,
       leaseUntil: row.lease_until,
       heartbeatAt: row.heartbeat_at,
-      result: row.result,
-      checkpoint: row.checkpoint,
+      result: row.kind === "bulk" ? null : row.result,
+      checkpoint: row.kind === "bulk" ? null : row.checkpoint,
       error: row.error_code,
     };
   }

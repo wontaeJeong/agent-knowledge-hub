@@ -196,3 +196,14 @@ C8 erasure/retention recognizes targetPageId only at versions.data.linkReference
 - 새 내부 관계 추출은 표시 renderer와 동일하게 원시 HTML을 제외한다. 일반 Markdown·query/absolute/network 링크의 신뢰 Origin 규칙과 현재 권한 상한은 유지한다. 이미 발행된 `linkReferences`, `Page.links`, provenance, 승인과 버전은 이 변경으로 재작성하지 않는다.
 
 C9 Round1: 새 token capture는 standalone CR과 LF의 줄 경계를 renderer와 일치시키며 CRLF 원래 해시 bytes와 legacy coarse fallback을 보존한다. 기존 저장 본문/metadata는 재작성하지 않는다. Clipboard 안내는 현재 문서와 가장 최근 복사 요청의 응답만 반영한다.
+
+
+## C10 문서 속성과 일괄 작업 (2026-11-18)
+
+`GET /api/v1/workflows/pages/:id/properties`는 현재 canonical metadata, 문서 유형별 required-key 정책, 업무 담당자/대체자 attribution을 반환한다. `POST`는 `{category,summary,tags,properties,environment,reviewDue,expectedVersion,expectedRevision,reason,mutationId}`를 받아 독립 검토할 변경안 `{id,hash,status:'needs-review'}`를 생성한다. environment는 기존 문자열/문자열 맵을 보존한다. owner 변경은 기존 governance owner API/권한을 사용하며 접근 권한을 부여하지 않는다. 새 저장소에 metadata를 복제하지 않는다.
+
+기존 `POST /api/v1/workflows/bulk/preview`의 최대 50개·10분 계약을 유지한다. 작업자가 연결된 사람 세션에는 기존 HMAC `token`과 추가 opaque `previewToken`을 함께 반환한다. 현재 허가된 항목에만 정규화한 `before`/`patch`를 제공한다. `POST /workflows/bulk/apply`의 `{previewToken,mutationId}` (또는 `{token:previewToken,mutationId}`)는 durable job를 접수하고 HTTP 202 `{id,status:'queued'}`를 반환한다. `GET /workflows/bulk/:id`는 원래 사람 세션과 현재 항목 권한으로 재검사한 receipt다. 항목 상태는 pending/applied/needs-review/denied/stale/failed이고 queued는 완료를 뜻하지 않는다. 숨겨진 항목은 ID/제목/총수/숨겨진 수 없이 제외한다. generic jobs API는 동일 원래 세션의 queue 상태만 제공하며 bulk result/checkpoint는 null이다.
+
+기존 `{token}` 호출은 동기 move/archive 응답·멱등성을 유지한다. **태그만 승인된 계약 변경**으로 즉시 applied가 아니라 동일한 reviewed proposal의 needs-review와 batch/hash를 반환한다. 응답 유실·동시 재시도는 같은 proposal을 재생한다. 구형 태그 호출자는 승인/발행 완료로 해석하면 안 된다. 단일 `/workflows/pages/:id/state`의 tags 입력도 HTTP 409 METADATA_REVIEW_REQUIRED와 properties 경로 안내를 반환한다. 구조 이동, 보관, 보호, reviewDue 등 운영 설정과 기존 properties map 입력 계약은 유지한다. 발행 metadata의 속성 폼 경로는 검토되는 새 버전으로 반영한다.
+
+승인은 정확한 actor·원래 session·operation hash·mutation·job에 한정하며 machine key/일반 delegated job로 발급할 수 없다. 실행 grant는 기존 runtime timeout(기본 120초, 설정 상한 1시간)과 부모 세션 만료 중 빠른 시각에 끝난다. 10분 preview 만료 후 새 접수는 금지하고, 실제 영속 job가 존재하는 동일 입력 재생만 허용한다. 원래 session이 끝나거나 grant가 만료되면 자동으로 권한을 연장하지 않는다. 중단 사유와 미처리 항목을 표시하고 현재 권한으로 다시 미리보기/명시 접수해야 한다. 일부 원본/대상 ACL 철회는 그 항목 실행을 denied로 만들고 조회에서 숨기며 나머지 허가된 항목을 막지 않는다. 기존 HMAC preview 자체는 서버 프로세스 재시작 시 무효화될 수 있으며 새 durable receipt/작업 재시작 보장과 구별한다.

@@ -1,0 +1,40 @@
+[1/1] server/workflows/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ server/workflows/bulk.test.ts (8 tests | 1 failed) 1596ms
+   × native runtime bulk routes require authenticated current roles and CSRF 228ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  07:51:15
+   Duration  1.77s (tests 93%, import 5%, transform 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/workflows/bulk.test.ts > native runtime bulk routes require authenticated current roles and CSRF
+AssertionError: expected { status: 503, body: { …(2) } } to match object { status: 503, …(1) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "body": {
+-     "code": "BULK_WORKER_NOT_CONFIGURED",
++     "code": "DEPENDENCY_UNAVAILABLE",
+    },
+    "status": 503,
+  }
+
+ ❯ server/workflows/bulk.test.ts:190:27
+    188|     );
+    189|     const missingWorker = await request("apply",{previewToken:"opaque"…
+    190|     expect(missingWorker).toMatchObject({status:503,body:{code:"BULK_W…
+       |                           ^
+    191|     const preview = await request("preview", raw);
+    192|     expect(preview.status).toBe(200);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

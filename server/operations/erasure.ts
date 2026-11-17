@@ -224,6 +224,8 @@ function own(row: ProductRow) {
     if (t === "workflow_templates" && typeof id === "string")
       return new Set(["owned-template:" + JSON.stringify([d.owner_id,id])]);
   }
+  if(t==="workflow_bulk_items") result.add("bulk-request:"+d.request_id);
+  if(t==="workflow_bulk_requests") result.add("bulk-request:"+id);
   let kind: string | undefined;
   if (t === "collaboration_events") kind = "collaboration-event";
   else if (t === "question_threads") kind = "question-thread";
@@ -261,6 +263,9 @@ function publishedLinkRefs(row: ProductRow) {
   return result;
 }
 function lineageRefs(row: ProductRow) {
+  if(row.table==="workflow_bulk_requests") return new Set([...refs(row.data),"bulk-request:"+row.data.id]);
+  if(row.table==="durable_jobs" && row.data.kind==="bulk") { const input=row.data.input as {payload?:{requestId?:string}};return new Set([...refs(row.data),"bulk-request:"+input?.payload?.requestId]); }
+
   if (row.table === "collaboration_events") {
     // Publication capture stores its originating batch ID, while page_id is
     // the independent target edge. Source-only erasure must follow the batch.
@@ -818,6 +823,8 @@ export async function executeErasure(
           const replacements: Record<string, unknown> = {};
           for (const c of p.all.columns.get(row.table) ?? []) {
             if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result") || (row.table === "version_restore_previews" && c.name === "hash")) continue;
+            if(row.table === "durable_jobs" && c.name === "lane") continue; // Closed queue enum, never content.
+            if(row.table === "durable_jobs" && c.name === "idempotency_key") { replacements[c.name]="erased:"+row.data.id;continue; }
             const value = row.data[c.name];
             if (c.type === "jsonb" || c.type === "json")
               replacements[c.name] = row.table === "workflow_draft_disclosures" && c.name === "submission" ? null : scrubProductColumn(row, c.name, value);

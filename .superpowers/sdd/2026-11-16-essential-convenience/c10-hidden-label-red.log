@@ -1,0 +1,30 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ src/operational/convenience/bulk.test.tsx (5 tests | 1 failed) 33ms
+   × current receipt omissions remove cached target names from selection and retry 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/bulk.test.tsx > current receipt omissions remove cached target names from selection and retry
+AssertionError: expected '여러 문서의 태그·위치·보관 변경최대 50개 문서를 선택해 변경 내…' not to contain 'PRIVATE TARGET'
+
+Expected: "PRIVATE TARGET"
+Received: "여러 문서의 태그·위치·보관 변경최대 50개 문서를 선택해 변경 내용을 확인합니다. 적용은 문서별로 처리하며 권한이나 기준이 달라진 대상은 별도 표시합니다. 태그 변경은 검토 요청으로 접수합니다.대상 문서PRIVATE TARGET변경 종류태그 교체상위 문서 변경보관새 태그 (쉼표 구분)변경 이유변경 미리보기항목 처리 완료 · 아래 결과 확인처리 결과 새로고침"
+
+ ❯ src/operational/convenience/bulk.test.tsx:128:29
+    126|  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.…
+    127|  await act(async()=>button('변경 미리보기').click());await act(async()=>butt…
+    128|  expect(el.textContent).not.toContain('PRIVATE TARGET');
+       |                             ^
+    129| });
+    130|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  07:43:33
+   Duration  367ms (environment 61%, import 23%, tests 10%, transform 5%, worker 1%)
+

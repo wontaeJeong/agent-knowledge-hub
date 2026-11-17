@@ -1,3 +1,6 @@
+import { DocumentPropertiesService } from "../convenience/properties";
+import { BulkDocumentService } from "../convenience/bulk";
+import type { RuntimeJobsBridge } from "../jobs/runtime";
 import { handlePersonalRoute } from "../convenience/http";
 import { PersonalLibraryService } from "../convenience/personal";
 import { z } from "zod";
@@ -15,6 +18,7 @@ export async function handleWorkflowRoute(
     send: (status: number, data: unknown) => void;
   },
   service: WorkflowService,
+  jobs?: RuntimeJobsBridge,
 ): Promise<boolean> {
   const { method, path, body, ctx, send } = input;
   if (!path.startsWith("/api/v1/workflows/")) return false;
@@ -26,6 +30,8 @@ export async function handleWorkflowRoute(
   };
   const empty = () => z.object({}).strict().parse(body);
   if (method === "GET") {
+    const properties=route.match(/^\/pages\/([^/]+)\/properties$/);if(properties)return reply(await new DocumentPropertiesService(service).read(ctx,properties[1]));
+    const receipt=route.match(/^\/bulk\/([^/]+)$/);if(receipt)return reply(await new BulkDocumentService(service,jobs).read(ctx,receipt[1]));
     if (route === "/draft-disclosures") return reply(await service.manualDisclosures.list(ctx,Object.fromEntries(input.query??[])));
     if (route === "/drafts") return reply(await service.drafts(ctx));
     if (route === "/templates") return reply(await service.templates(ctx));
@@ -44,8 +50,19 @@ export async function handleWorkflowRoute(
       );
   }
   if (method !== "POST") return false;
-  if (route === "/bulk/preview") return reply(await service.bulkPreview(ctx, body));
-  if (route === "/bulk/apply") return reply(await service.bulkApply(ctx, body));
+  const properties=route.match(/^\/pages\/([^/]+)\/properties$/);if(properties)return reply(await new DocumentPropertiesService(service).propose(ctx,properties[1],body),201);
+  if (route === "/bulk/preview") {
+    const legacy=await service.bulkPreview(ctx,body);
+    if(jobs && ctx.authorization?.sessionId && !ctx.credentialId) {
+      const durable=await new BulkDocumentService(service,jobs).preview(ctx,body);
+      return reply({...durable,token:legacy.token});
+    }
+    return reply(legacy);
+  }
+  if (route === "/bulk/apply") {
+    if(body && typeof body === "object" && "token" in body && !("previewToken" in body) && !("mutationId" in body)) return reply(await service.bulkApply(ctx,body));
+    return reply(await new BulkDocumentService(service,jobs).execute(ctx,body),202);
+  }
 
   if (route === "/links/search")
     return reply(await service.linkSearch(ctx, body));
@@ -96,8 +113,10 @@ export async function handleWorkflowRoute(
   if (page) {
     if (page[2] === "edit")
       return reply(await service.proposeEdit(ctx, page[1], body), 201);
-    if (page[2] === "state")
-      return reply(await service.setDocumentState(ctx, page[1], body));
+    if (page[2] === "state") {
+      if(body && typeof body === "object" && "tags" in body) return reply({code:"METADATA_REVIEW_REQUIRED",message:"태그는 문서 속성 검토 요청으로 변경하세요.",reviewPath:`/workflows/pages/${page[1]}/properties`},409);
+      return reply(await service.setDocumentState(ctx,page[1],body));
+    }
     if (page[2] === "comments")
       return reply(await service.addComment(ctx, page[1], body), 201);
     if (page[2] === "restore") {
