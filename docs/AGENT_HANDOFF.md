@@ -28,6 +28,29 @@
 - PR #45 독립 검토에서 apply 직후 `onChanged` → App.load의 `dataReady=false` → WorkflowPanel unmount로 결과/복구 토큰이 사라지는 경계를 확인했다. 적용 응답 뒤 자동 부모 갱신을 제거하고, 결과·실패 대상 선택·같은 토큰 재확인을 보존한 뒤 사용자가 명시적으로 목록을 새로고침하게 했다. 명시적 갱신은 결과 화면을 닫는다.
 - TDD: 실제 호스트와 같은 unmount 경계 회귀가 수정 전 `NOT_PROCESSED` 대신 호스트 로딩 문구를 받아 실패했다. 수정 후 BulkEditor 3시험과 전체 `npm run check` 통과. scope/API 전환과 401/403의 보호 상태 비우기를 유지했다. 독립 재검토에서 중요 차단 결함을 발견하지 않았다.
 - [1440/390 화면 및 재현](pr-assets/bulk/README.md): 실제 컴포넌트/CSS와 합성 API, 부분 결과·재확인·명시적 갱신 및 pageerror 0 확인. 서버 기능은 바꾸지 않았고 전체 DB/최종 CI는 PR의 마지막 커밋 검사를 따른다.
+## 2026-11-17 C1 최종 전체 검토 호환 수정 (#49 / PR #63)
+
+- 수정 기준 `3f3e63f`. 실제 `AccessPanel`이 생성하는 `/?app=1&space=...#share-...`를 독립 share 위치로 보존했다. 인증 전 로그인 복귀와 인증 후 기존 `/shares/:id`의 현재 수신자·문서·원본 계보 재인가 조회 및 고정 본문 표시를 연결했다. document 없는 comment와 모순 조합은 거절한다.
+- `knowledge.read` 멤버의 개인 API 키·장치 연결 메뉴를 별도 ‘내 도구’ 그룹에 복구했다. 검토 평가는 `changeset.approve`와 현재 검토 자격으로 판단한다. 기존 화면의 관리자 전용 부분과 서버 인가는 바꾸지 않았다. preview의 메뉴·history 취소·상태 정리 주소는 `preview=1`을 유지해 재열기에도 합성 모드다.
+- RED7실패/79통과 → GREEN86통과, 보강 포함5파일95통과. 최종 Node24 check: frontend255/Node48/import16/evaluation41, 요구사항251·서버 타입/build/smoke 통과. 메뉴 캡처를 갱신하고 Reader/Writer/Maintain 실제 렌더3장을 추가해 총15장·pageerror0. [최종 로그/화면](pr-assets/convenience-navigation/README.md). 실제 운영 SSO/DB 인수 및 별도 main 통합 한계는 유지한다.
+
+
+## 2026-11-17 C1 1차 검토 수정 (#49)
+
+- `b7d7cd3`의 history 복귀가 URL 공간만 바꾸고 API 공간은 유지하는 문제를 재현했다. 공통 미저장 경고를 통과한 뒤 outer workspace key를 먼저 전환·재마운트하고, 새 API에서만 복원된 정확한 대상을 해석한다. 실제 Back/Forward와 충돌 작업 ID, 취소한 Back, 이전 공간의 지연 응답 회귀를 추가했다.
+- 기존 boards/refinement 진입을 `knowledge.read` 메뉴에 복구했다. 각 화면의 변경·승인·Lint 컨트롤은 기존 capability 검사를 유지한다. `section=tasks` 없이 쓰인 targetKind/targetId는 한쪽·양쪽·빈 값 모두 오류이며 로그인 복귀에서 조용히 버리지 않는다.
+- RED10실패/64통과 → GREEN74통과. 최종 Node24 `npm run check` 1회 통과: frontend240/Node48/import16/evaluation41, 요구사항251, 서버 타입/build/smoke. 기존 8장 재확인 및 복구 메뉴 4장 추가, 총12장·pageerror0. [현재 증거](pr-assets/convenience-navigation/README.md). 별도 main 통합과 실제 운영 인수 한계는 그대로 남는다.
+
+
+## 2026-11-17 C1 사용자 메뉴와 호환 경로 (#49)
+
+- 범위: capability 기반 기본/개인/도구/관리 메뉴와 모바일 상단 검색·새 문서·기존 알림 진입, 검증된 `section/draft/view/version/anchor/targetKind/targetId` 계약과 동일 앱 로그인 복귀를 연결했다. 문서·댓글·공유·기존 탭 URL과 계정/세션 화면을 유지한다. UX-001/003/004/006, SHR-001~003, REV-001/002, ACL-008, IAM-004/005/009의 관련 이동 경계를 보강하며 기존 251개 수용 기준/상태를 바꾸지 않는다.
+- 정확한 검토/작업/접근 요청은 ID를 초기 선택 props로 전달하고 현재 인가된 응답으로 다시 확인한다. `/changesets`와 governance access-inbox는 canonical 서비스에서 LIMIT 없는 전체 인가 목록임을 확인했으며 30번째 대상을 회귀 검증했다. 작업은 기존 `/jobs-v2/:id`와 telemetry를 사용한다. 삭제/거부/철회는 일반 오류이며 다른 작업으로 대체하지 않는다. 현재 서버에서 철회 검토는 rejected로 저장되므로 rejected review deep link도 일반 오류로 처리한다.
+- 변경 파일: `src/operational/convenience/{types,route,Navigation,ReviewSelection}`와 시험, `App`, `ConsoleShell`, `console`, `api`, `jobs`, `governance`, `workflows`. 계정/공간/세션 변경 시 대상과 보호 상태를 비우고, 문서 편집의 기존 미저장 조건을 메뉴·브라우저 종료 경고에도 연결했다. 안전한 기존 공간 전환 탭은 유지한다.
+- 검증: Node24.22.2 `npm run check` 통과 — frontend 47파일/230시험, Node48, import16, evaluation41, 요구사항251, 서버 타입검사, build, static HTTP smoke. RED→GREEN 기록과 실제 1440/390 light/dark 8장·키보드·capability 조합 확인은 [증거](pr-assets/convenience-navigation/README.md) 및 작업 보고서에 있다.
+- 한계/인계: UXC-01~10의 공통 이동 기반만 이번 범위다. 새 개인 목록·검색·작성·일반 작업함·저장 보기와 버전/문단 위치의 실제 화면은 후속 작업 전까지 명시적 미연결 상태다. 모델 호출·지식 효과·실제 SSO/DB/운영 인수를 검증한 변경이 아니다. BASE `51129cb`에서 구현했으며 별도 세션의 #44/#59 main 통합 후 충돌 해결·재검증과 독립 검토가 필요하다. push/PR/merge는 이 작업 에이전트가 수행하지 않았다.
+
+
 ## 2026-11-16 필수 편의기능 설계와 구현 플랜
 
 - 사용자 요청: 열린 PR 병합과, 검토한 필수 편의기능 10개 전체의 설계·플랜 작성. 이 문서 PR은 후속 제품 코드 구현을 포함하지 않는다. [설계](superpowers/specs/2026-11-16-essential-convenience-design.md)와 [플랜](superpowers/plans/2026-11-16-essential-convenience.md)에 기존 요구사항·현재 경로·API/저장/권한·인수 기준·12개 PR 의존성을 연결했다. 기준 251개 요구사항과 보호 문서의 의미를 바꾸지 않았다.
@@ -577,6 +600,10 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - PR30을 main5218828과 통합했다. 원래 인계·실수 기록을 보존하고 discovery GET과 최신 인증 me 경로를 함께 유지했다.
 - Node24 npm run check 통과. PostgreSQL17 격리 DB discovery/runtime/access 3파일37개 통과. 실제 Chromium1440/390 합성 명시 미리보기와 document overflow 없음 확인, docs/pr-assets/discovery에 캡처. 실제 회사 품질/대규모/운영 인수는 미검증이다.
 
+## 2026-11-16 - Authentication transaction lock order
+- Synthetic actualbrowser concurrent reads exposed SQLSTATE40P01 between directory gate7203101 and a refreshed runtime_session row. The mutation gate now orders shared directory serialization before workspace/session/identity rows. Callback/switch-space join the common gate and OperationsService shared mode uses the same helper. Exclusive mutation operations retain their existing exclusion.
+- SQL deadlock/serialization/lock/backend availability failures become AUTH_BACKEND_UNAVAILABLE503 and do not discard a valid session. Current-identity/session/ACL checks remain required, and actual authentication failures still revoke the session.
+- Native deterministic blocked-backend regression fails before the fix and passes after it, including preserved session after transient40P01. Node24 npm run check and11nativefiles pass. Actual OIDC browser concurrent reads passed with pool6, 1440/390 Chromium, synthetic Task5 lineage flow, in a separate stacked verification worktree (9de1; local fc46344). Four screenshots and native/browser log are retained in /private/tmp/akh-auth-pool6-browser and /private/tmp/akh-auth-pool6-browser.log. This is not a scalability/SLO claim.
 ### 2026-11-16 — Task 5 일반 편입 주장 계보·검토 피드백
 - 요구사항: KNO-002~006/013/014. 일반 편입 후보를 정확한 원본 위치/fingerprint와 조건·기간·예외에 결합하여 배치에 보관하고, 검토 발행 트랜잭션에서 주장/근거/상충 요청을 저장한다. 반려·사람의 발행 수정·보호 이유는 다음 모델 입력에 고정하며 같은 원본·같은 제안 반복은 차단한다. 원본 정정은 불변 원본/주장을 보존하면서 영향을 받은 발행 버전의 재검토와 미발행 승인 무효화에 연결한다.
 - 변경 파일: `server/runtime/{knowledge,ingest-lineage,model,http,errors}.ts`, `server/publication.ts`, `server/refinement/service.ts`, `server/workflows/service.ts`, `src/operational/{App,review-rejection,refinement}.tsx`, 관련 CSS/회귀. 기존 저장소를 사용하며 migration 추가 없음.
@@ -610,6 +637,16 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 - [판단·API·한계](design/2026-11-16-export-import-roundtrip.md). North Star의 연결된 근거·검토·발행·재편입 순환을 보존하기 위한 변경이며 품질/업무 성과 향상은 미평가다. 새 migration·서비스·Pod·UI는 없고 1노드/앱1/DB1 초기 구성을 유지한다.
 - 검증: TDD의 v2 미지원·속성/실제 트리 미복원 RED와 기본 부모·selective 이력·미변경 속성 drift·새 첨부 부모/복수 revision·slot 없는 스냅샷·remap 이력 누락을 재현했다. canonical 첨부 hook을 제거하면 승인 후 scan/head 변경 회귀 2건이 잘못 발행됨을 확인한 후 hook 복구로 차단했다. 실제 native HTTP/격리 PostgreSQL은 DB 세션·loopback OIDC UserInfo·CSRF·원본/부모자식/속성/이력·첨부2버전·독립 승인·원자 발행·재시도·현재 원본 ACL 철회를 실행한다. 최종 Node24 `npm run check`와 영향 범위 native PostgreSQL 15파일108시험의 결과는 PR/작업 보고서에 기록한다.
 - 제약: 같은 workspace의 허용 아카이브만 지원한다. v1은 종전 content-proposal 호환이며 v2의 속성 복원 보장이 소급 적용되지 않는다. 5MiB/100문서·원본·blob/20제안문서 및 bounded history 제한을 초과하면 거부한다. 과거 이력은 inspect/re-export 가능한 미검증 근거이며 현재 버전 목록의 확정 발행본으로 나타내지 않는다. 실제 회사 IdP/기밀 자료·모델 품질·대규모 부하·운영 인수는 미검증이다. UI 변경이 없어 새 화면 캡처는 없다.
+## 2026-11-17 Task 7 — Weekly maintenance / Monthly proposals
+
+- MGR-003/004, 관련 MGR-005/006·CORE-007/008/011. `server/refinement/maintenance.ts`, `server/jobs/{runtime,service,schedule,types}.ts`, feature/model/error contracts, `src/operational/jobs.tsx`와 회귀를 변경했다. 기존 Daily 편입은 유지하고 Weekly를 기존 지식·주장·연결·공백·오래된 내용의 구조 후보/실제 모델 다중 문서 제안으로 분리했다. 정확한 입력과 적용 조건·근거 버전/인용·기준 버전·정책·보호·예산과 독립 검토/발행 경계를 유지한다.
+- Monthly는 담당자 증거가 없으면 unknown, 보존 분류/현 정책/보류와 영향 문서, 실행 주체의 공간별 실측 비용 두 달 비교를 제안만 한다. 소유권·정책·권한·보존/삭제 API를 호출하지 않는다. 누락 가격은 비용 0으로 승격하지 않는다. 달력 기준 월간 현지 일정과 명시 clamp/skip, 실제 회차·승인 revision 시간대, 제한 보충과 원자적 체크포인트/재시도를 연결했다. 추가 인프라는 없다.
+- [상세 설계/계약](implementation/2026-11-16-maintenance-cycles.md). Node24 전체 `npm run check` 통과(192 source + 48 Node + 16 import + 41 evaluation, 251 요구사항, server types, build/smoke). 파일별 UUID DB의 PG jobs 전체 115시험 통과 후 주장/unknown meter 2회귀를 추가해 maintenance runtime 9/9 통과. 실제 loopback OIDC/HTTP/CSRF/일정 실행·원본 철회와 실제 HTTP 모델의 2문서 제안·독립 검토/발행, stale/protection, 커밋 중단 후 동일 제안 재사용을 확인했다. 최종 head 검증과 1440/390 화면은 PR/자산 기록을 따른다.
+- 한계: 의미 품질·업무 효과와 사내 운영 인수 미검증. 혼합 source scope 종합은 별도 승인한 일정으로 나눈다. 현재 monthly 비용은 서비스 주체의 공간별 usage ceiling이며 전사/타인 비용 전체를 보여 주지 않는다. 기존 인증 잠금 문제 수정은 별도 PR이며 Task7 브랜치에 포함하지 않는다.
+
+- Task7 실제 화면: [1440/390 캡처와 검증 commit/환경](pr-assets/roadmap-maintenance/README.md). 별도 승인 auth 수정이 적용된 native 검증 worktree의 실제 pool6/OIDC/HTTP에서 월간 일정 저장→정본 재조회와 가로 overflow 없음·pageerror 0을 확인했다. 최종 기능 프런트 소스는 동일하며 인증 수정은 별도다.
+
+Final feature validation (2026-11-17): `npm run check` passed after ancestry hardening and the final editor caption (192 source + 48 Node + 16 import + 41 evaluation; 251 requirement mappings, server types, build and HTTP smoke). Native isolated PG jobs suite passed 6 files/118 tests; the final maintenance runtime file then passed 11/11 after adding the canonical missing-link admission regression. The separate approved-auth verification build passed the real OIDC HTTP test after actual browser save/capture and cleaned its owned DB. Screenshot UI blob: `a024b69d757560caa02a43a2a2d19a2d0b53855d`, identical in feature and verification commit `9d0da1a883db71fd9594d124680b48bb24a4cb81`. Final remote CI and independent review remain separate gates.
 ### Task3/Task2 integration safety
 - Resolved overlapping published-body UI by using the shared safe Markdown renderer inside DocumentBody navigation. Outline/find decorate existing DOM without replacing authenticated attachment handlers. Math/SVG/control/status nodes are excluded from text marking. An integration regression failed on an external img before the change; safe image/math/find/preview and existing navigation/draft tests16 now pass. Fullcheck passed; actual integrated screenshots and scoped independent review follow.
 
@@ -651,3 +688,17 @@ P9 휴지통 root DB 재검증도33개 통과(workflows25+retention6+HTTP2). 화
 독립 spec/quality 리뷰와 두 차례 범위 재검토에서 Important 잔여 없음. 검토한 ca6c958..7bb6d86의 세 수정 커밋을 bulk #45·구독 #48이 포함된 통합4f50478 위에 옮겼다. git range-diff로 코드 patch 동등성을 확인했고, MISTAKE_LOG의 양쪽 추가 기록만 함께 보존했다. 최종 통합 소스09fa3b1에서 Node24 `npm run check` 통과(프런트49파일191시험·원래251요구사항·서버 타입·빌드·HTTP smoke), 전용 native PostgreSQL17에서 workflow/lineage/native HTTP/recovery/retention/provenance/bulk 8파일122시험 통과. Docker dump/restore·배포·사내 수용·원격 CI는 이 로컬 결과로 주장하지 않는다. 템플릿의 추가 계보는 아직 fail-closed이고, 충돌하는 legacy 초안은 목록에서 개별 제외되어 별도 복구가 필요하다.
 
 통합된 #48의 승인 대기 검토 이벤트 유실은 별도 미해결이다. PR48 리뷰5921247928·5921544871에 재현 경로가 있으며, 이 내부 링크 수정은 해당 이벤트 문제를 해결하지 않는다.
+
+## 2026-11-17 PR60 독립 리뷰 A — Weekly 공통 주장 후보 계약 연결
+
+- 검토에서 통합 기준 `7791a75`의 모든 ingest 모델 요청이 허용하는 `candidates`를 Weekly의 strict schema가 거부하고 canonical 배치에 후보/변경 이유를 넘기지 않음을 확인했다. 기존 테스트가 후보 없는 응답만 사용한 것이 검증 격차였다. 같은 Task7 브랜치에 지정 통합 기준을 병합하고 semanticSearch/query 및 기존 문서/모델 계약을 보존했다.
+- `server/refinement/maintenance.ts`는 공통 `proposalCandidateInput`와 `runtime/ingest-lineage.ts`의 `bindCandidates`를 사용한다. 고정된 전체 현재 권한 문맥의 정확한 원본 텍스트에서 source fingerprint·인용 위치·미검증 상태를 서버가 바인딩하고, `candidates`와 `evolutionReason`을 검토 해시에 포함된 canonical `propose`로 전달한다. 독립 승인·발행 때만 새 버전의 주장·근거가 저장된다. 기존 무변경 응답/후보 필터와 권한·보호·예산·실제 producer 검사를 유지한다.
+- 실제 loopback HTTP 모델의 유효/빈 후보 응답이 실패하는 RED 및 invalid quote/source/target가 공유 binder에 이르지 못하는 RED를 확인했다. 수정 뒤 신규 후보→검토/발행→버전2 주장/정확한 원본 근거, empty no-change, 전송 중 철회, 후보/이유 승인 해시 변조, 발행 전 원본 철회 원자성까지 maintenance runtime 20/20 통과했다. 통합 기준의 잠금 파일과 일치하는 의존성은 기존 symlink만 해제한 뒤 이 worktree에서 `npm ci`로 설치했고 다른 의존성 폴더를 변경하지 않았다.
+- 최종 전체 검사와 jobs/refinement/lineage 전체 회귀 결과, 새로운 head 및 독립 재검토 상태는 아래 후속 기록·PR60을 따른다. UI blob은 기존 캡처와 같으며 이번 교정은 서버 계약이다. 실제 의미 품질·독립 업무 증거·사내 운영 인수는 미검증이다.
+- PR60 검토 A 최종 로컬 검증: 통합 `7791a75`와 교정 코드의 Node24 `npm run check` 통과(source215, Node48, imports16, evaluation41, 요구사항251, server types, build/smoke). 기존 presentation의 큰 청크 경고는 남으며 빌드는 성공했다. `scripts/test-server.mjs server/jobs server/refinement server/runtime/lineage.test.ts server/runtime/lineage-feedback.test.ts server/runtime/lineage-http.test.ts`는15파일224시험·exit0. 실제 접근 불가 원본을 추가해 모델 입력에서 원문 sentinel이 제외되는 강화 회귀까지 최종 maintenance20/20 재통과. UI 소스 blob은 `a024b69d757560caa02a43a2a2d19a2d0b53855d`로 캡처와 동일하다. 독립 재검토·최종 원격 CI는 별도다.
+
+## 2026-11-17 첫 완료 로드맵 묶음 main 통합
+
+- 완료된 #45/46/47/48/50/51/52/53/56/60/62와 인증 수정 #54를 PR #59에 통합한다. 별도 편의기능 C1 main `a1dba1f`도 보존했다. C1 충돌은 App의 ReviewRejection 및 convenience imports, workflows의 BulkEditor 및 NavigationProtection imports를 모두 유지했으며 양쪽 인계/실수 기록을 보존했다.
+- C1 통합 후 및 인증 통합 후 Node24.22.2 전체 npm run check가 각각 통과했다. 주간 모델/알림/계보 관련 통합 native도 통과했다. 인증·수집·navigation의 원본 시험은 호스트/DB 시계 차이를 관찰한 뒤 동일 시계 컨테이너에서18건 전부 통과했다. 실패와 환경 제약은 MISTAKE_LOG에 기록했다. 최종 원격8개 필수 검사를 확인한 뒤 main에 머지한다.
+- 남은 Task1c/6/10/11/12/13/14/15/16/17/18/19는 각각 별도 PR로 계속 진행한다. 1노드/App1/DB1 최소 리소스 기준, 전체251요구사항, 현재 ACL·원본 상한·독립 검토/발행 불변식을 유지하며 의미 품질·사내 SSO·운영 인수를 주장하지 않는다.
