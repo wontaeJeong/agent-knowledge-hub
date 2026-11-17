@@ -1,3 +1,4 @@
+import {LinkAutocomplete} from "./LinkAutocomplete";
 import {
   useLayoutEffect,
   useEffect,
@@ -786,7 +787,12 @@ function NewDocument({
           {preview ? (
             <DocumentBody content={content} readAttachment={readAttachment} />
           ) : (
-            <textarea
+            <LinkAutocomplete api={api} spaceId={spaceId!} onError={fail} onReference={target=>{
+                  const editor=coordinator.current;if(!editor)return;
+                  const retained=editor.draft.dependencyVersions;
+                  if(retained&&Object.hasOwn(retained,target.id)&&retained[target.id]!==target.version)throw Error("이 초안의 링크 기준 버전이 변경되었습니다. 새 초안에서 검토하세요.");
+                  editor.draft={...editor.draft,dependencyVersions:{...retained,[target.id]:target.version}};
+                }}
               aria-label="Markdown 본문"
               rows={16}
               value={content}

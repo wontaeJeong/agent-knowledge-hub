@@ -1,0 +1,22 @@
+diff --git a/server/discovery.test.ts b/server/discovery.test.ts
+index 3fb6c1e..0e32fe4 100644
+--- a/server/discovery.test.ts
++++ b/server/discovery.test.ts
+@@ -9,6 +9,9 @@ test("citation rankings respect self versus aggregate permission, deduplication
+     const runtime = new RuntimeService(f.pool);
+     await runtime.query(f.editor, "기존", "offline");
+     await runtime.query(f.reader, "기존", "offline");
++    // Synthetic citation fixtures share the report's DB clock. Host/DB skew must
++    // not place a just-created fixture after the report's upper time bound.
++    await f.pool.query(`UPDATE runtime_answers SET data=jsonb_set(data,'{at}',to_jsonb(to_char(clock_timestamp()-interval '1 second' AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))) WHERE workspace_id=$1`,[f.workspaceId]);
+     const personal = await discoveryReport(f.pool, runtime, f.editor, 7);
+     expect(personal.scope).toBe("self");
+     expect(personal.mostCited.map((p) => [p.id, p.citations])).toEqual([
+@@ -223,6 +226,7 @@ test("large input envelopes fail explicitly instead of silently disappearing", a
+   try {
+     const runtime = new RuntimeService(f.pool);
+     const answer = await runtime.query(f.editor, "기존", "offline");
++    await f.pool.query(`UPDATE runtime_answers SET data=jsonb_set(data,'{at}',to_jsonb(to_char(clock_timestamp()-interval '1 second' AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))) WHERE workspace_id=$1`,[f.workspaceId]);
+     await f.pool.query(
+       "UPDATE runtime_answers SET data=jsonb_set(data,'{inputEnvelope,pageIds}',$3) WHERE workspace_id=$1 AND id=$2",
+       [

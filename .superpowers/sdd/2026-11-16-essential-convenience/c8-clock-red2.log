@@ -1,0 +1,40 @@
+[1/1] server/runtime/discovery-clock.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/runtime/discovery-clock.test.ts (2 tests | 2 failed) 1041ms
+   × new offline answers use canonical persistence clock despite host ahead; scope time and oversized-envelope failure remain 531ms
+   × new model answers use canonical persistence clock despite host ahead; scope time and oversized-envelope failure remain 510ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  04:00:03
+   Duration  1.20s (tests 91%, import 6%, transform 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/runtime/discovery-clock.test.ts > new offline answers use canonical persistence clock despite host ahead; scope time and oversized-envelope failure remain
+AssertionError: expected 1794942303927 to be less than or equal to 1794942004128
+ ❯ server/runtime/discovery-clock.test.ts:23:144
+     21|  const runtime=new RuntimeService(f.pool),answer=await runtime.query(m…
+     22|  const observed=(await f.pool.query("SELECT clock_timestamp() AS now,d…
+     23|  expect(answer.at).toBe(observed.data.at);expect(Date.parse(answer.at)…
+       |                                                                                                                                                ^
+     24|  expect((answer as any).asOf).toBe(hostAt.toISOString()); // Query sel…
+     25|  expect((await discoveryReport(f.pool,runtime,f.editor,7)).mostCited.m…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  server/runtime/discovery-clock.test.ts > new model answers use canonical persistence clock despite host ahead; scope time and oversized-envelope failure remain
+AssertionError: expected 1794942304192 to be less than or equal to 1794942004638
+ ❯ server/runtime/discovery-clock.test.ts:23:144
+     21|  const runtime=new RuntimeService(f.pool),answer=await runtime.query(m…
+     22|  const observed=(await f.pool.query("SELECT clock_timestamp() AS now,d…
+     23|  expect(answer.at).toBe(observed.data.at);expect(Date.parse(answer.at)…
+       |                                                                                                                                                ^
+     24|  expect((answer as any).asOf).toBe(hostAt.toISOString()); // Query sel…
+     25|  expect((await discoveryReport(f.pool,runtime,f.editor,7)).mostCited.m…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

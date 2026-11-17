@@ -1,0 +1,86 @@
+[1/2] server/discovery.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/discovery.test.ts (15 tests | 1 failed) 4362ms
+   × large input envelopes fail explicitly instead of silently disappearing 86ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 passed (15)
+   Start at  03:52:00
+   Duration  4.50s (tests 98%, import 1%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/discovery.test.ts > large input envelopes fail explicitly instead of silently disappearing
+AssertionError: promise resolved "{ …(11) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "citations": 0,
++   "daily": [
++     {
++       "citations": 0,
++       "day": "2026-11-11",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-12",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-13",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-14",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-15",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-16",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-17",
++     },
++   ],
++   "from": "2026-11-11T00:00:00.000Z",
++   "links": 0,
++   "mostCited": [],
++   "mostLinked": [],
++   "pages": 1,
++   "scope": "self",
++   "timezone": "UTC",
++   "to": "2026-11-17T18:52:02.329Z",
++   "trending": [],
+  }
+
+ ❯ server/discovery.test.ts:234:64
+    232|       ],
+    233|     );
+    234|     await expect(discoveryReport(f.pool, runtime, f.editor, 7)).reject…
+       |                                                                ^
+    235|       "DISCOVERY_CAPACITY",
+    236|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+[2/2] server/workflows/new-document.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  30 passed (30)
+   Start at  03:52:05
+   Duration  10.68s (tests 99%, import 1%)
+

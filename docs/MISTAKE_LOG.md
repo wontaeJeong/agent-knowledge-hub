@@ -1,5 +1,15 @@
 # 실수와 교훈 기록
 
+
+### 2026-11-18: C8 references, final authorization and answer clock
+
+- Early positional pages INSERT assumed column order and failed NOT NULL; explicit columns fixed the fixture. c8-links-red.log is setup failure, not behavioral RED. Actual missing-service/metadata RED is red2(8 failed); replacement/erasure red3(3 failed); final async identity refresh ACL revocation final-acl-red(1 failed). JSON.stringify incorrectly compared JSONB key order; structural equality fixed false STALE_VERSION. Actual body-link removal and tombstone gaps were corrected.
+- UI missing module/JSX syntax were pre-execution failures. ui-red2 contains4 behavioral failures. Caret fixture needed focused keyup. Changing legacy picker accessible text broke4 existing regressions; restored button text and displayed ID beside it. Existing neighborhood mock now supplies the new endpoint. Migration resources FK fixture, HTTP error/code DTO assumption and browser nonexistent autosave label were corrected. Failure logs remain.
+- Discovery2 failures came from actual RuntimeService.query. Proposed fixture timestamp normalization was withdrawn after controller review; the original discovery.test.ts remains unmodified and the proposal patch is preserved. Separate baseline3b8f310/C8 real-PG probes each8/8 showed app at later than DB report.to, silently losing new citations and oversized-envelope errors. Baseline18:57:02.798Z > report.to18:57:02.779Z; C8 18:57:03.878Z >18:57:03.856Z. c8-discovery-probe4.log records row at, clock_timestamp, bounds, result and hashes. This is a real pre-existing defect, not a flaky fixture.
+- Controller-approved fix assigns DB clock_timestamp only inside the atomic NEW answer write. Selection queryAsOf, existing records, durable replay identity, policy/lineage and failure handling remain intact. Real PG with host Date five minutes ahead: offline and actual local HTTP model RED2 -> GREEN2; original discovery15 GREEN. The synthetic model does not prove quality. Earlier probe pg import/archive dependency errors are not behavioral evidence; one own orphan DB was dropped by exact name.
+- First native wave had one existing C6 new-document5s timeout. Timeout unchanged; isolated30 and final30 passed. c8-order-red.log actually passed13 and is characterization, not RED. Final native20files302 and fullcheck493/48/16/41/251/types/build/smoke exit0. Final four-config browser passed after the last backend changes. A documentation write failed before execution due to stdin encoding; retried ASCII-safe without partial writes. Current evidence/cleanup is in the C8 report.
+
+
 ### 2026-11-18 — C4 최종 리뷰의 현재 페이지 초기화·정확한 초안 복구 누락
 
 - 맥락: PR72 whole-branch final review F1/F2, FIX_BASE f74f408. Home 자동 focus/visibility/30초 refresh가 summary=null로 위젯을 unmount해 page2/초점을 잃었다. exact page-bound draft를 먼저 설정해 기존 recovery effect를 건너뛰고 미전송 cache를 offer하지 않았다. 기존 단위 검사는 반복 탐색/재시작 cache와의 조합을 누락했다.

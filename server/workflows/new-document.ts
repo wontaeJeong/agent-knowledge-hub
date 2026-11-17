@@ -93,6 +93,7 @@ export async function submitNewDraft(
     baseVersion: 0,
   };
   const batch = await propose(workflows.pool, ctx, [draft], draft.sourceIds, {
+    referenceOrigin: workflows.origin,
     producer: {
       kind: ctx.credentialId ? "api-submission" : "user-submission",
       principalId: ctx.principalId,

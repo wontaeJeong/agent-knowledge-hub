@@ -1,3 +1,4 @@
+import { Backlinks } from "./convenience/Backlinks";
 import { PersonalLibrary } from "./convenience/PersonalLibrary";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Markdown, type AttachmentReader } from "../ui/Markdown";
@@ -259,14 +260,14 @@ export function RelatedDocuments({
       }}
     >
       <summary>연결·백링크·관련 문서</summary>
-      <p>선택 문서의 한 단계 연결과 같은 태그를 가진 문서 · 각 최대 20건</p>
+      <p>연결한 문서·같은 태그 각 최대 20건 · 백링크는 25건씩 표시</p>
+      {open && <Backlinks api={api} spaceId={spaceId} pageId={pageId} version={version} onError={onError}/>}
       {error ? (
         <p role="alert">{error}</p>
       ) : data ? (
         (
           [
             ["links", "연결한 문서"],
-            ["backlinks", "이 문서를 참조하는 문서"],
             ["related", "같은 태그의 문서"],
           ] as const
         ).map(([key, label]) => (
@@ -289,13 +290,15 @@ export function LinkCompletion({
   spaceId,
   onInsert,
   onError,
+  query: externalQuery,
 }: {
   api: OperationalApi;
   spaceId: string;
+  query?: string;
   onInsert: (markdown: string, target: { id: string; version: number }) => void;
   onError: (error: unknown) => void;
 }) {
-  const [query, setQuery] = useState(""),
+  const [query, setQuery] = useState(externalQuery ?? ""),
     [items, setItems] = useState<Item[]>([]),
     [busy, setBusy] = useState(false),
     [searched, setSearched] = useState(false);
@@ -317,6 +320,7 @@ export function LinkCompletion({
       window.removeEventListener("focus", clear);
     };
   }, [api, spaceId]);
+  useEffect(()=>{if(externalQuery!==undefined){request.current++;setItems([]);setSearched(false);setQuery(externalQuery);}},[externalQuery]);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const search = () => {
     const sequence = ++request.current;
@@ -324,7 +328,7 @@ export function LinkCompletion({
     setBusy(true);
     setSearched(false);
     void api
-      .post<{ items: Item[] }>("/workflows/links/search", { query })
+      .post<{ items: Item[] }>("/workflows/links/search", { query, limit:10 })
       .then((result) => {
         if (sequence === request.current) {
           setItems(result.items);
@@ -350,8 +354,8 @@ export function LinkCompletion({
     // A query change starts a fresh bounded server request; manual submit cancels this timer.
   }, [api, spaceId, query]);
   return (
-    <section aria-label="내부 링크 삽입">
-      <form
+    <section aria-label="내부 링크 삽입" onKeyDown={e=>{if(!["ArrowDown","ArrowUp"].includes(e.key)||e.nativeEvent.isComposing)return;const buttons=Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button[data-link-choice]"));const index=buttons.indexOf(document.activeElement as HTMLButtonElement);if(index<0)return;e.preventDefault();buttons[(index+(e.key==="ArrowDown"?1:-1)+buttons.length)%buttons.length]?.focus();}}>
+      {externalQuery === undefined && <form
         onSubmit={(e) => {
           e.preventDefault();
           if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -375,12 +379,14 @@ export function LinkCompletion({
         <Button type="submit" disabled={busy || !query.trim()}>
           링크 후보 검색
         </Button>
-      </form>
+      </form>}
       {items.length ? (
-        <ul>
+        <ul role="listbox" aria-label="링크 후보">
           {items.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} role="option" aria-selected="false">
+              <span>{item.id} · </span>
               <Button
+                data-link-choice="true"
                 disabled={busy}
                 onClick={() => {
                   const sequence = ++request.current;

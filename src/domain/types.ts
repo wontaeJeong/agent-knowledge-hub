@@ -9,6 +9,8 @@ export interface Version {
   reason: string;
   at: string;
   sourceIds: string[];
+  /** Published stable references. null means no verified source block identity (C9). */
+  linkReferences?: {targetPageId:string;label:string;sourceBlockId:string|null}[];
   /** Server attribution: generation, responsible proposal and publication are different events. */
   batchId?: string;
   proposedBy?: string | null;

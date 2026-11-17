@@ -1,0 +1,23 @@
+[1/1] server/convenience/links-migration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/convenience/links-migration.test.ts (2 tests | 1 failed) 481ms
+   × 144 upgrade rollback, bounded resumable backfill, repair and restart preserve latest canonical edges 368ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  03:48:58
+   Duration  601ms (tests 87%, import 8%, transform 5%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/links-migration.test.ts > 144 upgrade rollback, bounded resumable backfill, repair and restart preserve latest canonical edges
+error: insert or update on table "pages" violates foreign key constraint "pages_workspace_id_kind_id_fkey"
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ server/convenience/links-migration.test.ts:11:2
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

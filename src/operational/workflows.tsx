@@ -1,3 +1,4 @@
+import {LinkAutocomplete} from "./convenience/LinkAutocomplete";
 import { Breadcrumbs } from "./convenience/Breadcrumbs";
 import { DocumentTreeNavigation, DocumentStructureControls } from "./convenience/PageTree";
 import { DocumentPersonalControls } from "./convenience/PersonalLibrary";
@@ -1122,7 +1123,12 @@ export function WorkflowPanel({
               </p>
               <label>
                 Markdown 본문
-                <textarea
+                <LinkAutocomplete api={api} spaceId={spaceId!} onError={fail} onReference={target=>{
+                  const editor=autosave.current;if(!editor)return;
+                  const retained=editor.draft.dependencyVersions;
+                  if(retained&&Object.hasOwn(retained,target.id)&&retained[target.id]!==target.version)throw Error("이 초안의 링크 기준 버전이 변경되었습니다. 새 초안에서 검토하세요.");
+                  editor.draft={...editor.draft,dependencyVersions:{...retained,[target.id]:target.version}};
+                }}
                   value={content}
                   onChange={(e) => {
                     setContent(e.target.value);

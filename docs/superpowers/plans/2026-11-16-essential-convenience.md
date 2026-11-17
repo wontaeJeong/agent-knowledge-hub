@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, React 19.3.1, Vite 8.3.5, Node `^22.12.0 || ^24.0.0`, npm `>=10`, PostgreSQL, existing marked/DOMPurify/Vitest. 기존 package-lock을 유지하고 의존성을 추가하기 전에 필요성을 확인한다.
 
-**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 [PR #69](https://github.com/wontaeJeong/agent-knowledge-hub/pull/69), main `d4048bd`에 병합됐고 최종 소스 `d4bb97f`의 CI `44019161055` 필수 8개 검사와 독립 리뷰를 통과했다. C5 / Task 5는 [PR #70](https://github.com/wontaeJeong/agent-knowledge-hub/pull/70), main `83b00f4`에 병합됐고 최종 소스 `629c9c6`의 CI `44036706074` 필수 8개 검사와 독립 리뷰를 통과했다. C6 / Task 6은 [PR #71](https://github.com/wontaeJeong/agent-knowledge-hub/pull/71), main `0def475457b54d50b38c2b61655e1987234da8f3`에 병합됐고 최종 소스 `1bd418a580fa1edac1098291afd8b76490f033f0`의 CI `44068230799` 필수8개 검사와 controller 독립 리뷰를 통과했다. C4 / Task 4는 [PR #72](https://github.com/wontaeJeong/agent-knowledge-hub/pull/72), main `de4e150b7a37003ec23a885fb32205b49d107a7f`에 병합됐고 최종 소스 `5f4d593`의 CI `44115841741` 필수8개 검사와 controller 독립 리뷰를 통과했다. C7 / Task 7은 그 병합 뒤 로컬 구현·검증과 PR73 최종 리뷰 F1/F2 수정을 완료했다. 명시적 exact C7 grant의 HTTP/MCP를 구현했고 기존 read/write key 권한은 유지한다. C7 단1회 scoped final re-review·정확head CI·병합 및 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
+**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 [PR #69](https://github.com/wontaeJeong/agent-knowledge-hub/pull/69), main `d4048bd`에 병합됐고 최종 소스 `d4bb97f`의 CI `44019161055` 필수 8개 검사와 독립 리뷰를 통과했다. C5 / Task 5는 [PR #70](https://github.com/wontaeJeong/agent-knowledge-hub/pull/70), main `83b00f4`에 병합됐고 최종 소스 `629c9c6`의 CI `44036706074` 필수 8개 검사와 독립 리뷰를 통과했다. C6 / Task 6은 [PR #71](https://github.com/wontaeJeong/agent-knowledge-hub/pull/71), main `0def475457b54d50b38c2b61655e1987234da8f3`에 병합됐고 최종 소스 `1bd418a580fa1edac1098291afd8b76490f033f0`의 CI `44068230799` 필수8개 검사와 controller 독립 리뷰를 통과했다. C4 / Task 4는 [PR #72](https://github.com/wontaeJeong/agent-knowledge-hub/pull/72), main `de4e150b7a37003ec23a885fb32205b49d107a7f`에 병합됐고 최종 소스 `5f4d593`의 CI `44115841741` 필수8개 검사와 controller 독립 리뷰를 통과했다. C7 / Task 7 is merged in PR73 at main 3b8f310c4ecc2b8966471c3fe99e3ef8bd461e15; final 85f241c passed CI44146448457 all8 checks and controller final review. The historical pending C7 notes below are superseded by this completion record. C8 local implementation is verified; controller review/CI/merge and later tasks remain pending. 전체 제품 운영 인수를 뜻하지 않는다.
 
 ## Global Constraints
 
@@ -179,15 +179,17 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 
 ## Task 8: 내부 연결·백링크
 
-**Files:** Create `server/migrations/120-published-page-links.sql`, `server/convenience/links.ts`, `links.test.ts`, `src/operational/convenience/LinkAutocomplete.tsx`, `Backlinks.tsx`, `links.test.tsx`; Modify `server/publication.ts`, `server/operations/product-erasure.ts`, `server/convenience/http.ts`, `src/operational/convenience/DocumentComposer.tsx`.
+**Files:** Create `server/migrations/144-published-page-links.sql`, `server/convenience/links.ts`, `links.test.ts`, `src/operational/convenience/LinkAutocomplete.tsx`, `Backlinks.tsx`, `links.test.tsx`; Modify `server/publication.ts`, `server/operations/product-erasure.ts`, `server/convenience/http.ts`, `src/operational/convenience/DocumentComposer.tsx`.
 
 **Interfaces:** Consumes Task 5 authorized suggestions, Task 6 publication, Task 7 stable IDs and existing page links/PR #30 discovery semantics and PR #47 navigation/linkSearch; extend its behavior instead of a duplicate relation service. Produces `resolveLinkSuggestions(ctx,query,limit=10)`, `backlinks(ctx,pageId,{cursor,limit})`, `replacePublishedLinks(db,{workspaceId,pageId,version,refs})`. Refs are `{targetPageId,label,sourceBlockId}`; only published versions contribute.
 
-- [ ] Add failures for duplicate titles/explicit choice, rename, unresolved links, hidden source/target/raw source, unreviewed draft edges, replayed publication, erasure during query and stale derived indexes.
-- [ ] Run links DB/UI tests red; implement publication-transaction/outbox link index and rebuild path with final current-ACL checks.
-- [ ] Wire `[[...]]` suggestions, keyboard confirmation, backlink/related-document panel and stable-ID rendering without replacing the portable Markdown source.
-- [ ] Run publication/discovery/erasure regressions and actual rename/revoke navigation. Do not change common citation privacy policy.
-- [ ] Commit `feat: connect internal document links and backlinks`.
+- [x] Add failures for duplicate titles/explicit choice, rename, unresolved links, hidden source/target/raw source, unreviewed draft edges, replayed publication, erasure during query and stale derived indexes.
+- [x] Run links DB/UI tests red; implement publication-transaction/outbox link index and rebuild path with final current-ACL checks.
+- [x] Wire `[[...]]` suggestions, keyboard confirmation, backlink/related-document panel and stable-ID rendering without replacing the portable Markdown source.
+- [x] Run publication/discovery/erasure regressions and actual rename/revoke navigation. Do not change common citation privacy policy.
+- [x] Commit `feat: connect internal document links and backlinks`.
+
+**Local C8 evidence:** native20files302 and fullcheck493/48/16/41/251/types/build/smoke exit0; four fresh browser configs/12PNG and owned cleanup verified. [Evidence](../../ui-validation/2026-11-18-internal-links/README.md), task-8-report. Controller owns independent review/CI/integration. The existing product-erasure write gate is reused; its table graph/schema integration lives in operations/erasure.ts and retention/inventory.ts.
 
 ## Task 9: 읽기·목차·부분 공유
 

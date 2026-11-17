@@ -1,0 +1,35 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ src/operational/convenience/links.test.tsx (4 tests | 2 failed) 1322ms
+   × duplicate titles require explicit ID choice and insert portable stable Markdown with keyboard 322ms
+   × revoked candidate cannot be inserted and late identity response cannot reveal suggestions 309ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/links.test.tsx > duplicate titles require explicit ID choice and insert portable stable Markdown with keyboard
+AssertionError: expected '메모 [[중복' to contain 'a'
+
+Expected: "a"
+Received: "메모 [[중복"
+
+ ❯ src/operational/convenience/links.test.tsx:17:71
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/operational/convenience/links.test.tsx > revoked candidate cannot be inserted and late identity response cannot reveal suggestions
+TypeError: Cannot read properties of undefined (reading 'click')
+ ❯ src/operational/convenience/links.test.tsx:37:103
+
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:890:22
+ ❯ src/operational/convenience/links.test.tsx:37:8
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed (4)
+   Start at  03:47:29
+   Duration  1.66s (tests 82%, environment 11%, import 4%, transform 2%)
+

@@ -48,13 +48,13 @@ export function referenceOrigin(value?: string) {
 
 /** Parse the rendered HTML, including decoded HTML href attributes and query-relative links.
  * Code examples remain excluded; external origins, paths and spaces are not relations. */
-export function internalReferenceIds(
+export function internalReferences(
   content: string,
   workspaceId: string,
   trustedOrigin?: string,
 ) {
   const baseOrigin = trustedOrigin ?? "https://workspace.invalid";
-  const links = new Set<string>();
+  const links: {targetPageId:string;label:string;sourceBlockId:null}[] = [];
   const tree = parseFragment(marked.parse(content, { async: false }));
   const visit = (node: DefaultTreeAdapterTypes.Node) => {
     if ("tagName" in node) {
@@ -85,7 +85,7 @@ export function internalReferenceIds(
             url.searchParams.get("space") === workspaceId &&
             target
           )
-            links.add(target);
+            links.push({targetPageId:target,label:nodeText(node).slice(0,1000),sourceBlockId:null});
         }
       }
     }
@@ -93,4 +93,12 @@ export function internalReferenceIds(
   };
   visit(tree);
   return links;
+}
+
+function nodeText(node: DefaultTreeAdapterTypes.Node): string {
+  if ('value' in node) return node.value;
+  return 'childNodes' in node ? node.childNodes.map(nodeText).join('') : '';
+}
+export function internalReferenceIds(content:string,workspaceId:string,trustedOrigin?:string){
+ return new Set(internalReferences(content,workspaceId,trustedOrigin).map(r=>r.targetPageId));
 }

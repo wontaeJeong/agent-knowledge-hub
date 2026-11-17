@@ -1,5 +1,17 @@
 # 에이전트 인계
 
+
+## 2026-11-18 #49 C8: internal links and published backlinks
+
+- UXC-07 / EDT-001/007. All 251 criteria, classifications and North Star remain unchanged. Work is isolated on feat/convenience-internal-links-20261118; controller owns review/CI/PR/merge. C7 PR73 is merged at main3b8f310, final85f241c, CI44146448457 eight checks.
+- Reuses WorkflowService.linkSearch/navigation, LinkCompletion/RelatedDocuments, C6 drafts/publication and stable document URLs. Explicit duplicate-title selection inserts portable Markdown and pins the current target version. Unselected [[title]] stays unresolved. sourceBlockId is null until verified block identity exists; C9 is not claimed complete.
+- Version linkReferences are canonical; migration144 published_page_links stores disposable endpoint IDs. Publication replaces edges atomically. Bounded100 rebuild checks current version under the shared gate. Backlink25 opaque cursors bind actor/space/session/credential/authority/data. Every read checks current source/target/ancestor/raw-source/erasure, regardless of stale indexes; read projections repeat after final async identity refresh to close revocation races.
+- Required discovery regressions exposed a pre-existing app/DB clock defect: baseline8/C8 8 probes omitted new answers/capacity errors. Controller authorized assigning only a NEW answer's persisted/returned at from DB clock inside its existing atomic write. queryAsOf, historical rows, replay, policy/lineage remain unchanged. Original discovery.test.ts is unmodified.
+- Current final native20 files302 tests and fullcheck493frontend/48Node/16import/41evaluation/251criteria/types/build/smoke all exit0. Includes upgrade/backfill/restart/drift/erasure, exact MCP inventory, C7 trusted-origin, model/jobs/replay and C6 publication/lineage. No carried runs added to current counts. [Browser evidence and limitations](ui-validation/2026-11-18-internal-links/README.md); full task-8-report under .superpowers/sdd/2026-11-16-essential-convenience.
+- North Star loop: author/review/publish connections feed Query/navigation and maintenance; drafts do not enter public graphs. Source access ceilings, approved versions and idempotency remain invariant. These synthetic functional/security checks do not establish knowledge/model quality; EVALUATION controlled experiments remain required.
+- Remaining costs: full state/digest loading, explicit10k scan bound, two read projections, existing large Vite chunk. Production IdP/load, OS IME/accessibility and semantic quality remain separate acceptance.
+
+
 ## 2026-11-18 #49 C4 최종 F1/F2 — 현재 페이지·정확한 로컬 복구 보존
 
 - 동일한 ONE combined final wave의 중단을 이어서 완료했다. FIX_BASE `f74f408c0b056725fc55b26548b0853a48a921d5`; UXC-05 / UX-001/003/004, REV-001/002, SRH-009 및 기존 EDT 복구 계약. North Star/251기준/server/SQL/migration은 변경하지 않았다.

@@ -1,0 +1,20 @@
+[1/2] server/discovery.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  04:00:20
+   Duration  4.61s (tests 98%, import 1%, transform 1%)
+
+[2/2] server/runtime/discovery-clock.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  04:00:25
+   Duration  1.40s (tests 93%, import 5%, transform 2%)
+

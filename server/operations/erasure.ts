@@ -1,3 +1,4 @@
+import {assertPublishedLinksSchema} from "../convenience/links";
 import {assertDocumentOrderSchema} from "../convenience/structure-schema";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -25,7 +26,7 @@ export interface ProductRow {
   data: Record<string, unknown>;
 }
 const tablePattern =
-  /^(scheduled_publications|sources|pages|versions|batches|requests|publications|approvals|workflow_[a-z_]+|runtime_(answers|lints|jobs)|agent_[a-z_]+|refinement_[a-z_]+|durable_(jobs|job_outbox|model_calls)|storage_(imports|import_sources|import_effects|snapshots|attachment_links)|question_(threads|turns|feedback|feedback_work)|version_(metadata|metadata_events|restore_previews|restore_plans|restore_applications)|versions_decisions|model_usage_events|collaboration_[a-z_]+|governance_[a-z_]+)$/;
+  /^(published_page_links|scheduled_publications|sources|pages|versions|batches|requests|publications|approvals|workflow_[a-z_]+|runtime_(answers|lints|jobs)|agent_[a-z_]+|refinement_[a-z_]+|durable_(jobs|job_outbox|model_calls)|storage_(imports|import_sources|import_effects|snapshots|attachment_links)|question_(threads|turns|feedback|feedback_work)|version_(metadata|metadata_events|restore_previews|restore_plans|restore_applications)|versions_decisions|model_usage_events|collaboration_[a-z_]+|governance_[a-z_]+)$/;
 const identityColumns =
   /^(id|workspace_id|principal_id|owner_id|created_by|recorded_by|reviewed_by|approved_by|actor_id|kind|state|status|operation|role|scope|parent_kind|[a-z_]+_id|[a-z_]+_hash|sha256|mime|provider|model|key|token_hash|mode|policy_mode|category|decision|action|requested_scope|cadence|backend|user_code|document_type|due_cycle|updated_by|applied_by|decision_by|resource_type)$/;
 const referenceKeys: Record<string, string> = {
@@ -46,6 +47,8 @@ const referenceKeys: Record<string, string> = {
   pages: "page",
   pageId: "page",
   page_id: "page",
+  target_page_id: "page",
+  targetPageId: "page",
   pageIds: "page",
   page_ids: "page",
   dependencyVersions: "page",
@@ -464,6 +467,7 @@ export async function hasVersionWorkflowData(db: PoolClient, workspaceId: string
   return result.rows[0].present as boolean;
 }
 async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
+  await assertPublishedLinksSchema(db,"ERASURE_GRAPH_UNSUPPORTED");
   await assertDocumentOrderSchema(db,"ERASURE_GRAPH_UNSUPPORTED");
   const metadata = (
       await db.query(
@@ -507,8 +511,8 @@ async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
  * Remove configuration rather than inventing an invalid or colliding target. */
 /** Rank is disposable page metadata; erase it in the same approved gated transaction. */
 async function eraseDocumentOrder(db:PoolClient,row:ProductRow){
- if(row.table!=="workflow_document_order")return false;
- await db.query("DELETE FROM workflow_document_order WHERE ctid=$1::tid",[row.locator]);
+ if(!["workflow_document_order","published_page_links"].includes(row.table))return false;
+ await db.query(`DELETE FROM ${row.table} WHERE ctid=$1::tid`,[row.locator]);
  return true;
 }
 async function eraseScheduledPublication(db:PoolClient,row:ProductRow) {

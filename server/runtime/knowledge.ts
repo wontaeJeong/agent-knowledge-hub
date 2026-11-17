@@ -1094,6 +1094,10 @@ export class RuntimeService {
                 throw Error("STALE_VERSION");
             }
             const write = async () => {
+              // Discovery windows use the database clock. Assign only a NEW
+              // answer's persistence time here; queryAsOf and durable replay
+              // retain their original selection/result identities.
+              answer.at = (await db.query("SELECT clock_timestamp() AS at")).rows[0].at.toISOString();
               saveAnswer(fresh, answer);
               await db.query(
                 "INSERT INTO runtime_answers VALUES($1,$2,$3,$4)",
