@@ -1094,7 +1094,16 @@ export class RuntimeService {
       execution,
     );
   }
-  async file(ctx: Context, id: string) {
+  async file(
+    ctx: Context,
+    id: string,
+    onFiled?: (
+      db: PoolClient,
+      result: { id: string; hash: string } | { outcome: "no-changes" },
+      sourceIds: string[],
+      pageIds: string[],
+    ) => Promise<void>,
+  ) {
     const { state, fingerprint } = await this.snapshot(ctx);
     const rejectDuplicate = async (db: PoolClient) => {
       const found = await db.query(
@@ -1245,6 +1254,12 @@ export class RuntimeService {
           const fresh = await loadState(db, ctx.workspaceId);
           await assertEnvelope(db, ctx, fresh, envelope);
           if (digest(fresh) !== fingerprint) throw Error("STALE_VERSION");
+          await onFiled?.(
+            db,
+            { outcome: "no-changes" },
+            envelope.sourceIds,
+            envelope.pageIds,
+          );
         });
         const reason = (data as { reason?: unknown }).reason;
         return {
@@ -1275,7 +1290,8 @@ export class RuntimeService {
               : "모델이 변경 이유를 제공하지 않았습니다.",
           onBeforeCreate: rejectDuplicate,
           requestAuthorizationPending: Boolean(ctx.authorization),
-          onCreated: async (db) => {
+          onCreated: async (db, created) => {
+            await onFiled?.(db, created, envelope.sourceIds, envelope.pageIds);
             await binding.recheck(db);
             await recheckAnswerFeedback(db);
             await assertUnprotectedModelTargets(db, ctx.workspaceId, updates);
@@ -1334,6 +1350,19 @@ export class RuntimeService {
         inputEnvelope: answer.inputEnvelope,
         answerId: answer.id,
         onBeforeCreate: rejectDuplicate,
+        onCreated: (db, created) =>
+          onFiled?.(
+            db,
+            created,
+            [
+              ...new Set([
+                ...batch.snapshots.map((s) => s.id),
+                ...(answer.inputEnvelope?.sourceIds ?? []),
+              ]),
+            ],
+            answer.inputEnvelope?.pageIds ??
+              answer.citations.map((c) => c.pageId),
+          ) ?? Promise.resolve(),
       },
     );
   }

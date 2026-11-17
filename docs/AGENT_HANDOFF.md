@@ -680,6 +680,17 @@ Final feature validation (2026-11-17): `npm run check` passed after ancestry har
 
 통합된 #48의 승인 대기 검토 이벤트 유실은 별도 미해결이다. PR48 리뷰5921247928·5921544871에 재현 경로가 있으며, 이 내부 링크 수정은 해당 이벤트 문제를 해결하지 않는다.
 
+## 2026-11-17 Task12 — selected local source / common knowledge service
+
+- Requirements: CORE-009; bounded KI-01/02/03/05/06/07 implementation, not full KI/KE operational acceptance. Reuses existing P8 local page synchronization, source registration, durable jobs, common Ingest/Query/Lint and independent review/publication.
+- Files: `scripts/wiki-connector/{knowledge,client,cli,mcp}.mjs`, `server/agents/{local-knowledge,http,service}.ts`, trusted answer-filing atomic hook in `server/runtime/knowledge.ts`, runtime route/error wiring and focused regression tests. No migration132 is needed; no UI layout change or screenshot claim.
+- Behavior: explicit approved-root file selection/digest; unverified immutable source registration; current scoped credentials; durable admission/poll/errors; reference-only local receipts and same-key explicit reconnect; derived-answer filing remains a proposal. Private sources cannot gain team readers through the private-source action. Agents cannot approve or publish. Existing source ACL/model/copy controls stay authoritative.
+- Precondition: stacked the separately reviewed authentication PR54 branch `d209a3d` to exercise the normal pool6 concurrent native worker/poll flow. This does not claim that PR54 was merged into main by Task12.
+- Design/North Star decisions, CLI/MCP contracts and limitations: [Task12 contract](implementation/2026-11-17-local-source-loop.md). ADR004 stays Proposed. No local daemon, new deployment resource, actual company model quality or downstream agent-performance claim.
+- Previous failed red/diagnostic runs are preserved in MISTAKE_LOG. Independent fresh review and final PR CI remain separate gates.
+- Final executed validation (Node24.22.2, synthetic PostgreSQL17 via UUID-only runner): `npm run check` exit0 — src213, Node50, imports16, evaluation41, requirements251, server typecheck, build and static HTTP smoke. Native agent/connector/MCP/jobs/runtime regression: 10 files / 86 tests, exit0. Final strengthened Task12 native rerun: 2 tests, exit0, including actual loopback OIDC UserInfo + session/CSRF for independent HTTP approval/publication, actual scoped-key CLI/STDIO, exact newly published topic v2 citation, no new independent source on answer filing, source/credential revocation and model-error `dead` state. A separate SDK synthetic-host check exercises explicit `FEATURE_UNAVAILABLE`. Local network-drop/receipt and path/input guards pass. Baseline bundle-size warning remains; no new UI change or actual company quality claim.
+
+- Final no-change filing replay fix: native RED reproduced a repeated provider call, then GREEN persisted no-change receipts in the same checked transaction. Final `npm run check` exit0 and native targeted rerun 3 files/66 tests exit0 after the fix (Task12 two modes, runtime52 and canonical runtime12). Same-key no-change retry makes no additional provider call. Target integration `6d74a36` now contains the separately reviewed auth prerequisite; Task12 does not duplicate it.
 ## 2026-11-17 PR60 독립 리뷰 A — Weekly 공통 주장 후보 계약 연결
 
 - 검토에서 통합 기준 `7791a75`의 모든 ingest 모델 요청이 허용하는 `candidates`를 Weekly의 strict schema가 거부하고 canonical 배치에 후보/변경 이유를 넘기지 않음을 확인했다. 기존 테스트가 후보 없는 응답만 사용한 것이 검증 격차였다. 같은 Task7 브랜치에 지정 통합 기준을 병합하고 semanticSearch/query 및 기존 문서/모델 계약을 보존했다.

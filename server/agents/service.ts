@@ -468,6 +468,48 @@ export class AgentService {
       },
     );
   }
+  async fileAnswer(ctx: Context, input: unknown) {
+    const q = z
+      .object({ answerId: id, idempotency_key: key })
+      .strict()
+      .parse(input);
+    return this.mutation(
+      ctx,
+      "answer.file",
+      q.idempotency_key,
+      q,
+      "changeset.propose",
+      async (complete) => {
+        const result = await this.runtime.file(
+          ctx,
+          q.answerId,
+          async (db, created, sourceIds, pageIds) => {
+            await complete(
+              db,
+              {
+                ...created,
+                ...("id" in created
+                  ? { status: "pending", published: false }
+                  : {}),
+              },
+              [
+                ...sourceIds.map((id) => ({ kind: "source" as const, id })),
+                ...pageIds.map((id) => ({ kind: "page" as const, id })),
+              ],
+            );
+          },
+        );
+        return "id" in result
+          ? {
+              id: result.id,
+              hash: result.hash,
+              status: "pending",
+              published: false,
+            }
+          : result;
+      },
+    );
+  }
   async proposeChange(
     ctx: Context,
     input: unknown,

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { knowledgeMethods } from "./knowledge.mjs";
 import { openStore } from "./store.mjs";
 import {
   hash,
@@ -15,7 +16,7 @@ const equalContent = (a, b) =>
   hash({ ...a, version: 0 }) === hash({ ...b, version: 0 });
 const key = (p) => `${p.spaceId}/${p.id}`;
 
-export async function openClient({ directory, url, token, intervalMs = 5000 }) {
+export async function openClient({ directory, url, token, sourceRoot, intervalMs = 5000 }) {
   const endpoint = new URL(url);
   if (
     endpoint.username ||
@@ -468,5 +469,6 @@ export async function openClient({ directory, url, token, intervalMs = 5000 }) {
       });
     },
   };
+  Object.assign(client, knowledgeMethods({state,persist,request,run,sourceRoot}));
   return client;
 }
