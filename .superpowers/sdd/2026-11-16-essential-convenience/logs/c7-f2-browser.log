@@ -1,0 +1,186 @@
+Capture failure: locator.click: Timeout 20000ms exceeded.
+Call log:
+  - waiting for getByRole('navigation', { name: '문서 트리', exact: true }).getByRole('button', { name: '문서 탐색 하위 문서 펼치기', exact: true })
+
+    at /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub/docs/ui-validation/2026-11-18-document-structure/capture.mjs:127:78 {
+  log: [
+    "  - waiting for getByRole('navigation', { name: '문서 트리', exact: true }).getByRole('button', { name: '문서 탐색 하위 문서 펼치기', exact: true })"
+  ],
+  name: 'TimeoutError'
+}
+본문으로 이동
+agent-knowledge-hub
+Agent-native knowledge platform
+현재 지식 공간
+접근 범위는 서버에서 확인
+
+지식 공간
+
+홈
+지식 탐색 · 트렌드
+발행 지식
+검색
+내 작업
+새 문서
+자료 넣기 · 자동 정리
+
+내 문서
+
+즐겨찾기
+최근 방문
+구독
+저장 보기
+
+지식 도구
+
+편집 · 협업
+버전 비교 · 복원
+내 알림 · 검토함
+질문 · 재편입
+공지 · VOC · 내부 검토
+정련 · 경험
+평가 · 성과 환류
+원본 · 편입
+변경 검토
+지식 건강 점검
+
+내 도구
+
+에이전트 · 토큰
+연동 · 자동화
+
+관리·운영
+
+검토 · 공유 정책
+편집 · 수명주기
+R
+reviewer
+Maintain
+지식 환경
+편집 · 협업
+검색 ⌘/Ctrl K
+새 문서
+알림
+서버 연결 모드
+편집 · 협업
+지식 공간
+@0e868ece-90ab-46a8-82bb-ab57394d3478/knowledge · maintain
+@24b4084c-a45c-4015-961d-e6b6951394e6/knowledge · maintain
+@974ee7b9-30dc-4084-ac71-cad0cb476852/knowledge · maintain
+@dc481ded-fc5d-4d5c-9e00-ec88271b3ad5/knowledge · maintain
+서버 정본 · 4개 접근 가능 발행본
+모델: 미연결
+실행 방식
+실제 모델
+구조 검사·발췌 (모델 미사용)
+편집과 협업
+여러 문서의 태그·위치·보관 변경
+
+개인 초안은 본인에게만 보입니다. 검토·승인 전에는 발행본이 바뀌지 않습니다.
+
+내 문서
+즐겨찾기
+처음부터 새로고침
+
+표시할 문서 없음
+
+최근 문서
+처음부터 새로고침
+문서 구조 · v1
+2026. 11. 18. 오전 2:21:22
+구독 문서
+처음부터 새로고침
+
+표시할 문서 없음
+
+문서 트리
+검토 절차
+운영 지식
+문서 선택
+문서를 선택하세요
+문서 탐색
+문서 구조
+검토 절차
+운영 지식
+운영 지식
+문서 탐색
+문서 구조
+문서 구조 · v1
+문서 고유 링크
+문서 이동
+개인 초안으로 복제
+하위 문서 작성
+현재 발행본 본문 · v1
+목차
+문서 구조
+변경 절차
+문서 내 검색
+일치 0건
+이전 일치
+다음 일치
+현재 위치로 이동
+
+검토 절차
+
+문서 구조
+
+문서는 안정적인 ID로 연결됩니다. 상위 위치와 표시 순서를 바꿔도 기존 링크를 유지합니다.
+
+변경 절차
+대상 상위 문서와 배치 위치를 선택합니다.
+이동 이유를 입력합니다.
+현재 권한과 버전을 확인한 뒤 위치를 저장합니다.
+지원하는 문서 형식
+연결·백링크·관련 문서
+첨부 및 자료 이동
+
+파일당 최대 5 MiB. 원본은 덮어쓰지 않으며 PDF는 검사 승인 전 내려받을 수 없습니다. PDF 변환은 지원하지 않습니다.
+
+Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다. 이미지는 최대 400만 화소·한 변 4096px의 정지 이미지만 지원합니다.
+
+첨부 목록을 조회하세요.
+
+첨부 조회
+파일 업로드
+검토·철회 사유
+문서 기준 버전
+근거·버전 포함 내보내기
+검토용 가져오기 제안
+
+상태: 활성 · 보호: 설정 안 됨
+
+즐겨찾기 추가
+알림 구독
+개인 초안 시작
+버전 기록 · 복원은 새 변경 제안
+작업 이유
+문서 구조·속성·보호
+문서 수명주기
+버전·문단 댓글
+댓글
+문단 앵커 (본문의 정확한 발췌)
+멘션할 사용자 ID (쉼표 구분)
+댓글 등록
+저장된 개인 초안 (0)
+개인 템플릿 (0)
+내 알림 (0건 읽지 않음)
+휴지통 (0)
+내 알림 수신 설정
+서버 저장 · 현재 권한 재검사 · 검토 후 발행
+실제 모델 품질과 운영 인수 결과는 별도 검증 기록을 따릅니다.
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 20000ms exceeded.
+Call log:
+  - waiting for getByRole('navigation', { name: '문서 트리', exact: true }).getByRole('button', { name: '문서 탐색 하위 문서 펼치기', exact: true })
+
+    at /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub/docs/ui-validation/2026-11-18-document-structure/capture.mjs:127:78 {
+  log: [
+    "  - waiting for getByRole('navigation', { name: '문서 트리', exact: true }).getByRole('button', { name: '문서 탐색 하위 문서 펼치기', exact: true })"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.22.2

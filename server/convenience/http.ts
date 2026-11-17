@@ -86,3 +86,56 @@ export async function handleHomeRoute(
   );
   return true;
 }
+
+export async function handleStructureRoute(
+  input: {
+    method: string;
+    path: string;
+    query?: URLSearchParams;
+    body: unknown;
+    ctx: Context;
+    send: (status: number, data: unknown) => void;
+  },
+  service: import("./structure").DocumentStructureService,
+): Promise<boolean> {
+  const { method, path, ctx, send } = input;
+  if (method === "POST" && path === "/api/v1/convenience/credentials") {
+    send(201, await service.issueCredential(ctx,input.body));
+    return true;
+  }
+  if (method === "GET" && path === "/api/v1/convenience/tree") {
+    const params = input.query ?? new URLSearchParams();
+    if ([...params.keys()].some((k) => params.getAll(k).length > 1))
+      throw Error("VALIDATION_FAILED");
+    const q = z
+      .object({
+        parentId: z
+          .string()
+          .regex(/^[a-zA-Z0-9_-]{1,100}$/)
+          .optional(),
+        cursor: z.string().max(4096).optional(),
+        limit: z.coerce.number().int().min(1).max(25).optional(),
+      })
+      .strict()
+      .parse(Object.fromEntries(params));
+    send(200, await service.children(ctx, q));
+    return true;
+  }
+  const pathMatch = path.match(
+    /^\/api\/v1\/convenience\/pages\/([a-zA-Z0-9_-]{1,100})\/path$/,
+  );
+  if (method === "GET" && pathMatch) {
+    if (input.query?.size) throw Error("VALIDATION_FAILED");
+    send(200, await service.path(ctx, pathMatch[1]));
+    return true;
+  }
+  if (method === "POST" && path === "/api/v1/convenience/pages/move") {
+    send(200, await service.move(ctx, input.body));
+    return true;
+  }
+  if (method === "POST" && path === "/api/v1/convenience/pages/duplicate") {
+    send(200, await service.duplicateToDraft(ctx, input.body));
+    return true;
+  }
+  return false;
+}

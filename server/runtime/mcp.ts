@@ -1,3 +1,5 @@
+import {DocumentStructureService,structureCredentialOperation,structureQuery,structureMoveSchema,duplicateSchema} from "../convenience/structure";
+import {WorkflowService} from "../workflows/service";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -37,12 +39,20 @@ export async function handleMcp(
   ctx: Context,
   jobs?: RuntimeJobsBridge,
   scopedSearch?: ScopedSearch,
+  structureIdentity?: import("./auth").OidcAuth,
+  structureOrigin?: string,
 ) {
   const server = new Server(
     { name: "agent-knowledge-hub", version: "1.0.0" },
     { capabilities: { tools: {} } },
   );
+  const pathSchema=z.object({pageId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict();
+  const structure=new DocumentStructureService(new WorkflowService(service.pool,service,authorizeInTransaction,structureOrigin),structureIdentity);
   const schemas = {
+    knowledge_tree:z.toJSONSchema(structureQuery,{io:"input"}),
+    knowledge_path:z.toJSONSchema(pathSchema,{io:"input"}),
+    knowledge_move:z.toJSONSchema(structureMoveSchema,{io:"input"}),
+    knowledge_duplicate:z.toJSONSchema(duplicateSchema,{io:"input"}),
     knowledge_import_selection: {
       type: "object",
       properties: {
@@ -143,16 +153,22 @@ export async function handleMcp(
             ],
       )
     : null;
+  const c7Operation=await structureCredentialOperation(service.pool,ctx);
+  const admittedTools=c7Operation?new Set([`knowledge_${c7Operation}`]):agentTools;
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: Object.entries(schemas)
-      .filter(([name]) => !agentTools || agentTools.has(name))
+      .filter(([name]) => !admittedTools || admittedTools.has(name))
       .map(([name, inputSchema]) => ({ name, inputSchema })),
   }));
   server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
     let result: unknown;
     const input = params.arguments || {};
-    if (agentTools && !agentTools.has(params.name)) throw Error("FORBIDDEN");
+    if (admittedTools && !admittedTools.has(params.name)) throw Error("FORBIDDEN");
     switch (params.name) {
+      case "knowledge_tree":result=await structure.children(ctx,structureQuery.parse(input));break;
+      case "knowledge_path":result=await structure.path(ctx,pathSchema.parse(input).pageId);break;
+      case "knowledge_move":result=await structure.move(ctx,input);break;
+      case "knowledge_duplicate":result=await structure.duplicateToDraft(ctx,input);break;
       case "knowledge_import_selection": {
         const b = z
           .object({

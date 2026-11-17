@@ -1,0 +1,58 @@
+[1/1] server/convenience/structure-final.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure-final.test.ts (10 tests | 10 failed) 916ms
+   × actual issued HTTP before-neighbor token executes and replays unchanged 596ms
+   × actual issued MCP before-neighbor token executes and replays unchanged 45ms
+   × issued placement rejects queued neighbor changes without partial move 37ms
+   × issued placement rejects queued ACL changes without partial move 35ms
+   × issued placement rejects queued credential changes without partial move 43ms
+   × ordinary and mixed credential rows still invalidate structure snapshots 36ms
+   × relative rendered-link lineage and replay have actual HTTP/MCP parity 32ms
+   × absolute rendered-link lineage and replay have actual HTTP/MCP parity 31ms
+   × external rendered-link lineage and replay have actual HTTP/MCP parity 30ms
+   × C6 and Home cursors retain credential issuance/current-authority invalidation 31ms
+
+ Test Files  1 failed (1)
+      Tests  10 failed (10)
+   Start at  02:45:01
+   Duration  1.20s (tests 80%, import 12%, transform 7%)
+
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure-final.test.ts > actual issued HTTP before-neighbor token executes and replays unchanged
+AssertionError: expected 409 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 409
+
+ ❯ server/convenience/structure-final.test.ts:57:86
+     55| test.each(['HTTP','MCP'])('actual issued %s before-neighbor token exec…
+     56|  const input=await placement(),grant=await issue('move',input);
+     57|  const first=await machine(transport,'move',input,grant.secret);expect…
+       |                                                                                      ^
+     58|  expect(first.body).toMatchObject({id:'topic',revision:1,parentId:null…
+     59|  expect(await machine(transport,'move',input,grant.secret)).toEqual(fi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  server/convenience/structure-final.test.ts > actual issued MCP before-neighbor token executes and replays unchanged
+ FAIL  server/convenience/structure-final.test.ts > issued placement rejects queued neighbor changes without partial move
+ FAIL  server/convenience/structure-final.test.ts > issued placement rejects queued ACL changes without partial move
+ FAIL  server/convenience/structure-final.test.ts > issued placement rejects queued credential changes without partial move
+ FAIL  server/convenience/structure-final.test.ts > ordinary and mixed credential rows still invalidate structure snapshots
+ FAIL  server/convenience/structure-final.test.ts > relative rendered-link lineage and replay have actual HTTP/MCP parity
+ FAIL  server/convenience/structure-final.test.ts > absolute rendered-link lineage and replay have actual HTTP/MCP parity
+ FAIL  server/convenience/structure-final.test.ts > external rendered-link lineage and replay have actual HTTP/MCP parity
+ FAIL  server/convenience/structure-final.test.ts > C6 and Home cursors retain credential issuance/current-authority invalidation
+error: duplicate key value violates unique constraint "runtime_sessions_pkey"
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ server/convenience/structure-final.test.ts:31:3
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯

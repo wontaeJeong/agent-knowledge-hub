@@ -1,0 +1,134 @@
+Capture failure: locator.waitFor: Timeout 20000ms exceeded.
+Call log:
+  - waiting for getByRole('textbox', { name: '제목', exact: true }) to be visible
+
+    at /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub/docs/ui-validation/2026-11-18-document-structure/capture.mjs:206:68 {
+  log: [
+    "  - waiting for getByRole('textbox', { name: '제목', exact: true }) to be visible"
+  ],
+  name: 'TimeoutError'
+}
+본문으로 이동
+agent-knowledge-hub
+Agent-native knowledge platform
+현재 지식 공간
+접근 범위는 서버에서 확인
+
+지식 공간
+
+홈
+지식 탐색 · 트렌드
+발행 지식
+검색
+내 작업
+새 문서
+자료 넣기 · 자동 정리
+
+내 문서
+
+즐겨찾기
+최근 방문
+구독
+저장 보기
+
+지식 도구
+
+편집 · 협업
+버전 비교 · 복원
+내 알림 · 검토함
+질문 · 재편입
+공지 · VOC · 내부 검토
+정련 · 경험
+평가 · 성과 환류
+원본 · 편입
+변경 검토
+지식 건강 점검
+
+내 도구
+
+에이전트 · 토큰
+연동 · 자동화
+
+관리·운영
+
+검토 · 공유 정책
+편집 · 수명주기
+R
+reviewer
+Maintain
+지식 환경
+새 문서
+검색 ⌘/Ctrl K
+새 문서
+알림
+서버 연결 모드
+새 문서
+새 문서
+
+개인 초안 저장 → 원본 공개 확인 → 지식 검토 → 발행
+
+문서 제목
+대상 위치
+공간 최상위
+문서 탐색
+문서 구조 변경 기록
+검토 절차
+운영 지식
+템플릿
+선택 안 함
+회의
+조사
+설계
+장애 분석
+가이드
+미리보기
+개인 초안 저장
+개인 템플릿 저장
+
+개인 초안 r1 · 서버에 저장됨 · 발행되지 않음
+
+브라우저 복구가 허용되지 않거나 확인할 수 없습니다. 서버 저장 전 입력은 재시작 시 유실될 수 있습니다.
+
+원본 공개
+
+현재 저장은 본인만 열람합니다. 공개 요청 시 선택한 고정 본문만 지정 검토자에게 보입니다.
+
+선택한 대상 독자: reviewer
+
+대상 독자
+reviewer
+추가 대상 독자 ID
+독립 공개 검토자
+선택하세요
+요청 사유
+고정 본문과 독자로 공개 검토 요청검토 상태 새로고침
+원본 공개 검토함
+검토함 새로고침검토함 처음
+지식 공간
+@bdae95e3-d0e8-44d3-93fc-68461e923b96/knowledge · maintain
+@cb477ac3-fcac-47d3-b188-f92f4428b2cd/knowledge · maintain
+@cba99b42-4056-4b18-98ca-730d2f1ff3a4/knowledge · maintain
+@e28d56ff-208f-4345-b4c6-c93b662f9f89/knowledge · maintain
+서버 정본 · 4개 접근 가능 발행본
+모델: 미연결
+실행 방식
+실제 모델
+구조 검사·발췌 (모델 미사용)
+서버 저장 · 현재 권한 재검사 · 검토 후 발행
+실제 모델 품질과 운영 인수 결과는 별도 검증 기록을 따릅니다.
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 20000ms exceeded.
+Call log:
+  - waiting for getByRole('textbox', { name: '제목', exact: true }) to be visible
+
+    at /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub/docs/ui-validation/2026-11-18-document-structure/capture.mjs:206:68 {
+  log: [
+    "  - waiting for getByRole('textbox', { name: '제목', exact: true }) to be visible"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.22.2

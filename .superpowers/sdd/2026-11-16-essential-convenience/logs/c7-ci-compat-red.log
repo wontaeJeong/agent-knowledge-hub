@@ -1,0 +1,42 @@
+[1/1] server/runtime/runtime.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/runtime/runtime.test.ts (12 tests | 1 failed) 1948ms
+   × MCP uses same authenticated filtered views and never exposes approval tools 24ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  03:15:51
+   Duration  2.22s (tests 90%, import 6%, transform 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/runtime/runtime.test.ts > MCP uses same authenticated filtered views and never exposes approval tools
+AssertionError: expected [ 'knowledge_tree', …(16) ] to deeply equal [ 'knowledge_import_selection', …(12) ]
+
+- Expected
++ Received
+
+@@ -1,6 +1,10 @@
+  [
++   "knowledge_tree",
++   "knowledge_path",
++   "knowledge_move",
++   "knowledge_duplicate",
+    "knowledge_import_selection",
+    "knowledge_import_text",
+    "knowledge_import_preview",
+    "knowledge_import_start",
+    "knowledge_import_status",
+
+ ❯ server/runtime/runtime.test.ts:234:65
+    232|   expect(res.status).toBe(200);
+    233|   const rpc = await res.json();
+    234|   expect(rpc.result.tools.map((t: { name: string }) => t.name)).toEqua…
+       |                                                                 ^
+    235|     "knowledge_import_selection",
+    236|     "knowledge_import_text",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

@@ -1,0 +1,33 @@
+[1/1] server/convenience/structure-http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure-http.test.ts (2 tests | 1 failed) 1576ms
+   × authenticated native HTTP uses CSRF/current policy and rejects spoofed or repeated queries 1430ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  01:55:35
+   Duration  1.86s (tests 87%, import 7%, transform 6%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure-http.test.ts > authenticated native HTTP uses CSRF/current policy and rejects spoofed or repeated queries
+AssertionError: expected 201 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 201
+
+ ❯ server/convenience/structure-http.test.ts:124:32
+    122|     expect((await machine(moveGrant.secret,"/convenience/pages/move",m…
+    123|     const oldResponse=await call("/credentials",{actions:["knowledge.r…
+    124|     expect(oldResponse.status).toBe(200);const oldKey=await oldRespons…
+       |                                ^
+    125|     expect((await machine(oldKey.secret,"/convenience/pages/duplicate"…
+    126|     const revoked=await issue("duplicate",duplicateInput);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

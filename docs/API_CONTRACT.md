@@ -149,3 +149,24 @@ C6 등록된 파생 사본의 삭제는 disclosure의 정본 `source_id`까지 �
 최종 리뷰 F1: 목록은 `(created_at DESC,id DESC)` keyset으로 한 요청에서 raw100까지 검사한다. `partial:true`는 탐색 미완료이며 숨은 수/ID나 전체0을 뜻하지 않는다. `nextCursor`로 이어 조회하고 `null`일 때만 완료다. cursor는 서버 프로세스 AES-GCM 키로 암호화하며 principal/credential/session/workspace/filter/고정25 한도, 현재 effective capability·검토자 설정, SQL 데이터/권한 hash 및 시간 만료를 바인딩한다. 변경·위조·15분 경과·프로세스 재시작은 `STALE_CURSOR`409로 처음부터 재조회한다. cursor·owner lookup 상태는 브라우저 메모리에만 두며 본문/제목/검색어를 URL/storage에 넣지 않는다. SQL hash는 비공개 corpus를 애플리케이션으로 반환하지 않지만 공간 데이터 크기에 비례한 DB 비용과 보수적인 무관 변경 invalidation이 있다. 운영 규모 성능 인수는 별도다.
 
 최종 리뷰 F2: template insert/CAS도 동일 트랜잭션·mutation gate의 기존 product-write fence를 먼저 적용한다. 완료 workspace receipt와 물리 purge 대기 blocked receipt는 새 제목/본문을 저장하지 않는다. provenance/current ACL 검사는 별도로 유지한다.
+
+## C7 문서 구조 (2026-11-18)
+
+현재 인증 주체/공간의 `GET /api/v1/convenience/tree`는 `parentId?`, `cursor?`, `limit?`(기본/최대25)를 받는다. 현재 허용 노드의 `{id,title,version,revision,hasChildren}`와 opaque `revision`, `nextCursor`, `partial`을 반환한다. raw 후보 scan은100건이고 숨긴 위치는 암호화 cursor 안에만 남는다. 실제 빈 목록과 partial scan을 구분한다. `GET /api/v1/convenience/pages/:id/path`는 현재 허용된 경로만 반환하며 기존 정본 ancestor ACL을 우회하지 않는다.
+
+`POST /api/v1/convenience/pages/move`는 `{pageId,parentId,beforeId?,expectedRevision,expectedStructureRevision?,mutationId,reason}`다. `mutationId`는 UUID이며 actor/space별로 바인딩한다. `beforeId`가 있으면 destination tree의 opaque `revision`을 `expectedStructureRevision`으로 반드시 보낸다. append도 token을 보낼 수 있다. 현재 권한 검사 후 동일 요청 receipt를 먼저 재생하므로 성공 응답 유실 재시도는 stale CAS로 바뀌지 않는다. 다른 payload의 key 재사용, 순환, self/trash parent, 옮겨진 이웃, stale revision, 유효 독자 확대는 전체 transaction rollback이다. 기존 `/workflows/pages/:id/state`의 clamp 계약은 유지한다.
+
+`POST /api/v1/convenience/pages/duplicate`는 `{pageId,version,parentId,mutationId}`로 원본 고정 버전/source/dependency를 유지한 새 page-less 개인 초안을 정본 private save 흐름으로 만든다. 공개·발행·독립 증거 생성이 아니다. 현재 원본/계보/상위 권한과 삭제 fence는 재시도에서도 확인한다. child 작성은 같은 private save에 parentId를 고정한 뒤 C6 compose/draft URL을 연다. 기존 문서·댓글·공유 URL은 바뀌지 않는다.
+
+쿠키/세션 MCP의 `knowledge_tree`, `knowledge_path`, `knowledge_move`, `knowledge_duplicate`는 같은 서비스를 사용한다. 기존 `agent-credentials` read/write key(`akh_sk_`) 및 별도 agent MCP `wiki_*`의 도구 allowlist에는 추가하지 않았다. 기존 일반 action credential의 delegated ceiling도 그대로다.
+
+C7 기계 변경은 인증된 사람 세션이 **명시적으로** `POST /api/v1/convenience/credentials`에 `{operation:"move"|"duplicate",input:<해당 변경의 전체 정규화 입력>,expiresAt:<지금부터 최대15분 ISO>}`를 보내 발급한다(CSRF 필수). 발급 결과는 `{id,secret,spaceId,operation,expiresAt}`이고 `secret`은 기존 `akh_` 형식이다. 기존 credential 저장소에 전용 operation marker, 정확 입력 hash, 부모 session 및 snapshot을 보관하며 전역 권한이나 기존 키를 확장하지 않는다. 입력에는 page/parent/version 또는 CAS·배치 token, mutationId·reason까지 포함되므로 다른 작업/자료/입력으로 재사용할 수 없다. 사람의 현재 원본/상위 읽기 및 해당 canonical capability가 발급 시에도 필요하다.
+
+이 키는 해당 `POST /convenience/pages/move|duplicate` 또는 `/mcp`의 해당 `knowledge_move|knowledge_duplicate` 하나만 허용한다. MCP 목록도 해당 한 도구만 표시한다. 일반 API·tree/path·다른 MCP 호출·새 키 발급에는 사용할 수 없다. 사람이 변경할 정확한 입력과 현재 구조 token을 준비해야 한다. 키 실행은 현재 OIDC 신원·부모 세션을 다시 확인하고, canonical workspace 잠금 안에서 credential row/current expiry·revocation/session·원본/계보/상위/삭제 정책과 사람의 현재 capability를 다시 검사한다. 승격된 내부 context는 C7 dispatch 밖으로 반환하지 않는다. 같은 입력의 재시도는 현재 인가 후 원래 결과를 반환한다. 사람 세션의 기존 `DELETE /api/v1/credentials/:id`로 취소하며 세션 종료/권한 회수/만료 역시 실행을 차단한다. 새 grant 전용 UI나 장기 무인 서비스 계정 권한은 추가하지 않았다.
+
+
+### C7 exact grant placement and rendered-link parity
+
+The human destination-tree `revision` can be included unchanged as `expectedStructureRevision` in an explicitly issued exact C7 move grant, including non-null `beforeId`. Issuance of the exact server-defined C7-only grant shape does not itself invalidate the structure snapshot. Ordinary/mixed/unknown credential changes and real order/current-authority changes still invalidate it; C6/Home cursor credential binding is unchanged. The executing grant/session/current capability, source, parent and erasure fences remain checked in the canonical transaction. Same-input mutation replay returns its original result only after current authorization; replacing the bound input is denied.
+
+Runtime HTTP and MCP both use the trusted deployment-configured origin for duplicate rendered-link lineage and receipt revalidation. Relative and absolute same-origin stable document links pin dependencies; external origins do not. Caller Host/Origin headers cannot redefine trusted origin. Linked-page or source access revocation blocks copy replay without a second draft or copied body response. These are local actual HTTP/MCP/OIDC/PostgreSQL regression results, not corporate deployment acceptance.

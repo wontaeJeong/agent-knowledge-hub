@@ -1,0 +1,36 @@
+[1/1] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure.test.ts (6 tests | 1 failed) 2016ms
+   × duplicate is a private page-less draft retaining exact original version and source dependencies with durable retry 142ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+   Start at  00:59:02
+   Duration  2.23s (tests 93%, import 4%, transform 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure.test.ts > duplicate is a private page-less draft retaining exact original version and source dependencies with durable retry
+AssertionError: promise resolved "{ items: [] }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "items": [],
+  }
+
+ ❯ server/convenience/structure.test.ts:71:42
+     69|  await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$…
+     70|  await expect(s.duplicateToDraft(f.editor,input)).rejects.toThrow();
+     71|  await expect(workflows.drafts(f.editor)).rejects.toThrow();
+       |                                          ^
+     72| });
+     73|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

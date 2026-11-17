@@ -1098,3 +1098,45 @@ Final fresh-runtime four-condition capture passed. Its intentional12 HTTP503 res
 - 상태/후속: I1 local 수정·검증 완료, controller exact-head 재리뷰/CI/merge 대기. 기존 accessibility/digest scan/운영 IdP/큰 bundle·의미 품질 제한은 유지한다.
 
 - I1 packaging 관찰: 일반 git add가 tracked report를 stage하면서도 ignored `.superpowers` 부모 경고로 exit1을 반환했다. check=True가 commit 진행을 중단했다. 소유 report/new I1 logs만 명시적 `-f`로 stage하고 diff/manifest gates 후 commit한다. 기존 작업이나 ignored baseline/brief는 stage하지 않는다.
+
+### 2026-11-18 — C7 구조·삭제 통합과 화면 검증에서 발견한 실패
+- 맥락: 문서 트리·이동·복제, 격리 branch `feat/convenience-document-structure-20261118`. C4 PR72 병합 후 작업. 요구한 기능 부재 RED와 아래 실제 구현/검증 실수를 구분한다.
+- 사실/원인: migration143의 page-linked order table을 retention graph에 분류하지 않아 기존 C6 actual source-erasure 회귀가 `RETENTION_GRAPH_UNSUPPORTED`로 실패했다. fail-closed는 정상이며 이를 우회하지 않는다. 정확한 3열 schema 검사와 product lineage 분류를 추가했고 승인된 page/workspace erasure에서 order row를 같은 트랜잭션으로 제거한다. legal hold는 제거를 막는다.
+- 사실/원인: duplicate receipt의 원본 제목을 매번 재생성해 제목 변경 후 같은 mutationId retry가 IDEMPOTENCY_CONFLICT였다. 원래 normalized 요청 hash와 원래 private-save 입력을 재사용하고 현재 계보/삭제 검사 뒤 정본 save receipt를 재생한다. 또 workflow_events의 raw UUID가 다른 actor의 UUID 재사용과 충돌했다. workspace/actor/operation으로 receipt ID를 파생했고 원래 mutationId의 private owner scope는 유지한다.
+- 사실/원인: 이동 form의 다음 위치 조회가 늦게 끝나면 새 parent 목록을 덮었다. parent/request generation으로 늦은 결과를 폐기한다. 오류 시 성공으로 표시하지 않고 같은 의도 재시도는 같은 mutationId를 쓴다.
+- 사실/원인: 실제 screenshot에서 없는 sr-only CSS 때문에 펼치기 설명이 세로로 노출되고 .button 우선순위 때문에 desktop에 mobile toggle이 나타났다. 접근 가능한 aria-label만 남기고 selector specificity를 고쳤다. runtime console에서 새 tree와 기존 PersonalDocuments가 동일 sibling key를 써 개인 목록이 중복됨을 확인했다. tree key에 고유 prefix를 추가했다. 해당 RED/GREEN 및 수정 전 화면을 보존한다.
+- 검증 도구 실수: 첫 fixture pages positional INSERT가 현재 kind 열에 잘못 매핑되어 explicit columns로 수정했다. source revoke 후 canonical drafts 목록은 throw가 아닌 빈 items라는 기존 계약에 맞춰 assertion을 수정했다. focus cleanup callback의 boolean 반환은 tsc로 발견해 void cleanup으로 수정했다. capture가 async breadcrumb 완료 전에 count를 단언했고 기존 composer의 `문서 제목` 대신 `제목`을 찾았다. 종료 중 route.fetch disposed가 첫 failure를 가렸으므로 종료 오류만 분리하고 원래 failure DOM/원인을 기록했다. 이 수정들은 성공 DTO를 합성하지 않는다.
+- 조치/검증: 보존된 c7-red/green 로그, native structure19+HTTP/MCP2, actual erasure/retention/C6 회귀, 최종 fullcheck와 새 runtime/frontend fingerprint의 네 조건 실제 화면을 `docs/ui-validation/2026-11-18-document-structure/` 및 task-7-report.md에 기록한다. 이전 check477/478/479와 첫 기능상 성공 캡처는 이후 변경의 최종 증거로 승격하지 않는다.
+- 상태/후속: 위 실제 결함은 scoped 회귀로 수정 확인. 독립 리뷰/정확 head CI/PR/병합은 controller 소유다. 기존 큰 chunk·전체 ACL/digest scan 비용·scoped-agent C7 미지원·실제 IdP/기기/의미 품질/운영 인수는 남는다.
+
+- C7 cleanup 검증: 첫 확인에서 종료된 브라우저의 소유 profile1개가 남아 있었다(DB0/port닫힘). 정확한 `akh_c7_profile_pUS4Rg`만 지운 뒤 두 번째 확인은 ps 문자열 필터가 자기 shell command를 Chromium으로 오인했다. executable/PID를 먼저 검사하도록 검증 명령을 바로잡아 최종 DB/profile/Chromium0·4397/5197닫힘·부모PG생존을 cleanup.json에 기록했다. 제품 문제가 아닌 정리/검증 가정 실패이며 최초 시도들을 성공으로 표시하지 않는다.
+
+
+### C7 task review Round1 (2026-11-18)
+
+- I1 제품 실패: linked relative document URL의 canonical save가 dependencyVersions를 확장하므로 결과를 원래 입력으로 재구성한 retry가 IDEMPOTENCY_CONFLICT였다. outer duplicate request hash 확인 뒤 저장된 원래 input hash로만 trusted replay하고 현재 확장 계보를 재인가했다. RED19pass/1fail→native20 GREEN. 첫 추가 fixture는 지원하지 않는 `./linked.md`를 써 링크가 해석되지 않았으며 이를 유효 RED로 보지 않는다. 실제 C1 상대 URL로 바꾼 뒤 오류를 재현했다.
+- I2/I4 제품 실패: 이동 뒤 늦은 A detail이 B 선택을 덮고, 모바일 선택의 한 frame focus가 지연 fetch의 새 heading을 놓쳤다. RED10pass/2fail 후 current selection identity/API 세대와 destination-ready focus intent로 수정했다. 외부 의도/identity 취소와 exact recovery를 포함한63 GREEN, 실제 canonical 지연 browser4조건 통과.
+- I3 요구사항 누락: 처음에는 machine C7 미지원 제약을 문서화했지만 명시적인 agent API/MCP 변경 계약은 미충족이었다. controller 승인으로 정확 operation/input·최대15분·부모session에 묶인 opt-in key를 추가했다. 기존키/global delegated ceiling은 변경하지 않았다. 발급RED404 뒤 실제HTTP/MCP permit/deny/회수·만료·현재정책 검증이 통과했다. 일반 credential 발급 테스트의 기존HTTP status를200으로 잘못 기대한 중간실패는 실제201로 정정했고 제품을 변경하지 않았다.
+- 전송 경계 보강: 최초 prototype은 canonical action checks로 generic 권한을 거절했으나 MCP 목록은 모든 도구를 표시했다. 새 list isolation RED 후 bound C7 도구와 해당 HTTP 경로만 admission하도록 제한했다. 첫486check/4config 성공은 이 보강 전 중간근거로 보존하고 새 fullcheck/runtime/capture를 수행했다. queued session/capability 철회는 canonical workspace lock 대기 관찰 후 변경하여 실제 race로 검증했으며 실패하면 draft/save receipt가 모두0이다.
+
+
+### C7 task review Round2 — same-selection loading regression
+
+- N1 was introduced by Round1: selecting the same document unconditionally replaced its generation token, while unchanged effect dependencies meant no replacement fetch. Both desktop/mobile initial WorkflowPanel tests failed with heading null after releasing the sole authorized response (RED15pass/2fail). Full document/API/actor/space equality now retains that token; same-item calls remain1, mobile focus intent waits on that valid load, and existing distinct-identity protection stays. Focused65/fullcheck488 pass; backend unchanged/native81+178 carry.
+- First actual browser attempt timed out on the nested child expand locator before the same-selection assertion; no product defect/root cause was established by that failure. The harness now targets the pending same root document after App initialization and retains initial-load coverage in WorkflowPanel tests. Failure output is preserved; fresh owned runtime/frontend and final canonical browser proof are separately bound to source.
+
+
+### 2026-11-18 — C7 final review F1/F2 and final-wave fixtures
+
+- Context: PR73 whole-branch final review at595358f. F1 was an actual integration defect: access_credentials issuance invalidated the immutable structure token bound in the same grant, so issued before-neighbor moves409'd. F2 was an actual adapter defect: runtime MCP omitted trusted origin, losing absolute internal-link dependency/current replay restrictions. Prior append-only machine and relative-link tests did not cover them. Reviewer probe/log are preserved verbatim in the scoped task report; earlier green evidence remains historical.
+- Fix/ruling: only structure binding excludes the exact C7-only five-action serialized shape, NULL-safely; ordinary/mixed/unknown rows and all underlying authority remain bound. Active grant/session/policy are independently locked and rechecked. Runtime MCP now receives deployment options.origin. Cost is explicit format coupling and one internal origin argument; no permission broadening, header trust or general ceiling change.
+- Verification: clean RED3failed/7passed, final native11files97 across two commands, finalcheck488/48/16/41/251/types/build/smoke, fresh four-config canonical browser including exact-issued order/replay and absolute copy linkage. Actual SDK parity/current source/link revoke and no second draft/body leak pass. Current vs carried13files183 is explicit; controller re-review/CI/merge remains.
+- Test errors distinct from product failures: first fixture reused a globally unique runtime_session key across workspaces (9setup failures), corrected to per-testUUID. Next queued-order fixture used forbidden negative rank and exited before draining pending fetch (constraint+cleanup rejection); valid positive100 produces the intended race. One affected command used nonexistent server/agents/credentials.test.ts and failed filter validation before executing tests; corrected to server/agent-credentials.test.ts. All logs retained. No product boundary was weakened to accommodate fixtures.
+- Self-review found nullable SQL NOT could exclude unknown/null grant-shaped rows. Before final checks, changed to IS NOT TRUE and added mixed/malformed/null regression; final actual-issued controls still pass. No final-wave browser failure. Existing chunk/performance/realIdP/device/operating/quality limitations remain.
+
+
+### 2026-11-18 — C7 required CI exact MCP inventory omission
+
+PR73 exact HEAD d47b893 failed required PostgreSQL CI44142165821/job134247561048 on runtime.test.ts line234: old13-name strict MCP inventory omitted four intended C7 session tools (1fail/11pass). Focused C7 coverage exercised actual admission/security but missed this existing compatibility expectation. The failed CI remains failed; no earlier local pass substitutes for it.
+
+Ruling: update only those four expected names, retaining strict full-list equality/no approval tools and unchanged product authorization. Actual local RED reproduces the precise diff; GREEN affected5files26 plus server types passes. Existing actual reader/old-key/single-grant denial tests are included intact. No product code or browser hash changed, and no second final-review fix wave occurred. Exact commands/log hashes and the CI link are in task-7-report/AGENT_HANDOFF; controller must run fresh exact-head CI after scoped CI-only review. This is a test-maintenance coverage omission, not an environmental failure or permission workaround.

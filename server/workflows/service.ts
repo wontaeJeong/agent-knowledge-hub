@@ -1,3 +1,6 @@
+import { effectiveAccess } from "../access";
+import { encodeCursor, decodeCursor, listRevision } from "./manual-disclosure";
+import { structureQuery, structureMoveSchema, duplicateSchema, type StructureNode } from "../convenience/structure";
 import { assertProductWritesNotErased } from "../operations/product-erasure";
 import { submitNewDraft } from "./new-document";
 import { ManualDraftDisclosureService } from "./manual-disclosure";
@@ -330,7 +333,10 @@ export class WorkflowService {
       ctx,
       "draft.write",
       d.pageId ? { kind: "page", id: d.pageId } : undefined,
-      async (db) => {
+      (db) => this.saveDraftInTransaction(db, ctx, d),
+    );
+  }
+  private async saveDraftInTransaction(db: PoolClient, ctx: Context, d: z.infer<typeof draftSchema>, authorizedReplayInputHash?: string) {
         if (d.originSpaceId && d.originSpaceId !== ctx.workspaceId)
           throw Error("SOURCE_SCOPE_CONFLICT");
         await assertProductWritesNotErased(db,ctx.workspaceId,d.pageId ?? "");
@@ -381,7 +387,7 @@ export class WorkflowService {
             [ctx.workspaceId, ctx.principalId, d.mutationId],
           );
           if (previous.rowCount) {
-            if (previous.rows[0].input_hash !== fingerprint(d))
+            if (previous.rows[0].input_hash !== (authorizedReplayInputHash ?? fingerprint(d)))
               throw Error("IDEMPOTENCY_CONFLICT");
             return previous.rows[0].result;
           }
@@ -432,8 +438,7 @@ export class WorkflowService {
             ],
           );
         return { ...data, revision: next };
-      },
-    );
+
   }
   async deleteDraft(ctx: Context, draftId: string, expectedRevision: number) {
     id.parse(draftId);
@@ -762,6 +767,341 @@ export class WorkflowService {
       },
     );
   }
+  private async structureBinding(
+    db: PoolClient,
+    ctx: Context,
+    parentId: string | null,
+  ) {
+    return fingerprint({
+      workspace: ctx.workspaceId,
+      principal: ctx.principalId,
+      credential: ctx.credentialId ?? null,
+      session: ctx.authorization?.sessionId ?? null,
+      agent: ctx.agent ?? null,
+      parentId,
+      access: await effectiveAccess(db, ctx),
+      revision: await listRevision(
+        db,
+        ctx,
+        ["workflow_document_order"],
+        "none",
+        "structure",
+      ),
+    });
+  }
+  private structureRevision(binding: string) {
+    return encodeCursor({
+      binding,
+      id: "structure",
+      at: "revision",
+      expires: Date.now() + 900000,
+    });
+  }
+  private verifyStructureRevision(value: string | undefined, binding: string) {
+    if (!value) throw Error("STALE_VERSION");
+    const token = decodeCursor(value);
+    if (
+      token.binding !== binding ||
+      token.id !== "structure" ||
+      token.at !== "revision" ||
+      token.expires < Date.now()
+    )
+      throw Error("STALE_VERSION");
+  }
+  async structureChildren(ctx: Context, input: unknown) {
+    const q = structureQuery.parse(input);
+    return this.run(ctx, "knowledge.read", undefined, async (db) => {
+      if (q.parentId) await this.page(db, ctx, q.parentId);
+      const binding = await this.structureBinding(db, ctx, q.parentId);
+      const token = q.cursor ? decodeCursor(q.cursor) : null;
+      if (
+        token &&
+        (token.binding !== fingerprint([binding, q.limit]) ||
+          token.expires < Date.now())
+      )
+        throw Error("STALE_CURSOR");
+      const state = await loadState(db, ctx.workspaceId),
+        visible = await visiblePageIds(db, ctx, state);
+      const items: StructureNode[] = [];
+      let afterId = token?.id ?? "",
+        afterPosition = token?.at ?? "-1",
+        done = false;
+      // Scan at most 100 raw rows/request; concealed scan position stays encrypted.
+      const rows = await db.query(
+        `SELECT p.id,p.data->>'title' AS title,coalesce(s.revision,0) AS revision,coalesce(o.position,0)::text AS position,(SELECT max(number) FROM versions WHERE workspace_id=p.workspace_id AND page_id=p.id) AS version FROM pages p LEFT JOIN workflow_document_state s ON s.workspace_id=p.workspace_id AND s.page_id=p.id LEFT JOIN workflow_document_order o ON o.workspace_id=p.workspace_id AND o.page_id=p.id WHERE p.workspace_id=$1 AND s.parent_id IS NOT DISTINCT FROM $2 AND coalesce(s.state,'active')<>'trash' AND (coalesce(o.position,0),p.id)>($3::bigint,$4::text) ORDER BY coalesce(o.position,0),p.id LIMIT 101`,
+        [ctx.workspaceId, q.parentId, afterPosition, afterId],
+      );
+      const parents = (
+        await db.query(
+          "SELECT page_id,parent_id FROM workflow_document_state WHERE workspace_id=$1 AND state<>'trash' AND parent_id IS NOT NULL",
+          [ctx.workspaceId],
+        )
+      ).rows;
+      let consumed = 0;
+      for (const row of rows.rows.slice(0, 100)) {
+        afterId = row.id;
+        afterPosition = row.position;
+        consumed++;
+        if (visible.has(row.id))
+          items.push({
+            id: row.id,
+            title: row.title,
+            revision: row.revision,
+            version: row.version,
+            hasChildren: parents.some(
+              (child) =>
+                child.parent_id === row.id && visible.has(child.page_id),
+            ),
+          });
+        if (items.length === q.limit) break;
+      }
+      done = consumed === rows.rows.length;
+      return {
+        items,
+        revision: this.structureRevision(binding),
+        nextCursor: done
+          ? null
+          : encodeCursor({
+              binding: fingerprint([binding, q.limit]),
+              id: afterId,
+              at: afterPosition,
+              expires: Date.now() + 900000,
+            }),
+        partial: !done && items.length < q.limit,
+      };
+    });
+  }
+  async structurePath(ctx: Context, pageId: string) {
+    return this.run(
+      ctx,
+      "knowledge.read",
+      { kind: "page", id: pageId },
+      async (db) => {
+        await this.page(db, ctx, pageId);
+        const state = await loadState(db, ctx.workspaceId),
+          visible = await visiblePageIds(db, ctx, state);
+        const settings = (
+          await db.query(
+            "SELECT page_id,parent_id,revision FROM workflow_document_state WHERE workspace_id=$1",
+            [ctx.workspaceId],
+          )
+        ).rows;
+        const items: StructureNode[] = [];
+        let cursor: string | null = pageId;
+        const seen = new Set<string>();
+        while (cursor && visible.has(cursor)) {
+          if (seen.has(cursor)) throw Error("POLICY_UNAVAILABLE");
+          seen.add(cursor);
+          const p = state.pages.find((p) => p.id === cursor);
+          if (!p) break;
+          const s = settings.find((s) => s.page_id === cursor);
+          items.unshift({
+            id: p.id,
+            title: p.title,
+            version: current(p).number,
+            revision: s?.revision ?? 0,
+            hasChildren: settings.some(
+              (x) => x.parent_id === p.id && visible.has(x.page_id),
+            ),
+          });
+          cursor = s?.parent_id ?? null;
+        }
+        return { items };
+      },
+    );
+  }
+  /** Trusted C7 issuance callback; admission grants no generic delegated capability. */
+  async authorizeStructureGrant<T>(ctx: Context, operation: "move" | "duplicate", input: unknown, issue: (db: PoolClient) => Promise<T>) {
+    const d = operation === "move" ? structureMoveSchema.parse(input) : duplicateSchema.parse(input);
+    const action = operation === "move" ? "knowledge.protect" : "draft.write";
+    return this.run(ctx, action, {kind:"page",id:d.pageId}, async db => {
+      const p = await this.page(db,ctx,d.pageId);
+      await assertProductWritesNotErased(db,ctx.workspaceId,d.pageId);
+      if ("version" in d) await this.requireVersion(db,ctx,p,d.version);
+      if (d.parentId) {
+        await this.page(db,ctx,d.parentId);
+        await this.authorize(db,ctx,action,{kind:"page",id:d.parentId});
+      }
+      return issue(db);
+    });
+  }
+  async moveDocument(ctx: Context, input: unknown) {
+    const d = structureMoveSchema.parse(input);
+    const receiptId = "structure-move-" + fingerprint([ctx.workspaceId,ctx.principalId,d.mutationId]);
+    return this.run(
+      ctx,
+      "knowledge.protect",
+      { kind: "page", id: d.pageId },
+      async (db) => {
+        await this.page(db, ctx, d.pageId);
+        await assertProductWritesNotErased(db, ctx.workspaceId, d.pageId);
+        if (d.parentId) {
+          await this.page(db, ctx, d.parentId);
+          await this.authorize(db, ctx, "knowledge.protect", {
+            kind: "page",
+            id: d.parentId,
+          });
+        }
+        // Receipts contain only stable IDs/revision; current authority always gates replay.
+        const receipt = (
+          await db.query(
+            "SELECT data FROM workflow_events WHERE workspace_id=$1 AND id=$2 AND principal_id=$3 AND kind='page.structure.move'",
+            [ctx.workspaceId, receiptId, ctx.principalId],
+          )
+        ).rows[0];
+        if (receipt) {
+          if (receipt.data.inputHash !== fingerprint(d))
+            throw Error("IDEMPOTENCY_CONFLICT");
+          return receipt.data.result as {
+            id: string;
+            revision: number;
+            parentId: string | null;
+          };
+        }
+        if (d.beforeId) {
+          this.verifyStructureRevision(
+            d.expectedStructureRevision,
+            await this.structureBinding(db, ctx, d.parentId),
+          );
+          if (d.beforeId === d.pageId) throw Error("VALIDATION_FAILED");
+          await this.page(db, ctx, d.beforeId);
+          const neighbor = (
+            await db.query(
+              "SELECT parent_id FROM workflow_document_state WHERE workspace_id=$1 AND page_id=$2",
+              [ctx.workspaceId, d.beforeId],
+            )
+          ).rows[0];
+          if ((neighbor?.parent_id ?? null) !== d.parentId)
+            throw Error("STALE_VERSION");
+        } else if (d.expectedStructureRevision)
+          this.verifyStructureRevision(
+            d.expectedStructureRevision,
+            await this.structureBinding(db, ctx, d.parentId),
+          );
+        const result = await this.setDocumentStateInTransaction(
+          db,
+          ctx,
+          d.pageId,
+          {
+            parentId: d.parentId,
+            expectedRevision: d.expectedRevision,
+            reason: d.reason,
+          },
+          undefined,
+          true,
+        );
+        // The authoritative parent mutation and all sibling ranks commit together.
+        const siblings = (
+          await db.query(
+            `SELECT p.id FROM pages p LEFT JOIN workflow_document_state s ON s.workspace_id=p.workspace_id AND s.page_id=p.id LEFT JOIN workflow_document_order o ON o.workspace_id=p.workspace_id AND o.page_id=p.id WHERE p.workspace_id=$1 AND s.parent_id IS NOT DISTINCT FROM $2 AND coalesce(s.state,'active')<>'trash' AND p.id<>$3 ORDER BY coalesce(o.position,0),p.id`,
+            [ctx.workspaceId, d.parentId, d.pageId],
+          )
+        ).rows.map((x) => x.id as string);
+        const index = d.beforeId
+          ? siblings.indexOf(d.beforeId)
+          : siblings.length;
+        if (index < 0) throw Error("STALE_VERSION");
+        siblings.splice(index, 0, d.pageId);
+        await db.query(
+          "INSERT INTO workflow_document_order(workspace_id,page_id,position) SELECT $1,id,ordinal FROM unnest($2::text[]) WITH ORDINALITY AS x(id,ordinal) ON CONFLICT(workspace_id,page_id) DO UPDATE SET position=excluded.position",
+          [ctx.workspaceId, siblings],
+        );
+        const response = {
+          id: d.pageId,
+          revision: result.revision,
+          parentId: d.parentId,
+        };
+        await db.query(
+          "INSERT INTO workflow_events(workspace_id,id,principal_id,kind,resource_id,data) VALUES($1,$2,$3,'page.structure.move',$4,$5)",
+          [
+            ctx.workspaceId,
+            receiptId,
+            ctx.principalId,
+            d.pageId,
+            { inputHash: fingerprint(d), result: response },
+          ],
+        );
+        await audit(db, ctx, "page.structure.move", d.pageId);
+        return response;
+      },
+    );
+  }
+  async duplicateDocument(ctx: Context, input: unknown) {
+    const d = duplicateSchema.parse(input);
+    const receiptId = "structure-copy-" + fingerprint([ctx.workspaceId,ctx.principalId,d.mutationId]);
+    return this.run(
+      ctx,
+      "draft.write",
+      { kind: "page", id: d.pageId },
+      async (db) => {
+        const p = await this.page(db, ctx, d.pageId),
+          v = await this.requireVersion(db, ctx, p, d.version);
+        await assertProductWritesNotErased(db, ctx.workspaceId, d.pageId);
+        const receipt = (
+          await db.query(
+            "SELECT data FROM workflow_events WHERE workspace_id=$1 AND id=$2 AND principal_id=$3 AND kind='page.structure.duplicate'",
+            [ctx.workspaceId, receiptId, ctx.principalId],
+          )
+        ).rows[0];
+        if (receipt) {
+          if (receipt.data.inputHash !== fingerprint(d))
+            throw Error("IDEMPOTENCY_CONFLICT");
+          const saved = (
+            await db.query(
+              "SELECT input_hash,result FROM workflow_draft_save_mutations WHERE workspace_id=$1 AND owner_id=$2 AND mutation_id=$3 AND draft_id=$4",
+              [
+                ctx.workspaceId,
+                ctx.principalId,
+                d.mutationId,
+                receipt.data.draftId,
+              ],
+            )
+          ).rows[0];
+          if (!saved) throw Error("NOT_FOUND");
+          const { revision: _, ...original } = saved.result;
+          return this.saveDraftInTransaction(
+            db,
+            ctx,
+            draftSchema.parse({
+              ...original,
+              expectedRevision: 0,
+              mutationId: d.mutationId,
+            }),
+            // The outer receipt matched the exact normalized duplicate request.
+            // Enriched lineage is reauthorized above; it is not the original save input.
+            saved.input_hash,
+          );
+        }
+        const provenance = inheritedProvenance({ ...p, versions: [v] });
+        const deps: Record<string, number> = { [p.id]: v.number };
+        // Exact origin version retains inherited graph through canonical dependency checks.
+        for (const sourceId of provenance.sourceIds)
+          await requireRead(db, ctx, "source", sourceId);
+        const saved = await this.saveDraftInTransaction(db, ctx, {
+          id: "copy-" + d.mutationId,
+          expectedRevision: 0,
+          title: p.title,
+          content: v.content,
+          parentId: d.parentId,
+          originSpaceId: ctx.workspaceId,
+          sourceIds: [...new Set([...v.sourceIds, ...provenance.sourceIds])],
+          dependencyVersions: deps,
+          mutationId: d.mutationId,
+        });
+        await db.query(
+          "INSERT INTO workflow_events(workspace_id,id,principal_id,kind,resource_id,data) VALUES($1,$2,$3,'page.structure.duplicate',$4,$5)",
+          [
+            ctx.workspaceId,
+            receiptId,
+            ctx.principalId,
+            d.pageId,
+            { inputHash: fingerprint(d), draftId: saved.id },
+          ],
+        );
+        return saved;
+      },
+    );
+  }
   async setDocumentState(
     ctx: Context,
     pageId: string,
@@ -773,7 +1113,10 @@ export class WorkflowService {
       ctx,
       d.state ? "lifecycle.manage" : "knowledge.protect",
       { kind: "page", id: pageId },
-      async (db) => {
+      (db) => this.setDocumentStateInTransaction(db, ctx, pageId, d, bulkReceiptId),
+    );
+  }
+  private async setDocumentStateInTransaction(db: PoolClient, ctx: Context, pageId: string, d: z.infer<typeof docSchema>, bulkReceiptId?: string, rejectBroadening = false) {
         if (
           d.state &&
           Object.keys(d).some(
@@ -912,8 +1255,9 @@ export class WorkflowService {
           pageId,
           this.authorize,
         );
+        const previousAudienceForMove = rejectBroadening ? await readers(db, ctx.workspaceId, "page", pageId) : null;
         if (
-          (d.parentId !== undefined || d.restoreParentId !== undefined) &&
+          !rejectBroadening && (d.parentId !== undefined || d.restoreParentId !== undefined) &&
           nextParent !== (r.rows[0]?.parent_id ?? null)
         ) {
           const previousAudience = await readers(
@@ -959,6 +1303,7 @@ export class WorkflowService {
             next,
           ],
         );
+        if (previousAudienceForMove && (await readers(db, ctx.workspaceId, "page", pageId)).some(who => !previousAudienceForMove.includes(who))) throw Error("SOURCE_SCOPE_CONFLICT");
         if (
           d.state === "trash" ||
           d.protected !== undefined ||
@@ -1013,8 +1358,7 @@ export class WorkflowService {
           parentId: nextParent,
           ...next,
         };
-      },
-    );
+
   }
   async trash(ctx: Context) {
     return this.run(ctx, "lifecycle.manage", undefined, async (db) => {

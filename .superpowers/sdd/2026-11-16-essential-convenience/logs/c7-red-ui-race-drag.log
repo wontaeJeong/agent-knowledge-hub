@@ -1,0 +1,49 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ src/operational/convenience/structure.test.tsx (6 tests | 2 failed) 72ms
+   × late placement pagination cannot replace a newly selected parent list 7ms
+   × drag placement and keyboard placement use the same pending move form 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/structure.test.tsx > late placement pagination cannot replace a newly selected parent list
+AssertionError: expected '마지막old-secret 앞' to contain 'new-child'
+
+Expected: "new-child"
+Received: "마지막old-secret 앞"
+
+ ❯ src/operational/convenience/structure.test.tsx:53:29
+     51|  await act(async()=>old({items:[row('old-secret')],revision:'old-root'…
+     52|  const select=document.querySelector('select[aria-label="배치 위치"]')!;
+     53|  expect(select.textContent).toContain('new-child');expect(select.textC…
+       |                             ^
+     54| });
+     55| test('drag placement and keyboard placement use the same pending move …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/operational/convenience/structure.test.tsx > drag placement and keyboard placement use the same pending move form
+AssertionError: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ src/operational/convenience/structure.test.tsx:59:81
+     57|  await mount(<DocumentStructureControls api={api} spaceId="s" principa…
+     58|  await act(async()=>button('문서 이동').click());
+     59|  const draggable=document.querySelector('[draggable="true"]');expect(d…
+       |                                                                                 ^
+     60|  const target=document.querySelector('[data-before-id="neighbor"]')!;
+     61|  const drop=new Event('drop',{bubbles:true,cancelable:true});Object.de…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 4 passed (6)
+   Start at  01:08:52
+   Duration  588ms (environment 68%, tests 14%, import 13%, transform 6%)

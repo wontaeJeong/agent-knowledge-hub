@@ -1,3 +1,4 @@
+import {assertDocumentOrderSchema} from "../convenience/structure-schema";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { PoolClient } from "pg";
@@ -463,6 +464,7 @@ export async function hasVersionWorkflowData(db: PoolClient, workspaceId: string
   return result.rows[0].present as boolean;
 }
 async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
+  await assertDocumentOrderSchema(db,"ERASURE_GRAPH_UNSUPPORTED");
   const metadata = (
       await db.query(
         "SELECT table_name,column_name,data_type FROM information_schema.columns WHERE table_schema='public' ORDER BY table_name,ordinal_position",
@@ -503,6 +505,12 @@ async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
 }
 /** Subscription targets can be private category names and form a composite key.
  * Remove configuration rather than inventing an invalid or colliding target. */
+/** Rank is disposable page metadata; erase it in the same approved gated transaction. */
+async function eraseDocumentOrder(db:PoolClient,row:ProductRow){
+ if(row.table!=="workflow_document_order")return false;
+ await db.query("DELETE FROM workflow_document_order WHERE ctid=$1::tid",[row.locator]);
+ return true;
+}
 async function eraseScheduledPublication(db:PoolClient,row:ProductRow) {
  if(row.table!=="scheduled_publications")return false;
  await db.query("UPDATE scheduled_publications SET status='cancelled',finished_at=clock_timestamp(),session_id=NULL,result=NULL,error_code='LEGAL_ERASURE',request_key='erased:'||id WHERE ctid=$1::tid",[row.locator]);
@@ -564,7 +572,7 @@ export async function replayProductErasure(
     fingerprint(resources),
   );
   for (const row of selected) {
-    if (await eraseScheduledPublication(db,row) || await eraseCollaborationSubscription(db,row) || await redactReleasedImportRow(db, row)) {
+    if (await eraseDocumentOrder(db,row) || await eraseScheduledPublication(db,row) || await eraseCollaborationSubscription(db,row) || await redactReleasedImportRow(db, row)) {
       counts[row.table] = (counts[row.table] ?? 0) + 1;
       continue;
     }
@@ -776,7 +784,7 @@ export async function executeErasure(
         );
         // Privileged append-only refinement redaction happens only inside this explicit, preview-bound operation.
         for (const row of p.selected) {
-          if (await eraseScheduledPublication(db,row) || await eraseCollaborationSubscription(db,row) || await redactReleasedImportRow(db, row)) continue;
+          if (await eraseDocumentOrder(db,row) || await eraseScheduledPublication(db,row) || await eraseCollaborationSubscription(db,row) || await redactReleasedImportRow(db, row)) continue;
           const replacements: Record<string, unknown> = {};
           for (const c of p.all.columns.get(row.table) ?? []) {
             if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result") || (row.table === "version_restore_previews" && c.name === "hash")) continue;

@@ -1,0 +1,22 @@
+[1/1] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure.test.ts (14 tests | 1 failed) 3572ms
+   × order inventory preserves page lineage and duplicate bodies are included in actual source erasure 144ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 13 passed (14)
+   Start at  01:12:21
+   Duration  3.76s (tests 96%, import 2%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure.test.ts > order inventory preserves page lineage and duplicate bodies are included in actual source erasure
+Error: RETENTION_GRAPH_UNSUPPORTED
+ ❯ inventory server/retention/inventory.ts:139:133
+
+ ❯ server/convenience/structure.test.ts:315:49
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

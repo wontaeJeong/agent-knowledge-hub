@@ -1,0 +1,29 @@
+[1/1] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure.test.ts (12 tests | 1 failed) 2469ms
+   × duplicate retry survives title changes, retains lineage after body replacement and cannot bypass private publication 88ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  01:05:14
+   Duration  2.67s (tests 94%, import 3%, transform 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure.test.ts > duplicate retry survives title changes, retains lineage after body replacement and cannot bypass private publication
+Error: IDEMPOTENCY_CONFLICT
+ ❯ WorkflowService.saveDraftInTransaction server/workflows/service.ts:391:21
+    389|           if (previous.rowCount) {
+    390|             if (previous.rows[0].input_hash !== fingerprint(d))
+    391|               throw Error("IDEMPOTENCY_CONFLICT");
+       |                     ^
+    392|             return previous.rows[0].result;
+    393|           }
+ ❯ transaction server/database.ts:111:20
+ ❯ WorkflowService.run server/workflows/service.ts:127:20
+ ❯ server/convenience/structure.test.ts:100:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

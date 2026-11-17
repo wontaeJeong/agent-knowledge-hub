@@ -1,0 +1,15 @@
+
+> agent-knowledge-hub@0.2.0-demo typecheck
+> tsc -b --pretty
+
+src/operational/convenience/PageTree.tsx:21:18 - error TS2345: Argument of type '() => () => void | false | undefined' is not assignable to parameter of type 'EffectCallback'.
+  Type '() => void | false | undefined' is not assignable to type 'void | Destructor'.
+    Type '() => void | false | undefined' is not assignable to type 'Destructor'.
+      Type 'void | false | undefined' is not assignable to type 'void | { [UNDEFINED_VOID_ONLY]: never; }'.
+        Type 'boolean' is not assignable to type 'void | { [UNDEFINED_VOID_ONLY]: never; }'.
+
+21  useLayoutEffect(()=>{const previous=document.activeElement as HTMLElement|null;ref.current?.querySelector<HTMLElement>('button,input,select,a')?.focus();return()=>previous?.isConnected&&previous.focus();},[]);
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Found 1 error in src/operational/convenience/PageTree.tsx:21

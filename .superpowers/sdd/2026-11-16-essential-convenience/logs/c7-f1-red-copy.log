@@ -1,0 +1,35 @@
+[1/1] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure.test.ts (20 tests | 1 failed) 3823ms
+   × linked duplicate replays exact result after rename and still checks revoked dependencies and input identity 76ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed (20)
+   Start at  01:50:31
+   Duration  4.05s (tests 96%, import 3%, transform 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure.test.ts > linked duplicate replays exact result after rename and still checks revoked dependencies and input identity
+AssertionError: expected { topic: 1 } to deeply equal { topic: 1, linked: 1 }
+
+- Expected
++ Received
+
+  {
+-   "linked": 1,
+    "topic": 1,
+  }
+
+ ❯ server/convenience/structure.test.ts:521:36
+    519|   const input={pageId:"topic",version:1,parentId:null,mutationId:rando…
+    520|   const first=await s.duplicateToDraft(f.editor,input);
+    521|   expect(first.dependencyVersions).toEqual({topic:1,linked:1});
+       |                                    ^
+    522|   expect(await s.duplicateToDraft(f.editor,input)).toEqual(first);
+    523|   await f.pool.query("UPDATE pages SET data=jsonb_set(data,'{title}',t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

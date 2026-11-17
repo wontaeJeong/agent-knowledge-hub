@@ -1,0 +1,12 @@
+{
+  "verifiedAt": "2026-11-17T17:50:06.023Z",
+  "round": "final combined F1/F2",
+  "ownedDatabaseCount": 0,
+  "ownedProfileCount": 0,
+  "ownedChromiumCount": 0,
+  "ports": {
+    "4397": false,
+    "5197": false
+  },
+  "parentPostgresAlive": true
+}

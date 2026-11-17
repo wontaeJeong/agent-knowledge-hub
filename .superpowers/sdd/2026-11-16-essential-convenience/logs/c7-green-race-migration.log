@@ -1,0 +1,19 @@
+[1/2] server/convenience/structure-migration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  01:06:23
+   Duration  582ms (tests 88%, import 8%, transform 4%)
+
+[2/2] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  01:06:24
+   Duration  3.73s (tests 96%, import 2%, transform 2%)

@@ -1,0 +1,58 @@
+[
+  {
+    "width": 1440,
+    "theme": "light",
+    "spaceId": "4daecf59-e09e-4d17-b35d-6019db74ff06",
+    "threeLevelPath": true,
+    "hiddenTitleAbsent": true,
+    "keyboardMove": true,
+    "mobileFocus": "not-applicable",
+    "oldLinkAfterMoveAndRename": true,
+    "privateDuplicate": true,
+    "sourceRevocation": true,
+    "requests": 228,
+    "pageErrors": []
+  },
+  {
+    "width": 1440,
+    "theme": "dark",
+    "spaceId": "af082141-9bd6-4314-abfd-e6a9a761e276",
+    "threeLevelPath": true,
+    "hiddenTitleAbsent": true,
+    "keyboardMove": true,
+    "mobileFocus": "not-applicable",
+    "oldLinkAfterMoveAndRename": true,
+    "privateDuplicate": true,
+    "sourceRevocation": true,
+    "requests": 228,
+    "pageErrors": []
+  },
+  {
+    "width": 390,
+    "theme": "light",
+    "spaceId": "5ebd0cf5-acd0-4675-bf82-eae549a8d271",
+    "threeLevelPath": true,
+    "hiddenTitleAbsent": true,
+    "keyboardMove": true,
+    "mobileFocus": "verified",
+    "oldLinkAfterMoveAndRename": true,
+    "privateDuplicate": true,
+    "sourceRevocation": true,
+    "requests": 230,
+    "pageErrors": []
+  },
+  {
+    "width": 390,
+    "theme": "dark",
+    "spaceId": "a0532d41-4210-4835-b864-01a7ce764bfa",
+    "threeLevelPath": true,
+    "hiddenTitleAbsent": true,
+    "keyboardMove": true,
+    "mobileFocus": "verified",
+    "oldLinkAfterMoveAndRename": true,
+    "privateDuplicate": true,
+    "sourceRevocation": true,
+    "requests": 230,
+    "pageErrors": []
+  }
+]

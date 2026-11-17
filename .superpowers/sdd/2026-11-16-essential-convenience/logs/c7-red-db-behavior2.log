@@ -1,0 +1,86 @@
+[1/1] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure.test.ts (6 tests | 5 failed) 1037ms
+   × three-level current tree and path omit restricted children, ancestors and counts 555ms
+   × paged continuation rejects changed data, authority, actor and parent 69ms
+   × move and order are atomic, CAS/idempotent and stable ID links survive 90ms
+   × moving from a restricted ancestor rejects audience widening and rolls back metadata/order/audit 81ms
+   × duplicate is a private page-less draft retaining exact original version and source dependencies with durable retry 33ms
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 1 passed (6)
+   Start at  00:56:50
+   Duration  1.20s (tests 90%, import 6%, transform 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure.test.ts > three-level current tree and path omit restricted children, ancestors and counts
+Error: NOT_IMPLEMENTED
+ ❯ DocumentStructureService.children server/convenience/structure.ts:5:156
+      3| export class DocumentStructureService {
+      4|  constructor(readonly workflows:WorkflowService){}
+      5|  async children(_ctx:Context,_input:{parentId?:string|null;cursor?:str…
+       |                                                                                                                                                            ^
+      6|  async path(_ctx:Context,_pageId:string):Promise<{items:{id:string}[]}…
+      7|  async move(_ctx:Context,_input:unknown):Promise<unknown>{throw Error(…
+ ❯ server/convenience/structure.test.ts:23:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  server/convenience/structure.test.ts > paged continuation rejects changed data, authority, actor and parent
+Error: NOT_IMPLEMENTED
+ ❯ DocumentStructureService.children server/convenience/structure.ts:5:156
+      3| export class DocumentStructureService {
+      4|  constructor(readonly workflows:WorkflowService){}
+      5|  async children(_ctx:Context,_input:{parentId?:string|null;cursor?:str…
+       |                                                                                                                                                            ^
+      6|  async path(_ctx:Context,_pageId:string):Promise<{items:{id:string}[]}…
+      7|  async move(_ctx:Context,_input:unknown):Promise<unknown>{throw Error(…
+ ❯ server/convenience/structure.test.ts:31:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  server/convenience/structure.test.ts > move and order are atomic, CAS/idempotent and stable ID links survive
+Error: NOT_IMPLEMENTED
+ ❯ DocumentStructureService.move server/convenience/structure.ts:7:65
+      5|  async children(_ctx:Context,_input:{parentId?:string|null;cursor?:str…
+      6|  async path(_ctx:Context,_pageId:string):Promise<{items:{id:string}[]}…
+      7|  async move(_ctx:Context,_input:unknown):Promise<unknown>{throw Error(…
+       |                                                                 ^
+      8|  async duplicateToDraft(_ctx:Context,_input:unknown):Promise<any>{thro…
+      9| }
+ ❯ server/convenience/structure.test.ts:40:60
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  server/convenience/structure.test.ts > moving from a restricted ancestor rejects audience widening and rolls back metadata/order/audit
+AssertionError: expected [Function] to throw error including 'SOURCE_SCOPE_CONFLICT' but got 'NOT_IMPLEMENTED'
+
+Expected: "SOURCE_SCOPE_CONFLICT"
+Received: "NOT_IMPLEMENTED"
+
+ ❯ server/convenience/structure.test.ts:58:50
+     56|  await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$…
+     57|  const before=(await f.pool.query("SELECT count(*) FROM audit WHERE wo…
+     58|  await expect(s.move(f.ctx,move('child',null,1))).rejects.toThrow('SOU…
+       |                                                  ^
+     59|  expect((await workflows.document(f.ctx,'child')).settings.parent_id).…
+     60|  expect((await f.pool.query("SELECT count(*) FROM audit WHERE workspac…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  server/convenience/structure.test.ts > duplicate is a private page-less draft retaining exact original version and source dependencies with durable retry
+Error: NOT_IMPLEMENTED
+ ❯ DocumentStructureService.duplicateToDraft server/convenience/structure.ts:8:73
+      6|  async path(_ctx:Context,_pageId:string):Promise<{items:{id:string}[]}…
+      7|  async move(_ctx:Context,_input:unknown):Promise<unknown>{throw Error(…
+      8|  async duplicateToDraft(_ctx:Context,_input:unknown):Promise<any>{thro…
+       |                                                                         ^
+      9| }
+     10|
+ ❯ server/convenience/structure.test.ts:64:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯

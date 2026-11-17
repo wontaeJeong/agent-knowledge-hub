@@ -1,0 +1,8 @@
+MACHINE_REORDER_ISSUED 201
+MACHINE_REORDER {"status":409,"body":{"code":"STALE_VERSION","requestId":"41747d1a-6d06-4fca-bf35-c56e7a3426a7"}}
+COOKIE_FRESH_REORDER {"status":200,"body":{"id":"topic","revision":1,"parentId":null}}
+HTTP_ABSOLUTE_COPY 200 {"topic":1,"linked":1}
+MCP_ABSOLUTE_COPY false {"topic":1}
+HTTP_REPLAY_AFTER_LINK_REVOKE {"status":404,"body":{"code":"NOT_FOUND","requestId":"66933126-0148-4bf4-9e5f-4014048925df"}}
+MCP_REPLAY_AFTER_LINK_REVOKE false [{"type":"text","text":"{\"id\":\"copy-ac3f9260-d803-4753-ac56-ea5aa90f9063\",\"title\":\"주제\",\"content\":\"[Linked](http://localhost/?app=1&space=705fed77-ccb2-4b64-9449-1c2de280d7ea&document=linked)\",\"parentId\":null,\"revision\":1,\"sourceIds\":[\"source-a\"],\"originSpaceId\":\"705fed77-ccb2-4b64-9449-1c2de280d7ea\",\"dependencyVersions\":{\"topic\":1}}"}]
+OWNED_DATABASE_DROPPED akh_c7_final_review_ecb9b3d6b500421cac03e1ee14d4c9b7

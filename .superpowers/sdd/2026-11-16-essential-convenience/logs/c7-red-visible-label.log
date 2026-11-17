@@ -1,0 +1,31 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ src/operational/convenience/structure.test.tsx (7 tests | 1 failed) 66ms
+   × tree expansion uses the accessible name without duplicate visible instructional text 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/structure.test.tsx > tree expansion uses the accessible name without duplicate visible instructional text
+AssertionError: expected 'root 하위 문서 펼치기' to be '' // Object.is equality
+
+- Expected
++ Received
+
++ root 하위 문서 펼치기
+
+ ❯ src/operational/convenience/structure.test.tsx:227:29
+    225|  await mount(<PageTree api={api} spaceId="s" principalId="p"/>);
+    226|  const expand=document.querySelector('button[aria-label="root 하위 문서 펼치…
+    227|  expect(expand.textContent).toBe('');
+       |                             ^
+    228| });
+    229|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed (7)
+   Start at  01:21:52
+   Duration  579ms (environment 71%, tests 13%, import 12%, transform 5%)

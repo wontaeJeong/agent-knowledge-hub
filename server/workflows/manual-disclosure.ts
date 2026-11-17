@@ -121,12 +121,14 @@ export type CursorFeedTable =
   | "workflow_access_requests"
   | "workflow_activity"
   | "workflow_personal_library_state"
-  | "durable_jobs";
+  | "durable_jobs"
+  | "workflow_document_order";
 export async function listRevision(
   db: PoolClient,
   ctx: Context,
   extraTables: readonly CursorFeedTable[] = [],
   privateData: "all" | "drafts" | "none" = "all",
+  credentialBinding: "all" | "structure" = "all",
 ) {
   const parts = [
     ...[
@@ -146,10 +148,15 @@ export async function listRevision(
     })),
     ...globalCursorTables.map((table) => ({ table, scoped: false })),
   ];
+  // Exact server-issued C7-only grants do not change underlying authority. Their
+  // active session/expiry/revocation is independently checked in the mutation
+  // transaction. Ordinary, mixed and unknown/future rows remain digest inputs;
+  // C6/Home retain the default full credential binding.
+  const c7Only = `cardinality(actions)=5 AND actions[1]='c7.operation.v1' AND actions[2] IN ('move','duplicate') AND actions[3] ~ '^[a-f0-9]{64}$' AND actions[4] ~ '^[a-f0-9]{64}$' AND actions[5] ~ '^[{]"role":"(reader|editor|reviewer)","identityRole":"(reader|editor|reviewer)","csrfHash":"[a-f0-9]{64}","subjectHash":"[a-f0-9]{64}"[}]$'`;
   const sql = parts
     .map(
       ({ table, scoped }) =>
-        `SELECT '${table}' AS name,md5(COALESCE(string_agg(h,'' ORDER BY h),'')) AS hash FROM (SELECT md5((to_jsonb(t)-'last_used_at')::text || CASE WHEN to_jsonb(t)->>'expires_at' IS NULL THEN '' ELSE ((to_jsonb(t)->>'expires_at')::timestamptz>clock_timestamp())::text END || CASE WHEN to_jsonb(t)->>'valid_until' IS NULL THEN '' ELSE ((to_jsonb(t)->>'valid_until')::timestamptz>clock_timestamp())::text END) AS h FROM ${table} t ${scoped ? "WHERE workspace_id=$1" : ""}) hashes`,
+        `SELECT '${table}' AS name,md5(COALESCE(string_agg(h,'' ORDER BY h),'')) AS hash FROM (SELECT md5((to_jsonb(t)-'last_used_at')::text || CASE WHEN to_jsonb(t)->>'expires_at' IS NULL THEN '' ELSE ((to_jsonb(t)->>'expires_at')::timestamptz>clock_timestamp())::text END || CASE WHEN to_jsonb(t)->>'valid_until' IS NULL THEN '' ELSE ((to_jsonb(t)->>'valid_until')::timestamptz>clock_timestamp())::text END) AS h FROM ${table} t ${scoped ? "WHERE workspace_id=$1" : ""}${table === "access_credentials" && credentialBinding === "structure" ? ` AND (${c7Only}) IS NOT TRUE` : ""}) hashes`,
     )
     .join(" UNION ALL ");
   return (await db.query(sql, [ctx.workspaceId])).rows;

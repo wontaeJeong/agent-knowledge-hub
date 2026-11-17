@@ -1,7 +1,9 @@
+import { Breadcrumbs } from "./convenience/Breadcrumbs";
+import { DocumentTreeNavigation, DocumentStructureControls } from "./convenience/PageTree";
 import { DocumentPersonalControls } from "./convenience/PersonalLibrary";
 import { BulkEditor } from "./BulkEditor";
 import { NavigationProtection } from "./convenience/Navigation";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react";
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
 import { Markdown, type ImagePreview, presentationFormats } from "../ui/Markdown";
 import {
@@ -375,6 +377,51 @@ export function WorkflowPanel({
   const [conflictRevision, setConflictRevision] = useState(0);
   const resumeRecovery = useRef<RecoveredDraft | null>(null);
   const identityScope = `${principalId ?? ""}:${spaceId ?? ""}`;
+  const selection = useRef({ api, identityScope, selected });
+  if (selection.current.api !== api || selection.current.identityScope !== identityScope || selection.current.selected !== selected)
+    selection.current = { api, identityScope, selected };
+  const selectionNow = selection.current;
+  const heading = useRef<HTMLHeadingElement>(null);
+  const [focusRevision, setFocusRevision] = useState(0);
+  const focusIntent = useRef<typeof selectionNow | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    const cancel = (event: Event) => {
+      if (!focusIntent.current) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[role="dialog"]')) return;
+      // Dialog cleanup restores its trigger; explicit pointer/key intent still cancels.
+      if (event.type === 'focusin' && target?.closest('.document-tree-toggle')) return;
+      focusIntent.current = null;
+    };
+    document.addEventListener('focusin', cancel);
+    document.addEventListener('pointerdown', cancel);
+    document.addEventListener('keydown', cancel);
+    return () => {
+      mounted.current = false;
+      focusIntent.current = null;
+      document.removeEventListener('focusin', cancel);
+      document.removeEventListener('pointerdown', cancel);
+      document.removeEventListener('keydown', cancel);
+    };
+  }, []);
+  useLayoutEffect(() => {
+    if (focusIntent.current !== selection.current) { focusIntent.current = null; return; }
+    if (detail?.page.id === selected && heading.current?.isConnected) {
+      focusIntent.current = null;
+      heading.current.focus();
+    }
+  }, [detail, selected, api, identityScope, focusRevision]);
+  const selectFromTree = (id: string, mobile = false) => {
+    if (draft && content !== draft.content && !window.confirm("저장하지 않은 입력을 닫을까요?")) return false;
+    if (selection.current.api !== api || selection.current.identityScope !== identityScope || selection.current.selected !== id)
+      selection.current = { api, identityScope, selected: id };
+    focusIntent.current = mobile ? selection.current : null;
+    setSelected(id);
+    if (mobile) setFocusRevision(n => n + 1);
+    return true;
+  };
   const previousIdentity = useRef(identityScope);
   const identityChanged = previousIdentity.current !== identityScope;
   useEffect(() => {
@@ -704,7 +751,7 @@ export function WorkflowPanel({
         initialResume.current ? api.get<{items:PrivateDraft[]}>("/workflows/drafts") : Promise.resolve(null),
       ])
         .then(async ([d, c, saved]) => {
-          if (!active) return;
+          if (!active || selection.current !== selectionNow) return;
           if (initialResume.current) {
             const exact = saved?.items.find(
               (x) => x.id === initialResume.current && x.pageId === selected,
@@ -734,7 +781,7 @@ export function WorkflowPanel({
                 },
                 exact.id,
               );
-            if (!active) return;
+            if (!active || selection.current !== selectionNow) return;
             initialResume.current = undefined;
             if (recovered) {
               pendingExact.current = exact;
@@ -764,13 +811,13 @@ export function WorkflowPanel({
           );
         })
         .catch((e) => {
-          if (active) fail(e);
+          if (active && selection.current === selectionNow) { focusIntent.current = null; fail(e); }
         });
     return () => {
       active = false;
       admissionAbort.abort();
     };
-  }, [api, selected, fail]);
+  }, [api, selected, fail, identityScope]);
   useEffect(() => {
     const commentId = window.location.hash.match(
       /^#comment-([a-zA-Z0-9_-]{1,100})$/,
@@ -915,6 +962,7 @@ export function WorkflowPanel({
           onError={fail}
         />
       )}
+      {spaceId && <DocumentTreeNavigation key={`tree:${identityScope}`} api={api} spaceId={spaceId} principalId={principalId ?? ""} pageId={selected} refreshKey={`${selected}:${notice}:${detail?.settings.revision}`} onSelect={id=>selectFromTree(id)} onMobileSelect={id=>selectFromTree(id,true)}/>}
       <label>
         문서 선택
         <select
@@ -927,6 +975,9 @@ export function WorkflowPanel({
               !window.confirm("저장하지 않은 입력을 닫을까요?")
             )
               return;
+            if (selection.current.api !== api || selection.current.identityScope !== identityScope || selection.current.selected !== e.target.value)
+              selection.current = { api, identityScope, selected: e.target.value };
+            focusIntent.current = null;
             setSelected(e.target.value);
           }}
         >
@@ -940,12 +991,14 @@ export function WorkflowPanel({
       </label>
       {detail && latest && (
         <>
-          <h3>
+          {spaceId && <Breadcrumbs api={api} spaceId={spaceId} principalId={principalId ?? ""} pageId={selected} refreshKey={String(detail.settings.revision)}/> }
+          <h3 ref={heading} tabIndex={-1} data-document-heading>
             {detail.page.title} · v{latest.number}
           </h3>
           {spaceId && (
             <a href={documentHref(spaceId, detail.page.id)}>문서 고유 링크</a>
           )}
+          {spaceId && <DocumentStructureControls api={api} spaceId={spaceId} principalId={principalId ?? ""} pageId={selected} version={latest.number} revision={detail.settings.revision} capabilities={capabilities} canLeave={()=>!(draft && content!==draft.content) || window.confirm("저장하지 않은 입력을 닫을까요?")} onChanged={async()=>{const next=await api.get<DocumentDetail>(`/workflows/pages/${encodeURIComponent(selected)}`);if(!mounted.current || selection.current!==selectionNow || next.page.id!==selected)return;setDetail(next);await onChanged();}}/>}
           <details open>
             <summary>현재 발행본 본문 · v{latest.number}</summary>
             <DocumentBody

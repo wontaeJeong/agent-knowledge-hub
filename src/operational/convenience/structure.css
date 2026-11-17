@@ -1,0 +1,120 @@
+.document-tree-branch ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0;
+}
+.document-tree-branch .document-tree-branch {
+  padding-inline-start: 1rem;
+}
+.document-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2.5rem;
+  min-width: 0;
+}
+.document-tree-row a,
+.document-tree-pick {
+  overflow-wrap: anywhere;
+  text-align: start;
+  min-width: 0;
+}
+.document-tree-row a[aria-current] {
+  font-weight: 700;
+  color: var(--accent);
+}
+.document-tree-leaf {
+  width: 2rem;
+  flex-shrink: 0;
+}
+.document-tree-pick {
+  background: none;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.5rem;
+}
+.document-tree-desktop {
+  border: 1px solid var(--line);
+  padding: 1rem;
+  margin: 1rem 0;
+  max-height: 22rem;
+  overflow: auto;
+}
+.document-tree-desktop h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.button.document-tree-toggle {
+  display: none;
+}
+.document-breadcrumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+.document-breadcrumbs li {
+  overflow-wrap: anywhere;
+}
+.document-breadcrumbs li + li::before {
+  content: "/";
+  margin-inline-end: 0.5rem;
+  color: var(--muted);
+}
+.document-structure-controls {
+  margin-block: 1rem;
+}
+.document-structure-dialog {
+  max-height: 85dvh;
+  overflow: auto;
+}
+.document-structure-dialog label {
+  display: block;
+  margin-block: 1rem;
+}
+.document-structure-dialog .document-tree-branch {
+  max-height: 20rem;
+  overflow: auto;
+}
+@media (max-width: 600px) {
+  .document-tree-desktop {
+    display: none;
+  }
+  .button.document-tree-toggle {
+    display: inline-flex;
+  }
+  .document-structure-dialog {
+    width: 100%;
+    max-height: 92dvh;
+  }
+  .document-tree-row button,
+  .document-structure-controls button,
+  .document-tree-row a {
+    min-height: 44px;
+  }
+  .document-structure-controls .op-actions {
+    flex-wrap: wrap;
+  }
+}
+.document-drag-placement {
+  margin-block: 1rem;
+}
+.document-drag-source {
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  cursor: grab;
+}
+.document-drag-placement li {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.document-tree-row .icon-button {
+  flex: 0 0 2rem;
+  width: 2rem;
+}

@@ -1,0 +1,30 @@
+[1/1] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure.test.ts (19 tests | 1 failed) 3770ms
+   × duplicate mutation IDs belong to actor and space, so another author gets a separate private draft 98ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 passed (19)
+   Start at  01:25:01
+   Duration  3.95s (tests 97%, import 2%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure.test.ts > duplicate mutation IDs belong to actor and space, so another author gets a separate private draft
+error: duplicate key value violates unique constraint "workflow_events_pkey"
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ server/workflows/service.ts:1070:9
+    1068|           mutationId: d.mutationId,
+    1069|         });
+    1070|         await db.query(
+       |         ^
+    1071|           "INSERT INTO workflow_events(workspace_id,id,principal_id,ki…
+    1072|           [
+ ❯ transaction server/database.ts:111:20
+ ❯ WorkflowService.run server/workflows/service.ts:127:20
+ ❯ server/convenience/structure.test.ts:496:62
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
