@@ -67,7 +67,7 @@
 
 기존 `workflow_notifications`와 `CollaborationService`를 확장한다. 새 알림 저장소나 메일 발송기를 병행 생성하지 않는다. 수신 설정·일/주 요약·조용한 시간과 기존 전달 이력은 유지한다.
 
-알림 DTO는 `{id, sequence, type, createdAt, readAt, archivedAt, target, title, actionState}`다. `target`은 문서/댓글/검토/작업/접근 요청의 discriminated union이다. 타입은 `mention`, `document-updated`, `review-requested`, `review-decided`, `review-due`, `job-succeeded`, `job-failed`, `access-decided`다. 본문·대화·원본 오류·키는 알림에 복제하지 않는다. 표시 직전에 대상별 현재 인가를 검사하며 작업 알림은 작업 소유자/허용된 작업 권한을 확인한다.
+알림 DTO는 `{id, sequence, revision, type, createdAt, readAt, archivedAt, target, title, actionState}`다. `revision`은 항목별 정수이며 실제 읽음/보관 상태 변경(일괄 읽음 포함) 때 증가한다. 2026-11-17 C2 구현 결정으로, 아래 `expectedRevision` CAS를 위한 호환 추가 필드를 명시했다. `target`은 문서/댓글/검토/작업/접근 요청의 discriminated union이다. 타입은 `mention`, `document-updated`, `review-requested`, `review-decided`, `review-due`, `job-succeeded`, `job-failed`, `access-decided`다. 본문·대화·원본 오류·키는 알림에 복제하지 않는다. 표시 직전에 대상별 현재 인가를 검사하며 작업 알림은 작업 소유자/허용된 작업 권한을 확인한다.
 
 | API (기존 prefix `/api/v1`) | 계약 |
 | --- | --- |

@@ -29,6 +29,7 @@ export class CollaborationWorker {
     await this.service.scanReviews();
     await this.service.scanEvents();
     await this.service.planDigests();
+    await this.service.pruneInbox();
     if (this.closing) return false;
     const lease = await this.service.claim(
       this.options.workerId ?? "collaboration-" + randomUUID(),

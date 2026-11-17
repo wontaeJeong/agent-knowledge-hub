@@ -74,6 +74,31 @@ export type GovernanceAuthorizer = (
   action: Action,
   resource?: { kind: "page" | "source"; id: string },
 ) => Promise<void>;
+/** Applicant may read only their own decision metadata without gaining page access. */
+export async function accessRequestDetailDb(
+  db: PoolClient,
+  ctx: Context,
+  requestId: string,
+) {
+  id.parse(requestId);
+  await authorizeActionDb(db, ctx, "knowledge.read");
+  const row = (
+    await db.query(
+      "SELECT id,principal_id,status,revision,created_at,decided_at FROM workflow_access_requests WHERE workspace_id=$1 AND id=$2 AND principal_id=$3",
+      [ctx.workspaceId, requestId, ctx.principalId],
+    )
+  ).rows[0];
+  if (!row || !["pending", "approved", "rejected"].includes(row.status))
+    throw Error("NOT_FOUND");
+  return {
+    id: row.id,
+    status: row.status,
+    revision: row.revision,
+    createdAt: row.created_at,
+    decidedAt: row.decided_at,
+    readOnly: true,
+  };
+}
 export class GovernanceService {
   constructor(
     readonly pool: Pool,
@@ -519,6 +544,11 @@ export class GovernanceService {
       });
       return { accepted: true };
     });
+  }
+  async accessRequest(ctx: Context, requestId: string) {
+    return this.run(ctx, "knowledge.read", (db) =>
+      accessRequestDetailDb(db, ctx, requestId),
+    );
   }
   async accessInbox(ctx: Context) {
     return this.run(ctx, "space.admin", async (db) => {

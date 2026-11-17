@@ -1,3 +1,5 @@
+import { NotificationBell } from "./convenience/NotificationBell";
+import { NotificationInbox } from "./convenience/NotificationInbox";
 import {
   QuestionScopeFields,
   serializeQuestionScope,
@@ -6,7 +8,10 @@ import {
 import { PublicationSchedule } from "./scheduled-publication";
 import { ReviewRejection } from "./review-rejection";
 import { convenienceHref, parseConvenienceLocation } from "./convenience/route";
-import { convenienceSections, type ConvenienceLocation } from "./convenience/types";
+import {
+  convenienceSections,
+  type ConvenienceLocation,
+} from "./convenience/types";
 import { ReviewSelection } from "./convenience/ReviewSelection";
 import {
   lazy,
@@ -175,7 +180,17 @@ export default function OperationalApp({
       const params = new URLSearchParams(window.location.search);
       if (
         remembered &&
-        !["space", "document", "section", "draft", "view", "version", "anchor", "targetKind", "targetId"].some(key => params.has(key)) &&
+        ![
+          "space",
+          "document",
+          "section",
+          "draft",
+          "view",
+          "version",
+          "anchor",
+          "targetKind",
+          "targetId",
+        ].some((key) => params.has(key)) &&
         !window.location.hash
       ) {
         const restored = resumeWorkspaceLink(remembered);
@@ -195,9 +210,28 @@ export default function OperationalApp({
       spaceId={spaceId}
       onRestoreSpace={setSpaceId}
       onSpace={(id) => {
-        if (!window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))) return;
-        const current = parseConvenienceLocation(window.location.search, window.location.hash);
-        window.history.replaceState(null, "", convenienceHref({ kind: "console", spaceId: id, tab: current.kind === "console" ? current.tab : "overview" }, preview ? "preview" : "workspace"));
+        if (
+          !window.dispatchEvent(
+            new Event("akh:before-navigate", { cancelable: true }),
+          )
+        )
+          return;
+        const current = parseConvenienceLocation(
+          window.location.search,
+          window.location.hash,
+        );
+        window.history.replaceState(
+          null,
+          "",
+          convenienceHref(
+            {
+              kind: "console",
+              spaceId: id,
+              tab: current.kind === "console" ? current.tab : "overview",
+            },
+            preview ? "preview" : "workspace",
+          ),
+        );
         setSpaceId(id);
       }}
     />
@@ -251,53 +285,104 @@ function OperationalWorkspace({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [location, setLocation] = useState<ConvenienceLocation>(() => parseConvenienceLocation(window.location.search, window.location.hash));
+  const [location, setLocation] = useState<ConvenienceLocation>(() =>
+    parseConvenienceLocation(window.location.search, window.location.hash),
+  );
   const locationTab = (value: ConvenienceLocation): ConsoleTab => {
     if (value.kind === "invalid") return "home";
     if (value.kind === "console") return value.tab;
     if (value.kind === "document") return "workflows";
     if (value.kind === "share") return "query";
-    if (value.section === "tasks" && value.targetKind) return value.targetKind === "review" ? "review" : value.targetKind === "job" ? "jobs" : "lifecycle";
+    if (value.section === "tasks" && value.targetKind)
+      return value.targetKind === "review"
+        ? "review"
+        : value.targetKind === "job"
+          ? "jobs"
+          : "lifecycle";
     return value.section;
   };
   const [tab, setTab] = useState<ConsoleTab>(() => locationTab(location));
-  const navigate = useCallback((next: ConsoleTab) => {
-    if (!window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))) return false;
-    const section = convenienceSections.find(section => section === next);
-    const nextLocation: ConvenienceLocation = section && (spaceId || identity?.workspaceId)
-      ? { kind: "section", spaceId: spaceId || identity!.workspaceId, section }
-      : { kind: "console", ...(spaceId ? { spaceId } : {}), tab: next };
-    setLocation(nextLocation);
-    setTab(next);
-    window.history.pushState(null, "", convenienceHref(nextLocation, preview ? "preview" : "workspace"));
-    requestAnimationFrame(() => {
-      document.getElementById("op-main")?.focus();
-      window.scrollTo(0, 0);
-    });
-    return true;
-  }, [spaceId, identity?.workspaceId, preview]);
+  const navigate = useCallback(
+    (next: ConsoleTab) => {
+      if (
+        !window.dispatchEvent(
+          new Event("akh:before-navigate", { cancelable: true }),
+        )
+      )
+        return false;
+      const section = convenienceSections.find((section) => section === next);
+      const nextLocation: ConvenienceLocation =
+        section && (spaceId || identity?.workspaceId)
+          ? {
+              kind: "section",
+              spaceId: spaceId || identity!.workspaceId,
+              section,
+            }
+          : { kind: "console", ...(spaceId ? { spaceId } : {}), tab: next };
+      setLocation(nextLocation);
+      setTab(next);
+      window.history.pushState(
+        null,
+        "",
+        convenienceHref(nextLocation, preview ? "preview" : "workspace"),
+      );
+      requestAnimationFrame(() => {
+        document.getElementById("op-main")?.focus();
+        window.scrollTo(0, 0);
+      });
+      return true;
+    },
+    [spaceId, identity?.workspaceId, preview],
+  );
   useEffect(() => {
     const onLocation = () => {
-      if (!window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))) {
-        if (location.kind !== "invalid") window.history.pushState(null, "", convenienceHref(location, preview ? "preview" : "workspace"));
+      if (
+        !window.dispatchEvent(
+          new Event("akh:before-navigate", { cancelable: true }),
+        )
+      ) {
+        if (location.kind !== "invalid")
+          window.history.pushState(
+            null,
+            "",
+            convenienceHref(location, preview ? "preview" : "workspace"),
+          );
         return;
       }
-      const next = parseConvenienceLocation(window.location.search, window.location.hash);
-      const restored = new URLSearchParams(window.location.search).get("space") ?? "";
-      const restoredSpace = /^[a-zA-Z0-9_-]{1,100}$/.test(restored) ? restored : "";
+      const next = parseConvenienceLocation(
+        window.location.search,
+        window.location.hash,
+      );
+      const restored =
+        new URLSearchParams(window.location.search).get("space") ?? "";
+      const restoredSpace = /^[a-zA-Z0-9_-]{1,100}$/.test(restored)
+        ? restored
+        : "";
       if (restoredSpace !== spaceId) {
         // Remount the authenticated API owner before resolving any protected ID.
         onRestoreSpace(restoredSpace);
         return;
       }
-      setLocation(next); setTab(locationTab(next));
+      setLocation(next);
+      setTab(locationTab(next));
     };
     window.addEventListener("hashchange", onLocation);
     window.addEventListener("popstate", onLocation);
-    return () => { window.removeEventListener("hashchange", onLocation); window.removeEventListener("popstate", onLocation); };
+    return () => {
+      window.removeEventListener("hashchange", onLocation);
+      window.removeEventListener("popstate", onLocation);
+    };
   }, [location, spaceId, onRestoreSpace, preview]);
-  const target = location.kind === "section" && location.section === "tasks" && location.targetKind ? location : undefined;
-  const pendingDestination = location.kind === "section" && !target || location.kind === "document" && (location.version !== undefined || !!location.anchor);
+  const target =
+    location.kind === "section" &&
+    location.section === "tasks" &&
+    location.targetKind
+      ? location
+      : undefined;
+  const pendingDestination =
+    (location.kind === "section" && !target) ||
+    (location.kind === "document" &&
+      (location.version !== undefined || !!location.anchor));
   const [pages, setPages] = useState<PublishedPage[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<ChangeSet[]>([]);
@@ -367,10 +452,18 @@ function OperationalWorkspace({
       setDataReady(false);
       currentScope.current = "";
       setIdentity(null);
-      const safeLocation: ConvenienceLocation = { kind: "console", ...(spaceId ? { spaceId } : {}), tab: "overview" };
+      const safeLocation: ConvenienceLocation = {
+        kind: "console",
+        ...(spaceId ? { spaceId } : {}),
+        tab: "overview",
+      };
       setLocation(safeLocation);
       setTab("overview");
-      window.history.replaceState(null, "", convenienceHref(safeLocation, preview ? "preview" : "workspace"));
+      window.history.replaceState(
+        null,
+        "",
+        convenienceHref(safeLocation, preview ? "preview" : "workspace"),
+      );
       setPages([]);
       setSources([]);
       setChanges([]);
@@ -613,21 +706,36 @@ function OperationalWorkspace({
   };
   useEffect(() => {
     if (!identity || preview) return;
-    const shareId = location.kind === "share" ? location.share : location.kind === "document" ? location.share : undefined;
+    const shareId =
+      location.kind === "share"
+        ? location.share
+        : location.kind === "document"
+          ? location.share
+          : undefined;
     if (!shareId) return;
     let active = true;
     const epoch = requestEpoch.current;
     setSnapshot(null);
     setError("");
-    void api.get<{ id: string; version: number; content: string }>(`/shares/${encodeURIComponent(shareId)}`)
-      .then(s => {
-        if (active && epoch === requestEpoch.current) setSnapshot({ title: s.id, version: { number: s.version, content: s.content } });
-      }).catch(e => {
+    void api
+      .get<{ id: string; version: number; content: string }>(
+        `/shares/${encodeURIComponent(shareId)}`,
+      )
+      .then((s) => {
+        if (active && epoch === requestEpoch.current)
+          setSnapshot({
+            title: s.id,
+            version: { number: s.version, content: s.content },
+          });
+      })
+      .catch((e) => {
         if (!active || epoch !== requestEpoch.current) return;
         if (e instanceof ApiError && e.status === 401) clearProtected();
         setError(e instanceof Error ? e.message : "공유를 열 수 없습니다.");
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [api, preview, identity?.principalId, clearProtected, location]);
   useEffect(() => {
     if (
@@ -692,6 +800,23 @@ function OperationalWorkspace({
       tab={tab}
       navigate={navigate}
       identity={identity}
+      notificationBell={
+        identity && !preview ? (
+          <NotificationBell
+            key={`${identity.workspaceId}:${identity.principalId}`}
+            api={api}
+            spaceId={identity.workspaceId}
+            principalId={identity.principalId}
+            onExpired={clearProtected}
+            onOpenInbox={() => navigate("notifications")}
+            onNavigate={() =>
+              window.dispatchEvent(
+                new Event("akh:before-navigate", { cancelable: true }),
+              )
+            }
+          />
+        ) : undefined
+      }
       active={location.kind === "section" ? location.section : tab}
       account={
         identity && !preview
@@ -706,7 +831,12 @@ function OperationalWorkspace({
                     : "독자",
               busy,
               onLogout: () => {
-                if (!window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))) return;
+                if (
+                  !window.dispatchEvent(
+                    new Event("akh:before-navigate", { cancelable: true }),
+                  )
+                )
+                  return;
                 void perform(async () => {
                   await api.logout();
                   clearProtected();
@@ -719,7 +849,11 @@ function OperationalWorkspace({
     >
       <main id="op-main" className="op-main" tabIndex={-1}>
         <h1>{consoleLabel(tab)}</h1>
-        {location.kind === "invalid" && <p className="op-error" role="alert">{location.error}</p>}
+        {location.kind === "invalid" && (
+          <p className="op-error" role="alert">
+            {location.error}
+          </p>
+        )}
         {error && (
           <div className="op-error" role="alert">
             <strong>요청을 완료하지 못했습니다.</strong>
@@ -774,7 +908,19 @@ function OperationalWorkspace({
           </section>
         ) : (
           <>
-            {pendingDestination && <section className="op-panel"><h2>{location.kind === "section" ? consoleLabel(location.section) : "문서 위치"}</h2><p role="status">이 화면은 아직 연결되지 않았습니다. 현재 주소의 대상은 유지됩니다.</p></section>}
+            {pendingDestination && (
+              <section className="op-panel">
+                <h2>
+                  {location.kind === "section"
+                    ? consoleLabel(location.section)
+                    : "문서 위치"}
+                </h2>
+                <p role="status">
+                  이 화면은 아직 연결되지 않았습니다. 현재 주소의 대상은
+                  유지됩니다.
+                </p>
+              </section>
+            )}
             {!preview && spaces.length > 0 && (
               <div className="op-context">
                 <label>
@@ -803,1256 +949,1344 @@ function OperationalWorkspace({
                 </label>
               </div>
             )}
-            {location.kind !== "invalid" && !pendingDestination && <>
-            {![
-              "overview",
-              "discovery",
-              "usage",
-              "users",
-              "account",
-              "access",
-              "agents",
-              "integrations",
-              "policies",
-              "lifecycle",
-              "activity",
-              "evaluation",
-              "coverage",
-            ].includes(tab) && (
-              <div className="op-context">
-                <span>
-                  {preview ? "합성 예시" : "서버 정본"} ·{" "}
-                  {dataReady
-                    ? `${pages.length}개 접근 가능 발행본`
-                    : "발행본 확인 중 또는 조회 실패"}
-                </span>
-                <span>모델: {model.configured ? model.model : "미연결"}</span>
-                <label>
-                  실행 방식{" "}
-                  <select
-                    value={mode}
-                    disabled={busy}
-                    onChange={(e) =>
-                      setMode(e.target.value as "model" | "offline")
-                    }
-                  >
-                    <option value="model">실제 모델</option>
-                    <option value="offline">
-                      구조 검사·발췌 (모델 미사용)
-                    </option>
-                  </select>
-                </label>
-              </div>
-            )}
-            {busy && (
-              <p role="status" className="op-progress">
-                서버에서 처리하고 있습니다. 창을 반복 제출하지 마세요.
-              </p>
-            )}
-            {!dataReady &&
-              tab !== "overview" &&
-              tab !== "knowledge" &&
-              tab !== "access" && (
-                <p role="status">
-                  서버 지식을 확인 중이거나 불러오지 못했습니다.
-                </p>
-              )}
-            {tab === "overview" && dataReady && (
-              <Overview
-                summary={summarizeConsole({
-                  pages,
-                  sources,
-                  changes,
-                  jobs,
-                  issues,
-                })}
-                usage={usage}
-                usageError={usageError}
-                model={model}
-                navigate={navigate}
-                retry={refreshUsage}
-                preview={preview}
-              />
-            )}
-            {tab === "discovery" && dataReady && (
-              <DiscoveryDashboard
-                api={api}
-                spaceId={identity.workspaceId}
-                preview={preview}
-              />
-            )}
-            {tab === "overview" && !dataReady && (
-              <section className="op-panel" role="status">
-                <h2>운영 현황을 아직 집계할 수 없습니다</h2>
-                <p>
-                  접근 가능한 목록 조회가 완료되지 않았습니다. 미확인을 0건으로
-                  표시하지 않습니다. 연결 오류가 있으면 ‘다시 연결’로
-                  재시도하세요.
-                </p>
-              </section>
-            )}
-            <Suspense fallback={<p role="status">관리 화면을 불러오는 중…</p>}>
-              {tab !== "account" &&
-                (preview ||
-                  ![
-                    "policies",
-                    "activity",
-                    "lifecycle",
-                    "agents",
-                    "integrations",
-                    "evaluation",
-                  ].includes(tab)) && (
-                  <Management
-                    section={tab}
-                    preview={preview}
+            {location.kind !== "invalid" && !pendingDestination && (
+              <>
+                {![
+                  "overview",
+                  "discovery",
+                  "usage",
+                  "users",
+                  "account",
+                  "access",
+                  "agents",
+                  "integrations",
+                  "policies",
+                  "lifecycle",
+                  "activity",
+                  "evaluation",
+                  "coverage",
+                ].includes(tab) && (
+                  <div className="op-context">
+                    <span>
+                      {preview ? "합성 예시" : "서버 정본"} ·{" "}
+                      {dataReady
+                        ? `${pages.length}개 접근 가능 발행본`
+                        : "발행본 확인 중 또는 조회 실패"}
+                    </span>
+                    <span>
+                      모델: {model.configured ? model.model : "미연결"}
+                    </span>
+                    <label>
+                      실행 방식{" "}
+                      <select
+                        value={mode}
+                        disabled={busy}
+                        onChange={(e) =>
+                          setMode(e.target.value as "model" | "offline")
+                        }
+                      >
+                        <option value="model">실제 모델</option>
+                        <option value="offline">
+                          구조 검사·발췌 (모델 미사용)
+                        </option>
+                      </select>
+                    </label>
+                  </div>
+                )}
+                {busy && (
+                  <p role="status" className="op-progress">
+                    서버에서 처리하고 있습니다. 창을 반복 제출하지 마세요.
+                  </p>
+                )}
+                {!dataReady &&
+                  tab !== "overview" &&
+                  tab !== "knowledge" &&
+                  tab !== "access" && (
+                    <p role="status">
+                      서버 지식을 확인 중이거나 불러오지 못했습니다.
+                    </p>
+                  )}
+                {tab === "overview" && dataReady && (
+                  <Overview
+                    summary={summarizeConsole({
+                      pages,
+                      sources,
+                      changes,
+                      jobs,
+                      issues,
+                    })}
+                    usage={usage}
+                    usageError={usageError}
+                    model={model}
                     navigate={navigate}
+                    retry={refreshUsage}
+                    preview={preview}
                   />
                 )}
-            </Suspense>
-            {tab === "notifications" && !preview && (
-              <NotificationPanel
-                api={api}
-                capabilities={identity.capabilities ?? []}
-                spaceId={identity.workspaceId}
-                onExpired={clearProtected}
-              />
-            )}
-            {tab === "notifications" && preview && (
-              <p>실제 알림은 로그인한 공간에서 확인할 수 있습니다.</p>
-            )}
-            {tab === "account" && (
-              <section className="op-panel">
-                <h2>사용자 설정</h2>
-                {preview ? (
-                  <p>미리보기에서는 실제 계정과 세션을 변경하지 않습니다.</p>
-                ) : (
+                {tab === "discovery" && dataReady && (
+                  <DiscoveryDashboard
+                    api={api}
+                    spaceId={identity.workspaceId}
+                    preview={preview}
+                  />
+                )}
+                {tab === "overview" && !dataReady && (
+                  <section className="op-panel" role="status">
+                    <h2>운영 현황을 아직 집계할 수 없습니다</h2>
+                    <p>
+                      접근 가능한 목록 조회가 완료되지 않았습니다. 미확인을
+                      0건으로 표시하지 않습니다. 연결 오류가 있으면 ‘다시
+                      연결’로 재시도하세요.
+                    </p>
+                  </section>
+                )}
+                <Suspense
+                  fallback={<p role="status">관리 화면을 불러오는 중…</p>}
+                >
+                  {tab !== "account" &&
+                    (preview ||
+                      ![
+                        "policies",
+                        "activity",
+                        "lifecycle",
+                        "agents",
+                        "integrations",
+                        "evaluation",
+                      ].includes(tab)) && (
+                      <Management
+                        section={tab}
+                        preview={preview}
+                        navigate={navigate}
+                      />
+                    )}
+                </Suspense>
+                {tab === "notifications" && !preview && (
                   <>
-                    <dl className="console-definition">
-                      <div>
-                        <dt>사용자</dt>
-                        <dd>{identity.principalId}</dd>
-                      </div>
-                      <div>
-                        <dt>현재 공간</dt>
-                        <dd>{identity.workspaceId}</dd>
-                      </div>
-                      <div>
-                        <dt>역할</dt>
-                        <dd>
-                          {identity.spaceRole ??
-                            identity.effectiveRole ??
-                            identity.role}
-                        </dd>
-                      </div>
-                    </dl>
-                    <IdentityManager
-                      api={identityApiAdapter(api)}
-                      onExpired={(reason) => {
-                        api.clearSession();
-                        clearProtected(reason);
-                      }}
-                      emergencyEnabled={identity.identityFeatures?.emergency}
-                      directoryEnabled={identity.identityFeatures?.directory}
-                      pageOptions={pages.map(({ id, title }) => ({
-                        id,
-                        title,
-                      }))}
+                    <NotificationInbox
+                      key={`${identity.workspaceId}:${identity.principalId}`}
+                      api={api}
+                      spaceId={identity.workspaceId}
+                      principalId={identity.principalId}
+                      onExpired={clearProtected}
+                      onNavigate={() =>
+                        window.dispatchEvent(
+                          new Event("akh:before-navigate", {
+                            cancelable: true,
+                          }),
+                        )
+                      }
+                    />
+                    <NotificationPanel
+                      showInbox={false}
+                      api={api}
+                      capabilities={identity.capabilities ?? []}
+                      spaceId={identity.workspaceId}
+                      onExpired={clearProtected}
                     />
                   </>
                 )}
-              </section>
-            )}
-            {(tab === "agents" || tab === "integrations") && !preview && (
-              <Suspense
-                fallback={<p role="status">에이전트 인증을 불러오는 중…</p>}
-              >
-                <AgentCredentials
-                  key={identity.workspaceId + tab}
-                  api={api}
-                  identity={identity}
-                  onExpired={clearProtected}
-                  section={tab}
-                />
-              </Suspense>
-            )}
-            {tab === "integrations" &&
-              !preview &&
-              identity.capabilities?.includes("source.create") && (
-                <ToolCollectorPanel api={api} onExpired={clearProtected} />
-              )}
-            {tab === "evaluation" && !preview && dataReady && (
-              <Suspense
-                fallback={<p role="status">평가 도구를 불러오는 중…</p>}
-              >
-                <ModelAssessment
-                  api={api}
-                  identity={identity}
-                  pages={pages}
-                  onExpired={clearProtected}
-                />
-              </Suspense>
-            )}
-            {tab === "boards" && !preview && (
-              <Suspense fallback={<p role="status">공지·VOC를 불러오는 중…</p>}>
-                <BoardsWorkbench
-                  key={identity.workspaceId}
-                  api={api}
-                  identity={identity}
-                  onExpired={clearProtected}
-                />
-              </Suspense>
-            )}
-            {tab === "boards" && preview && (
-              <section className="op-panel">
-                <h2>게시판은 운영 서버 전용입니다</h2>
-                <p>
-                  합성 목업에서는 실제 공지·내부 검토·VOC를 읽거나 변경하지
-                  않습니다.
-                </p>
-              </section>
-            )}
-            {tab === "imports" && !preview && (
-              <Suspense fallback={<p>자료 입력 화면을 불러오는 중…</p>}>
-                <ImportWorkbench
-                  key={identity.principalId}
-                  api={api}
-                  identity={identity}
-                  members={members}
-                  onExpired={clearProtected}
-                  onReview={() => {
-                    navigate("review");
-                    void perform(load);
-                  }}
-                />
-              </Suspense>
-            )}
-            {tab === "imports" && preview && (
-              <Suspense fallback={<p>입력 목업을 불러오는 중…</p>}>
-                <ImportPreview
-                  register={async (title, content) => {
-                    await api.post("/sources", {
-                      source: {
-                        id: `source-${crypto.randomUUID()}`,
-                        title,
-                        content,
-                        tool: "manual",
-                        project: "합성",
-                        scope: "team",
-                        verification: "미검증",
-                        createdAt: new Date().toISOString(),
-                        processed: false,
-                        targetPageId: "topic-main",
-                      },
-                      readers: [],
-                    });
-                    await load();
-                    navigate("sources");
-                    setNotice(
-                      "목업 원본을 등록했습니다. 구조 편입은 선택 원본에서 별도로 실행하세요.",
-                    );
-                  }}
-                />
-              </Suspense>
-            )}
-            {tab === "access" && !preview && (
-              <Suspense fallback={<p>접근 설정을 불러오는 중…</p>}>
-                <AccessManager
-                  key={identity.workspaceId}
-                  api={api}
-                  identity={identity}
-                  onExpired={clearProtected}
-                  onChanged={load}
-                />
-              </Suspense>
-            )}
-            {tab === "knowledge" && !dataReady && (
-              <p role="status">
-                발행 지식을 확인 중이거나 불러오지 못했습니다.
-              </p>
-            )}
-            {tab === "knowledge" && dataReady && (
-              <section className="op-panel">
-                <div className="op-section-head">
-                  <h2>발행 지식</h2>
-                  <Button disabled={busy} onClick={() => perform(load)}>
-                    새로고침
-                  </Button>
-                </div>
-                <label>
-                  제목·요약·본문 검색
-                  <input
-                    type="search"
-                    value={search}
-                    onChange={(e) => {
-                      setSearch(e.target.value);
-                      setPageNumber(0);
-                    }}
-                    placeholder="업무에 필요한 지식 찾기"
-                  />
-                </label>
-                <label>
-                  권고 상태
-                  <select
-                    aria-label="권고 상태 필터"
-                    value={recommendationFilter}
-                    onChange={(e) => {
-                      setRecommendationFilter(
-                        e.target.value as typeof recommendationFilter,
-                      );
-                      setPageNumber(0);
-                    }}
-                  >
-                    <option value="all">모두 표시</option>
-                    <option value="current">현재 권고 대상</option>
-                    <option value="not-current">현재 권고 비대상</option>
-                    <option value="unknown">상태 미확인</option>
-                  </select>
-                </label>
-                <p>
-                  검토 기한 경과는 내용이 틀렸거나 자동 폐기되었다는 뜻이
-                  아닙니다.
-                </p>
-                <p>
-                  현재 권고 대상은 서버의 검색 자격이며 독립 검증이나 공식성을
-                  뜻하지 않습니다.
-                </p>
-                <p role="status">검색 결과 {filtered.length}건</p>
-                {!filtered.length && (
-                  <p>
-                    {pages.length
-                      ? "선택한 조건에 맞는 발행 지식이 없습니다."
-                      : "현재 접근 가능한 발행 지식이 없습니다. 원본을 편입하고 검토·발행하면 여기에 표시됩니다."}
-                  </p>
+                {tab === "notifications" && preview && (
+                  <p>실제 알림은 로그인한 공간에서 확인할 수 있습니다.</p>
                 )}
-                <div className="op-page-list">
-                  {visible.map((page) => (
-                    <article key={page.id}>
-                      <details>
-                        <summary>
-                          <strong>{page.title}</strong>
-                          <Badge>v{page.version}</Badge>
-                          <Badge>
-                            {page.currentRecommendation === true
-                              ? "현재 권고 대상"
-                              : page.currentRecommendation === false
-                                ? "현재 권고 비대상"
-                                : "상태 미확인"}
-                          </Badge>
-                          {page.reviewOverdue === true && (
-                            <Badge>검토 기한 경과</Badge>
-                          )}
-                          {page.currentRecommendation === false && (
-                            <span>
-                              {[
-                                typeof page.lifecycle === "string" &&
-                                  page.lifecycle &&
-                                  page.lifecycle !== "active" &&
-                                  `생애주기: ${page.lifecycle}`,
-                                typeof page.effectiveFrom === "string" &&
-                                  page.effectiveFrom &&
-                                  `시행일: ${page.effectiveFrom}`,
-                                typeof page.replacementId === "string" &&
-                                  page.replacementId &&
-                                  "대체 문서 지정됨",
-                              ]
-                                .filter(Boolean)
-                                .join(" · ") || "비대상 사유 미확인"}
-                            </span>
-                          )}
-                          <span>{page.summary}</span>
-                        </summary>
-                        <Markdown
-                          text={page.content}
-                          readAttachment={readAttachment}
-                        />
-                        <small>
-                          페이지 {page.id} · 현재 조회 버전 {page.version}
-                        </small>
-                        <a href={documentHref(identity.workspaceId, page.id)}>
-                          문서 고유 링크 · 편집과 댓글
-                        </a>
-                      </details>
-                    </article>
-                  ))}
-                </div>
-                {filtered.length > 25 && (
-                  <div className="op-actions">
-                    <Button
-                      disabled={!pageNumber}
-                      onClick={() => setPageNumber((p) => p - 1)}
-                    >
-                      이전
-                    </Button>
-                    <span>
-                      {pageNumber + 1} / {Math.ceil(filtered.length / 25)}
-                    </span>
-                    <Button
-                      disabled={(pageNumber + 1) * 25 >= filtered.length}
-                      onClick={() => setPageNumber((p) => p + 1)}
-                    >
-                      다음
-                    </Button>
-                  </div>
-                )}
-              </section>
-            )}
-            {preview && ["workflows", "refinement"].includes(tab) && (
-              <section className="op-panel">
-                <h2>{consoleLabel(tab)} · 미리보기 미지원</h2>
-                <p>
-                  이 화면은 실제 서버와 현재 권한이 필요합니다. 목업에서는
-                  서버를 호출하지 않습니다.
-                </p>
-              </section>
-            )}
-            {tab === "workflows" && !preview && dataReady && (
-              <WorkflowPanel
-                principalId={identity.principalId}
-                spaceId={identity.workspaceId}
-                initialPageId={
-                  location.kind === "document" ? location.document : undefined
-                }
-                key={`${identity.workspaceId}:${identity.principalId}:${location.kind === "document" ? location.document : ""}`}
-                api={api}
-                pages={pages}
-                capabilities={identity.capabilities ?? []}
-                onChanged={load}
-                onExpired={clearProtected}
-              />
-            )}
-            {tab === "versions" && !preview && dataReady && (
-              <VersionsPanel
-                api={api}
-                pages={pages}
-                batches={changes}
-                spaceId={identity.workspaceId}
-                principalId={identity.principalId}
-                canPropose={write}
-                canReview={review}
-                onChanged={load}
-                onExpired={clearProtected}
-              />
-            )}
-            {tab === "versions" && (preview || !dataReady) && (
-              <section className="op-panel">
-                <h2>버전 비교 · 복원</h2>
-                <p>
-                  {preview
-                    ? "실제 서버와 현재 권한이 필요한 화면입니다."
-                    : "허용된 문서와 버전 정보를 불러오는 중이거나 불러오지 못했습니다."}
-                </p>
-              </section>
-            )}
-            {tab === "access" && !preview && identity.capabilities && (
-              <AccessPanel
-                api={api}
-                capabilities={identity.capabilities ?? []}
-                onChanged={load}
-                onExpired={clearProtected}
-                onSelect={onSpace}
-              />
-            )}
-            {tab === "policies" && !preview && dataReady && (
-              <PolicyManager
-                api={policyApi}
-                capabilities={identity.capabilities ?? []}
-                sourceOptions={sources.map((s) => ({
-                  id: s.id,
-                  title: s.title,
-                }))}
-                onChanged={load}
-                onExpired={clearProtected}
-              />
-            )}
-            {tab === "activity" && !preview && (
-              <>
-                <TracePanel api={api} />
-                <OperationsPanel
-                  api={api}
-                  canAdmin={!!identity.capabilities?.includes("space.admin")}
-                  canOwner={identity.space?.owner ?? false}
-                />
-              </>
-            )}
-            {tab === "lifecycle" && !preview && (
-              <GovernanceWorkbench
-                api={policyApi}
-                capabilities={identity.capabilities ?? []}
-                initialAccessRequestId={target?.targetKind === "access-request" ? target.targetId : undefined}
-                key={`${identity.workspaceId}:${identity.principalId}`}
-                onChanged={load}
-                onExpired={clearProtected}
-              />
-            )}
-            {tab === "refinement" && !preview && dataReady && (
-              <RefinementPanel
-                api={api}
-                pages={pages}
-                capabilities={identity.capabilities ?? []}
-                onExpired={clearProtected}
-                onChanged={load}
-              />
-            )}
-            {tab === "sources" && dataReady && (
-              <>
-                {write && (
+                {tab === "account" && (
                   <section className="op-panel">
-                    <h2>원본 등록</h2>
+                    <h2>사용자 설정</h2>
+                    {preview ? (
+                      <p>
+                        미리보기에서는 실제 계정과 세션을 변경하지 않습니다.
+                      </p>
+                    ) : (
+                      <>
+                        <dl className="console-definition">
+                          <div>
+                            <dt>사용자</dt>
+                            <dd>{identity.principalId}</dd>
+                          </div>
+                          <div>
+                            <dt>현재 공간</dt>
+                            <dd>{identity.workspaceId}</dd>
+                          </div>
+                          <div>
+                            <dt>역할</dt>
+                            <dd>
+                              {identity.spaceRole ??
+                                identity.effectiveRole ??
+                                identity.role}
+                            </dd>
+                          </div>
+                        </dl>
+                        <IdentityManager
+                          api={identityApiAdapter(api)}
+                          onExpired={(reason) => {
+                            api.clearSession();
+                            clearProtected(reason);
+                          }}
+                          emergencyEnabled={
+                            identity.identityFeatures?.emergency
+                          }
+                          directoryEnabled={
+                            identity.identityFeatures?.directory
+                          }
+                          pageOptions={pages.map(({ id, title }) => ({
+                            id,
+                            title,
+                          }))}
+                        />
+                      </>
+                    )}
+                  </section>
+                )}
+                {(tab === "agents" || tab === "integrations") && !preview && (
+                  <Suspense
+                    fallback={<p role="status">에이전트 인증을 불러오는 중…</p>}
+                  >
+                    <AgentCredentials
+                      key={identity.workspaceId + tab}
+                      api={api}
+                      identity={identity}
+                      onExpired={clearProtected}
+                      section={tab}
+                    />
+                  </Suspense>
+                )}
+                {tab === "integrations" &&
+                  !preview &&
+                  identity.capabilities?.includes("source.create") && (
+                    <ToolCollectorPanel api={api} onExpired={clearProtected} />
+                  )}
+                {tab === "evaluation" && !preview && dataReady && (
+                  <Suspense
+                    fallback={<p role="status">평가 도구를 불러오는 중…</p>}
+                  >
+                    <ModelAssessment
+                      api={api}
+                      identity={identity}
+                      pages={pages}
+                      onExpired={clearProtected}
+                    />
+                  </Suspense>
+                )}
+                {tab === "boards" && !preview && (
+                  <Suspense
+                    fallback={<p role="status">공지·VOC를 불러오는 중…</p>}
+                  >
+                    <BoardsWorkbench
+                      key={identity.workspaceId}
+                      api={api}
+                      identity={identity}
+                      onExpired={clearProtected}
+                    />
+                  </Suspense>
+                )}
+                {tab === "boards" && preview && (
+                  <section className="op-panel">
+                    <h2>게시판은 운영 서버 전용입니다</h2>
                     <p>
-                      공유할 자료만 선택 등록하세요. 아래 독자에게 허용한 범위를
-                      파생 지식이 자동으로 넓히지 않습니다.
+                      합성 목업에서는 실제 공지·내부 검토·VOC를 읽거나 변경하지
+                      않습니다.
                     </p>
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        void perform(async () => {
-                          const source: Source = {
+                  </section>
+                )}
+                {tab === "imports" && !preview && (
+                  <Suspense fallback={<p>자료 입력 화면을 불러오는 중…</p>}>
+                    <ImportWorkbench
+                      key={identity.principalId}
+                      api={api}
+                      identity={identity}
+                      members={members}
+                      onExpired={clearProtected}
+                      onReview={() => {
+                        navigate("review");
+                        void perform(load);
+                      }}
+                    />
+                  </Suspense>
+                )}
+                {tab === "imports" && preview && (
+                  <Suspense fallback={<p>입력 목업을 불러오는 중…</p>}>
+                    <ImportPreview
+                      register={async (title, content) => {
+                        await api.post("/sources", {
+                          source: {
                             id: `source-${crypto.randomUUID()}`,
                             title,
                             content,
                             tool: "manual",
-                            project: "기본",
+                            project: "합성",
                             scope: "team",
                             verification: "미검증",
                             createdAt: new Date().toISOString(),
                             processed: false,
                             targetPageId: "topic-main",
-                          };
-                          await api.post("/sources", {
-                            source,
-                            readers: [
-                              ...new Set([
-                                identity.principalId,
-                                ...selectedReaders,
-                              ]),
-                            ],
-                          });
-                          setTitle("");
-                          setContent("");
-                          setNotice(
-                            "원본을 서버에 보존했습니다. 편입은 아래에서 별도로 실행하세요.",
+                          },
+                          readers: [],
+                        });
+                        await load();
+                        navigate("sources");
+                        setNotice(
+                          "목업 원본을 등록했습니다. 구조 편입은 선택 원본에서 별도로 실행하세요.",
+                        );
+                      }}
+                    />
+                  </Suspense>
+                )}
+                {tab === "access" && !preview && (
+                  <Suspense fallback={<p>접근 설정을 불러오는 중…</p>}>
+                    <AccessManager
+                      key={identity.workspaceId}
+                      api={api}
+                      identity={identity}
+                      onExpired={clearProtected}
+                      onChanged={load}
+                    />
+                  </Suspense>
+                )}
+                {tab === "knowledge" && !dataReady && (
+                  <p role="status">
+                    발행 지식을 확인 중이거나 불러오지 못했습니다.
+                  </p>
+                )}
+                {tab === "knowledge" && dataReady && (
+                  <section className="op-panel">
+                    <div className="op-section-head">
+                      <h2>발행 지식</h2>
+                      <Button disabled={busy} onClick={() => perform(load)}>
+                        새로고침
+                      </Button>
+                    </div>
+                    <label>
+                      제목·요약·본문 검색
+                      <input
+                        type="search"
+                        value={search}
+                        onChange={(e) => {
+                          setSearch(e.target.value);
+                          setPageNumber(0);
+                        }}
+                        placeholder="업무에 필요한 지식 찾기"
+                      />
+                    </label>
+                    <label>
+                      권고 상태
+                      <select
+                        aria-label="권고 상태 필터"
+                        value={recommendationFilter}
+                        onChange={(e) => {
+                          setRecommendationFilter(
+                            e.target.value as typeof recommendationFilter,
                           );
+                          setPageNumber(0);
+                        }}
+                      >
+                        <option value="all">모두 표시</option>
+                        <option value="current">현재 권고 대상</option>
+                        <option value="not-current">현재 권고 비대상</option>
+                        <option value="unknown">상태 미확인</option>
+                      </select>
+                    </label>
+                    <p>
+                      검토 기한 경과는 내용이 틀렸거나 자동 폐기되었다는 뜻이
+                      아닙니다.
+                    </p>
+                    <p>
+                      현재 권고 대상은 서버의 검색 자격이며 독립 검증이나
+                      공식성을 뜻하지 않습니다.
+                    </p>
+                    <p role="status">검색 결과 {filtered.length}건</p>
+                    {!filtered.length && (
+                      <p>
+                        {pages.length
+                          ? "선택한 조건에 맞는 발행 지식이 없습니다."
+                          : "현재 접근 가능한 발행 지식이 없습니다. 원본을 편입하고 검토·발행하면 여기에 표시됩니다."}
+                      </p>
+                    )}
+                    <div className="op-page-list">
+                      {visible.map((page) => (
+                        <article key={page.id}>
+                          <details>
+                            <summary>
+                              <strong>{page.title}</strong>
+                              <Badge>v{page.version}</Badge>
+                              <Badge>
+                                {page.currentRecommendation === true
+                                  ? "현재 권고 대상"
+                                  : page.currentRecommendation === false
+                                    ? "현재 권고 비대상"
+                                    : "상태 미확인"}
+                              </Badge>
+                              {page.reviewOverdue === true && (
+                                <Badge>검토 기한 경과</Badge>
+                              )}
+                              {page.currentRecommendation === false && (
+                                <span>
+                                  {[
+                                    typeof page.lifecycle === "string" &&
+                                      page.lifecycle &&
+                                      page.lifecycle !== "active" &&
+                                      `생애주기: ${page.lifecycle}`,
+                                    typeof page.effectiveFrom === "string" &&
+                                      page.effectiveFrom &&
+                                      `시행일: ${page.effectiveFrom}`,
+                                    typeof page.replacementId === "string" &&
+                                      page.replacementId &&
+                                      "대체 문서 지정됨",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ") || "비대상 사유 미확인"}
+                                </span>
+                              )}
+                              <span>{page.summary}</span>
+                            </summary>
+                            <Markdown
+                              text={page.content}
+                              readAttachment={readAttachment}
+                            />
+                            <small>
+                              페이지 {page.id} · 현재 조회 버전 {page.version}
+                            </small>
+                            <a
+                              href={documentHref(identity.workspaceId, page.id)}
+                            >
+                              문서 고유 링크 · 편집과 댓글
+                            </a>
+                          </details>
+                        </article>
+                      ))}
+                    </div>
+                    {filtered.length > 25 && (
+                      <div className="op-actions">
+                        <Button
+                          disabled={!pageNumber}
+                          onClick={() => setPageNumber((p) => p - 1)}
+                        >
+                          이전
+                        </Button>
+                        <span>
+                          {pageNumber + 1} / {Math.ceil(filtered.length / 25)}
+                        </span>
+                        <Button
+                          disabled={(pageNumber + 1) * 25 >= filtered.length}
+                          onClick={() => setPageNumber((p) => p + 1)}
+                        >
+                          다음
+                        </Button>
+                      </div>
+                    )}
+                  </section>
+                )}
+                {preview && ["workflows", "refinement"].includes(tab) && (
+                  <section className="op-panel">
+                    <h2>{consoleLabel(tab)} · 미리보기 미지원</h2>
+                    <p>
+                      이 화면은 실제 서버와 현재 권한이 필요합니다. 목업에서는
+                      서버를 호출하지 않습니다.
+                    </p>
+                  </section>
+                )}
+                {tab === "workflows" && !preview && dataReady && (
+                  <WorkflowPanel
+                    principalId={identity.principalId}
+                    spaceId={identity.workspaceId}
+                    initialPageId={
+                      location.kind === "document"
+                        ? location.document
+                        : undefined
+                    }
+                    key={`${identity.workspaceId}:${identity.principalId}:${location.kind === "document" ? location.document : ""}`}
+                    api={api}
+                    pages={pages}
+                    capabilities={identity.capabilities ?? []}
+                    onChanged={load}
+                    onExpired={clearProtected}
+                  />
+                )}
+                {tab === "versions" && !preview && dataReady && (
+                  <VersionsPanel
+                    api={api}
+                    pages={pages}
+                    batches={changes}
+                    spaceId={identity.workspaceId}
+                    principalId={identity.principalId}
+                    canPropose={write}
+                    canReview={review}
+                    onChanged={load}
+                    onExpired={clearProtected}
+                  />
+                )}
+                {tab === "versions" && (preview || !dataReady) && (
+                  <section className="op-panel">
+                    <h2>버전 비교 · 복원</h2>
+                    <p>
+                      {preview
+                        ? "실제 서버와 현재 권한이 필요한 화면입니다."
+                        : "허용된 문서와 버전 정보를 불러오는 중이거나 불러오지 못했습니다."}
+                    </p>
+                  </section>
+                )}
+                {tab === "access" && !preview && identity.capabilities && (
+                  <AccessPanel
+                    api={api}
+                    capabilities={identity.capabilities ?? []}
+                    onChanged={load}
+                    onExpired={clearProtected}
+                    onSelect={onSpace}
+                  />
+                )}
+                {tab === "policies" && !preview && dataReady && (
+                  <PolicyManager
+                    api={policyApi}
+                    capabilities={identity.capabilities ?? []}
+                    sourceOptions={sources.map((s) => ({
+                      id: s.id,
+                      title: s.title,
+                    }))}
+                    onChanged={load}
+                    onExpired={clearProtected}
+                  />
+                )}
+                {tab === "activity" && !preview && (
+                  <>
+                    <TracePanel api={api} />
+                    <OperationsPanel
+                      api={api}
+                      canAdmin={
+                        !!identity.capabilities?.includes("space.admin")
+                      }
+                      canOwner={identity.space?.owner ?? false}
+                    />
+                  </>
+                )}
+                {tab === "lifecycle" && !preview && (
+                  <GovernanceWorkbench
+                    api={policyApi}
+                    capabilities={identity.capabilities ?? []}
+                    initialAccessRequestId={
+                      target?.targetKind === "access-request"
+                        ? target.targetId
+                        : undefined
+                    }
+                    key={`${identity.workspaceId}:${identity.principalId}`}
+                    onChanged={load}
+                    onExpired={clearProtected}
+                  />
+                )}
+                {tab === "refinement" && !preview && dataReady && (
+                  <RefinementPanel
+                    api={api}
+                    pages={pages}
+                    capabilities={identity.capabilities ?? []}
+                    onExpired={clearProtected}
+                    onChanged={load}
+                  />
+                )}
+                {tab === "sources" && dataReady && (
+                  <>
+                    {write && (
+                      <section className="op-panel">
+                        <h2>원본 등록</h2>
+                        <p>
+                          공유할 자료만 선택 등록하세요. 아래 독자에게 허용한
+                          범위를 파생 지식이 자동으로 넓히지 않습니다.
+                        </p>
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            void perform(async () => {
+                              const source: Source = {
+                                id: `source-${crypto.randomUUID()}`,
+                                title,
+                                content,
+                                tool: "manual",
+                                project: "기본",
+                                scope: "team",
+                                verification: "미검증",
+                                createdAt: new Date().toISOString(),
+                                processed: false,
+                                targetPageId: "topic-main",
+                              };
+                              await api.post("/sources", {
+                                source,
+                                readers: [
+                                  ...new Set([
+                                    identity.principalId,
+                                    ...selectedReaders,
+                                  ]),
+                                ],
+                              });
+                              setTitle("");
+                              setContent("");
+                              setNotice(
+                                "원본을 서버에 보존했습니다. 편입은 아래에서 별도로 실행하세요.",
+                              );
+                            });
+                          }}
+                        >
+                          <label>
+                            제목
+                            <input
+                              required
+                              maxLength={200}
+                              value={title}
+                              onChange={(e) => setTitle(e.target.value)}
+                            />
+                          </label>
+                          <label>
+                            원본 본문
+                            <textarea
+                              required
+                              maxLength={100000}
+                              rows={8}
+                              value={content}
+                              onChange={(e) => setContent(e.target.value)}
+                            />
+                          </label>
+                          <fieldset>
+                            <legend>열람을 허용할 구성원</legend>
+                            {members.map((m) => (
+                              <label className="op-check" key={m.principalId}>
+                                <input
+                                  type="checkbox"
+                                  disabled={
+                                    m.principalId === identity.principalId
+                                  }
+                                  checked={
+                                    m.principalId === identity.principalId ||
+                                    selectedReaders.includes(m.principalId)
+                                  }
+                                  onChange={(e) =>
+                                    setSelectedReaders((all) =>
+                                      e.target.checked
+                                        ? [...all, m.principalId]
+                                        : all.filter(
+                                            (id) => id !== m.principalId,
+                                          ),
+                                    )
+                                  }
+                                />
+                                <span>
+                                  {m.principalId} ({m.role})
+                                </span>
+                              </label>
+                            ))}
+                          </fieldset>
+                          <Button
+                            type="submit"
+                            variant="primary"
+                            disabled={busy}
+                          >
+                            원본 보존
+                          </Button>
+                        </form>
+                      </section>
+                    )}
+                    <section className="op-panel">
+                      <h2>접근 가능한 원본</h2>
+                      <p>
+                        모델 모드는 기존 발행본과 종합하는 변경을 제안합니다.
+                        구조 모드는 자연어 의미 종합을 하지 않습니다.
+                      </p>
+                      {sources.length === 0 && <p>등록한 원본이 없습니다.</p>}
+                      {pageItems(sources, sourcePage).map((s) => (
+                        <details key={s.id} className="op-source">
+                          <summary>
+                            <label
+                              className="op-check"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedSources.includes(s.id)}
+                                onChange={(e) =>
+                                  setSelectedSources((ids) =>
+                                    e.target.checked
+                                      ? [...ids, s.id]
+                                      : ids.filter((id) => id !== s.id),
+                                  )
+                                }
+                              />
+                              <span>{s.title}</span>
+                            </label>
+                          </summary>
+                          <pre>{s.content}</pre>
+                          <small>
+                            {s.id} · {s.verification}
+                          </small>
+                          {!preview && (
+                            <SourceLifecycle
+                              api={api}
+                              sourceId={s.id}
+                              canCorrect={
+                                !!identity.capabilities?.includes(
+                                  "source.create",
+                                )
+                              }
+                              canWithdraw={
+                                !!identity.capabilities?.includes(
+                                  "lifecycle.manage",
+                                )
+                              }
+                              canSetPolicy={
+                                !!identity.capabilities?.includes("space.admin")
+                              }
+                              perform={perform}
+                            />
+                          )}
+                          {!preview && (
+                            <StoragePanel
+                              key={`${identity.workspaceId}:${s.id}`}
+                              api={api}
+                              parent={{ kind: "source", id: s.id }}
+                              baseVersion={
+                                pages.find((p) => p.id === s.targetPageId)
+                                  ?.version
+                              }
+                              editorPageId={
+                                pages.find((p) => p.id === s.targetPageId)?.id
+                              }
+                              transport={(path, init) =>
+                                api.transport(path, init)
+                              }
+                              canCreate={
+                                !!identity.capabilities?.includes(
+                                  "source.create",
+                                )
+                              }
+                              canExport={
+                                !!identity.capabilities?.includes("data.export")
+                              }
+                              onChanged={load}
+                            />
+                          )}
+                        </details>
+                      ))}
+                      <ListPager
+                        page={sourcePage}
+                        count={sources.length}
+                        change={setSourcePage}
+                      />
+                      <Button
+                        variant="primary"
+                        disabled={
+                          busy ||
+                          !write ||
+                          !selectedSources.length ||
+                          (mode === "model" && !model.configured)
+                        }
+                        onClick={() =>
+                          perform(async () => {
+                            const accepted = await api.post(
+                              "/ingest",
+                              { sourceIds: selectedSources, mode },
+                              crypto.randomUUID(),
+                            );
+                            setNotice(
+                              "편입 요청을 수락했습니다. 변경 검토 또는 작업 상태에서 결과를 확인하세요.",
+                            );
+                            navigate(
+                              isJobReceipt(accepted) ? "jobs" : "review",
+                            );
+                          })
+                        }
+                      >
+                        선택 원본 편입
+                      </Button>
+                    </section>
+                  </>
+                )}
+                {tab === "review" && dataReady && (
+                  <ReviewSelection
+                    api={api}
+                    initialTargetId={
+                      target?.targetKind === "review"
+                        ? target.targetId
+                        : undefined
+                    }
+                    items={changes}
+                    key={`${identity.workspaceId}:${identity.principalId}`}
+                  >
+                    {(selectedChanges) => (
+                      <section className="op-panel">
+                        <h2>변경 집합 검토</h2>
+                        <p>
+                          의존 페이지는 함께 발행됩니다. 내용·원본·기준
+                          버전·권한이 바뀌면 다시 검토해야 합니다.
+                        </p>
+                        {!selectedChanges.length && (
+                          <p>아직 변경 제안이 없습니다.</p>
+                        )}
+                        {pageItems(
+                          selectedChanges,
+                          target ? 0 : changePage,
+                        ).map((c) => (
+                          <article key={c.id} className="op-change">
+                            <div className="op-section-head">
+                              <h3>
+                                {c.updates[0]?.title || c.id} 외{" "}
+                                {Math.max(0, c.updates.length - 1)}개
+                              </h3>
+                              <Badge
+                                tone={
+                                  c.status === "published" ? "green" : "amber"
+                                }
+                              >
+                                {statusLabels[c.status] || c.status}
+                              </Badge>
+                              {!!c.reviewWarnings?.length && (
+                                <aside role="status">
+                                  <h3>발행 전 필수 속성 확인</h3>
+                                  <ul>
+                                    {c.reviewWarnings.map((warning) => (
+                                      <li
+                                        key={`${warning.pageId}:${warning.key}`}
+                                      >
+                                        {warning.pageId} · {warning.key} 누락 ·{" "}
+                                        {warning.mode === "block"
+                                          ? "반영 차단"
+                                          : "검토 경고"}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </aside>
+                              )}
+                            </div>
+                            <small className="op-id">
+                              {c.id} · 내용 해시 {c.hash}
+                            </small>
+                            {c.reviewFeedback && (
+                              <p>
+                                반려·수정 요청: {c.reviewFeedback.reason} ·{" "}
+                                {c.reviewFeedback.recordedBy}
+                              </p>
+                            )}
+                            {c.evolutionReason && (
+                              <p>모델의 변경 이유: {c.evolutionReason}</p>
+                            )}
+                            {c.evolutionReason && (
+                              <ul>
+                                {c.updates.map((update) => (
+                                  <li key={update.id}>
+                                    {update.title} ·{" "}
+                                    {update.baseVersion
+                                      ? `기존 페이지 v${update.baseVersion} 갱신`
+                                      : "새 분석 페이지"}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {!!c.candidates?.length && (
+                              <details>
+                                <summary>
+                                  미검증 주장 후보 {c.candidates.length}개
+                                </summary>
+                                <p>
+                                  발행 후 재검토 후보가 되며 승인 자체는 실행
+                                  검증이 아닙니다.
+                                </p>
+                                <ul>
+                                  {c.candidates.map((candidate, index) => (
+                                    <li key={index}>
+                                      {candidate.pageId} · {candidate.key}:{" "}
+                                      {candidate.value} · {candidate.kind} ·
+                                      조건{" "}
+                                      {JSON.stringify(candidate.conditions)} ·
+                                      유효 {candidate.validFrom ?? "미상"} ~{" "}
+                                      {candidate.validTo ?? "미상"} ·{" "}
+                                      {candidate.uncertainty}
+                                      <br />
+                                      원본 {candidate.sourceId} · 버전{" "}
+                                      {candidate.sourceVersion} · 위치{" "}
+                                      {candidate.location.start}–
+                                      {candidate.location.end} ·{" "}
+                                      {candidate.location.quote}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </details>
+                            )}
+                            {identity.spaceRole &&
+                              identity.spaceRole !== "Read" && (
+                                <label>
+                                  검토 큐 분류
+                                  <select
+                                    aria-label={"검토 큐 분류 " + c.id}
+                                    disabled={busy}
+                                    value={c.triage ?? "untriaged"}
+                                    onChange={(e) =>
+                                      void perform(async () => {
+                                        await api.post(
+                                          `/changesets/${c.id}/triage`,
+                                          {
+                                            label: e.target.value,
+                                          },
+                                        );
+                                      })
+                                    }
+                                  >
+                                    <option value="untriaged">미분류</option>
+                                    <option value="needs-review">
+                                      검토 요청
+                                    </option>
+                                    <option value="duplicate">중복 후보</option>
+                                    <option value="blocked">확인 필요</option>
+                                  </select>
+                                </label>
+                              )}
+                            {c.updates.map((d) => (
+                              <details key={d.id}>
+                                <summary>
+                                  {d.title} · 기준 v{d.baseVersion} → v
+                                  {d.baseVersion + 1}
+                                </summary>
+                                <div className="op-diff">
+                                  <div>
+                                    <h4>현재 발행본</h4>
+                                    <pre>
+                                      {pages.find((p) => p.id === d.id)
+                                        ?.content || "새 페이지"}
+                                    </pre>
+                                  </div>
+                                  <div>
+                                    <h4>변경 제안</h4>
+                                    <pre>{d.content}</pre>
+                                  </div>
+                                </div>
+                                <p>근거: {d.sourceIds.join(", ")}</p>
+                              </details>
+                            ))}
+                            {review &&
+                              (identity.personalSpace ||
+                                !identity.spaceRole ||
+                                c.proposedBy !== identity.principalId) && (
+                                <div className="op-actions">
+                                  <Button
+                                    disabled={busy || c.status !== "pending"}
+                                    onClick={() =>
+                                      perform(async () => {
+                                        await api.post(
+                                          `/changesets/${encodeURIComponent(c.id)}/approve`,
+                                          { hash: c.hash },
+                                        );
+                                        setNotice(
+                                          "해당 내용과 기준을 고정해 승인했습니다. 발행은 별도 작업입니다.",
+                                        );
+                                      })
+                                    }
+                                  >
+                                    승인
+                                  </Button>
+                                  <Button
+                                    variant="primary"
+                                    disabled={busy || c.status !== "approved"}
+                                    onClick={() =>
+                                      perform(async () => {
+                                        await api.post(
+                                          `/changesets/${encodeURIComponent(c.id)}/publish`,
+                                          { hash: c.hash },
+                                          crypto.randomUUID(),
+                                        );
+                                        setNotice(
+                                          "변경 집합 전체를 발행했습니다.",
+                                        );
+                                      })
+                                    }
+                                  >
+                                    승인 집합 발행
+                                  </Button>
+                                  <ReviewRejection
+                                    key={c.id}
+                                    batchId={c.id}
+                                    disabled={
+                                      busy ||
+                                      !["pending", "approved"].includes(
+                                        c.status,
+                                      )
+                                    }
+                                    onReject={(reason) =>
+                                      perform(async () => {
+                                        await api.post(
+                                          `/changesets/${encodeURIComponent(c.id)}/reject`,
+                                          { hash: c.hash, reason },
+                                        );
+                                        setNotice("변경 집합을 반려했습니다.");
+                                      })
+                                    }
+                                  />
+                                </div>
+                              )}
+                            {!preview && (
+                              <PublicationSchedule
+                                key={`${identity.workspaceId}:${identity.principalId}:${c.id}:${c.hash}`}
+                                api={api}
+                                batchId={c.id}
+                                hash={c.hash}
+                                canSchedule={
+                                  review && c.status === "approved" &&
+                                  (identity.personalSpace || !identity.spaceRole || c.proposedBy !== identity.principalId)
+                                }
+                              />
+                            )}
+                          </article>
+                        ))}
+                        <ListPager
+                          page={changePage}
+                          count={selectedChanges.length}
+                          change={setChangePage}
+                        />
+                      </section>
+                    )}
+                  </ReviewSelection>
+                )}
+                {tab === "query" && dataReady && (
+                  <section className="op-panel">
+                    {!preview && (
+                      <QuestionsWorkbench
+                        key={`${identity.workspaceId}:${identity.principalId}`}
+                        api={api}
+                        identityKey={`${identity.workspaceId}:${identity.principalId}`}
+                      />
+                    )}
+                    <h2>근거 기반 질문</h2>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void perform(async () => {
+                          setAnswer(null);
+                          setSnapshot(null);
+                          const accepted = await api.post<unknown>("/query", {
+                            question,
+                            mode,
+                            scope: serializeQuestionScope(questionScope),
+                          });
+                          setAnswer(await completedJob<Answer>(accepted));
                         });
                       }}
                     >
                       <label>
-                        제목
-                        <input
-                          required
-                          maxLength={200}
-                          value={title}
-                          onChange={(e) => setTitle(e.target.value)}
-                        />
-                      </label>
-                      <label>
-                        원본 본문
+                        질문
                         <textarea
                           required
-                          maxLength={100000}
-                          rows={8}
-                          value={content}
-                          onChange={(e) => setContent(e.target.value)}
+                          maxLength={2000}
+                          rows={3}
+                          value={question}
+                          onChange={(e) => setQuestion(e.target.value)}
+                          placeholder="적용 환경과 버전을 함께 적어주세요."
                         />
                       </label>
-                      <fieldset>
-                        <legend>열람을 허용할 구성원</legend>
-                        {members.map((m) => (
-                          <label className="op-check" key={m.principalId}>
-                            <input
-                              type="checkbox"
-                              disabled={m.principalId === identity.principalId}
-                              checked={
-                                m.principalId === identity.principalId ||
-                                selectedReaders.includes(m.principalId)
-                              }
-                              onChange={(e) =>
-                                setSelectedReaders((all) =>
-                                  e.target.checked
-                                    ? [...all, m.principalId]
-                                    : all.filter((id) => id !== m.principalId),
-                                )
-                              }
-                            />
-                            <span>
-                              {m.principalId} ({m.role})
-                            </span>
-                          </label>
-                        ))}
-                      </fieldset>
-                      <Button type="submit" variant="primary" disabled={busy}>
-                        원본 보존
+                      <QuestionScopeFields
+                        value={questionScope}
+                        onChange={setQuestionScope}
+                        topics={[...new Set(pages.map((p) => p.category).filter((v): v is string => !!v))]}
+                      />
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        disabled={
+                          busy || (mode === "model" && !model.configured)
+                        }
+                      >
+                        발행 지식에 질문
                       </Button>
                     </form>
-                  </section>
-                )}
-                <section className="op-panel">
-                  <h2>접근 가능한 원본</h2>
-                  <p>
-                    모델 모드는 기존 발행본과 종합하는 변경을 제안합니다. 구조
-                    모드는 자연어 의미 종합을 하지 않습니다.
-                  </p>
-                  {sources.length === 0 && <p>등록한 원본이 없습니다.</p>}
-                  {pageItems(sources, sourcePage).map((s) => (
-                    <details key={s.id} className="op-source">
-                      <summary>
-                        <label
-                          className="op-check"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedSources.includes(s.id)}
-                            onChange={(e) =>
-                              setSelectedSources((ids) =>
-                                e.target.checked
-                                  ? [...ids, s.id]
-                                  : ids.filter((id) => id !== s.id),
-                              )
-                            }
-                          />
-                          <span>{s.title}</span>
-                        </label>
-                      </summary>
-                      <pre>{s.content}</pre>
-                      <small>
-                        {s.id} · {s.verification}
-                      </small>
-                      {!preview && (
-                        <SourceLifecycle
-                          api={api}
-                          sourceId={s.id}
-                          canCorrect={
-                            !!identity.capabilities?.includes("source.create")
-                          }
-                          canWithdraw={
-                            !!identity.capabilities?.includes(
-                              "lifecycle.manage",
-                            )
-                          }
-                          canSetPolicy={
-                            !!identity.capabilities?.includes("space.admin")
-                          }
-                          perform={perform}
+                    {answer && (
+                      <article className="op-answer">
+                        <h3>
+                          {answer.insufficient
+                            ? "근거가 부족합니다"
+                            : "답변과 근거"}
+                        </h3>
+                        <Badge>
+                          {answer.mode === "model"
+                            ? "모델 종합"
+                            : "발행본 발췌"}
+                        </Badge>
+                        {answer.temporalMode && (
+                          <p>
+                            {answer.temporalMode === "documented-history-not-current-recommendation"
+                              ? "과거 발행 기록 · 현재 권고 아님" : "질문 시점의 현재 권고 발행본"}
+                            {answer.asOf ? ` · 조회 ${answer.asOf}` : ""}
+                          </p>
+                        )}
+                        {answer.queryScope && (
+                          <div className="op-answer-scope">
+                            <p>공간 {answer.workspaceId ?? identity.workspaceId} · 주제 {answer.queryScope.topic ?? "모든 주제"}</p>
+                            {answer.temporalMode === "documented-history-not-current-recommendation" && (
+                              <p>발행 기록 기간(UTC):{" "}{answer.queryScope.periodFrom ?? "시작 제한 없음"} ~{" "}{answer.queryScope.periodTo ?? "종료 제한 없음"}</p>
+                            )}
+                          </div>
+                        )}
+                        <Markdown
+                          text={answer.content}
+                          readAttachment={readAttachment}
                         />
-                      )}
-                      {!preview && (
-                        <StoragePanel
-                          key={`${identity.workspaceId}:${s.id}`}
-                          api={api}
-                          parent={{ kind: "source", id: s.id }}
-                          baseVersion={
-                            pages.find((p) => p.id === s.targetPageId)?.version
-                          }
-                          editorPageId={
-                            pages.find((p) => p.id === s.targetPageId)?.id
-                          }
-                          transport={(path, init) => api.transport(path, init)}
-                          canCreate={
-                            !!identity.capabilities?.includes("source.create")
-                          }
-                          canExport={
-                            !!identity.capabilities?.includes("data.export")
-                          }
-                          onChanged={load}
-                        />
-                      )}
-                    </details>
-                  ))}
-                  <ListPager
-                    page={sourcePage}
-                    count={sources.length}
-                    change={setSourcePage}
-                  />
-                  <Button
-                    variant="primary"
-                    disabled={
-                      busy ||
-                      !write ||
-                      !selectedSources.length ||
-                      (mode === "model" && !model.configured)
-                    }
-                    onClick={() =>
-                      perform(async () => {
-                        const accepted = await api.post(
-                          "/ingest",
-                          { sourceIds: selectedSources, mode },
-                          crypto.randomUUID(),
-                        );
-                        setNotice(
-                          "편입 요청을 수락했습니다. 변경 검토 또는 작업 상태에서 결과를 확인하세요.",
-                        );
-                        navigate(isJobReceipt(accepted) ? "jobs" : "review");
-                      })
-                    }
-                  >
-                    선택 원본 편입
-                  </Button>
-                </section>
-              </>
-            )}
-            {tab === "review" && dataReady && (
-              <ReviewSelection api={api} initialTargetId={target?.targetKind === "review" ? target.targetId : undefined} items={changes} key={`${identity.workspaceId}:${identity.principalId}`}>
-              {(selectedChanges) => <section className="op-panel">
-                <h2>변경 집합 검토</h2>
-                <p>
-                  의존 페이지는 함께 발행됩니다. 내용·원본·기준 버전·권한이
-                  바뀌면 다시 검토해야 합니다.
-                </p>
-                {!selectedChanges.length && <p>아직 변경 제안이 없습니다.</p>}
-                {pageItems(selectedChanges, target ? 0 : changePage).map((c) => (
-                  <article key={c.id} className="op-change">
-                    <div className="op-section-head">
-                      <h3>
-                        {c.updates[0]?.title || c.id} 외{" "}
-                        {Math.max(0, c.updates.length - 1)}개
-                      </h3>
-                      <Badge
-                        tone={c.status === "published" ? "green" : "amber"}
-                      >
-                        {statusLabels[c.status] || c.status}
-                      </Badge>
-                      {!!c.reviewWarnings?.length && (
-                        <aside role="status">
-                          <h3>발행 전 필수 속성 확인</h3>
-                          <ul>
-                            {c.reviewWarnings.map((warning) => (
-                              <li key={`${warning.pageId}:${warning.key}`}>
-                                {warning.pageId} · {warning.key} 누락 ·{" "}
-                                {warning.mode === "block"
-                                  ? "반영 차단"
-                                  : "검토 경고"}
-                              </li>
-                            ))}
-                          </ul>
-                        </aside>
-                      )}
-                    </div>
-                    <small className="op-id">
-                      {c.id} · 내용 해시 {c.hash}
-                    </small>
-                    {c.reviewFeedback && (
-                      <p>
-                        반려·수정 요청: {c.reviewFeedback.reason} ·{" "}
-                        {c.reviewFeedback.recordedBy}
-                      </p>
-                    )}
-                    {c.evolutionReason && (
-                      <p>모델의 변경 이유: {c.evolutionReason}</p>
-                    )}
-                    {c.evolutionReason && (
-                      <ul>
-                        {c.updates.map((update) => (
-                          <li key={update.id}>
-                            {update.title} ·{" "}
-                            {update.baseVersion
-                              ? `기존 페이지 v${update.baseVersion} 갱신`
-                              : "새 분석 페이지"}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {!!c.candidates?.length && (
-                      <details>
-                        <summary>
-                          미검증 주장 후보 {c.candidates.length}개
-                        </summary>
-                        <p>
-                          발행 후 재검토 후보가 되며 승인 자체는 실행 검증이
-                          아닙니다.
-                        </p>
-                        <ul>
-                          {c.candidates.map((candidate, index) => (
-                            <li key={index}>
-                              {candidate.pageId} · {candidate.key}:{" "}
-                              {candidate.value} · {candidate.kind} · 조건{" "}
-                              {JSON.stringify(candidate.conditions)} · 유효{" "}
-                              {candidate.validFrom ?? "미상"} ~{" "}
-                              {candidate.validTo ?? "미상"} ·{" "}
-                              {candidate.uncertainty}
-                              <br />
-                              원본 {candidate.sourceId} · 버전{" "}
-                              {candidate.sourceVersion} · 위치{" "}
-                              {candidate.location.start}–
-                              {candidate.location.end} ·{" "}
-                              {candidate.location.quote}
+                        <ol>
+                          {answer.citations.map((c, i) => (
+                            <li key={i}>
+                              <strong>
+                                {c.title} · v{c.version}
+                              </strong>
+                              <blockquote>{c.quote}</blockquote>
+                              <Button
+                                disabled={busy}
+                                onClick={() =>
+                                  perform(async () => {
+                                    setSnapshot(null);
+                                    setSnapshot(
+                                      await api.get(
+                                        snapshotPath(c.pageId, c.version),
+                                      ),
+                                    );
+                                  })
+                                }
+                              >
+                                인용 버전 열기
+                              </Button>
                             </li>
                           ))}
-                        </ul>
-                      </details>
-                    )}
-                    {identity.spaceRole && identity.spaceRole !== "Read" && (
-                      <label>
-                        검토 큐 분류
-                        <select
-                          aria-label={"검토 큐 분류 " + c.id}
-                          disabled={busy}
-                          value={c.triage ?? "untriaged"}
-                          onChange={(e) =>
-                            void perform(async () => {
-                              await api.post(`/changesets/${c.id}/triage`, {
-                                label: e.target.value,
-                              });
+                        </ol>
+                        <p>
+                          이 답변은 파생 결과입니다. 독립적인 새 원본 증거로
+                          취급하지 않습니다.
+                        </p>
+                        <Button
+                          disabled={
+                            busy ||
+                            !write ||
+                            answer.insufficient ||
+                            !!answer.filedBatchId
+                          }
+                          onClick={() =>
+                            perform(async () => {
+                              const result = await api.post<{
+                                outcome?: string;
+                                reason?: string;
+                              }>(
+                                `/answers/${encodeURIComponent(answer.id)}/file`,
+                                {},
+                              );
+                              if (result.outcome === "no-changes") {
+                                setNotice(
+                                  `모델의 변경 없음 사유: ${result.reason || "추가할 변경이 없습니다."}`,
+                                );
+                              } else {
+                                setNotice(
+                                  "답변을 검토 가능한 변경 제안으로 등록했습니다.",
+                                );
+                                navigate("review");
+                              }
                             })
                           }
                         >
-                          <option value="untriaged">미분류</option>
-                          <option value="needs-review">검토 요청</option>
-                          <option value="duplicate">중복 후보</option>
-                          <option value="blocked">확인 필요</option>
-                        </select>
-                      </label>
+                          답변을 위키에 재편입 제안
+                        </Button>
+                      </article>
                     )}
-                    {c.updates.map((d) => (
-                      <details key={d.id}>
-                        <summary>
-                          {d.title} · 기준 v{d.baseVersion} → v
-                          {d.baseVersion + 1}
-                        </summary>
-                        <div className="op-diff">
-                          <div>
-                            <h4>현재 발행본</h4>
-                            <pre>
-                              {pages.find((p) => p.id === d.id)?.content ||
-                                "새 페이지"}
-                            </pre>
-                          </div>
-                          <div>
-                            <h4>변경 제안</h4>
-                            <pre>{d.content}</pre>
-                          </div>
-                        </div>
-                        <p>근거: {d.sourceIds.join(", ")}</p>
-                      </details>
-                    ))}
-                    {review &&
-                      (identity.personalSpace ||
-                        !identity.spaceRole ||
-                        c.proposedBy !== identity.principalId) && (
-                        <div className="op-actions">
-                          <Button
-                            disabled={busy || c.status !== "pending"}
-                            onClick={() =>
-                              perform(async () => {
-                                await api.post(
-                                  `/changesets/${encodeURIComponent(c.id)}/approve`,
-                                  { hash: c.hash },
-                                );
-                                setNotice(
-                                  "해당 내용과 기준을 고정해 승인했습니다. 발행은 별도 작업입니다.",
-                                );
-                              })
-                            }
-                          >
-                            승인
+                    {snapshot && (
+                      <article className="op-answer">
+                        <div className="op-section-head">
+                          <h3>
+                            {snapshot.title} · 고정 v{snapshot.version.number}
+                          </h3>
+                          <Button onClick={() => setSnapshot(null)}>
+                            인용 본문 닫기
                           </Button>
-                          <Button
-                            variant="primary"
-                            disabled={busy || c.status !== "approved"}
-                            onClick={() =>
-                              perform(async () => {
-                                await api.post(
-                                  `/changesets/${encodeURIComponent(c.id)}/publish`,
-                                  { hash: c.hash },
-                                  crypto.randomUUID(),
-                                );
-                                setNotice("변경 집합 전체를 발행했습니다.");
-                              })
-                            }
-                          >
-                            승인 집합 발행
-                          </Button>
-                          <ReviewRejection
-                            key={c.id}
-                            batchId={c.id}
-                            disabled={
-                              busy ||
-                              !["pending", "approved"].includes(c.status)
-                            }
-                            onReject={(reason) =>
-                              perform(async () => {
-                                await api.post(
-                                  `/changesets/${encodeURIComponent(c.id)}/reject`,
-                                  { hash: c.hash, reason },
-                                );
-                                setNotice("변경 집합을 반려했습니다.");
-                              })
-                            }
-                          />
                         </div>
-                      )}
-                    {!preview && (
-                      <PublicationSchedule
-                        key={`${identity.workspaceId}:${identity.principalId}:${c.id}:${c.hash}`}
-                        api={api}
-                        batchId={c.id}
-                        hash={c.hash}
-                        canSchedule={
-                          review &&
-                          c.status === "approved" &&
-                          (identity.personalSpace ||
-                            !identity.spaceRole ||
-                            c.proposedBy !== identity.principalId)
-                        }
-                      />
-                    )}
-                  </article>
-                ))}
-                <ListPager
-                  page={changePage}
-                  count={selectedChanges.length}
-                  change={setChangePage}
-                />
-              </section>}
-              </ReviewSelection>
-            )}
-            {tab === "query" && dataReady && (
-              <section className="op-panel">
-                {!preview && (
-                  <QuestionsWorkbench
-                    key={`${identity.workspaceId}:${identity.principalId}`}
-                    api={api}
-                    identityKey={`${identity.workspaceId}:${identity.principalId}`}
-                  />
-                )}
-                <h2>근거 기반 질문</h2>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void perform(async () => {
-                      setAnswer(null);
-                      setSnapshot(null);
-                      const accepted = await api.post<unknown>("/query", {
-                        question,
-                        mode,
-                        scope: serializeQuestionScope(questionScope),
-                      });
-                      setAnswer(await completedJob<Answer>(accepted));
-                    });
-                  }}
-                >
-                  <label>
-                    질문
-                    <textarea
-                      required
-                      maxLength={2000}
-                      rows={3}
-                      value={question}
-                      onChange={(e) => setQuestion(e.target.value)}
-                      placeholder="적용 환경과 버전을 함께 적어주세요."
-                    />
-                  </label>
-                  <QuestionScopeFields
-                    value={questionScope}
-                    onChange={setQuestionScope}
-                    topics={[
-                      ...new Set(
-                        pages
-                          .map((p) => p.category)
-                          .filter((v): v is string => !!v),
-                      ),
-                    ]}
-                  />
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={busy || (mode === "model" && !model.configured)}
-                  >
-                    발행 지식에 질문
-                  </Button>
-                </form>
-                {answer && (
-                  <article className="op-answer">
-                    <h3>
-                      {answer.insufficient
-                        ? "근거가 부족합니다"
-                        : "답변과 근거"}
-                    </h3>
-                    <Badge>
-                      {answer.mode === "model" ? "모델 종합" : "발행본 발췌"}
-                    </Badge>
-                    {answer.temporalMode && (
-                      <p>
-                        {answer.temporalMode ===
-                        "documented-history-not-current-recommendation"
-                          ? "과거 발행 기록 · 현재 권고 아님"
-                          : "질문 시점의 현재 권고 발행본"}
-                        {answer.asOf ? ` · 조회 ${answer.asOf}` : ""}
-                      </p>
-                    )}
-                    {answer.queryScope && (
-                      <div className="op-answer-scope">
                         <p>
-                          공간 {answer.workspaceId ?? identity.workspaceId} ·
-                          주제 {answer.queryScope.topic ?? "모든 주제"}
+                          현재 권한을 재확인한 고정 버전입니다. 최신 발행본과
+                          다를 수 있습니다.
                         </p>
-                        {answer.temporalMode ===
-                          "documented-history-not-current-recommendation" && (
-                          <p>
-                            발행 기록 기간(UTC):{" "}
-                            {answer.queryScope.periodFrom ?? "시작 제한 없음"} ~{" "}
-                            {answer.queryScope.periodTo ?? "종료 제한 없음"}
-                          </p>
-                        )}
-                      </div>
+                        <Markdown
+                          text={snapshot.version.content}
+                          readAttachment={readAttachment}
+                        />
+                      </article>
                     )}
-                    <Markdown
-                      text={answer.content}
-                      readAttachment={readAttachment}
-                    />
-                    <ol>
-                      {answer.citations.map((c, i) => (
-                        <li key={i}>
-                          <strong>
-                            {c.title} · v{c.version}
-                          </strong>
-                          <blockquote>{c.quote}</blockquote>
-                          <Button
-                            disabled={busy}
-                            onClick={() =>
-                              perform(async () => {
-                                setSnapshot(null);
-                                setSnapshot(
-                                  await api.get(
-                                    snapshotPath(c.pageId, c.version),
-                                  ),
-                                );
-                              })
-                            }
-                          >
-                            인용 버전 열기
-                          </Button>
-                        </li>
-                      ))}
-                    </ol>
+                  </section>
+                )}
+                {tab === "lint" && dataReady && (
+                  <section className="op-panel">
+                    <h2>지식 건강 점검</h2>
                     <p>
-                      이 답변은 파생 결과입니다. 독립적인 새 원본 증거로
-                      취급하지 않습니다.
+                      깨진 연결·고립·근거와 검증 시점 누락·명시 사실 상충을
+                      검사합니다. 구조 점검은 자연어 진실성 검증이 아닙니다.
                     </p>
                     <Button
-                      disabled={
-                        busy ||
-                        !write ||
-                        answer.insufficient ||
-                        !!answer.filedBatchId
-                      }
+                      variant="primary"
+                      disabled={busy || !write}
                       onClick={() =>
                         perform(async () => {
-                          const result = await api.post<{
-                            outcome?: string;
-                            reason?: string;
-                          }>(
-                            `/answers/${encodeURIComponent(answer.id)}/file`,
-                            {},
+                          const accepted = await api.post<unknown>("/lint", {});
+                          setIssues(
+                            (await completedJob<{ issues: Issue[] }>(accepted))
+                              .issues,
                           );
-                          if (result.outcome === "no-changes") {
-                            setNotice(
-                              `모델의 변경 없음 사유: ${result.reason || "추가할 변경이 없습니다."}`,
-                            );
-                          } else {
-                            setNotice(
-                              "답변을 검토 가능한 변경 제안으로 등록했습니다.",
-                            );
-                            navigate("review");
-                          }
                         })
                       }
                     >
-                      답변을 위키에 재편입 제안
+                      서버 위키 점검
                     </Button>
-                  </article>
+                    {issues !== null && (
+                      <>
+                        <p role="status">
+                          현재 접근 범위에서 {issues.length}개 점검 항목을
+                          찾았습니다.
+                        </p>
+                        <ul>
+                          {issues.map((i) => (
+                            <li key={i.id}>
+                              <strong>{i.kind}</strong> — {i.detail}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </section>
                 )}
-                {snapshot && (
-                  <article className="op-answer">
-                    <div className="op-section-head">
-                      <h3>
-                        {snapshot.title} · 고정 v{snapshot.version.number}
-                      </h3>
-                      <Button onClick={() => setSnapshot(null)}>
-                        인용 본문 닫기
-                      </Button>
-                    </div>
-                    <p>
-                      현재 권한을 재확인한 고정 버전입니다. 최신 발행본과 다를
-                      수 있습니다.
-                    </p>
-                    <Markdown
-                      text={snapshot.version.content}
-                      readAttachment={readAttachment}
-                    />
-                  </article>
-                )}
-              </section>
-            )}
-            {tab === "lint" && dataReady && (
-              <section className="op-panel">
-                <h2>지식 건강 점검</h2>
-                <p>
-                  깨진 연결·고립·근거와 검증 시점 누락·명시 사실 상충을
-                  검사합니다. 구조 점검은 자연어 진실성 검증이 아닙니다.
-                </p>
-                <Button
-                  variant="primary"
-                  disabled={busy || !write}
-                  onClick={() =>
-                    perform(async () => {
-                      const accepted = await api.post<unknown>("/lint", {});
-                      setIssues(
-                        (await completedJob<{ issues: Issue[] }>(accepted))
-                          .issues,
-                      );
-                    })
-                  }
-                >
-                  서버 위키 점검
-                </Button>
-                {issues !== null && (
-                  <>
-                    <p role="status">
-                      현재 접근 범위에서 {issues.length}개 점검 항목을
-                      찾았습니다.
-                    </p>
-                    <ul>
-                      {issues.map((i) => (
-                        <li key={i.id}>
-                          <strong>{i.kind}</strong> — {i.detail}
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </section>
-            )}
-            {tab === "jobs" &&
-              !preview &&
-              identity.capabilities?.includes("jobs.read") && (
-                <>
-                  <p>
-                    서버 접수 작업은 이 창을 닫아도 유지됩니다. 개인 요청은 원래
-                    세션의 로그아웃·만료·IdP 권한 회수 시 재검사로 중단됩니다.
-                    취소 요청과 실제 취소 완료는 구분됩니다.
-                  </p>
-                  {identity.capabilities.includes("jobs.manage") &&
-                    !directoryConfigured && (
-                      <p role="status">
-                        무인 실행 주체의 현재 디렉터리 확인 경로가 미설정이어서
-                        예약 실행을 차단합니다. 개인 대화형 요청과 구조 점검은
-                        별도입니다.
+                {tab === "jobs" &&
+                  !preview &&
+                  identity.capabilities?.includes("jobs.read") && (
+                    <>
+                      <p>
+                        서버 접수 작업은 이 창을 닫아도 유지됩니다. 개인 요청은
+                        원래 세션의 로그아웃·만료·IdP 권한 회수 시 재검사로
+                        중단됩니다. 취소 요청과 실제 취소 완료는 구분됩니다.
+                      </p>
+                      {identity.capabilities.includes("jobs.manage") &&
+                        !directoryConfigured && (
+                          <p role="status">
+                            무인 실행 주체의 현재 디렉터리 확인 경로가
+                            미설정이어서 예약 실행을 차단합니다. 개인 대화형
+                            요청과 구조 점검은 별도입니다.
+                          </p>
+                        )}
+                      <JobsPanel
+                        api={api}
+                        capabilities={identity.capabilities ?? []}
+                        executionIdentities={executionIdentities}
+                        initialJobId={
+                          target?.targetKind === "job"
+                            ? target.targetId
+                            : undefined
+                        }
+                        key={`${identity.workspaceId}:${identity.principalId}`}
+                        onExpired={clearProtected}
+                      />
+                    </>
+                  )}
+                {tab === "jobs" &&
+                  target?.targetKind === "job" &&
+                  !identity.capabilities?.includes("jobs.read") && (
+                    <p role="alert">대상이 없거나 현재 접근할 수 없습니다.</p>
+                  )}
+                {tab === "jobs" &&
+                  !target &&
+                  !identity.capabilities?.includes("jobs.read") && (
+                    <section className="op-panel">
+                      <div className="op-section-head">
+                        <h2>내 작업 시도 이력</h2>
+                        <Button disabled={busy} onClick={() => perform(load)}>
+                          새로고침
+                        </Button>
+                      </div>
+                      <p>실패·취소·미실행은 성공으로 집계하지 않습니다.</p>
+                      {!jobs.length ? (
+                        <p>등록된 작업이 없습니다.</p>
+                      ) : (
+                        <div
+                          className="op-table-scroll"
+                          tabIndex={0}
+                          aria-label="작업 목록 가로 스크롤"
+                        >
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>작업 ID</th>
+                                <th>종류</th>
+                                <th>상태</th>
+                                <th>오류</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {pageItems(jobs, jobPage).map((j) => (
+                                <tr key={j.id}>
+                                  <td>{j.id}</td>
+                                  <td>{j.kind || j.operation}</td>
+                                  <td>{statusLabels[j.status] || j.status}</td>
+                                  <td>{j.error_code || j.error || "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      <ListPager
+                        page={jobPage}
+                        count={jobs.length}
+                        change={setJobPage}
+                      />
+                    </section>
+                  )}
+                {tab === "usage" && (
+                  <section className="op-panel">
+                    <h2>서버 사용량</h2>
+                    {preview && (
+                      <Badge tone="plum">
+                        합성 예시 집계 · 실측이 아닙니다
+                      </Badge>
+                    )}
+                    <label>
+                      조회 기간
+                      <select
+                        value={usageDays}
+                        disabled={busy}
+                        onChange={(e) => {
+                          const days = Number(e.target.value) as
+                            7 | 14 | 30 | 90;
+                          setUsageDays(days);
+                        }}
+                      >
+                        <option value={7}>최근 7일</option>
+                        <option value={14}>최근 14일</option>
+                        <option value={30}>최근 30일</option>
+                        <option value={90}>최근 90일</option>
+                      </select>
+                    </label>
+                    <Button disabled={busy} onClick={() => void refreshUsage()}>
+                      집계 새로고침
+                    </Button>
+                    {!preview && usage && (
+                      <>
+                        <a
+                          className="button secondary"
+                          href={`/api/v1/usage/export?days=${usageDays}`}
+                          download="agent-knowledge-hub-usage.csv"
+                        >
+                          호출 CSV
+                        </a>
+                        <a
+                          className="button secondary"
+                          href={"/api/v1/usage/model-export?days=" + usageDays}
+                          download="agent-knowledge-hub-model-usage.csv"
+                        >
+                          모델 사용량 CSV
+                        </a>
+                      </>
+                    )}
+                    {usage ? (
+                      <Suspense
+                        fallback={<p role="status">집계를 불러오는 중…</p>}
+                      >
+                        <UsageReport data={usage} />
+                      </Suspense>
+                    ) : (
+                      <p role={usageError ? "alert" : "status"}>
+                        {usageError || "서버 집계를 확인하고 있습니다…"}{" "}
+                        미연결을 0건으로 대체하지 않습니다.
                       </p>
                     )}
-                  <JobsPanel
-                    api={api}
-                    capabilities={identity.capabilities ?? []}
-                    executionIdentities={executionIdentities}
-                    initialJobId={target?.targetKind === "job" ? target.targetId : undefined}
-                    key={`${identity.workspaceId}:${identity.principalId}`}
-                    onExpired={clearProtected}
-                  />
-                </>
-              )}
-            {tab === "jobs" && target?.targetKind === "job" && !identity.capabilities?.includes("jobs.read") && <p role="alert">대상이 없거나 현재 접근할 수 없습니다.</p>}
-            {tab === "jobs" && !target &&
-              !identity.capabilities?.includes("jobs.read") && (
-                <section className="op-panel">
-                  <div className="op-section-head">
-                    <h2>내 작업 시도 이력</h2>
-                    <Button disabled={busy} onClick={() => perform(load)}>
-                      새로고침
-                    </Button>
-                  </div>
-                  <p>실패·취소·미실행은 성공으로 집계하지 않습니다.</p>
-                  {!jobs.length ? (
-                    <p>등록된 작업이 없습니다.</p>
-                  ) : (
-                    <div
-                      className="op-table-scroll"
-                      tabIndex={0}
-                      aria-label="작업 목록 가로 스크롤"
-                    >
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>작업 ID</th>
-                            <th>종류</th>
-                            <th>상태</th>
-                            <th>오류</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pageItems(jobs, jobPage).map((j) => (
-                            <tr key={j.id}>
-                              <td>{j.id}</td>
-                              <td>{j.kind || j.operation}</td>
-                              <td>{statusLabels[j.status] || j.status}</td>
-                              <td>{j.error_code || j.error || "—"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                  <ListPager
-                    page={jobPage}
-                    count={jobs.length}
-                    change={setJobPage}
-                  />
-                </section>
-              )}
-            {tab === "usage" && (
-              <section className="op-panel">
-                <h2>서버 사용량</h2>
-                {preview && (
-                  <Badge tone="plum">합성 예시 집계 · 실측이 아닙니다</Badge>
+                  </section>
                 )}
-                <label>
-                  조회 기간
-                  <select
-                    value={usageDays}
-                    disabled={busy}
-                    onChange={(e) => {
-                      const days = Number(e.target.value) as 7 | 14 | 30 | 90;
-                      setUsageDays(days);
-                    }}
-                  >
-                    <option value={7}>최근 7일</option>
-                    <option value={14}>최근 14일</option>
-                    <option value={30}>최근 30일</option>
-                    <option value={90}>최근 90일</option>
-                  </select>
-                </label>
-                <Button disabled={busy} onClick={() => void refreshUsage()}>
-                  집계 새로고침
-                </Button>
-                {!preview && usage && (
-                  <>
-                    <a
-                      className="button secondary"
-                      href={`/api/v1/usage/export?days=${usageDays}`}
-                      download="agent-knowledge-hub-usage.csv"
-                    >
-                      호출 CSV
-                    </a>
-                    <a
-                      className="button secondary"
-                      href={"/api/v1/usage/model-export?days=" + usageDays}
-                      download="agent-knowledge-hub-model-usage.csv"
-                    >
-                      모델 사용량 CSV
-                    </a>
-                  </>
-                )}
-                {usage ? (
-                  <Suspense fallback={<p role="status">집계를 불러오는 중…</p>}>
-                    <UsageReport data={usage} />
-                  </Suspense>
-                ) : (
-                  <p role={usageError ? "alert" : "status"}>
-                    {usageError || "서버 집계를 확인하고 있습니다…"} 미연결을
-                    0건으로 대체하지 않습니다.
-                  </p>
-                )}
-              </section>
+              </>
             )}
-            </>}
           </>
         )}
         <footer className="op-footer">

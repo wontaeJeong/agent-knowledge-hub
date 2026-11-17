@@ -70,6 +70,8 @@ export async function inventory(
   // configuration/index-maintenance metadata, never product content or resource lineage. Freeze
   // the exact SQL-visible schema: a future content column must fail closed.
   const compatibleControls: Record<string, string[]> = {
+    collaboration_inbox_state:["workspace_id:text:NO","principal_id:text:NO","next_sequence:bigint:NO","revision:bigint:NO"],
+    collaboration_inbox_mutations:["workspace_id:text:NO","principal_id:text:NO","mutation_id:text:NO","payload_hash:text:NO","visibility_hash:text:YES","updated:integer:NO","created_at:timestamp with time zone:NO"],
     legacy_compat_memberships: ["workspace_id:text:NO","principal_id:text:NO","role:text:NO","subject:text:NO","revoked:boolean:NO","captured_at:timestamp with time zone:NO"],
     legacy_compat_installation: ["singleton:boolean:NO","installation_id:uuid:NO","import_key_fingerprint:text:YES"],
     legacy_compat_manifest_imports: ["manifest_hash:text:NO","backup_hash:text:NO","key_fingerprint:text:NO","captured_at:timestamp with time zone:NO","issued_at:timestamp with time zone:NO","imported_at:timestamp with time zone:NO"],
@@ -119,6 +121,8 @@ export async function inventory(
   const controls = new Set(["access_audit","access_batch_authors","access_credentials","access_grants","access_review_rules","access_reviewers","access_shares","access_source_policy","access_spaces","access_triage","audit","content_retention_holds","content_retention_policies","content_retention_receipts","durable_budget_days","durable_budget_limits","feature_policies","legacy_v1_access_grants","legacy_v1_access_invitations","legacy_v1_access_reviewers","legacy_v1_access_spaces","legacy_v1_access_triage","memberships","operations_audit_archives","operations_audit_chain","operations_erased_artifacts","operations_erasure_receipts","operations_legal_holds","operations_policy","operations_recovery_acl","operations_tombstones","resource_readers","resources","runtime_sessions","storage_tickets","usage_events"]);
   controls.add("legacy_compat_memberships");
   controls.add("storage_collector_connections");
+  controls.add("collaboration_inbox_state");
+  controls.add("collaboration_inbox_mutations");
   controls.add("search_index_workspace_state");
   const unknown = [...new Set<string>(columns.filter(c => c.column_name === "workspace_id").map(c => c.table_name))].filter(t => !tables.includes(t) && !controls.has(t));
   const globalControls = new Set(["access_group_members","access_groups","access_invitations","access_namespaces","access_principals","access_service_accounts","access_team_members","durable_job_fairness","durable_job_stops","identity_directory_bindings","identity_directory_edges","identity_directory_proofs","identity_events","identity_group_denies","identity_manual_group_members","identity_session_activity","legacy_v1_access_audit","legacy_v1_access_function_definitions","legacy_v1_access_org_members","legacy_v1_access_orgs","legacy_v1_access_principals","legacy_v1_access_team_members","legacy_v1_access_teams","legacy_v1_identity_subjects","model_destinations","oidc_logins","operations_alert_outbox","operations_backups","operations_recovery_releases","runtime_directory_status","schema_migrations","workspaces"]);

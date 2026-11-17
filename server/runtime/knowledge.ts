@@ -1,3 +1,4 @@
+import { changesetDetailDb } from "../publication";
 import {
   bindCandidates,
   rejectedFeedback,
@@ -278,6 +279,16 @@ export class RuntimeService {
         };
       })(),
     }));
+  }
+  async changeset(ctx: Context, id: string) {
+    if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) throw Error("NOT_FOUND");
+    await ctx.authorization?.revalidate();
+    const result = await transaction(this.pool, ctx.workspaceId, async (db) => {
+      await ctx.authorization?.assertSession(db);
+      return changesetDetailDb(db, ctx, id);
+    });
+    await ctx.authorization?.revalidate();
+    return result;
   }
   async changesets(ctx: Context) {
     return transaction(this.pool, ctx.workspaceId, (db) =>

@@ -232,15 +232,16 @@ function lineageRefs(row: ProductRow) {
   if (row.table === "collaboration_events") {
     // Publication capture stores its originating batch ID, while page_id is
     // the independent target edge. Source-only erasure must follow the batch.
-    const kind = row.data.kind === "job-failure"
+    const kind = ["job-failure","job-success"].includes(String(row.data.kind))
       ? "job"
-      : ["publication", "change-review-request"].includes(String(row.data.kind))
+      : ["publication", "change-review-request", "change-review-decision"].includes(String(row.data.kind))
         ? "batch"
         : "page";
     const result=refs(row.data);
     if(typeof row.data.resource_id === "string")result.add(`${kind}:${row.data.resource_id}`);
     return result;
   }
+  if(row.table==="workflow_access_requests")return refs({...row.data,pageId:row.data.resource_type==="page"?row.data.resource_id:undefined});
   if (releasedImportTables.has(row.table))
     return refs({
       ...row.data,

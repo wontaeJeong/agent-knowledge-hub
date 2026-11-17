@@ -68,7 +68,9 @@ export function ConsoleShell({
   children,
   identity,
   active = tab,
+  notificationBell,
 }: {
+  notificationBell?: ReactNode;
   identity?: Identity | null;
   active?: ConsoleTab;
   preview: boolean;
@@ -206,9 +208,10 @@ export function ConsoleShell({
             {identity?.capabilities?.includes("draft.write") && (
               <Button onClick={() => navigate("compose")}>새 문서</Button>
             )}
-            {identity?.capabilities?.includes("knowledge.read") && (
-              <Button onClick={() => navigate("notifications")}>알림</Button>
-            )}
+            {identity?.capabilities?.includes("knowledge.read") &&
+              (notificationBell ?? (
+                <Button onClick={() => navigate("notifications")}>알림</Button>
+              ))}
             <span
               className={`console-environment ${preview ? "is-preview" : ""}`}
             >

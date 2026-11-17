@@ -27,6 +27,23 @@ export async function handleCollaborationRoute(
       .min(0)
       .parse(url.searchParams.get("offset") ?? 0);
   if (method === "GET") {
+    if (route === "/inbox")
+      return reply(
+        await service.inbox.list(ctx, {
+          ...(url.searchParams.has("state")
+            ? { state: url.searchParams.get("state") as any }
+            : {}),
+          ...(url.searchParams.has("type")
+            ? { type: url.searchParams.get("type") as any }
+            : {}),
+          ...(url.searchParams.has("limit")
+            ? { limit: Number(url.searchParams.get("limit")) }
+            : {}),
+          ...(url.searchParams.has("cursor")
+            ? { cursor: url.searchParams.get("cursor") }
+            : {}),
+        }),
+      );
     if (route === "/preferences") return reply(await service.preferences(ctx));
     if (route === "/subscriptions")
       return reply(await service.subscriptions(ctx));
@@ -52,6 +69,11 @@ export async function handleCollaborationRoute(
       );
   }
   if (method === "POST") {
+    if (route === "/inbox/read-all")
+      return reply(await service.inbox.readAll(ctx, body));
+    const inboxState = route.match(/^\/inbox\/([^/]+)\/state$/);
+    if (inboxState)
+      return reply(await service.inbox.setState(ctx, inboxState[1], body));
     if (route === "/subscriptions")
       return reply(await service.subscribe(ctx, body));
     const processed = route.match(/^\/notifications\/([^/]+)\/process$/);

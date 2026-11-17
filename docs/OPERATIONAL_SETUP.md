@@ -171,6 +171,13 @@ node scripts/k8s/verify-restore.mjs /external/private-backups/knowledge-TIMESTAM
 
 계정 화면은 현재 로그인한 사람의 세션만 조회·철회한다. 전체 로그아웃은 제품 세션과 그 실행 grant를 철회하며 외부 IdP 로그아웃 브리지가 구성되지 않았음을 응답한다. 기본 설정은 긴급 접근과 디렉터리 바인딩 관리가 모두 꺼져 있다. 선택적으로 `AKH_EMERGENCY_APPROVER_IDS`에 명시적으로 지정한 플랫폼 승인자 ID의 JSON 배열을 제공할 수 있다. 공간 Owner나 reviewer를 승인자로 추정하지 않는다. `AKH_IDENTITY_DIRECTORY_BINDINGS`에는 사전 승인된 `{key,issuer,externalGroupId,groupId,label}` 객체의 JSON 배열을 제공한다. 외부 그룹 ID는 공급자가 검증한 값과 정확히 일치해야 하며 브라우저에서 임의로 지정할 수 없다. 긴급 접근에는 최신 검증된 사람 증명과 원본 상한이 여전히 필요하다. 실제 IdP, 운영 정책과 TLS 구성은 별도로 검증해야 한다.
 
+
+### 개인 알림함 설정 (C2)
+
+- `AKH_INBOX_RETENTION_DAYS`: 서버 정수 설정, 기본90일, 범위1~3650. 기존 collaboration worker가 만료된 수신함 메타데이터와 mutation 영수증을 최대500건씩 정리한다. 수신자 순번 상태는 유지한다. 활성 법적 보존 또는 content retention hold가 있는 공간은 보수적으로 정리를 보류한다. 기존 erasure gate 및 retention inventory에 통합되며 원본·버전의 보존/삭제 정책을 바꾸지 않는다.
+- `AKH_INBOX_SIGNING_KEY`: 선택적 서버 전용 문자열, 32~4096자. 다중 인스턴스 또는 재시작 이후 동일 boundary/cursor 검증이 필요하면 동일한 비밀값을 안전하게 주입한다. VITE_ 변수나 브라우저에 넣지 않는다. 미설정 로컬 실행은 프로세스 임시 키를 사용한다. 재시작/키 교체 후 이전 cursor/boundary는 명시적 오류로 무효화되며 현재 인가된 목록을 다시 읽어야 한다. 넓은 범위의 read-all로 대체하지 않는다.
+- 기존 outbox/dispatcher·collaboration worker 구성이 이벤트 전달과 정리에 필요하다. UI 읽기는 이벤트 발행·메일 전송을 하지 않는다. 별도 이벤트/메일 엔진 또는 필수 외부 인프라를 추가하지 않았다.
+- 목록25, bell5, 활성 탭30초 및 재초점 갱신, 숨긴 탭 정지. 조회 후보10,000건 상한은 명시적413이며 대량 공간에서 부하·운영 정책 인수가 필요하다. 설정 키를 사용한 서비스 재생성/영수증 재시도와 임시 키 재시작 거부는 native 시험으로 확인했다. 실제 운영 키 보관/배포·IdP·다중 인스턴스 부하 인수는 별도다.
 ## Native search index maintenance (2026-11-16)
 
 Migration121 installs the trusted PostgreSQL pg_trgm extension and body GIN index. The migration role needs database CREATE permission for the extension; runtime maintenance needs ownership or appropriate PostgreSQL17 MAINTAIN authority on the versions table, plus namespace CREATE authority to recreate a missing index. Keep these as reviewed site database-role decisions; the API does not grant database privileges. Existing app/DB Pods and maintenance workers are reused.

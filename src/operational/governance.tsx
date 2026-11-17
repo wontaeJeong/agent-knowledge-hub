@@ -130,7 +130,62 @@ function Paged<T>({
   );
 }
 /** The host's authenticated, selected-space/CSRF adapter is mandatory. No identity inputs. */
-export function GovernanceWorkbench({
+function OwnAccessDecision(props: GovernanceProps) {
+  const {api,initialAccessRequestId,onExpired}=props;
+  const [result, setResult] = useState<{ id: string; status: string } | null>(
+      null,
+    ),
+    [error, setError] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setResult(null);
+    setError(false);
+    void api<{ id: string; status: string }>(
+      `/api/v1/governance/access-requests/${encodeURIComponent(initialAccessRequestId!)}`,
+    )
+      .then((value) => {
+        if (active) {
+          if (value.id !== initialAccessRequestId) setError(true);
+          else setResult(value);
+        }
+      })
+      .catch((e) => {
+        if (active) {
+          setError(true);
+          if (/UNAUTHENTICATED|401/.test(String(e))) onExpired();
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, initialAccessRequestId, onExpired]);
+  if (error && props.capabilities.includes("space.admin")) return <GovernanceWorkbenchBody {...props}/>;
+  if (error) return <p role="alert">대상이 없거나 현재 접근할 수 없습니다.</p>;
+  if (!result) return <p role="status">접근 요청 대상을 확인하고 있습니다.</p>;
+  return (
+    <section aria-label="선택한 접근 요청">
+      <h2>접근 요청 결정</h2>
+      <p>
+        {(
+          {
+            pending: "검토 대기",
+            approved: "승인",
+            rejected: "반려",
+          } as Record<string, string>
+        )[result.status] ?? "현재 상태 확인"}
+      </p>
+      <p>문서 열람은 현재 접근 권한을 따릅니다.</p>
+    </section>
+  );
+}
+export function GovernanceWorkbench(props: GovernanceProps) {
+  return props.initialAccessRequestId ? (
+    <OwnAccessDecision {...props} />
+  ) : (
+    <GovernanceWorkbenchBody {...props} />
+  );
+}
+function GovernanceWorkbenchBody({
   api,
   capabilities,
   onChanged,
@@ -163,7 +218,10 @@ export function GovernanceWorkbench({
   const [why, setWhy] = useState(""),
     [requestId, setRequestId] = useState(""),
     [requestReason, setRequestReason] = useState("");
-  const [targetState, setTargetState] = useState<{ id: string; state: "ready" | "unavailable" }>();
+  const [targetState, setTargetState] = useState<{
+    id: string;
+    state: "ready" | "unavailable";
+  }>();
   const allowed = capabilities.includes("space.admin");
   const fail = (e: unknown) => {
     setStatus(governanceFailure(e));
@@ -192,20 +250,37 @@ export function GovernanceWorkbench({
         setData(result[0] as Workbench);
         setReviews((result[1] as { items: Review[] }).items);
         if (allowed) {
-          const authorizedRequests = (result[2] as { items: AccessRequest[] }).items;
-          const selected = initialAccessRequestId ? authorizedRequests.filter(item => item.id === initialAccessRequestId && item.status !== "withdrawn" && item.status !== "revoked") : authorizedRequests;
+          const authorizedRequests = (result[2] as { items: AccessRequest[] })
+            .items;
+          const selected = initialAccessRequestId
+            ? authorizedRequests.filter(
+                (item) =>
+                  item.id === initialAccessRequestId &&
+                  item.status !== "withdrawn" &&
+                  item.status !== "revoked",
+              )
+            : authorizedRequests;
           setRequests(selected);
-          if (initialAccessRequestId) setTargetState({ id: initialAccessRequestId, state: selected.length ? "ready" : "unavailable" });
+          if (initialAccessRequestId)
+            setTargetState({
+              id: initialAccessRequestId,
+              state: selected.length ? "ready" : "unavailable",
+            });
           setHandoffs((result[3] as { items: Handoff[] }).items);
         }
-        if (initialAccessRequestId && !allowed) setTargetState({ id: initialAccessRequestId, state: "unavailable" });
+        if (initialAccessRequestId && !allowed)
+          setTargetState({ id: initialAccessRequestId, state: "unavailable" });
         setStatus(
           "현재 권한으로 확인한 작업입니다. 지연과 부재는 별도로 표시합니다.",
         );
       })
       .catch((e) => {
         if (alive) {
-          if (initialAccessRequestId) setTargetState({ id: initialAccessRequestId, state: "unavailable" });
+          if (initialAccessRequestId)
+            setTargetState({
+              id: initialAccessRequestId,
+              state: "unavailable",
+            });
           fail(e);
         }
       });
@@ -315,11 +390,18 @@ export function GovernanceWorkbench({
         {p.id}
       </option>
     ));
-  if (initialAccessRequestId && (!targetState || targetState.id !== initialAccessRequestId)) return <p role="status">접근 요청 대상을 확인하고 있습니다.</p>;
-  if (initialAccessRequestId && targetState?.state === "unavailable") return <p role="alert">대상이 없거나 현재 접근할 수 없습니다.</p>;
+  if (
+    initialAccessRequestId &&
+    (!targetState || targetState.id !== initialAccessRequestId)
+  )
+    return <p role="status">접근 요청 대상을 확인하고 있습니다.</p>;
+  if (initialAccessRequestId && targetState?.state === "unavailable")
+    return <p role="alert">대상이 없거나 현재 접근할 수 없습니다.</p>;
   return (
     <section aria-label="문서 운영 작업함">
-      <h2>{initialAccessRequestId ? "선택한 접근 요청" : "문서 운영 작업함"}</h2>
+      <h2>
+        {initialAccessRequestId ? "선택한 접근 요청" : "문서 운영 작업함"}
+      </h2>
       <p role="status" aria-live="polite">
         {status}
       </p>
@@ -645,7 +727,8 @@ export function GovernanceWorkbench({
             render={(r) => (
               <>
                 <span>
-                  <code>{r.id}</code> · {r.principal_id} · {pageLabel(r.resource_id)} · {r.reason} ·{" "}
+                  <code>{r.id}</code> · {r.principal_id} ·{" "}
+                  {pageLabel(r.resource_id)} · {r.reason} ·{" "}
                   {r.status === "pending"
                     ? "결정 대기"
                     : r.status === "approved"

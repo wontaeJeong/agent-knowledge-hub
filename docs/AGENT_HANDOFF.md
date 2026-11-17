@@ -771,7 +771,39 @@ Final feature validation (2026-11-17): `npm run check` passed after ancestry har
 - PR #56의 이후 최종9e209d2를 병합했다. 실제 source 차이는 없고 양쪽 HANDOFF/MISTAKE_LOG29줄을 보존했다. 원격9e209d2의 취소된 macOS job을 정상 재실행해 최신8개 검사가 전부 통과했다.
 - 유지관리 기본5초 native 예산 실패를 실제 단계 비용으로 진단하고 해당 파일의 async PG/정책/모델/worker 기본 사례14선언/그룹에만20초 예산을 명시했다. 원본 본문·assertion·제품 timeout·기존15초·순수 달력은 유지했다. Node24 전체 check(프런트293/Node48/import16/evaluation41/251요구사항/types/build/smoke) 및 native21시험 통과. 독립 검토와 최종main CI 후 머지한다. 나머지 기능/첫 배포1노드App1DB1 최소리소스 기준은 계속 유지한다.
 
+
+## 2026-11-17 C2 개인 알림함 (UXC-01)
+
+- 기준: 격리 worktree e5a9, `feat/convenience-inbox-20261117`, BASE `6d74a369f004dd4fa40eaceaa9bab0d4c3b41a79`(C1 + canonical #48 이벤트/승인 대기 보완 + #54/#60). baseline npm ci offline 및293 frontend/48 Node. #59 이후 main 통합·PR·독립 리뷰는 컨트롤러가 수행한다.
+- 연결 요구사항: UXC-01, CLB-002/004/005/006/007, JOB-007, ACL-008. 기존251 요구사항·North Star·운영 수용 상태는 변경하지 않았다. 사람이 현재 인가된 검토/작업으로 돌아가는 순환을 개선하는 것이 목표이며 지식 품질 또는 에이전트 성능 개선은 대조 평가하지 않았다.
+- 변경: migration140은 기존 workflow_notifications/outbox를 확장한다. 수신자 잠금/커밋 순번/이벤트 중복 키, 항목 revision CAS, 서명 경계, 현재 계보 ACL 기반 목록·개수·커서, 지연 전달 및 명시적 미읽음 보존, 재시도 영수증, 기본90일 메타데이터 정리와 기존 삭제/보존 fence. 새 독립 이벤트·메일 엔진은 없다.
+- 정확한 대상: 실제 멘션/댓글, 문서 발행, batch 검토 요청/결정, 문서 기한 검토의 현재 work 상태, 페이지 없는 작업 성공/실패, 본인 접근 요청 결정. C1 링크 및 보호된 탐색을 재사용한다. 기존 검토/접근 요청 서비스에 exact detail을 추가해 본인 read-only 결과를 열며 전체 입력 계보 ACL과 기존 관리자 타인 요청 권한은 유지한다. 실제 철회 audit는 unavailable, rejected는 권한이 있을 때 read-only다.
+- 파일: `server/collaboration/{inbox,service,events,http,worker}` 및 native inbox/http/upgrade/기존 collaboration 회귀, `server/migrations/140-user-inbox.sql`, canonical publication/runtime/governance/workflow 연결, operations/erasure와 retention/inventory; UI convenience의 Bell/Inbox/client/css/tests, 기존 App/ConsoleShell/ReviewSelection/governance/notifications. DTO 정수 revision 추가와 API·서명 키·조회 상한은 API_CONTRACT/OPERATIONAL_SETUP 및 승인 설계에 기록했다.
+- UI: bell5/전체25, 상태·유형 필터, 읽음/미읽음·보관/복원·관찰 경계 일괄 읽음, 활성30초/재초점 갱신과 숨김 정지, 계정/공간 전환·늦은 응답 보호. 기존 구독·전달·기한 검토·설정 화면은 유지하고 중복 알림 목록만 숨겼다. [실제1440/390 light/dark10장·키보드 검증](ui-validation/2026-11-17-personal-inbox/README.md).
+- 최종 검사: FINAL2 코드 기준 Node24.22.2, PostgreSQL17.11에서 `npm run check` exit0(frontend301, Node48, imports16, evaluation41, 요구사항251, 서버 typecheck/build/static HTTP smoke). 파일별 disposable PG를 사용하는 native13파일138시험도 exit0. 최종 로컬 로그는 `.superpowers/sdd/2026-11-16-essential-convenience/c2-logs/akh-c2-{check,regression}-final2.log`. 이는 독립 리뷰·CI·main 통합 완료를 뜻하지 않는다.
+- 한계/남은 조건: 조회 후보10,000건 초과는 명시적413; 기본 임시 키는 재시작/교체 시 토큰 무효(선택적32~4096자 서버 키로 유지 가능). 실제 IdP/메일/운영 키 배포/대량 부하 및 의미 품질은 검증하지 않았다. App 기존 파일의 formatter 공백 차이를 보존했으며 자동 승인 거절과 환경 실패는 MISTAKE_LOG에 남겼다. 로컬 구현·검증과 독립 리뷰·최종 CI·main 병합은 구분한다.
+
+
+## 2026-11-17 C2 리뷰 Round1 수정
+
+FIX_BASE be613da의 I1/I2/I3/M1을 실제 실패로 확인한 뒤 수정했다. 승인→발행 뒤에도 immutable 승인 결과 알림을 유지하되 현재 철회·전체 계보 권한과 read-only 경계를 보존한다. 결정 커서는 현재 원본 내용/reader 해시를 내부에 포함하고 DTO에는 노출하지 않는다. 늦은 POST의 완료/오류/busy는 발생 당시 query epoch와 operation에 묶어 새 필터 화면을 덮지 않는다. 미리보기에서 제거된 항목의 초점은 현재 허용된 같은 위치 항목/안전한 버튼으로 옮기며 보호된 과거 행을 남기지 않는다.
+
+최종 한 번 `npm run check` exit0(frontend309/Node48/import16/evaluation41/요구사항251/types/build/smoke), 전용 PG17의 native13파일142시험 exit0. [18장과 실제 도착/철회·Tab 키보드 결과](ui-validation/2026-11-17-personal-inbox/README.md). 원시 RED/GREEN/final 로그는 local task report의 `c2-logs/akh-c2-r1-*`. 기존 Vite chunk 경고는 deferred; 최종 exact-head CI/독립 재리뷰/병합은 미완료이며 운영 인수·의미 품질 개선은 주장하지 않는다.
+
+
+## 2026-11-17 C2 후속 CI 작업 예산
+
+리뷰 수정8d1cb9a와 별도 커밋으로 `.github/workflows/ci.yml` server job만15→20분으로 조정했다. 이전 be613da의 run44000325932/job133762488115는 약15분 뒤 operation canceled로 종료되었고131/132파일 통과, FAIL 없이 마지막 workflows.test에서 중단됐다. 전체 성공으로 기록하지 않는다. 컨트롤러의 마지막 파일 별도 실행은8d1cb9a/전용 PG32769에서36/36,3.15초,exit0이다. YAML 파싱 및 변경 범위를 검사했으며 제품/시험 assertion/개별 timeout/다른 job은 변경하지 않았다. config/docs만 바뀌어 전체 제품 suite는 반복하지 않았고 exact new HEAD CI의132개 이상 전체 파일 완료와 모든 필수 gate가 병합 조건이다.
 ## 2026-11-17 두 번째 완료 묶음 통합
 
 - main #59의6366597을 보존한 뒤 #55 인덱스, #58 질문 범위, #61 실제 추가 수집기, #57 구조/이력 왕복을 각각 최종8검사·독립 승인과 통합 회귀 후 머지했다. #64 예약 발행은 같은 원자 발행 코어 안에 가져오기 첨부 훅을 보존해 통합한다. 요구사항SRH-001~010/QNA-004/CORE-010/COL-004/LIF-008/009/REV 발행 관련이며 전체251개 기준·현재 권한/원본 상한은 유지한다.
 - 통합 전체check299/48/16/41/251 및 native49시험이 통과했다. 처음 전체검사의 무효한 관리 API fixture 실패와 수정은 MISTAKE_LOG에 보존했다. 원격 최종 CI와 통합 broad review를 통과한 뒤 다음 main PR로 반영한다. 실제 회사 SSO/모델 품질·운영 인수와 성능 효과는 주장하지 않는다. 1노드/App1/DB1 최소리소스 기준을 유지한다.
+
+
+## 2026-11-17 C2 최종 main 통합·전체 목록 초점 수정
+
+main537ba7a를 true base6366597로 병합한 체크포인트a2a76e2에서 #55index/#58scope/#61collector/#57roundtrip/#64scheduled publication과 C2를 모두 유지했다. App 읽기 전용 정규화 diff는 main 대비 C2 Bell/Inbox 연결만 남는다. 공통 발행 코어/가져오기 attachment 적용, 현재 질문 범위, retention index/inbox schema/FK 검사를 유지한다. CIserver20과 migration140은 변경하지 않았다.
+
+최종 리뷰의 전체25건 목록 focus→BODY를12실패로 재현한 뒤 현재 DOM의 이웃 행·동일 제어 또는 상태 필터로 복구했다. Bell과 작은 helper를 공유하며 접근 불가 행을 보존하지 않고, 사용자가 밖으로 이동했으면 초점을 가져오지 않는다. UI31시험 통과. 최종 한 번 npm run check exit0(frontend330/Node48/import16/evaluation41/251요구사항/types/build/smoke), 파일별 disposable PG의21파일215시험 exit0. C2기존13파일에 예약 발행 service/realOIDC HTTP, roundtrip, version publication, search index, question scope core/HTTP, native navigation을 더해 실제 main 공유 경계를 검증했다.
+
+[실제26장과 전체25건 도착/보관/철회 focus·scroll 결과](ui-validation/2026-11-17-personal-inbox/README.md). 원시 로그는 local task report의 `c2-logs/akh-c2-final-wave-*`. 기존8c1be04 remote run44004491997 all8 성공은 과거 HEAD 증거이며, 최종 통합+focus HEAD의 독립 재리뷰/필수CI/병합은 별도다. 기능 범위는 C2로 유지하며 다음 C 작업이나 운영·지식품질 인수를 완료로 올리지 않는다.

@@ -60,3 +60,27 @@ MCP의 검색·읽기·등록·변경 제안도 같은 서비스 계층을 호�
 현재 접근 관리 REST: `/api/v1/access`는 현재 공간의 서버 capability·실효 경로를, `/spaces`, `/organizations`, `/invitations`는 본인에게 보이는 목록을 반환한다. POST `/bootstrap`은 명시적 운영자 바인딩 이관, `/spaces`·`/organizations`는 생성, `/switch`는 허용된 공간 선택과 CSRF 교체다. 초대 생성/수락/취소, 조직 멤버 강등/제명, Team 생성·멤버 추가/회수, `/grants` 역할/만료·회수, `/reviewers` 지정, `/visibility`는 서버의 관리 capability를 요구한다. 요청 DTO/엄격한 검증은 `server/access-http.ts`가 기준이다. 실제 제품 grant를 `OIDC_GROUP_ROLES` 값으로 클라이언트에서 덮어쓰지 않는다.
 
 `POST /api/v1/changesets/:id/triage`는 Triage 이상의 공간 역할과 변경안 전체 근거의 현재 읽기를 함께 확인하고 `untriaged/needs-review/duplicate/blocked` 분류만 바꾼다. 승인·본문·발행 상태를 바꾸지 않는다.
+
+
+## 개인 알림함 (C2 / UXC-01, 2026-11-17)
+
+기존 인증·공간·CSRF 경로 아래 다음 API를 추가했다. 기존 `/collaboration/notifications`·preferences·구독·검토 기한·전달 API는 유지한다. UI 조회는 이벤트 생성이나 메일 발송을 수행하지 않는다.
+
+| `/api/v1` 뒤 경로 | 계약 |
+| --- | --- |
+| GET `/collaboration/inbox` | `state=all|unread|archived`, 선택적 `type`, `limit` 1~25(기본25, bell5), `cursor`. `{items,nextCursor,unreadCount,readBoundary}`. all은 보관 제외 |
+| POST `/collaboration/inbox/:id/state` | `{read?,archived?,expectedRevision,mutationId}`. 읽음과 보관을 독립 수정, 현재 인가된 InboxItem 반환 |
+| POST `/collaboration/inbox/read-all` | `{boundary,mutationId}` → `{updated}`. 해당 주체/공간의 서명된 관찰 경계까지, 현재 보이는 미보관·미읽음 항목만 변경 |
+| GET `/changesets/:id` | 기존 지식 서비스의 정확한 검토 대상 조회. 현재 작성자 또는 기존 qualified reviewer, 전체 페이지/입력/원본 계보 ACL 검사. rejected 결과는 readOnly이며 승인 권한을 부여하지 않음 |
+| GET `/governance/access-requests/:id` | 현재 요청자 본인의 `{id,status,revision,createdAt,decidedAt,readOnly:true}`만 반환. 문서 열람 권한과 별개이며 문서 제목·본문·원본·정책·요청/결정 사유·다른 요청자는 반환하지 않음 |
+
+InboxItem은 `{id,sequence,revision,type,createdAt,readAt,archivedAt,target,title,actionState}`다. 정수 `revision`을 호환 추가했다. 실제 상태가 바뀔 때 증가하며 같은 mutationId/본문 재시도는 중복 변경하지 않는다. 다른 본문 재사용은 MUTATION_CONFLICT, 오래된 revision은 STALE_VERSION이다. 기존 읽음 API로 변경된 상태도 같은 revision에 반영된다. read-all은 이후 전달된 outbox와 이후 명시적 미읽음 변경을 덮지 않는다. 재시도 영수증도 현재 주체·공간·본문·가시성을 다시 확인한다.
+
+타입은 mention/document-updated/review-requested/review-decided/review-due/job-succeeded/job-failed/access-decided다. 실제 언급 수신자만 mention이고 다른 댓글 수신자는 document-updated 및 정확한 comment target이다. 기한 검토는 문서 target과 실제 due-work 상태(needs-review/needs-assignment/acknowledged)를 사용한다. 지식 변경 검토는 정확한 batch ID를 사용한다. 기존 철회는 `rejected` 상태와 canonical `batch.withdraw` 감사 기록으로 구분하며 정확한 조회에서 unavailable 처리한다. 접근 요청 본인 결과는 일반 제목을 사용하고 기존 관리자 타인 요청 조회/결정 권한은 변경하지 않는다.
+
+목록 제목·개수·커서는 현재 대상/상위 위치/원본/입력 계보와 세션 인가를 사용한다. 커서는 주체·공간·필터·현재 정책 및 인가된 데이터 해시에 바인딩된다. 보호 대상 변경 시 오래된 커서를 재사용하지 않는다. 현재 조회 후보가 10,000건을 넘으면 부분 개수나 0건으로 위장하지 않고 INBOX_QUERY_LIMIT(413)을 반환한다. INVALID_BOUNDARY는400, STALE_CURSOR·STALE_VERSION·MUTATION_CONFLICT는409다. 권한·삭제에 의한 unavailable은 보호 내용을 포함하지 않는다.
+
+서명 키 설정/재시작 동작과 메타데이터 보존은 [운영 설정](OPERATIONAL_SETUP.md#개인-알림함-설정-c2)을 따른다. 읽음은 검토 완료가 아니며 보관은 업무 취소가 아니다.
+
+
+C2 리뷰 보완(2026-11-17): immutable approved 결정 이벤트는 동일 batch/hash의 canonical published 전이 뒤에도 검토 결정 알림으로 남는다. 이것은 현재 승인 권한을 부여하지 않으며 현재 철회·작성자/reviewer·전체 계보 ACL 검사를 계속 적용한다. 결정 이벤트 커서의 내부 인가 fingerprint에 현재 전체 페이지/원본 내용과 reader 집합을 포함하고, 공개 exact-detail/InboxItem DTO에는 해당 fingerprint 또는 계보 envelope를 넣지 않는다.

@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, React 19.3.1, Vite 8.3.5, Node `^22.12.0 || ^24.0.0`, npm `>=10`, PostgreSQL, existing marked/DOMPurify/Vitest. 기존 package-lock을 유지하고 의존성을 추가하기 전에 필요성을 확인한다.
 
-**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **미실행**이며 체크박스가 제품 구현 완료를 나타내지 않는다. 기존 PR 병합과 후속 기능 구현은 별도 작업이다.
+**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 로컬 구현·검증 결과를 기록했으며 독립 리뷰·최종 CI·main 통합 전이므로 완료 체크를 보류한다. 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
 
 ## Global Constraints
 
@@ -58,15 +58,15 @@
 
 **Interfaces:** Consumes existing `Identity`, `documentHref`, `resumeWorkspaceLink`. Produces `parseConvenienceLocation(search:string,hash:string): ConvenienceLocation`, `convenienceHref(location:ConvenienceLocation):string`, `navigationItems(identity:Identity): NavigationItem[]`. `ConvenienceLocation` validates the spec's section/draft/view/version/anchor union; legacy document/comment/share/tab locations remain valid. Exact task targets are `{section:'tasks',targetKind:'review'|'job'|'access-request',targetId:string}` and are passed into authorized panel initial-selection props.
 
-- [ ] Add failing route tests for old document/comment/share/discovery URLs, new section values, exact review/job/access target after login, deleted/denied target, invalid version, contradictory draft/document, external return URL, missing space and account transition.
-- [ ] Run `npx vitest run src/operational/convenience/route.test.ts src/operational/api.test.ts`; confirm failures are the missing contracts, not setup errors.
-- [ ] Implement typed route parsing/building, capability-based navigation and preserved legacy destinations. Wire identity/session generation changes to clear protected route state.
-- [ ] Run those tests plus `Navigation.test.tsx`, `src/operational/console.test.ts`; check keyboard menu selection and role-specific items in a real browser.
-- [ ] Record UXC coverage and commit `feat: add user navigation and compatible document locations`.
+- [x] Add failing route tests for old document/comment/share/discovery URLs, new section values, exact review/job/access target after login, deleted/denied target, invalid version, contradictory draft/document, external return URL, missing space and account transition.
+- [x] Run `npx vitest run src/operational/convenience/route.test.ts src/operational/api.test.ts`; confirm failures are the missing contracts, not setup errors.
+- [x] Implement typed route parsing/building, capability-based navigation and preserved legacy destinations. Wire identity/session generation changes to clear protected route state.
+- [x] Run those tests plus `Navigation.test.tsx`, `src/operational/console.test.ts`; check keyboard menu selection and role-specific items in a real browser.
+- [x] Record UXC coverage and commit `feat: add user navigation and compatible document locations`.
 
 ## Task 2: 알림함과 이벤트 연결
 
-**Files:** Create `server/migrations/117-user-inbox.sql`, `server/collaboration/inbox.ts`, `inbox.test.ts`, `src/operational/convenience/NotificationBell.tsx`, `NotificationInbox.tsx`, `inbox-client.ts`, `inbox.test.tsx`; Modify `server/collaboration/http.ts`, `service.ts`, `types.ts`, `server/workflows/service.ts`, `server/publication.ts`, `server/jobs/service.ts`, `server/workflows/governance/service.ts`, `src/operational/notifications.tsx`, `ConsoleShell.tsx`.
+**Files:** Create `server/migrations/140-user-inbox.sql`, `server/collaboration/inbox.ts`, `inbox.test.ts`, `src/operational/convenience/NotificationBell.tsx`, `NotificationInbox.tsx`, `inbox-client.ts`, `inbox.test.tsx`; Modify `server/collaboration/http.ts`, `service.ts`, `types.ts`, `server/workflows/service.ts`, `server/publication.ts`, `server/jobs/service.ts`, `server/workflows/governance/service.ts`, `src/operational/notifications.tsx`, `ConsoleShell.tsx`.
 
 **Interfaces:** Consumes current event/worker/preference and authorized target services, including PR #48 scoped subscriptions and durable outbox. Extend those existing events instead of creating a parallel event/worker engine. Produces `InboxService.list(ctx:Context,input:InboxQuery):Promise<InboxPage>`, `setState(ctx,id,input):Promise<InboxItem>`, `readAll(ctx,{boundary,mutationId}):Promise<{updated:number}>`, `recordInboxEvent(db:PoolClient,event:InboxEvent):Promise<void>`. DTOs, targets, limits and endpoint paths are fixed in UXC-01.
 

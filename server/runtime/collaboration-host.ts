@@ -20,6 +20,8 @@ export function createCollaborationHost(
   origin: string,
   options: RuntimeIdentityOptions & {
     dispatcherId?: string;
+    inboxRetentionDays?: number;
+    inboxSigningKey?: string;
     recipientBinding?: RecipientBinding;
     gateway?: DigestGateway;
   },
@@ -110,7 +112,12 @@ export function createCollaborationHost(
       },
       resolveReviewResponsibility: resolveGovernanceResponsibility,
     },
-    { applicationOrigin: origin, gateway: options.gateway },
+    {
+      applicationOrigin: origin,
+      gateway: options.gateway,
+      inboxRetentionDays: options.inboxRetentionDays,
+      inboxSigningKey: options.inboxSigningKey,
+    },
   );
   return {
     service,
