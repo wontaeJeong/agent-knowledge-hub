@@ -179,7 +179,14 @@ export async function runPolicyBoundExperiment({
               throw Error("EVALUATION_SOURCE_CLOSURE");
             if (
               input.pages.some(
-                (page) => seal.queryPageHashes.get(page.id) !== digest(page),
+                (page) =>
+                  seal.queryPageHashes.get(page.id) !==
+                  digest({
+                    id: page.id,
+                    title: page.title,
+                    version: page.version,
+                    content: page.content,
+                  }),
               )
             )
               throw Error("STALE_VERSION");

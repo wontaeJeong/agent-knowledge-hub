@@ -1,0 +1,31 @@
+# Native search index operations (Task1c)
+
+SRH-006/008, with SRH-001/002/004/007 compatibility. Migration121 adds a PostgreSQL GIN body index, transaction-bound content mutation observations, recorded maintenance outcomes and a fixed index operation in existing durable grants/workers. No new service, Pod or model call.
+
+## Retrieval and observations
+
+ScopedSearch executes parameterized literal LIKE on lower(version content), escaping percent/underscore and the explicit escape character, as a physical GIN candidate query. This SQL is not the canonical match predicate: PostgreSQL lower() follows the database locale, while JavaScript toLocaleLowerCase() can use different locale-sensitive/contextual/expanding mappings. A native PostgreSQL17 fixture reproduces final-sigma and dotted-I false negatives and overmatches. Every final body/title/summary result uses the existing JavaScript toLocaleLowerCase().includes() semantics, without adding Unicode normalization or fuzzy matching. [PostgreSQL17 string functions](https://www.postgresql.org/docs/17/functions-string.html), [ECMAScript locale case mapping](https://tc39.es/ecma402/#sup-string.prototype.tolocalelowercase).
+
+The shared candidate helper conservatively unions keys from the already-loaded authorized version snapshot: a non-ASCII query adds all snapshot versions; an ASCII query adds every non-ASCII body. Each nonempty query also compares actual database ASCII-alphabet folding with the process's JavaScript mapping; if different, all snapshot versions are added. Final JavaScript checking removes SQL overmatches. This fallback reads no additional content, never truncates, and does not bypass current source/dependency ACL or historical checks. Empty-query semantic corpus preparation remains unchanged and does not run this candidate/probe work.
+
+The fallback is bounded to the existing caller-authorized in-memory snapshot, not a new hard count/byte quota. The existing view still materializes workspace state; growing-workspace work and latency are unmeasured. In particular, Unicode queries including Korean may require a full authorized-snapshot scan, so end-to-end Unicode candidate pruning or acceleration is not claimed. The actual fixed SQL retains and tests native GIN plans for selective Korean and code patterns on10,000 versions; this demonstrates physical index use, not whole-search performance. Small tables or short patterns may use other plans; titles/metadata retain their existing filters. [PostgreSQL17 pg_trgm](https://www.postgresql.org/docs/17/pgtrgm.html).
+
+Native index maintenance and the workspace observation trigger run in the same transaction as versions mutations. Rollback preserves both. Observation timestamps are database statement observations visible after successful commit, not independently measured commit or knowledge-verification timestamps. Status returns catalog readiness, actual bytes, content observations, the last recorded index creation/rebuild success and recorded failure. Background lag is not measured; lagSeconds is null. Catalog flags are not a physical corruption detector.
+
+## Fixed administrative operation
+
+Physical maintenance affects the database-wide index. Admission requires configured AKH_PLATFORM_OPERATOR_IDS membership plus the current space Admin role through a verified human login session. Bare contexts, PATs, service/delegated jobs and legacy agent keys cannot substitute. The payload accepts no table/index/SQL/model override. Schedules are rejected.
+
+A server-minted one-operation index grant binds the existing same-human parent session. Execution validates that exact grant/session, then separately checks the human's current Admin role and configured operator membership for this fixed operation. Its credential retains only ordinary read/propose actions and grants no general Admin delegation. Revocation is checked before effects and result reads.
+
+The existing maintenance worker executes REINDEX, or CREATE INDEX when missing. Index replacement, success metadata and retry checkpoint commit atomically. Failure rolls back replacement and preserves prior index/last success; a separate authorized transaction records safe failure metadata. If revocation prevents that write, the actual failed job remains visible under current policy. Successful checkpoint replay avoids repeating the physical effect. UI confirmed dead/cancelled retries get new keys; uncertain admission/network/poll results retain their keys.
+
+Non-concurrent REINDEX supports the required single transaction. It can briefly block writes/index readers; existing5s lock and15s statement bounds apply. Large work may fail safely. Concurrent REINDEX requires multiple transactions and is not silently substituted. [PostgreSQL17 REINDEX](https://www.postgresql.org/docs/17/sql-reindex.html).
+
+GET /api/v1/search/index returns guarded status. POST /api/v1/search/index/rebuild accepts only {idempotency_key}, returns202 durable acknowledgement/trace and uses existing job controls. The compact jobs-console panel displays observations separately from completion. Extension operator classes are qualified by actual extension namespace; object names are derived and quoted by PostgreSQL from the resolved versions schema, including isolated-schema upgrades.
+
+## North Star and validation
+
+The change improves safe Query access and maintainability of a derivative index. It changes no sources, conclusions, reviews, approvals or publications. Exact current ACL/source ceilings remain outside candidate selection. A real10,000-version EXPLAIN ANALYZE fixture proves the actual candidate SQL uses the GIN index; it is not a company workload benchmark or downstream performance evidence.
+
+Native tests cover literal Korean/code matching, current source revocation, committed/rolled-back observations, actual lock-failure rollback/recovery, missing-index recreation, identity/Admin revocation, operator/role/PAT/session ceilings and actual OIDC HTTP/CSRF/strict inputs. Existing runtime, policy, historical search, release-upgrade, erasure and storage graph regressions run. Actual1440/390 browser captures use explicitly labeled synthetic UI replies; real SQL/HTTP execution is separate. Large-index performance, corruption detection and production operating acceptance remain unverified.

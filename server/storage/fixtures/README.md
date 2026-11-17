@@ -1,6 +1,6 @@
 # 수집기 fixture
 
-P7은 아래 호출자 payload 경로의 차단을 유지하고, 승인된 개인 host/session을 직접 조회하는 별도 `TrustedArtifactCollector`를 추가한다. 고정 session/message URL·현재 canonical 신원·연결 revision·서버 제외 정책·전후 version probe를 검사한다. 실제 합성 TLS/HTTP/DB와 아래 fixture로 검증하며 현재 로컬 패키지1.15.0을2.2.2 설치 인수로 표시하지 않는다. 실제 승인 host/version probe 및 전용 소유권 선언은 운영자가 검증해야 한다.
+P7은 아래 호출자 payload 경로의 차단을 유지하고, 승인된 개인 host/session을 직접 조회하는 별도 `TrustedArtifactCollector`를 추가한다. 버전별 고정 session 경로·명시 항목 선택·현재 canonical 신원·연결 revision·서버 제외 정책·전후 version probe를 검사한다. 실제 합성 TLS/HTTP/DB와 아래 fixture로 검증하며 현재 로컬 패키지1.15.0을2.2.2 설치 인수로 표시하지 않는다. 실제 승인 host/version probe 및 전용 소유권 선언은 운영자가 검증해야 한다.
 
 `opencode-2.2.2-synthetic.json`은 2026-10-30 로컬 설치된 `opencode v2.2.2`에서 별도 합성 시험 세션을 만들고 `POST /api/session/{sessionID}/synthetic`에 `resume:false`로 한글 시험 문구를 등록해 받은 **실제 HTTP API 응답 형식**이다. 모델 호출·도구 실행은 하지 않았다. 메시지/세션 ID만 익명화했다. 사용자 업무 대화·자격증명·추론 내용은 포함하지 않았다.
 
@@ -8,6 +8,13 @@ P7은 아래 호출자 payload 경로의 차단을 유지하고, 승인된 개�
 
 현재 `api.synthetic-message`와 `api.assistant-message` 자동 수집은 모두 `ARTIFACT_SESSION_UNVERIFIED`로 차단한다. assistant 응답에 세션 ID가 없으며 synthetic도 본문 전체와 제외 목록을 호출자가 위조할 수 있다. 기존 성공·출력 필터 시험은 이 제한 때문에 차단 회귀로 대체했다. 신뢰할 수 있는 외부 authority의 정확한 artifact·세션 결합과 서버 보유 제외 정책 및 현재 권한을 검증하기 전까지 재활성화하지 않는다. 실제 호스트/원격 결합은 미구현·미검증이다. 전체 세션 export/다른 버전/도구 설치 승인은 검증했다고 주장하지 않는다.
 
+## OpenCode2.3.0 actual isolated fixture (2026-11-17 KST)
+
+`opencode-2.3.0-synthetic.json` was obtained from the installed `opencode v2.3.0` server, started with isolated XDG data/cache/config/state and a temporary synthetic project. Actual `/openapi.json` described the create/synthetic endpoints. POST `/api/session` created a new test session; POST `/api/session/{sessionID}/synthetic` used `resume:false`. GET `/api/info` reported2.3.0. The message/session IDs alone were anonymized; timestamp, event shape and synthetic English text are actual received bytes. No model call or tool execution occurred. No work conversation, host info, tokens, file paths or reasoning is in this fixture.
+
+Configured trusted-host collection supports exactly2.3.0 `api.synthetic-message` with pre/post exact version probes (recommended `versionPath:/api/info`), the fixed approved-session inbox route and exact selected-item binding, current canonical human identity/connection revision and host-owned exclusion policy. Existing omitted-version bindings remain2.2.2 with unchanged fingerprints. Use a new explicit binding ID when upgrading an installed host; changing its pinned configuration does not silently reauthorize an old connection. Raw caller artifacts remain denied.2.3.0 assistant/tool-output formats and other versions remain unsupported because no actual corresponding fixture was captured. The synthetic statement is always private and unverified. Local fixture capture is distinct from corporate approved-host/TLS installation acceptance.
+
+Live GET verification found an important API distinction: with resume:false,2.3.0 keeps the synthetic item in `/api/session/{sessionID}/inbox`, while `/message/{messageID}` correctly returns404. `opencode-2.3.0-inbox.json` is the actual GET response with only the same two IDs anonymized. The2.3.0 adapter therefore fetches the explicitly operator-approved session inbox (bounded to100 entries and existing byte/time limits), selects exactly the requested ID, requires its embedded session ID and strict captured synthetic schema, and persists only that item. Other pending payloads are not returned or stored. A consumed/deleted item returns NOT_FOUND, never a fake empty success. The2.2.2 legacy message adapter is unchanged. The first synthetic-only transport tests incorrectly modeled the message path; actual host verification caught it and the corrected inbox transport regressions were observed failing before the fix.
 ## Synthetic APNG image fixture
 
 animated-two-frame.png is the independent reviewer-generated 195-byte 1x1 red/green two-frame APNG. Actual Chromium showed animation while sharp0.35.5 omitted metadata.pages. It contains no work or personal data and is used only for codec and native HTTP rejection regressions, not as a supported image or collector sample.

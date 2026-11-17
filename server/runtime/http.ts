@@ -1,3 +1,4 @@
+import { ScheduledPublicationService } from "../jobs/scheduled-publication";
 import { discoveryReport } from "../discovery";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
@@ -106,6 +107,13 @@ export function createRuntimeHandler(options: {
 }) {
   const storageHandler = options.storage
     ? storageRoutes(options.storage, options.collector, options.artifacts)
+    : undefined;
+  const scheduledPublication = options.auth
+    ? new ScheduledPublicationService(
+        options.pool,
+        (row) => options.auth!.backgroundContext(row),
+        options.auth.sessionPolicy,
+      )
     : undefined;
   const legacyAccess = new LegacyAccessService(options.pool);
   const versions = new VersionService(options.pool, authorizeInTransaction);
@@ -341,6 +349,60 @@ export function createRuntimeHandler(options: {
           path.startsWith("/api/v1/storage/") ? 5 * 1024 * 1024 : 512000,
         );
       }
+      const scheduleRoute = path.match(
+        /^\/api\/v1\/changesets\/([a-zA-Z0-9_-]{1,100})\/publication-schedules(?:\/(preview))?$/,
+      );
+      const scheduleItem = path.match(
+        /^\/api\/v1\/publication-schedules\/([a-zA-Z0-9_-]{1,100})(?:\/(cancel))?$/,
+      );
+      if (scheduleRoute || scheduleItem) {
+        if (credential || agent) throw Error("FORBIDDEN");
+        if (!scheduledPublication) throw Error("NOT_FOUND");
+        if (scheduleRoute) {
+          if (req.method === "GET" && !scheduleRoute[2])
+            return send(
+              200,
+              await scheduledPublication.list(ctx, scheduleRoute[1]),
+            );
+          if (req.method === "POST") {
+            if (scheduleRoute[2])
+              return send(
+                200,
+                await scheduledPublication.preview(ctx, scheduleRoute[1], body),
+              );
+            const key = z
+              .string()
+              .trim()
+              .min(1)
+              .max(200)
+              .parse(req.headers["idempotency-key"]);
+            return send(
+              201,
+              await scheduledPublication.create(
+                ctx,
+                scheduleRoute[1],
+                body,
+                key,
+              ),
+            );
+          }
+        }
+        if (scheduleItem) {
+          if (req.method === "GET" && !scheduleItem[2])
+            return send(
+              200,
+              await scheduledPublication.read(ctx, scheduleItem[1]),
+            );
+          if (req.method === "POST" && scheduleItem[2]) {
+            z.object({}).strict().parse(body);
+            return send(
+              200,
+              await scheduledPublication.cancel(ctx, scheduleItem[1]),
+            );
+          }
+        }
+        throw Error("NOT_FOUND");
+      }
       if (path.startsWith("/api/v1/identity/")) {
         if (credential || agent) throw Error("FORBIDDEN");
         if (!options.identityServices) throw Error("NOT_FOUND");
@@ -438,6 +500,25 @@ export function createRuntimeHandler(options: {
         )
           return;
         return send(404, { code: "NOT_FOUND", requestId });
+      }
+      if (path === "/api/v1/search/index" && req.method === "GET") {
+        if (!options.jobs) throw Error("SEARCH_INDEX_NOT_CONFIGURED");
+        return send(200, await options.jobs.searchIndex.status(ctx));
+      }
+      if (path === "/api/v1/search/index/rebuild" && req.method === "POST") {
+        if (!options.jobs) throw Error("SEARCH_INDEX_NOT_CONFIGURED");
+        const data = z
+          .object({ idempotency_key: z.string().min(1).max(200) })
+          .strict()
+          .parse(body);
+        const receipt = await options.jobs.submitInteractive(
+          ctx,
+          "index",
+          { action: "rebuild-search-index" },
+          data.idempotency_key,
+        );
+        await recordJobTrace(options.pool, ctx, requestId, "index", receipt.id);
+        return send(202, { ...receipt, requestId });
       }
       if (path === "/api/v1/search/semantic" && req.method === "POST") {
         if (agent) throw Error("FORBIDDEN");
@@ -889,8 +970,17 @@ export function createRuntimeHandler(options: {
           );
         if (path === "/api/v1/discovery") {
           const days = url.searchParams.get("days") || "7";
-          if (!["7", "14", "30", "90"].includes(days)) throw Error("VALIDATION_FAILED");
-          return send(200, await discoveryReport(options.pool, service, ctx, Number(days) as 7 | 14 | 30 | 90));
+          if (!["7", "14", "30", "90"].includes(days))
+            throw Error("VALIDATION_FAILED");
+          return send(
+            200,
+            await discoveryReport(
+              options.pool,
+              service,
+              ctx,
+              Number(days) as 7 | 14 | 30 | 90,
+            ),
+          );
         }
         if (path === "/api/v1/pages")
           return send(200, { items: await service.pages(ctx) });
@@ -1009,7 +1099,7 @@ export function createRuntimeHandler(options: {
               ),
             );
           }
-          return send(200, await service.query(ctx, b.question, b.mode));
+          return send(200, await service.query(ctx, b.question, b.mode, undefined, undefined, b.scope));
         }
         if (path === "/api/v1/lint") {
           z.object({}).strict().parse(body);
@@ -1108,6 +1198,11 @@ export function createRuntimeHandler(options: {
             ? e.message
             : "";
       const statuses: Record<string, number> = {
+        SCHEDULE_TIME_INVALID: 400,
+        SCHEDULE_AUTHORIZATION_EXPIRES: 409,
+        SCHEDULE_PREVIEW_STALE: 409,
+        SCHEDULE_ALREADY_EXISTS: 409,
+        SCHEDULE_FINISHED: 409,
         NOT_FOUND: 404,
         ENOENT: 404,
         FORBIDDEN: 403,

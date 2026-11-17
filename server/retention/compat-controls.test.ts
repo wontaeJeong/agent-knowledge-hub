@@ -25,3 +25,41 @@ test("known compatibility and collector controls remain metadata-only; added col
     await db.query("ROLLBACK"); db.release(); await f.pool.end();
   }
 });
+
+test('native index controls are metadata-only and never retention content roots',async()=>{
+ const f=await fixture(),db=await f.pool.connect();
+ try{
+  const global=(await db.query('SELECT * FROM search_index_state ORDER BY id')).rows;
+  const workspace=(await db.query('SELECT * FROM search_index_workspace_state WHERE workspace_id=$1',[f.workspaceId])).rows;
+  expect(global).toHaveLength(1);expect(workspace).toHaveLength(1);
+  const rows=await inventory(db,f.workspaceId);
+  expect(rows.some(row=>['search_index_state','search_index_workspace_state'].includes(row.table))).toBe(false);
+  expect((await db.query('SELECT * FROM search_index_state ORDER BY id')).rows).toEqual(global);
+  expect((await db.query('SELECT * FROM search_index_workspace_state WHERE workspace_id=$1',[f.workspaceId])).rows).toEqual(workspace);
+ }finally{db.release();await f.pool.end()}
+});
+test.each(['search_index_state','search_index_workspace_state'])('native index control %s rejects future content columns',async table=>{
+ const f=await fixture(),db=await f.pool.connect();
+ try{await db.query('BEGIN');await expect(inventory(db,f.workspaceId)).resolves.toEqual(expect.any(Array));await db.query(`ALTER TABLE ${table} ADD COLUMN future_private_body text`);await expect(inventory(db,f.workspaceId)).rejects.toThrow('RETENTION_GRAPH_UNSUPPORTED')}finally{await db.query('ROLLBACK');db.release();await f.pool.end()}
+});
+test.each(['search_index_state','search_index_workspace_state'])('native index control %s rejects a new product foreign key even without column drift',async table=>{
+ const f=await fixture(),db=await f.pool.connect();
+ try{await db.query('BEGIN');await expect(inventory(db,f.workspaceId)).resolves.toEqual(expect.any(Array));const column=table==='search_index_state'?'last_success_job_id':'workspace_id';await db.query(`ALTER TABLE ${table} ADD CONSTRAINT future_product_fk FOREIGN KEY (${column}) REFERENCES durable_jobs(id) NOT VALID`);await expect(inventory(db,f.workspaceId)).rejects.toThrow('RETENTION_GRAPH_UNSUPPORTED')}finally{await db.query('ROLLBACK');db.release();await f.pool.end()}
+});
+
+test.each([
+ ['search_index_state','ALTER COLUMN last_success_kind DROP NOT NULL'],
+ ['search_index_workspace_state','ALTER COLUMN revision TYPE integer'],
+])('native index control %s rejects type or nullability drift',async(table,change)=>{
+ const f=await fixture(),db=await f.pool.connect();
+ try{await db.query('BEGIN');await expect(inventory(db,f.workspaceId)).resolves.toEqual(expect.any(Array));await db.query(`ALTER TABLE ${table} ${change}`);await expect(inventory(db,f.workspaceId)).rejects.toThrow('RETENTION_GRAPH_UNSUPPORTED')}finally{await db.query('ROLLBACK');db.release();await f.pool.end()}
+});
+test('native index workspace control rejects changed allowed FK deletion semantics',async()=>{
+ const f=await fixture(),db=await f.pool.connect();
+ try{
+  await db.query('BEGIN');await expect(inventory(db,f.workspaceId)).resolves.toEqual(expect.any(Array));
+  await db.query('ALTER TABLE search_index_workspace_state DROP CONSTRAINT search_index_workspace_state_workspace_id_fkey');
+  await db.query('ALTER TABLE search_index_workspace_state ADD FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE');
+  await expect(inventory(db,f.workspaceId)).rejects.toThrow('RETENTION_GRAPH_UNSUPPORTED');
+ }finally{await db.query('ROLLBACK');db.release();await f.pool.end()}
+});

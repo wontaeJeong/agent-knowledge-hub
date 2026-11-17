@@ -45,3 +45,7 @@
 ## Configured semantic retrieval (2026-11-16)
 
 Agent wiki_semantic_search and cookie knowledge_semantic_search accept {filters, idempotency_key} and return a durable query receipt, not immediate success. Web equivalent: POST /api/v1/search/semantic; agent REST: /api/v1/agent/semantic-search. Canonical current/history filters apply, with no cursor/model/endpoint/identity override. Poll jobs under current credentials. Selected versions include exact quoted evidence and unverified relevance proposals; provider/model/usage follows actual invocation. Missing configuration, source/destination policy, budget, input limit, stale inputs or invalid model output fails without lexical fallback. [Contract and limits](implementation/2026-11-16-semantic-search.md).
+
+## 질문 범위/컨텍스트 추가 (2026-11-17)
+
+`knowledge_query`와 `wiki_get_context`의 선택적 `scope`는 주제(문서 분류), 현재/과거 발행 기록, UTC 발행 기간과 등록 조건을 제한한다. 현재 인증 공간/credential·원본 상한을 넓히지 않는다. 실제 provider와 agent 컨텍스트에 같은 버전의 근거·전체 예외·유효 기간을 전달하며, 과거 속성/적용 조건 미기록은 unknown이다. 결과는 인증 공간과 실제 선택 범위·조회 시각을 기록한다. [정확한 입력·시점·예산·현재 제약](implementation/2026-11-16-question-scope.md)을 따른다.

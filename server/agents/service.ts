@@ -18,7 +18,12 @@ import {
   fingerprint,
 } from "../provenance";
 import { propose, digest } from "../publication";
-import { sourceInput, drafts as updatesSchema } from "../runtime/schema";
+import { querySelectionDb } from "../questions/scope";
+import {
+  queryScope,
+  sourceInput,
+  drafts as updatesSchema,
+} from "../runtime/schema";
 import type {
   WorkflowAuthorizer,
   WorkflowResource,
@@ -83,6 +88,7 @@ export const agentInputs = {
       project: z.string().max(200).optional(),
       environment: z.string().max(200).optional(),
       token_budget: z.number().int().min(64).max(16000),
+      scope: queryScope.optional(),
     })
     .strict(),
   wiki_submit_artifact: z
@@ -386,55 +392,100 @@ export class AgentService {
   }
   async context(ctx: Context, input: unknown) {
     const q = agentInputs.wiki_get_context.parse(input);
-    const candidates = await this.search(ctx, {
-      query: q.task,
-      project: q.project,
-      environment: q.environment,
-      limit: 100,
-    });
-    const items: Awaited<ReturnType<AgentService["read"]>>[] = [],
-      omitted: {
+    const asOf = new Date().toISOString();
+    return this.run(ctx, "knowledge.read", async (db) => {
+      const { state } = await this.runtime.view(db, ctx);
+      const selection = await querySelectionDb(
+        this.pool,
+        db,
+        ctx,
+        state,
+        q.task,
+        {
+          ...q.scope,
+          project: q.project ?? q.scope?.project,
+          environment: {
+            ...(q.environment ? { environment: q.environment } : {}),
+            ...q.scope?.environment,
+          },
+        },
+        asOf,
+        this.authorize,
+        "context",
+      );
+      const items: ((typeof selection.pages)[number] & {
+        page_id: string;
+        source_refs: unknown[];
+        conditions: unknown;
+      })[] = [];
+      const omitted: {
         pageId: string;
         version: number;
         reason: string;
         readTool: string;
       }[] = [];
-    for (const p of candidates.items) {
-      const item = await this.read(ctx, { page_id: p.id, version: p.version });
-      if (
-        Buffer.byteLength(JSON.stringify([...items, item]), "utf8") >
-        q.token_budget
-      ) {
-        omitted.push({
-          pageId: p.id,
-          version: p.version,
-          reason: "budget",
-          readTool: "wiki_read",
-        });
-        continue;
+      for (const item of selection.pages) {
+        const entry = {
+          ...item,
+          page_id: item.id,
+          source_refs: selection.pageEnvelopes[
+            `${item.id}:${item.version}`
+          ].sourceIds.map((id) => ({
+            id,
+            version: 1,
+            location: "content",
+          })),
+          conditions: {
+            ...item.metadata,
+            project: item.metadata?.project ?? null,
+            environment: item.metadata?.environment ?? null,
+            effectiveFrom: item.metadata?.effectiveFrom ?? null,
+            reviewDue: item.metadata?.reviewDate ?? null,
+            lifecycle: item.metadata?.state ?? null,
+            currentRecommendation: item.currentRecommendation,
+          },
+          verification: item.metadata?.verification ?? null,
+          verifiedAt: selection.scope.historical
+            ? null
+            : (state.pages.find((p) => p.id === item.id)?.verifiedAt ?? null),
+        };
+        if (
+          Buffer.byteLength(JSON.stringify([...items, entry]), "utf8") >
+          q.token_budget
+        )
+          omitted.push({
+            pageId: item.id,
+            version: item.version,
+            reason: "budget",
+            readTool: "wiki_read",
+          });
+        else items.push(entry);
       }
-      items.push(item);
-    }
-    // Recheck every selected/omitted page immediately before exposing even its identifier.
-    await this.run(ctx, "knowledge.read", async (db) => {
-      for (const p of candidates.items)
-        await this.binding(db, ctx, { kind: "page", id: p.id });
+      // All data, including claim ancestors and omitted identifiers, stays in one authorized transaction.
+      for (const id of selection.envelope.pageIds)
+        await this.binding(db, ctx, { kind: "page", id });
+      for (const id of selection.envelope.sourceIds)
+        await this.binding(db, ctx, { kind: "source", id });
+      return {
+        schemaVersion: "1.0",
+        items,
+        omitted,
+        insufficient: items.length === 0,
+        budget: {
+          requestedTokens: q.token_budget,
+          evidenceUtf8Bytes: Buffer.byteLength(JSON.stringify(items)),
+          accounting: "conservative-utf8-byte-bound",
+          exactModelTokenCount: null,
+          includesEnvelope: false,
+        },
+        warning:
+          "적용 조건이나 과거 메타데이터가 미등록이면 적용 여부는 알 수 없습니다. 예외와 유효 기간을 확인하세요.",
+        workspaceId: ctx.workspaceId,
+        scope: selection.scope,
+        temporalMode: selection.temporalMode,
+        candidatesOmitted: selection.omitted,
+      };
     });
-    return {
-      schemaVersion: "1.0",
-      items,
-      omitted,
-      insufficient: items.length === 0,
-      budget: {
-        requestedTokens: q.token_budget,
-        evidenceUtf8Bytes: Buffer.byteLength(JSON.stringify(items)),
-        accounting: "conservative-utf8-byte-bound",
-        exactModelTokenCount: null,
-        includesEnvelope: false,
-      },
-      warning:
-        "적용 조건이 미등록이면 현재 업무에 적용된다고 확정하지 않습니다. 생략된 근거는 wiki_read로 추가 조회하세요.",
-    };
   }
   async submitArtifact(ctx: Context, input: unknown) {
     const q = agentInputs.wiki_submit_artifact.parse(input);

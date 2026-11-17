@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { importMetadataPlans } from "./roundtrip";
 import type { PoolClient } from "pg";
 import type {
   StorageService,
@@ -391,7 +392,7 @@ export class ImportWorkflow {
         const parent = original.operational?.parent_id;
         if (parent) {
           const parentId = id.parse(parent);
-          links.add(parentId);
+          if (archive.manifest.version === 1) links.add(parentId);
           pending.push(parentId);
           if (state.pages.some((p) => p.id === parentId))
             dependencies.add(parentId);
@@ -423,11 +424,34 @@ export class ImportWorkflow {
         scope: old?.scope ?? "private",
         links: [...links].filter((link) => link !== p.id),
         sourceIds: [...requiredSources],
-        facts: [],
+        facts: z
+          .array(
+            z
+              .object({
+                key: z.string().min(1).max(1000),
+                context: z.string().max(2000),
+                value: z.string().min(1).max(5000),
+                sourceId: id,
+                quote: z.string().min(1).max(10000),
+              })
+              .strict(),
+          )
+          .max(100)
+          .parse(p.data.facts ?? [])
+          .map((f) => ({
+            ...f,
+            sourceId: sourceMap[f.sourceId] ?? f.sourceId,
+          })),
         baseVersion: base,
       });
     }
     return {
+      metadataPlans: await importMetadataPlans(
+        db,
+        ctx,
+        archive.manifest,
+        drafts,
+      ),
       archive,
       state,
       sourceMap,
@@ -577,6 +601,7 @@ export class ImportWorkflow {
         [...new Set(prepared.drafts.flatMap((d) => d.sourceIds))],
         {
           expectedStateHash: digest(prepared.state),
+          versionMetadataPlans: prepared.metadataPlans,
           inputEnvelope: prepared.envelope,
           dependencyIds: prepared.dependencies,
           onCreated: async (db, result) => {

@@ -147,6 +147,11 @@ export class OperationalApi {
           ? data.code
           : "REQUEST_FAILED";
       const messages: Record<string, string> = {
+        SCHEDULE_AUTHORIZATION_EXPIRES: "예약 시각이 현재 세션의 유효 기간을 넘습니다. 다시 로그인하거나 더 이른 시각을 선택하세요.",
+        SCHEDULE_TIME_INVALID: "미래의 예약 시각을 선택하세요.",
+        SCHEDULE_PREVIEW_STALE: "예약 미리보기 기준이 변경되었습니다. 다시 확인하세요.",
+        SCHEDULE_ALREADY_EXISTS: "이 변경 집합에 실행 대기 중인 예약이 있습니다.",
+        SCHEDULE_FINISHED: "이미 실행되거나 종료된 예약은 취소할 수 없습니다.",
         RESTORE_PATH_CONFLICT: "같은 위치에 같은 제목의 문서가 있습니다. 다른 복구 위치를 선택하세요.",
         LAST_OWNER:
           "마지막 Organization Owner를 제거하거나 강등할 수 없습니다. 다른 멤버가 Owner 초대를 수락한 뒤 변경하세요.",
@@ -187,6 +192,8 @@ export class OperationalApi {
         MODEL_OUTPUT_LIMIT:
           "모델 출력이 토큰 한도로 잘려 반영하지 않았습니다. 입력 규모와 추론 모드 설정을 확인하세요.",
         MODEL_CONFIGURATION: "서버의 모델 설정이 올바르지 않습니다.",
+        SEARCH_INDEX_NOT_CONFIGURED: "검색 색인 운영 작업이 구성되지 않았습니다.",
+        INDEX_SESSION_REQUIRED: "검색 색인 재구축은 현재 플랫폼 운영자·공간 관리자의 로그인 세션이 필요합니다.",
         SEMANTIC_SEARCH_NOT_CONFIGURED: "의미 검색 모델이나 지속 작업이 구성되지 않았습니다.",
         SEMANTIC_CORPUS_LIMIT: "의미 검색 후보 한도를 초과했습니다. 유형·태그·기간·환경 필터로 범위를 줄이세요.",
         MODEL_CONTEXT_LIMIT: "모델 입력 한도를 초과했습니다. 검색 범위를 줄이세요.",

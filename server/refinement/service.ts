@@ -14,6 +14,7 @@ import type {
 import { transaction } from "../database";
 import { audit, loadState, membership, requireRead } from "../repository";
 import {
+  type InputEnvelope,
   visiblePageIds,
   captureEnvelope,
   inheritedProvenance,
@@ -841,6 +842,85 @@ export class RefinementService {
         return result;
       },
     );
+  }
+  /** Trusted bounded projection for Query/agent context. Every influencing ancestor must fit its envelope. */
+  async queryClaimsDb(
+    db: PoolClient,
+    ctx: Context,
+    pageId: string,
+    pageVersion: number,
+    envelope: InputEnvelope,
+    asOf: string,
+    environment: Record<string, string>,
+    recordedBefore?: string,
+    publicationId?: string,
+  ) {
+    const accepted: string[] = [];
+    for (const c of await this.all<Claim>(db, ctx, "claims")) {
+      if (
+        c.pageId !== pageId ||
+        c.pageVersion !== pageVersion ||
+        (recordedBefore &&
+          (!publicationId ||
+            (c as Claim & { originBatchId?: string }).originBatchId !==
+              publicationId) &&
+          (!c.recordedAt ||
+            !Number.isFinite(Date.parse(c.recordedAt)) ||
+            Date.parse(c.recordedAt) > Date.parse(recordedBefore)))
+      )
+        continue;
+      try {
+        const ancestors = new Map<string, Claim>();
+        await this.claim(db, ctx, c.id, ancestors);
+        const nodes = new Map<string, Evidence>();
+        for (const a of ancestors.values()) {
+          if (!envelope.pageIds.includes(a.pageId)) throw Error("NOT_FOUND");
+          for (const e of a.evidenceIds)
+            await this.evidence(db, ctx, e, new Set(), nodes);
+        }
+        if (
+          [...nodes.values()].some(
+            (e) => e.sourceId && !envelope.sourceIds.includes(e.sourceId),
+          )
+        )
+          continue;
+        accepted.push(c.id);
+      } catch (e) {
+        if (!(
+          e instanceof Error &&
+          ["NOT_FOUND", "FORBIDDEN", "STALE_VERSION"].includes(e.message)
+        ))
+          throw e;
+      }
+    }
+    // Whole claims retain all exceptions/validity; unknown-time claims stay explicitly unknown.
+    const projected = await this.contextDb(
+      db,
+      ctx,
+      {
+        pageIds: [pageId],
+        asOf,
+        environment,
+        includeHistory: true,
+        limit: 100,
+      },
+      accepted,
+    );
+    return {
+      ...projected,
+      items: projected.items
+        .filter(
+          (c) => c.validAtRequestedTime || projected.unknownTime.includes(c.id),
+        )
+        .map(({ verificationReviews: _reviews, ...c }) => ({
+          ...c,
+          validation: "unverified" as const,
+          applicability:
+            !c.validFrom || c.missingConditions.length
+              ? "unknown"
+              : "conditions-match-valid-at-requested-time",
+        })),
+    };
   }
   async context(ctx: Context, input: unknown) {
     const d = contextInput.parse(input);

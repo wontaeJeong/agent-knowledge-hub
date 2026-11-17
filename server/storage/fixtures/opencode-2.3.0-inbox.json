@@ -1,0 +1,17 @@
+{
+  "data": [
+    {
+      "id": "msg_redacted230Fixture",
+      "sessionID": "ses_redacted230Fixture",
+      "time": {
+        "created": 1794841613401
+      },
+      "type": "synthetic",
+      "payload": {
+        "text": "Collector fixture: retries use an idempotency key. This is an unverified statement, not execution evidence.",
+        "description": "collector format fixture"
+      },
+      "delivery": "steer"
+    }
+  ]
+}

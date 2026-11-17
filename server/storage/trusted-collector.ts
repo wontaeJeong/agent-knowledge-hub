@@ -20,6 +20,7 @@ const configuration = z
     label: z.string().min(1).max(100),
     baseUrl: z.string().url(),
     versionPath: z.string().regex(/^\/[a-zA-Z0-9_/-]+$/),
+    version: z.enum(["2.2.2", "2.3.0"]).optional(),
     authorization: z
       .string()
       .min(1)
@@ -218,7 +219,7 @@ export class TrustedArtifactCollector {
             id: c.id,
             label: c.label,
             tool: "opencode",
-            version: "2.2.2",
+            version: c.version ?? "2.2.2",
             active: r.active,
             revision: r.revision,
             allowedSessionIds: c.allowedSessionIds.filter(
@@ -252,16 +253,30 @@ export class TrustedArtifactCollector {
       throw Error("COLLECTION_EXCLUDED");
     const guard = (db: PoolClient) => this.check(db, c, d.expectedRevision);
     await this.storage.run(ctx, "source.create", undefined, guard);
+    if (c.version === "2.3.0" && d.format !== "api.synthetic-message")
+      throw Error("UNSUPPORTED_COLLECTOR_VERSION");
     const version = async () => {
       const v = z
-        .object({ version: z.literal("2.2.2") })
+        .object({ version: z.literal(c.version ?? "2.2.2") })
         .safeParse(
           await this.read(new URL(c.versionPath, c.baseUrl), c.authorization),
         );
       if (!v.success) throw Error("UNSUPPORTED_COLLECTOR_VERSION");
     };
     await version();
-    const raw = await this.read(
+    let raw: unknown;
+    if (c.version === "2.3.0") {
+      // Pending synthetic input is an inbox item in this captured version.
+      // Fetch only an operator-approved session, bound the queue, and persist
+      // only the explicitly selected message. Other payloads are ignored.
+      const inbox = z.object({ data: z.array(z.unknown()).max(100) }).strict().parse(
+        await this.read(new URL(`/api/session/${d.sessionId}/inbox`, c.baseUrl), c.authorization),
+      );
+      const selected = inbox.data.filter((item) => item !== null && typeof item === "object" && "id" in item && item.id === d.artifactId);
+      if (!selected.length) throw Error("NOT_FOUND");
+      if (selected.length !== 1) throw Error("ARTIFACT_SESSION_UNVERIFIED");
+      raw = { data: selected[0] };
+    } else raw = await this.read(
       new URL(`/api/session/${d.sessionId}/message/${d.artifactId}`, c.baseUrl),
       c.authorization,
     );
@@ -270,7 +285,7 @@ export class TrustedArtifactCollector {
       raw,
       {
         tool: "opencode",
-        version: "2.2.2",
+        version: c.version ?? "2.2.2",
         format: d.format,
         sessionId: d.sessionId,
         selectedIds: [d.artifactId],
@@ -298,7 +313,7 @@ export class TrustedArtifactCollector {
         title: d.title,
         project: d.project,
         targetPageId: d.targetPageId,
-        tool: "opencode@2.2.2",
+        tool: `opencode@${c.version ?? "2.2.2"}`,
         content: artifact.content,
         collection: {
           format: d.format,

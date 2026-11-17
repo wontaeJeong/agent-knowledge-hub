@@ -1,0 +1,25 @@
+{
+  "kind": "actual React component with synthetic API; native OIDC/PG verified separately",
+  "checks": [
+    {
+      "width": 1440,
+      "height": 1100,
+      "previewUtc": true,
+      "explicitConsent": true,
+      "scheduled": true,
+      "cancelled": true,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "height": 1100,
+      "previewUtc": true,
+      "explicitConsent": true,
+      "scheduled": true,
+      "cancelled": true,
+      "overflow": false,
+      "errors": []
+    }
+  ]
+}
