@@ -2,6 +2,8 @@
 
 ## Review fix round 1 — PR 76
 
+Reviewed delivery commit `e474468c118906cd4cac7de36a3c08e0496142da`, [draft PR 76](https://github.com/wontaeJeong/agent-knowledge-hub/pull/76). The subsequent report-only commit records this stable evidence reference. Independent re-review and exact-head CI belong to the controller.
+
 Parent review base `422064560c16fef50bbe5449d82e4db525be9d71`. Implemented in the existing 8e71 feature worktree. Main remained at `29a892b06b1edc089ffab678835a46a936241306`. All original requirements and independent approval rules remain in effect.
 
 | Finding | Change and verified behavior |
