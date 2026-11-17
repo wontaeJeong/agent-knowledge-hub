@@ -2,6 +2,13 @@
 
 ## 2026-11-17 Task 11 개별 삭제·이력 정리
 
+### PR #65 독립 검토 보완
+
+- LIF-005/VER-012와 North Star 불변식 1·3·5·6·8: `server/retention/{granular,inventory}.ts`, `server/operations/recovery.ts`, 신규 migration `132-retention-artifact-identity.sql` 및 `granular.test.ts`를 보완했다. 소비자 ID·테이블·개수와 본문 매칭 사유 차이를 제거하면서 fail-closed 삭제 차단/현재 접근 검사를 유지한다.
+- 기존 공통 signed-ledger import의 충돌 무시(기준 a98c6cd에도 존재)를 거부하도록 수정하고, 이번 새 runtime 유형은 별도 전체 행 `identity_hash`로 복원 내용까지 바인딩한다. CAS `hashes`와 분리하고 종료 실행 timestamp를 UTC로 정규화한다. 구형 ID-only 원장은 현재 복원 내용의 삭제 근거로 사용하지 않는다. 서명된 전체 inventory에 없는 복원 tombstone도 거부한다. 충돌 시 자료와 기동 격리를 보존한다.
+- RED→GREEN: 비공개 ID 2개, 본문 매칭 oracle 1개, signed actual dump/restore 3유형과 timezone 사례를 재현했다. granular 32·native HTTP 1시험과 전체 `npm run check`(프런트 215, Node 48, import 16, 평가 41, 요구사항 251, 타입/빌드/smoke)가 통과했다. 각 유형의 정확/변경/원장충돌과 unsigned 추가 tombstone의 총 10복원 checkpoint와 INSERT/UPDATE fence를 실제 PostgreSQL17.6에서 확인한다. 새 실제 복구 시험의 기본 5초 초과를 숨기지 않고 해당 시험만 30초로 정했다. 최종 영향 범위 native 20파일 194시험도 통과했다. 실제 dump/restore와 현재 권한/보존/법정 삭제/공통 CAS/첨부 회귀를 포함한다.
+- [보완 계약/현재 한계](implementation/2026-11-17-granular-retention.md#pr-65-독립-검토-보완--2026-11-17). UI 코드 변경은 없으며 전체 App·사내 운영 인수나 외부 백업 삭제 완료를 주장하지 않는다. 기존 131 체크섬과 최소 1 node/1 app/1 DB 구성은 유지한다.
+
 - 요구사항: LIF-005, VER-012. 새 선택 유형은 `attachment-version`/`runtime-answer`/`runtime-job`이며 기존 source/page/workspace 법정 삭제와 초안/발행본/원본 보존은 유지한다. Owner의 preview-bound 요청과 작성자/요청자 외 Admin의 독립 검토, 실행 전 현재 ACL/과거 원본/정책/참조 재검사, 원자적 tombstone·영수증·실패 기록을 연결했다.
 - 변경 파일: `server/retention/{granular,service,http,inventory,drafts}.ts`, `server/operations/{service,recovery}.ts`, migration `131-granular-retention.sql`, `src/operational/{granular-retention,workflows}.tsx`와 인접 회귀. 새 테이블은 typed inventory의 정확한 SQL schema 계약으로 분류하며 미분류/추가 본문은 차단한다. 새 원장 유형은 기존 signed recovery replay 및 DB INSERT/UPDATE fence에 연결한다.
 - 검증: Node 24 전체 `npm run check`(251개 요구사항, 타입/빌드/smoke 포함), 실제 PostgreSQL 새 granular 22개·OIDC/CSRF HTTP 1개·보존/법정 삭제/복구/공통 CAS/첨부 lifecycle 회귀. 임시 무공유 DB와 합성 CAS 파일만 사용했다. 실제 Chromium 1440/390에서 선택/미리보기와 가로 넘침 없음 확인. 본문/비밀/실자료를 화면 근거에 넣지 않았다.

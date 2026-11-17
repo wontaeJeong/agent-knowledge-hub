@@ -22,7 +22,7 @@
 
 독점 mutation gate 아래에서 제품/저장 참조·현재 ACL·보존 정책·법적 보류·고정 공유·내용 지문을 다시 계산한다. 승인자 현재 역할과 요청자/승인자의 현재·과거 페이지 및 전이적 원본 접근을 실행 직전 재검사한다. 내용·참조·정책이 바뀌면 새 계획/승인이 필요하다. 성공 재시도는 현재 권한을 확인한 후 기존 영수증을 반환하며 중복 삭제를 만들지 않는다. 실패한 실행은 롤백하고 본문 없는 실패 영수증을 남긴다.
 
-`content_retention_plans`는 새 typed graph 대상으로 분류하고 SQL-visible 컬럼·타입·nullable 계약을 고정했다. 새 본문 컬럼이나 미분류 테이블/FK는 기존 fail-closed inventory를 통과하지 못한다. 계획 자체는 삭제 의도/승인 기록이며 독립 제품 근거로 취급하지 않는다. 계획의 selection/영수증은 임의 JSON이나 원문을 저장하지 않는다. 비본문 메타데이터와 ID만 노출하며 기존 private projection을 유지한다. 본문 안의 정확한 ID/해시 참조 검사는 PostgreSQL 안에서 수행한다. 계보가 불명확한 비공개 콘텐츠가 있으면 보수적으로 차단하므로 실제 공간의 정리 가능 비율을 보장하지 않는다.
+`content_retention_plans`는 새 typed graph 대상으로 분류하고 SQL-visible 컬럼·타입·nullable 계약을 고정했다. 새 본문 컬럼이나 미분류 테이블/FK는 기존 fail-closed inventory를 통과하지 못한다. 계획 자체는 삭제 의도/승인 기록이며 독립 제품 근거로 취급하지 않는다. 계획의 selection/영수증은 임의 JSON이나 원문을 저장하지 않는다. 선택 대상과 현재 접근을 검사한 계보만 반환하고 기존 private projection을 유지한다. 비공개 소비자의 ID·테이블·행 수는 Owner에게도 반환하지 않는다. 소비자 참조 매칭과 불명확한 비공개 inventory는 같은 고정 `UNKNOWN_REFERENCE` 범주로 반환해 본문 매칭 여부의 추측 경로를 막는다. `retainedBy`는 빈 배열이며 표시 개수를 비공개 참조 수로 사용하지 않는다. 본문 안의 정확한 ID/해시 참조 검사는 PostgreSQL 안에서 수행한다. 계보가 불명확한 비공개 콘텐츠가 있으면 보수적으로 차단하므로 실제 공간의 정리 가능 비율을 보장하지 않는다.
 
 ## DB 삭제·물리 정리·복구
 
@@ -38,3 +38,13 @@
 - 실제 Chromium 1440×1100, 390×1000의 현재 개별 선택/미리보기 화면을 [증거](../pr-assets/granular-retention/README.md)에 남겼다. 모바일 가로 넘침은 없었다. 브라우저 fixture만 pool 24이며 운영 리소스/기본 pool은 변경하지 않았다. 기준 통합 브랜치의 알려진 전체 App 동시 인증 bootstrap 문제는 pool 6에서 재현됐고 pool 24 재시도에서도 간헐적으로 나타났다. PR 54의 독립 인증 수정과 조합한 최종 전체 App 인수는 별도다. 순차 native HTTP 시험은 기본 fixture pool 6에서 통과했다.
 
 North Star의 원본/파생/근거 분리, 현재 권한과 기준 버전, 검토 및 복구 불변식 1·3·5·6·8을 보강한다. 기존 지식의 독립 근거를 보존하며 쓸모없는 과거 사본만 명시적으로 정리한다. 삭제 건수·저장 비용 감소를 지식 품질이나 후속 에이전트 성능 향상으로 바꾸지 않는다. 단순 TTL보다 보수적 수동 검토를 택했으며 효과/성능 주장은 평가 계약의 대조 실험 전까지 목표다. 1 node·1 app Pod·1 DB의 초기 최소 구성에 새 서비스나 daemon을 추가하지 않는다.
+
+
+## PR #65 독립 검토 보완 — 2026-11-17
+
+- 비공개 메타데이터: 처음 구현은 선택 대상의 계보만 권한 검사하면서 전체 공간 소비자의 ID·테이블을 `retainedBy`로 반환했다. 비공개 게시물은 다른 Admin/Owner도 읽을 수 없다는 기존 게시판 규칙과 충돌했다. 본문에 대상 ID가 있는지에 따라 사유가 추가되는 경로도 RED로 확인했다. 현재 preview/status/차단 오류/영수증에는 소비자 ID·테이블·개수가 없고, 참조 매칭과 불명확한 inventory를 같은 범주로 표현한다. 삭제 차단과 선택 대상의 현재·과거 접근 검사는 유지한다.
+- 복구 충돌: 공통 `operations/recovery.ts`의 서명 원장 import가 `ON CONFLICT DO NOTHING`으로 복원된 tombstone을 신뢰하는 문제는 기준 `a98c6cd6467b838e2003faaf5b037da8e16a2523`에도 있었다. 이번 granular 구현이 첨부/답변/실행 유형을 재생하며 그 영향을 확장했다. 현재는 같은 artifact key의 CAS 해시·내용 지문·preview 해시·승인 주체 중 하나라도 서명 원장과 다르면 `RECOVERY_ARTIFACT_LEDGER_CONFLICT`로 중단하고 커밋된 기동 격리를 유지한다. 서명된 전체 inventory에 없는 복원 artifact key도 같은 충돌로 거부하며, DB에만 있는 추가 tombstone을 삭제 근거로 사용하지 않는다. 기존 기록의 차이를 자동 승인하거나 병합하지 않는다.
+- 내용 바인딩: migration `132-retention-artifact-identity.sql`은 nullable `identity_hash`를 추가하며 기존 migration 131의 체크섬을 보존한다. 답변/종료 실행의 전체 SQL row 지문을 PostgreSQL 안에서 계산해 승인 및 서명 원장에 묶는다. 실행 이력의 timestamp는 UTC로 정규화하여 복구 세션 timezone에 독립적이다. `hashes`는 기존 CAS 전용 배열로 유지하며 runtime 내용 지문은 물리 파일 삭제를 승인하지 않는다. 원장 제어 테이블의 정확한 컬럼·타입·nullable inventory 계약도 고정한다.
+- 복원된 runtime 행의 ID만 같거나 `identity_hash`가 없는 구형 원장은 그 행을 삭제할 근거가 아니며 `RETENTION_REPLAY_REFERENCE_CONFLICT`로 차단한다. 이미 없는 행의 재생은 멱등적이고 기존 INSERT/UPDATE fence는 유지한다. 운영 복구 대상은 해당 앱 migration을 먼저 적용한 격리 DB여야 하며, 구형 원장을 재서명하는 것만으로 내용 바인딩이 생기지 않는다. 누락/충돌은 독립적인 현재 근거를 확보한 운영 절차로 해결해야 한다.
+- 실제 검증: PostgreSQL 17.6의 UUID별 테스트 DB, Node 24.22.2, 합성 자료만 사용했다. 첨부/답변/실행 각각에 대해 실제 `pg_dump`와 `pg_restore`로 정확한 행·변경된 내용·충돌 원장 checkpoint를 복원했고, 답변 유형은 서명에 없는 추가 tombstone checkpoint도 확인했다(총 10회 복원). 정확한 삭제, 내용 불일치/서명 충돌 시 원본 보존과 기동 격리, 커밋된 tombstone의 INSERT/UPDATE 재생성 차단을 확인했다. FK/trigger를 비활성화하지 않았다. granular 32개와 실제 OIDC/CSRF HTTP 1개가 통과했다. 최종 코드에서 영향 범위 native 전체 20파일 194시험(보존·법정 삭제·공통 복구·released import·저장/첨부 포함)도 통과했다. 전체 `npm run check`는 프런트 215·Node 48·import 16·평가 41·요구사항 251·서버 타입·빌드·smoke를 통과했다. 새 실제 복구 3시험만 최대 4회 복원에 맞춘 30초 예산을 사용하며 제품/전역 timeout은 바꾸지 않았다.
+- 남은 한계: 이번 보완은 UI 코드를 바꾸지 않았다. 기존 합성 화면 근거를 전체 App 수용으로 승격하지 않으며 PR 54를 포함한 통합 App 인수는 부모 통합 작업의 별도 증거다. 구형 내용 미바인딩 원장, 큰 공간의 그래프 경계와 100건 초과 복구 분할, 외부 사본/운영 인수 조건은 그대로 남는다. 1 node·1 app·1 DB의 최소 구성도 유지한다.

@@ -6,7 +6,15 @@ import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OperationsService } from "../operations/service";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { Pool } from "pg";
+import { runTestPgTool as run } from "../operations/test-pg-tools";
+import {
+  captureRecoveryLedger,
+  readRecoveryLedger,
+  secureRestoredDatabase,
+  assertOperationalStartup,
+} from "../operations/recovery";
 import { replayRetentionTombstones } from "./drafts";
 let f: Awaited<ReturnType<typeof fixture>>, service: ContentRetentionService;
 const actor = () => ({
@@ -345,25 +353,24 @@ test("active download tickets and historical ancestor shares block pruning", asy
   const p = await service.previewPruning(actor(), { selection: [selected] });
   expect(p.records[0].reasons).toContain("ACTIVE_DOWNLOAD_TICKET");
 });
-test("new content columns on review plans fail closed rather than escape the graph", async () => {
-  await attachment();
-  await f.pool.query(
-    "ALTER TABLE content_retention_plans ADD COLUMN untracked_body text",
-  );
-  try {
-    await expect(
-      service.previewPruning(actor(), {
-        selection: [
-          { kind: "attachment-version", slotId: "file-slot", revision: 1 },
-        ],
-      }),
-    ).rejects.toThrow("RETENTION_GRAPH_UNSUPPORTED");
-  } finally {
-    await f.pool.query(
-      "ALTER TABLE content_retention_plans DROP COLUMN untracked_body",
-    );
-  }
-});
+test.each(["content_retention_plans", "operations_erased_artifacts"])(
+  "new content columns on %s fail closed rather than escape the graph",
+  async (table) => {
+    await attachment();
+    await f.pool.query(`ALTER TABLE ${table} ADD COLUMN untracked_body text`);
+    try {
+      await expect(
+        service.previewPruning(actor(), {
+          selection: [
+            { kind: "attachment-version", slotId: "file-slot", revision: 1 },
+          ],
+        }),
+      ).rejects.toThrow("RETENTION_GRAPH_UNSUPPORTED");
+    } finally {
+      await f.pool.query(`ALTER TABLE ${table} DROP COLUMN untracked_body`);
+    }
+  },
+);
 
 test("committed granular tombstone authorizes only its unreferenced CAS file and finalizes the pruning receipt after physical removal", async () => {
   const root = await mkdtemp(join(tmpdir(), "akh-granular-cas-"));
@@ -435,7 +442,7 @@ test.each([
       selection: [{ kind: "runtime-answer", id: "pinned-answer" }],
     });
     expect(p.records[0].eligible).toBe(false);
-    expect(p.records[0].reasons).toContain("RETAINED_REFERENCE");
+    expect(p.records[0].reasons).toContain("UNKNOWN_REFERENCE");
     expect(JSON.stringify(p)).not.toContain("PRIVATE_RETAINED_BODY");
   },
 );
@@ -616,3 +623,395 @@ test.each([false, true])(
     }
   },
 );
+
+test.each([false, true])(
+  "private consumer identifiers remain hidden in preview, status, blocked errors and receipts; mentions=%s",
+  async (mentions) => {
+    const selected = await attachment();
+    const privateId = "private-consumer-identifier-78231";
+    await f.pool.query(
+      "INSERT INTO board_posts(workspace_id,id,author_id,kind,visibility,title,body) VALUES($1,$2,'editor','voc','private','PRIVATE_CONSUMER_TITLE',$3)",
+      [
+        f.workspaceId,
+        privateId,
+        mentions ? "old-file" : "unrelated private text",
+      ],
+    );
+    const preview = await service.previewPruning(actor(), {
+      selection: [selected],
+    });
+    expect(preview.records[0].eligible).toBe(false);
+    expect(preview.records[0].reasons).toContain("UNKNOWN_REFERENCE");
+    expect(preview.records[0].retainedBy).toEqual([]);
+    let blocked: unknown;
+    try {
+      await service.planPruning(actor(), {
+        selection: [selected],
+        previewHash: preview.hash,
+        policyRevision: preview.policyRevision,
+      });
+    } catch (error) {
+      blocked = error instanceof Error ? error.message : error;
+    }
+    expect(blocked).toBe("RETENTION_SELECTION_BLOCKED");
+    const responses = [
+      preview,
+      await service.listPruning(actor()),
+      await service.receipts(actor()),
+      blocked,
+    ];
+    for (const response of responses) {
+      expect(JSON.stringify(response)).not.toContain(privateId);
+      expect(JSON.stringify(response)).not.toContain("PRIVATE_CONSUMER_TITLE");
+      expect(JSON.stringify(response)).not.toContain("board_posts");
+    }
+    expect(
+      (
+        await f.pool.query(
+          "SELECT 1 FROM storage_blobs WHERE workspace_id=$1 AND id='old-file'",
+          [f.workspaceId],
+        )
+      ).rowCount,
+    ).toBe(1);
+  },
+);
+
+test.each(["attachment-version", "runtime-answer", "runtime-job"] as const)(
+  "signed %s ledger fences restored identity changes and conflicting artifact tombstones",
+  async (kind) => {
+    const selected =
+      kind === "attachment-version"
+        ? await attachment()
+        : { kind, id: "restore-runtime" };
+    if (kind === "runtime-answer")
+      await f.pool.query(
+        "INSERT INTO runtime_answers VALUES($1,'restore-runtime','editor',$2)",
+        [
+          f.workspaceId,
+          {
+            id: "restore-runtime",
+            answer: "ORIGINAL_PRIVATE_ANSWER",
+            citations: [],
+            inputEnvelope: { pageIds: [], sourceIds: [] },
+          },
+        ],
+      );
+    if (kind === "runtime-job")
+      await f.pool.query(
+        "INSERT INTO runtime_jobs(id,workspace_id,principal_id,operation,status) VALUES('restore-runtime',$1,'editor','query','succeeded')",
+        [f.workspaceId],
+      );
+    const sourceDatabase = (
+      await f.pool.query("SELECT current_database() AS name")
+    ).rows[0].name;
+    const dump = run(["pg_dump", "-d", sourceDatabase, "-Fc"]);
+    const p = await plan([selected]);
+    await service.executePruning(actor(), {
+      planId: p.id,
+      previewHash: p.previewHash,
+    });
+    const encryption = "owned-granular-restore-encryption".repeat(3),
+      signing = "independent-granular-restore-signature".repeat(3);
+    const ledger = readRecoveryLedger(
+      await captureRecoveryLedger(f.pool, encryption, signing),
+      encryption,
+      signing,
+    );
+    const artifact = ledger.erasedArtifacts!.find(
+      (a) => a.workspace_id === f.workspaceId && a.artifact_kind === kind,
+    )!;
+    const table =
+      kind === "attachment-version"
+        ? "storage_blobs"
+        : kind === "runtime-answer"
+          ? "runtime_answers"
+          : "runtime_jobs";
+    const restoredId =
+      kind === "attachment-version" ? "old-file" : "restore-runtime";
+    for (const checkpoint of [
+      "exact",
+      "changed-identity",
+      "conflicting-ledger",
+      ...(kind === "runtime-answer" ? (["unsigned-extra"] as const) : []),
+    ] as const) {
+      const database = "akh_ops_restore_" + randomUUID().replaceAll("-", "");
+      let restored: Pool | undefined,
+        created = false;
+      try {
+        run(["createdb", database]);
+        created = true;
+        run(
+          ["pg_restore", "--no-owner", "--exit-on-error", "-d", database],
+          dump,
+        );
+        const url = new URL(process.env.TEST_DATABASE_URL!);
+        url.pathname = "/" + database;
+        restored = new Pool({ connectionString: url.href });
+        if (checkpoint !== "exact" && checkpoint !== "unsigned-extra") {
+          if (kind === "attachment-version")
+            await restored.query(
+              "UPDATE storage_blobs SET sha256=$2 WHERE workspace_id=$1 AND id='old-file'",
+              [f.workspaceId, "e".repeat(64)],
+            );
+          if (kind === "runtime-answer")
+            await restored.query(
+              "UPDATE runtime_answers SET data=jsonb_set(data,'{answer}','\"DIFFERENT_PRIVATE_ANSWER\"') WHERE workspace_id=$1 AND id='restore-runtime'",
+              [f.workspaceId],
+            );
+          if (kind === "runtime-job")
+            await restored.query(
+              "UPDATE runtime_jobs SET error_code='DIFFERENT_RESTORED_RECORD' WHERE workspace_id=$1 AND id='restore-runtime'",
+              [f.workspaceId],
+            );
+        }
+        if (checkpoint === "conflicting-ledger") {
+          const changedHash =
+            kind === "attachment-version"
+              ? "e".repeat(64)
+              : (
+                  await restored.query(
+                    `SELECT encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex') AS hash FROM "${table}" t WHERE workspace_id=$1 AND id=$2`,
+                    [f.workspaceId, restoredId],
+                  )
+                ).rows[0].hash;
+          await restored.query(
+            "INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by,identity_hash) VALUES($1,$2,$3,$4,$5,$6,$7)",
+            [
+              artifact.workspace_id,
+              artifact.artifact_kind,
+              artifact.artifact_id,
+              JSON.stringify(
+                kind === "attachment-version" ? [changedHash] : [],
+              ),
+              artifact.preview_hash,
+              artifact.approved_by,
+              kind === "attachment-version" ? null : changedHash,
+            ],
+          );
+        }
+        if (checkpoint === "unsigned-extra") {
+          await restored.query(
+            "INSERT INTO runtime_answers VALUES($1,'unsigned-extra-runtime','editor',$2)",
+            [
+              f.workspaceId,
+              {
+                id: "unsigned-extra-runtime",
+                answer: "UNAPPROVED_CURRENT_CONTENT",
+                citations: [],
+                inputEnvelope: { pageIds: [], sourceIds: [] },
+              },
+            ],
+          );
+          await restored.query(
+            "INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by,identity_hash) SELECT workspace_id,'runtime-answer',id,'[]',$2,'fixture-owner',encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex') FROM runtime_answers t WHERE workspace_id=$1 AND id='unsigned-extra-runtime'",
+            [f.workspaceId, "e".repeat(64)],
+          );
+        }
+        if (checkpoint === "exact") {
+          const restoredRecord = (
+            await restored.query(
+              `SELECT to_jsonb(t) AS data FROM "${table}" t WHERE workspace_id=$1 AND id=$2`,
+              [f.workspaceId, restoredId],
+            )
+          ).rows[0].data;
+          const secured = await secureRestoredDatabase(restored, ledger);
+          if (kind !== "attachment-version") {
+            expect(artifact.hashes).toEqual([]);
+            expect(artifact.identity_hash).toMatch(/^[a-f0-9]{64}$/);
+            expect(secured.deletedHashes).not.toContain(artifact.identity_hash);
+          }
+          expect(
+            (
+              await restored.query(
+                `SELECT 1 FROM "${table}" WHERE workspace_id=$1 AND id=$2`,
+                [f.workspaceId, restoredId],
+              )
+            ).rowCount,
+          ).toBe(0);
+          expect(
+            (
+              await restored.query(
+                "SELECT hashes FROM operations_erased_artifacts WHERE workspace_id=$1 AND artifact_kind=$2 AND artifact_id=$3",
+                [artifact.workspace_id, kind, artifact.artifact_id],
+              )
+            ).rows[0].hashes,
+          ).toEqual(artifact.hashes);
+          await expect(
+            restored.query(
+              `INSERT INTO "${table}" SELECT * FROM jsonb_populate_record(NULL::"${table}",$1::jsonb)`,
+              [JSON.stringify(restoredRecord)],
+            ),
+          ).rejects.toThrow("RETENTION_ARTIFACT_RETIRED");
+          await restored.query(
+            `INSERT INTO "${table}" SELECT * FROM jsonb_populate_record(NULL::"${table}",$1::jsonb)`,
+            [
+              JSON.stringify({
+                ...restoredRecord,
+                id: restoredId + "-unretired",
+              }),
+            ],
+          );
+          await expect(
+            restored.query(
+              `UPDATE "${table}" SET id=$3 WHERE workspace_id=$1 AND id=$2`,
+              [f.workspaceId, restoredId + "-unretired", restoredId],
+            ),
+          ).rejects.toThrow("RETENTION_ARTIFACT_RETIRED");
+        } else {
+          await expect(
+            secureRestoredDatabase(restored, ledger),
+          ).rejects.toThrow(
+            checkpoint === "conflicting-ledger" ||
+              checkpoint === "unsigned-extra"
+              ? "RECOVERY_ARTIFACT_LEDGER_CONFLICT"
+              : "RETENTION_REPLAY_REFERENCE_CONFLICT",
+          );
+          expect(
+            (
+              await restored.query(
+                `SELECT 1 FROM "${table}" WHERE workspace_id=$1 AND id=$2`,
+                [f.workspaceId, restoredId],
+              )
+            ).rowCount,
+          ).toBe(1);
+        }
+        expect(
+          (
+            await restored.query(
+              "SELECT 1 FROM operations_tombstones WHERE workspace_id=$1 AND id='restore-quarantine'",
+              [f.workspaceId],
+            )
+          ).rowCount,
+        ).toBe(1);
+        await expect(assertOperationalStartup(restored)).rejects.toThrow(
+          "RESTORED_DATABASE_QUARANTINED_CURRENT_IDENTITY_IMPORT_REQUIRED",
+        );
+      } finally {
+        await restored?.end();
+        if (created) run(["dropdb", "--force", database]);
+      }
+    }
+  },
+  // This test performs pg_dump plus up to four real pg_restore checkpoints.
+  30000,
+);
+
+test("opaque consumer body matches do not create a reference metadata oracle", async () => {
+  const selected = await attachment();
+  await f.pool.query(
+    "INSERT INTO board_posts(workspace_id,id,author_id,kind,visibility,title,body) VALUES($1,'opaque-oracle','editor','voc','private','private','unrelated')",
+    [f.workspaceId],
+  );
+  const before = await service.previewPruning(actor(), {
+    selection: [selected],
+  });
+  await f.pool.query(
+    "UPDATE board_posts SET body='old-file' WHERE workspace_id=$1 AND id='opaque-oracle'",
+    [f.workspaceId],
+  );
+  const after = await service.previewPruning(actor(), {
+    selection: [selected],
+  });
+  expect(after.records[0].reasons).toEqual(before.records[0].reasons);
+  expect(after.records[0].retainedBy).toEqual(before.records[0].retainedBy);
+  expect(after.records[0].eligible).toBe(false);
+});
+
+test.each(["runtime-answer", "runtime-job"] as const)(
+  "legacy unbound %s tombstone retains restored content behind the replay fence",
+  async (kind) => {
+    if (kind === "runtime-answer")
+      await f.pool.query(
+        "INSERT INTO runtime_answers VALUES($1,'unbound-runtime','editor',$2)",
+        [
+          f.workspaceId,
+          {
+            id: "unbound-runtime",
+            answer: "restored",
+            citations: [],
+            inputEnvelope: { pageIds: [], sourceIds: [] },
+          },
+        ],
+      );
+    else
+      await f.pool.query(
+        "INSERT INTO runtime_jobs(id,workspace_id,principal_id,operation,status) VALUES('unbound-runtime',$1,'editor','query','succeeded')",
+        [f.workspaceId],
+      );
+    const db = await f.pool.connect();
+    try {
+      await db.query("BEGIN");
+      await db.query("SELECT pg_advisory_xact_lock(822025)");
+      await db.query(
+        "INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,$2,'unbound-runtime','[]',$3,'fixture-owner')",
+        [f.workspaceId, kind, "b".repeat(64)],
+      );
+      await expect(
+        replayRetentionTombstones(db, f.workspaceId),
+      ).rejects.toThrow("RETENTION_REPLAY_REFERENCE_CONFLICT");
+      const table =
+        kind === "runtime-answer" ? "runtime_answers" : "runtime_jobs";
+      expect(
+        (
+          await db.query(
+            `SELECT 1 FROM "${table}" WHERE workspace_id=$1 AND id='unbound-runtime'`,
+            [f.workspaceId],
+          )
+        ).rowCount,
+      ).toBe(1);
+    } finally {
+      await db.query("ROLLBACK");
+      db.release();
+    }
+  },
+);
+
+test("restored terminal job identity is independent of the recovery session timezone", async () => {
+  await f.pool.query(
+    "INSERT INTO runtime_jobs(id,workspace_id,principal_id,operation,status) VALUES('timezone-job',$1,'editor','query','succeeded')",
+    [f.workspaceId],
+  );
+  const original = (
+    await f.pool.query(
+      "SELECT to_jsonb(t) AS data FROM runtime_jobs t WHERE workspace_id=$1 AND id='timezone-job'",
+      [f.workspaceId],
+    )
+  ).rows[0].data;
+  const p = await plan([{ kind: "runtime-job", id: "timezone-job" }]);
+  await service.executePruning(actor(), {
+    planId: p.id,
+    previewHash: p.previewHash,
+  });
+  const db = await f.pool.connect();
+  try {
+    await db.query("BEGIN");
+    await db.query("SELECT pg_advisory_xact_lock(822025)");
+    const tombstone = (
+      await db.query(
+        "DELETE FROM operations_erased_artifacts WHERE workspace_id=$1 AND artifact_kind='runtime-job' AND artifact_id='timezone-job' RETURNING to_jsonb(operations_erased_artifacts) AS data",
+        [f.workspaceId],
+      )
+    ).rows[0].data;
+    await db.query(
+      "INSERT INTO runtime_jobs SELECT * FROM jsonb_populate_record(NULL::runtime_jobs,$1::jsonb)",
+      [JSON.stringify(original)],
+    );
+    await db.query(
+      "INSERT INTO operations_erased_artifacts SELECT * FROM jsonb_populate_record(NULL::operations_erased_artifacts,$1::jsonb)",
+      [JSON.stringify(tombstone)],
+    );
+    await db.query("SET LOCAL timezone='Pacific/Honolulu'");
+    await replayRetentionTombstones(db, f.workspaceId);
+    expect(
+      (
+        await db.query(
+          "SELECT 1 FROM runtime_jobs WHERE workspace_id=$1 AND id='timezone-job'",
+          [f.workspaceId],
+        )
+      ).rowCount,
+    ).toBe(0);
+  } finally {
+    await db.query("ROLLBACK");
+    db.release();
+  }
+});

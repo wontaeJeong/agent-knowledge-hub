@@ -729,3 +729,13 @@
 - 상태/검증: 새 DB 회귀 22개, 실제 OIDC/CSRF HTTP 흐름, 전체 check 및 보존/법정 삭제/격리/저장/첨부 회귀를 통과했다. 실제 운영 인수와 PR 54를 포함한 최종 App 재검증은 별도다. 최소 보존 기간과 직접 replay gate의 누락은 RED로 재현 후 수정했다.
 
 - 최종 수용 대조에서 보존 충돌로 계획 생성이 거부된 요청의 영구 기록 누락을 RED로 재현했다. 정확한 typed selection과 차단 사유의 비본문 영수증을 별도 권한 재검사 트랜잭션으로 기록하도록 보완했다. range formatter가 기존 class까지 포맷한 변경은 최종 diff에서 제거했다.
+
+
+### 2026-11-17 — Task 11 비공개 참조 메타데이터와 서명 복구 충돌
+
+- 맥락/관련 PR: #65 독립 검토 후속. 원본 체크아웃 대신 기존 격리 worktree에서 합성 자료와 UUID별 시험 DB만 사용했다. 실제 사용자 자료 영향은 확인하지 않았다.
+- 사실/원인: preview의 권한 검사는 선택한 계보에만 적용됐지만 `retainedBy`는 전체 공간 소비자의 ID·테이블을 반환해 비공개 게시판 규칙을 우회했다. ID를 지운 뒤에도 본문 매칭에 따른 `RETAINED_REFERENCE` 추가가 metadata oracle이 되는 RED를 발견했다. 공통 복구 import의 `ON CONFLICT DO NOTHING`은 기존 기준 a98c6cd부터 있었고, 새 granular 재생은 복원된 상이한 tombstone으로 첨부를 삭제하거나 ID가 같은 다른 runtime 내용을 삭제할 수 있었다. 실제 signed dump/restore로 확인했다.
+- 조치: 소비자 ID/테이블/개수를 반환하지 않고 하나의 고정 범주로 차단한다. 서명과 복원 tombstone의 해시/내용 지문/승인 메타데이터 충돌을 거부한다. 후속 actual restore RED로 서명에 없는 추가 tombstone도 재생되는 것을 확인하고 서명된 전체 key inventory 밖의 행을 거부했다. migration132의 runtime `identity_hash`는 CAS `hashes`와 분리하며 구형 미바인딩 원장은 내용 삭제를 승인하지 않는다. 전체 row 지문의 timezone 의존성도 RED로 찾아 UTC timestamp 정규화로 수정했다. FK/trigger 비활성화 없이 정확한 복원과 INSERT/UPDATE 재생성 차단을 확인했다.
+- 시험 도중 확인/수정: 첫 복구 fixture는 replay 실패 후 롤백되는 reader 삭제까지 영구 반영된다고 잘못 기대했다. 커밋되는 기동 격리와 실제 startup 거부를 검사하도록 고쳤다. 임시 자동 편집의 본문 assertion 실패는 파일 변경 없이 종료됐고 실제 포맷을 읽어 적용했다. 깨진 자신의 untracked dependency symlink만 제거해 worktree 자체 `npm ci`를 실행했다. 기본 5초를 넘은 새 실제 다회 복구 시험 3개는 실패로 기록하고 해당 시험만 30초 subprocess 예산으로 재검증했다. 제품/전역 timeout은 변경하지 않았다.
+- 검증: 비공개 ID/매칭 oracle, signed 복원 3유형, timezone의 RED를 확인한 뒤 granular32·OIDC/CSRF HTTP1과 전체 `npm run check`를 통과했다. 최종 영향 범위 native 20파일 194시험이 통과했다. 독립 재리뷰와 최종 원격 CI는 부모 통합 작업에서 별도 확인한다. 기존 큰 번들 경고와 설치 시 표시된 2 moderate dependency audit 항목을 보안 통과로 표현하지 않는다.
+- 남은 조건: 구형 미바인딩 원장/충돌은 자동 해소하지 않는다. 큰 공간/100건 초과 복구 분할·외부 사본·전체 App 통합 및 운영 인수는 별도다. 기존 North Star/요구사항을 축소하지 않는다.

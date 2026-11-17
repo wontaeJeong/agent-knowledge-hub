@@ -42,6 +42,7 @@ type Candidate = {
   blobId?: string;
   contentHash?: string;
   artifactId: string;
+  identityHash?: string;
   lineage: Resource[];
   retainedBy: { table: string; id: string }[];
 };
@@ -65,12 +66,6 @@ function targetRow(r: ProductRow, s: Selection) {
     : r.table ===
         (s.kind === "runtime-answer" ? "runtime_answers" : "runtime_jobs") &&
         r.data.id === s.id;
-}
-function rowIdentity(r: ProductRow) {
-  return {
-    table: r.table,
-    id: String(r.data.id ?? r.data.page_id ?? r.data.slot_id ?? "unattributed"),
-  };
 }
 /** Bodies remain inside PostgreSQL. IDs in private bodies are conservatively treated as references. */
 async function privateMentions(
@@ -101,6 +96,25 @@ async function privateMentions(
     }
   }
   return result;
+}
+/** Hash the entire typed record in PostgreSQL without materializing private content. */
+async function runtimeIdentity(
+  db: PoolClient,
+  workspaceId: string,
+  s: Exclude<Selection, { kind: "attachment-version" }>,
+) {
+  const table =
+    s.kind === "runtime-answer" ? "runtime_answers" : "runtime_jobs";
+  const canonical =
+    s.kind === "runtime-job"
+      ? "to_jsonb(t) || jsonb_build_object('created_at',t.created_at AT TIME ZONE 'UTC','finished_at',t.finished_at AT TIME ZONE 'UTC')"
+      : "to_jsonb(t)";
+  return (
+    await db.query(
+      `SELECT encode(sha256(convert_to((${canonical})::text,'UTF8')),'hex') AS hash FROM "${table}" t WHERE workspace_id=$1 AND id=$2`,
+      [workspaceId, s.id],
+    )
+  ).rows[0]?.hash as string | undefined;
 }
 async function currentPolicy(db: PoolClient, workspaceId: string) {
   const r = (
@@ -430,8 +444,10 @@ export async function previewPruning(
       )
     )
       reasons.push("UNKNOWN_REFERENCE");
-    if (unknown.length) reasons.push("UNKNOWN_REFERENCE");
-    if (rawReferences.length) reasons.push("RETAINED_REFERENCE");
+    // Whether a private body mentions the selection must not become an oracle.
+    // One bounded category covers both opaque inventory and matched consumers.
+    if (unknown.length || rawReferences.length)
+      reasons.push("UNKNOWN_REFERENCE");
     const selectedLineage = new Set(lineage.map((r) => `${r.kind}:${r.id}`));
     if (
       holds.some(
@@ -462,7 +478,12 @@ export async function previewPruning(
       contentHash,
       artifactId,
       lineage,
-      retainedBy: [...new Set([...rawReferences, ...unknown])].map(rowIdentity),
+      // Blocker categories above are bounded. Consumer IDs, table names and
+      // counts are private metadata, including when the caller is an Owner.
+      retainedBy: [],
+      ...(s.kind === "attachment-version"
+        ? {}
+        : { identityHash: await runtimeIdentity(db, ctx.workspaceId, s) }),
     };
     if (!recovery) await assertAccess(db, ctx, c);
     records.push(c);
@@ -676,7 +697,7 @@ export async function executePruning(
     );
   for (const c of preview.records)
     await db.query(
-      "INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,$2,$3,$4,$5,$6)",
+      "INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by,identity_hash) VALUES($1,$2,$3,$4,$5,$6,$7)",
       [
         ctx.workspaceId,
         c.selection.kind,
@@ -684,6 +705,7 @@ export async function executePruning(
         JSON.stringify(c.contentHash ? [c.contentHash] : []),
         p.preview_hash,
         ctx.principalId,
+        c.identityHash ?? null,
       ],
     );
   await removeCandidates(db, ctx.workspaceId, preview.records);
@@ -795,7 +817,7 @@ export async function replayGranularPruning(
     throw Error("RETENTION_EXCLUSIVE_GATE_REQUIRED");
   const retired = (
     await db.query(
-      "SELECT artifact_kind,artifact_id,hashes FROM operations_erased_artifacts WHERE workspace_id=$1 AND artifact_kind IN('attachment-version','runtime-answer','runtime-job') ORDER BY artifact_kind,artifact_id",
+      "SELECT artifact_kind,artifact_id,hashes,identity_hash FROM operations_erased_artifacts WHERE workspace_id=$1 AND artifact_kind IN('attachment-version','runtime-answer','runtime-job') ORDER BY artifact_kind,artifact_id",
       [workspaceId],
     )
   ).rows;
@@ -831,21 +853,16 @@ export async function replayGranularPruning(
         }),
       );
     } else {
-      const table =
-        a.artifact_kind === "runtime-answer"
-          ? "runtime_answers"
-          : "runtime_jobs";
-      if (
-        (
-          await db.query(
-            `SELECT 1 FROM "${table}" WHERE workspace_id=$1 AND id=$2`,
-            [workspaceId, a.artifact_id],
-          )
-        ).rowCount
-      )
-        selection.push(
-          selectionItem.parse({ kind: a.artifact_kind, id: a.artifact_id }),
-        );
+      const candidate = selectionItem.parse({
+        kind: a.artifact_kind,
+        id: a.artifact_id,
+      }) as Exclude<Selection, { kind: "attachment-version" }>;
+      const identity = await runtimeIdentity(db, workspaceId, candidate);
+      if (!identity) continue;
+      // Legacy ID-only retirements cannot authorize deletion of a restored row.
+      if (!a.identity_hash || identity !== a.identity_hash)
+        throw Error("RETENTION_REPLAY_REFERENCE_CONFLICT");
+      selection.push(candidate);
     }
   }
   if (!selection.length) return;

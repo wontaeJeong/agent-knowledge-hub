@@ -39,7 +39,7 @@ export async function captureRecoveryLedger(
     ).rows;
     const erasedArtifacts = (
       await db.query(
-        "SELECT workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by FROM operations_erased_artifacts",
+        "SELECT workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by,identity_hash FROM operations_erased_artifacts",
       )
     ).rows;
     const erasureScopes = (
@@ -108,6 +108,7 @@ interface RecoveryLedger {
     artifact_kind: string;
     artifact_id: string;
     hashes: string[];
+    identity_hash?: string | null;
     preview_hash: string;
     approved_by: string;
   }[];
@@ -236,6 +237,12 @@ export async function secureRestoredDatabase(
     if (ledger.version === 2) {
       if (!Array.isArray(ledger.erasedArtifacts))
         throw Error("CURRENT_ARTIFACT_DELETION_LEDGER_REQUIRED");
+      // The current signed inventory is complete. An extra restored tombstone
+      // must not acquire deletion authority merely by sharing a workspace.
+      if ((await quarantine.query(
+        "SELECT 1 FROM operations_erased_artifacts a WHERE NOT EXISTS(SELECT 1 FROM jsonb_to_recordset($1::jsonb) AS ledger_entry(workspace_id text,artifact_kind text,artifact_id text) WHERE ledger_entry.workspace_id=a.workspace_id AND ledger_entry.artifact_kind=a.artifact_kind AND ledger_entry.artifact_id=a.artifact_id) LIMIT 1",
+        [JSON.stringify(ledger.erasedArtifacts)],
+      )).rowCount) throw Error("RECOVERY_ARTIFACT_LEDGER_CONFLICT");
       for (const a of ledger.erasedArtifacts)
         if (
           (
@@ -244,17 +251,23 @@ export async function secureRestoredDatabase(
             ])
           ).rowCount
         )
-          await quarantine.query(
-            "INSERT INTO operations_erased_artifacts(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING",
-            [
-              a.workspace_id,
-              a.artifact_kind,
-              a.artifact_id,
-              JSON.stringify(a.hashes),
-              a.preview_hash,
-              a.approved_by,
-            ],
-          );
+          if (
+            !(
+              await quarantine.query(
+                "INSERT INTO operations_erased_artifacts AS a(workspace_id,artifact_kind,artifact_id,hashes,preview_hash,approved_by,identity_hash) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(workspace_id,artifact_kind,artifact_id) DO UPDATE SET artifact_id=excluded.artifact_id WHERE a.hashes=excluded.hashes AND a.preview_hash=excluded.preview_hash AND a.approved_by=excluded.approved_by AND a.identity_hash IS NOT DISTINCT FROM excluded.identity_hash RETURNING 1",
+                [
+                  a.workspace_id,
+                  a.artifact_kind,
+                  a.artifact_id,
+                  JSON.stringify(a.hashes),
+                  a.preview_hash,
+                  a.approved_by,
+                  a.identity_hash ?? null,
+                ],
+              )
+            ).rowCount
+          )
+            throw Error("RECOVERY_ARTIFACT_LEDGER_CONFLICT");
     }
     if (ledger.version === 2) {
       if (!Array.isArray(ledger.legalHolds))

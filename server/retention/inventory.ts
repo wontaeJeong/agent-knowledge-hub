@@ -68,6 +68,7 @@ export async function inventory(
   // configuration metadata, never product content or resource lineage. Freeze
   // the exact SQL-visible schema: a future content column must fail closed.
   const compatibleControls: Record<string, string[]> = {
+    operations_erased_artifacts: ["workspace_id:text:NO","artifact_kind:text:NO","artifact_id:text:NO","hashes:jsonb:NO","preview_hash:text:NO","approved_by:text:NO","created_at:timestamp with time zone:NO","identity_hash:text:YES"],
     content_retention_plans: ["workspace_id:text:NO","id:text:NO","requested_by:text:NO","selection:jsonb:NO","preview_hash:text:NO","policy_revision:integer:NO","state:text:NO","reviewed_by:text:YES","review_hash:text:YES","receipt:jsonb:YES","created_at:timestamp with time zone:NO","expires_at:timestamp with time zone:NO"],
     legacy_compat_memberships: ["workspace_id:text:NO","principal_id:text:NO","role:text:NO","subject:text:NO","revoked:boolean:NO","captured_at:timestamp with time zone:NO"],
     legacy_compat_installation: ["singleton:boolean:NO","installation_id:uuid:NO","import_key_fingerprint:text:YES"],
