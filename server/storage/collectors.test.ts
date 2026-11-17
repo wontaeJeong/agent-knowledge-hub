@@ -68,3 +68,12 @@ it("rejects synthetic artifacts without a trusted binding or exclusion policy", 
   hidden.data.payload.reasoning = "private";
   expect(() => collectArtifact(hidden, opts)).toThrow();
 });
+
+it("supports only the captured2.3.0 synthetic format through a trusted binding", async () => {
+  const sample = JSON.parse(await readFile(new URL("./fixtures/opencode-2.3.0-synthetic.json", import.meta.url), "utf8"));
+  const options = { tool: "opencode", version: "2.3.0", format: "api.synthetic-message", sessionId: sample.data.sessionID, selectedIds: [sample.data.id], excludedSessionIds: [] };
+  const binding = { sessionId: sample.data.sessionID, artifactId: sample.data.id };
+  expect(collectArtifact(sample, options, binding)).toMatchObject({ toolVersion: "2.3.0", content: sample.data.payload.text, kind: "author-statement", verification: "unverified" });
+  expect(() => collectArtifact(sample, options)).toThrow("ARTIFACT_SESSION_UNVERIFIED");
+  expect(() => collectArtifact(sample, { ...options, format: "api.assistant-message" }, binding)).toThrow("UNSUPPORTED_COLLECTOR_VERSION");
+});
