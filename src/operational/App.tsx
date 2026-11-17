@@ -1,5 +1,11 @@
 import { NotificationBell } from "./convenience/NotificationBell";
 import { NotificationInbox } from "./convenience/NotificationInbox";
+import {
+  QuestionScopeFields,
+  serializeQuestionScope,
+  type QuestionScopeValue,
+} from "./question-scope";
+import { PublicationSchedule } from "./scheduled-publication";
 import { ReviewRejection } from "./review-rejection";
 import { convenienceHref, parseConvenienceLocation } from "./convenience/route";
 import {
@@ -55,6 +61,7 @@ import { resolveJob, isJobReceipt } from "./jobs-client";
 
 interface PublishedPage {
   id: string;
+  category?: string;
   title: string;
   summary: string;
   version: number;
@@ -390,7 +397,15 @@ function OperationalWorkspace({
     >([]),
     [directoryConfigured, setDirectoryConfigured] = useState(false);
   const [issues, setIssues] = useState<Issue[] | null>(null);
-  const [answer, updateAnswer] = useState<Answer | null>(null);
+  const [answer, updateAnswer] = useState<
+    | (Answer & {
+        temporalMode?: string;
+        asOf?: string;
+        workspaceId?: string;
+        queryScope?: { topic?: string; periodFrom?: string; periodTo?: string };
+      })
+    | null
+  >(null);
   const answerRef = useRef<Answer | null>(null);
   const setAnswer = useCallback((value: Answer | null) => {
     answerRef.current = value;
@@ -414,6 +429,12 @@ function OperationalWorkspace({
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [question, setQuestion] = useState("");
+  const [questionScope, setQuestionScope] = useState<QuestionScopeValue>({
+    topic: "",
+    historical: false,
+    from: "",
+    to: "",
+  });
   const [sourcePage, setSourcePage] = useState(0);
   const [changePage, setChangePage] = useState(0);
   const [jobPage, setJobPage] = useState(0);
@@ -457,6 +478,7 @@ function OperationalWorkspace({
       setTitle("");
       setContent("");
       setQuestion("");
+      setQuestionScope({ topic: "", historical: false, from: "", to: "" });
       setSelectedReaders([]);
       setSelectedSources([]);
       setSpaces([]);
@@ -1891,6 +1913,18 @@ function OperationalWorkspace({
                                   />
                                 </div>
                               )}
+                            {!preview && (
+                              <PublicationSchedule
+                                key={`${identity.workspaceId}:${identity.principalId}:${c.id}:${c.hash}`}
+                                api={api}
+                                batchId={c.id}
+                                hash={c.hash}
+                                canSchedule={
+                                  review && c.status === "approved" &&
+                                  (identity.personalSpace || !identity.spaceRole || c.proposedBy !== identity.principalId)
+                                }
+                              />
+                            )}
                           </article>
                         ))}
                         <ListPager
@@ -1921,6 +1955,7 @@ function OperationalWorkspace({
                           const accepted = await api.post<unknown>("/query", {
                             question,
                             mode,
+                            scope: serializeQuestionScope(questionScope),
                           });
                           setAnswer(await completedJob<Answer>(accepted));
                         });
@@ -1937,6 +1972,11 @@ function OperationalWorkspace({
                           placeholder="적용 환경과 버전을 함께 적어주세요."
                         />
                       </label>
+                      <QuestionScopeFields
+                        value={questionScope}
+                        onChange={setQuestionScope}
+                        topics={[...new Set(pages.map((p) => p.category).filter((v): v is string => !!v))]}
+                      />
                       <Button
                         type="submit"
                         variant="primary"
@@ -1959,6 +1999,21 @@ function OperationalWorkspace({
                             ? "모델 종합"
                             : "발행본 발췌"}
                         </Badge>
+                        {answer.temporalMode && (
+                          <p>
+                            {answer.temporalMode === "documented-history-not-current-recommendation"
+                              ? "과거 발행 기록 · 현재 권고 아님" : "질문 시점의 현재 권고 발행본"}
+                            {answer.asOf ? ` · 조회 ${answer.asOf}` : ""}
+                          </p>
+                        )}
+                        {answer.queryScope && (
+                          <div className="op-answer-scope">
+                            <p>공간 {answer.workspaceId ?? identity.workspaceId} · 주제 {answer.queryScope.topic ?? "모든 주제"}</p>
+                            {answer.temporalMode === "documented-history-not-current-recommendation" && (
+                              <p>발행 기록 기간(UTC):{" "}{answer.queryScope.periodFrom ?? "시작 제한 없음"} ~{" "}{answer.queryScope.periodTo ?? "종료 제한 없음"}</p>
+                            )}
+                          </div>
+                        )}
                         <Markdown
                           text={answer.content}
                           readAttachment={readAttachment}

@@ -33,8 +33,8 @@ test('explicit service schedule runs guarded durable retention and records the a
  expect(await bridge.jobs.scheduleTick()).toBe(0);
  const job=(await f.pool.query('SELECT job_id AS id FROM durable_schedule_runs WHERE schedule_id=$1',[schedule.id])).rows[0];
  await bridge.workers[0].tick();
- const result=(await f.pool.query('SELECT status,result FROM durable_jobs WHERE id=$1',[job.id])).rows[0];
- expect(result.status).toBe('succeeded');expect(result.result).toMatchObject({status:'completed',deleted:1});
+ const result=(await f.pool.query('SELECT status,result,error_code FROM durable_jobs WHERE id=$1',[job.id])).rows[0];
+ expect(result.status,String(result.error_code)).toBe('succeeded');expect(result.result).toMatchObject({status:'completed',deleted:1});
  expect((await f.pool.query("SELECT owner_id,id FROM workflow_drafts WHERE workspace_id=$1",[f.workspaceId])).rows).toEqual([{owner_id:'reader',id:'excluded'}]);
  expect(JSON.stringify(result)).not.toContain('OTHER_PRIVATE');
  expect((await neighbor.pool.query("SELECT data FROM workflow_drafts WHERE workspace_id=$1 AND id='neighbor'",[neighbor.workspaceId])).rows[0].data.content).toBe('NEIGHBOR_PRIVATE');

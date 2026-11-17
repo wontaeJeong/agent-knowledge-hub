@@ -539,7 +539,9 @@ test("a share URL produced by AccessPanel survives unauthenticated login return 
   let container = await mount("/?app=1&space=team#access", (path) =>
     path === "/spaces/team/access"
       ? effective
-      : path === "/shares"
+      : path === "/access"
+        ? new Response(JSON.stringify({ code: "FORBIDDEN" }), { status: 403 })
+        : path === "/shares"
         ? {
             items: [
               {

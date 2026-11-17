@@ -393,3 +393,34 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 8px 24px;
 }
+
+.op-query-scope {
+  border: 1px solid var(--line, #d8ccd6);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px 0;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.op-query-scope label {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.op-query-scope select,
+.op-query-scope input {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  max-width: 100%;
+}
+.op-query-scope p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.op-answer-scope { overflow-wrap:anywhere; }
+.op-publication-schedule { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: .75rem; overflow-wrap: anywhere; }
+.op-publication-schedule input { display: block; max-width: 100%; margin: .5rem 0; }
+.op-schedule-row { padding: .75rem 0; border-top: 1px solid var(--border); }

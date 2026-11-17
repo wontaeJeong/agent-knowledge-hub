@@ -699,6 +699,33 @@
 - 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
 - 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
 
+### 2026-11-16 - Native index integration and schema qualification
+- Context: Task1c PostgreSQL index maintenance. Initial native RED tests observed no physical index and JOB_KIND_NOT_SUPPORTED. The first worker integration reached FEATURE_DISABLED because index was absent from feature-operation mapping; added the existing query feature mapping.
+- A revocation regression left the shared synthetic editor principal inactive for a later test in the same isolated file DB; explicit fixture setup restores that known synthetic actor. The first HTTP RED attempt failed in fixture setup; after correction, removing the route reproduced404 and restoring it passed actual OIDC/CSRF/worker HTTP checks. No shared base or production schema was modified.
+- Broader release-upgrade regression failed because a private-schema search_path could not resolve gin_trgm_ops already installed in public. Migration now qualifies the actual extension namespace; maintenance resolves/quotes object names from the versions table schema rather than assuming public. The failed upgrade regression then passed with25 tests; native index11, erasure28 and storage graph4 also passed.
+- A prior candidate SQL escape spelling was overcomplicated during implementation; explicit exclamation escape now keeps percent/underscore/backslash behavior literal and is exercised through canonical search.
+- All successful/failed rebuild, checksum/legacy migration, permission and UI outcome claims use actual executed tests. Final full-check/native counts are in handoff/report. Screenshots use labeled synthetic replies, not production data or a performance benchmark.
+### 2026-11-16 - Integration scheduling and native filter correction
+- Started the presentation merge before its final CI inspection, then cancelled only that uncommitted merge to integrate the already-CI-green bulk PR first. No committed or external changes were discarded. The presentation remote was already ff769e8; the initial stale-ref suspicion was incorrect.
+- A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.
+
+
+### 2026-11-17 — native index controls omitted from retention inventory
+
+- Context/evidence: PR #55 head1f1f555, CI run43891959528/job133385264883 failed five files/28 assertions. The initial three dead retention jobs expanded to ordinary retention, compatible controls and notification erasure. Isolated reproduction exposed the actual dead-job error `RETENTION_GRAPH_UNSUPPORTED`; both new search-index metadata tables were absent from the inventory's explicit table classes.
+- Cause/impact: the index's original native152-test selection covered release/index/erasure/runtime but omitted positive retention jobs and the fail-closed inventory. The public control tables therefore made ordinary retention unsupported after migration121. No production or real company data was involved; all reproduction and repair tests use per-file UUID databases through scripts/test-server.mjs, never the shared anchor schema.
+- Correction: explicitly classify only these two frozen metadata schemas; freeze their FK targets, columns, update/delete/match rules, validation and deferral too. Product-reference FKs fail even without added columns. Unknown tables and changed schemas still reject; metadata is not retained content lineage. Migration121 remains unchanged;122 unused. Add pruning/index-removal/current-version/observation-history regression and include all retention and operations tests in expanded validation.
+- Verification: native RED reproduced; schema-only classification left two new product-FK regressions failing, exact FK guard made them green. Targeted runtime6 + controls9 and full Node24 npm run check passed. Expanded native retention jobs, all operations/erasure, inventory/service/HTTP/recovery, index and release passed23 files/179 tests, exit0. Independent review and final PR CI follow.
+### 2026-11-17 — 아카이브 복원에서 이력·첨부 경계 누락 발견
+
+- 맥락: Task 10, LIF-008/009 독립 worktree. 기존 가져오기는 본문 제안과 검역 이력을 제공했지만 부모를 link로 바꾸고 facts/properties를 복원하지 않았다. 새 v2 회귀는 이 격차를 실패로 확인했다. 운영 자료/배포에는 적용하지 않았다.
+- 확인된 추가 원인: 변경된 속성만 plan에 넣으면 제안 뒤 변한 미변경 속성을 승인할 수 있었다. selective review가 원래 batch와 다른 ID를 만들어 재내보내기 이력 연결이 끊겼다. 새 부모에 사용자 속성이 없으면 absent-page plan이 빠졌다. 새 첨부를 원본 부모에 남기거나 논리 slot을 첫 revision 처리 중 옮기면 실제 페이지 부모 복원/전체 revision 검사에 실패했다. slot 없는 원본 스냅샷과 역사적 첨부 remap도 별도 처리해야 했다.
+- 조치: 현재 hash에 모든 v2 metadata intent를 고정하고 canonical base 0 검사를 현재 개인 소유자/빈 자원에 제한했다. immutable decision lineage를 따라 import evidence를 재내보낸다. 발행 트랜잭션에서 모든 revision을 검사한 뒤 부모를 함께 바꾸고, source snapshot은 유지하며 원래 첨부 메타데이터/관련 remap을 보존한다. 새 egress 정책은 명시적으로 설정하기 전 거부한다.
+- 시험/fixture 실수: pages INSERT에 명시 컬럼이 없어 data not-null 오류가 났다. native import가 실제 201인데 202를 기대했고, 새 원본 export policy가 자동 생긴다고 기대했다. Date 객체와 JSON timestamp 문자열 비교도 실패했다. 명시 컬럼·실제 응답 계약·현재 egress 허가 fixture·ISO JSON 정규화로 고쳤고 보안 정책을 완화하지 않았다.
+- 검증: 각 원인별 RED/수정 후 green을 기록했다. 첨부 hook을 잠시 제거한 검증에서는 승인 후 scan/head 변경이 잘못 발행되는 RED를 확인하고 원상복구했다. native HTTP/PG와 전체 기본/영향 회귀의 최종 명령·결과는 해당 PR/작업 보고서에 남긴다.
+- 상태: 로컬 수정·검증됨. 독립 재리뷰와 최종 CI/통합이 남으며 회사 운영 인수를 뜻하지 않는다.
+- 같은 문서 갱신 시 한국어를 포함한 Python stdin이 인코딩 오류로 실패하여 CURRENT_STATUS만 갱신되지 않았다. UTF-8 임시 행 파일을 ASCII Python 코드에서 명시 인코딩으로 읽어 적용하고 실제 행 존재를 확인했다. 코드·테스트 결과는 영향받지 않았다.
+- 최종 영향 회귀 재실행에서 multi-request native HTTP 시험이 Vitest 기본 5초에 도달해 실패했다(5006ms, 다른 14파일은 통과). 앞선 격리/전체 실행과 재실행에서 기능 assertion은 통과했으며, 20초의 명시적 integration-test deadline에서는 10시험 전부 완료했다. 공유 검증 부하가 지연 원인이라는 판단은 가설로 유지한다. 제품 타임아웃·정책·SLO를 변경하지 않고 이 종단 시험만 20초로 명시한 뒤 최종 전체 회귀를 다시 실행한다.
 ### 2026-11-16 - Auth lock-order CI integration finding
 - Full CI found discovery admission now waited on the new shared directory serialization before trying its nonblocking per-space gate, admitting a second same-space report after the first completed. Moved the identifier-only nonblocking discovery gate before the common mutation gate, without taking workspace/session/identity rows first.
 - The previous cross-space test assumed protected transactions ran concurrently. The intentionally shared directory serialization invalidates that performance assumption; its functional assertion now directly probes the waiting workspace row with NOWAIT. Global serialization is documented as a throughput limit, not a performance improvement. Full CI must pass again.
@@ -726,10 +753,54 @@
 ### 2026-11-16 - Semantic search integration MCP inventory
 - Native integration runtime tools/list correctly advertised knowledge_semantic_search but the pre-existing exact tool inventory expectation omitted it. This caused one assertion failure; the13 semantic provider tests passed. Updated the authenticated inventory expectation to the connected reviewed feature, preserving the explicit prohibition on approval tools. No production behavior changed.
 
+### 2026-11-17 — Task 6 범위/컨텍스트 연결과 검증 발견
+- 맥락: QNA-004/CORE-010, isolated question-scope worktree. 최초 동작 RED는 query scope 거부/무시, 현재 버전 대신 과거 버전 선택 불가, 실제 provider의 주장 예외 누락이었다. 통합 prerequisite 문서/CSS 충돌은 양쪽 내용을 보존했다.
+- 구현 중 발견: 새 컨텍스트가 기존 project/environment 필터를 처음 누락했고, 과거 claim validity를 발행 기간 종료일로 평가해 기록 시점과 혼동했다. 각각 동작 RED로 확인한 뒤 필터를 유지하고 역사 버전 기록 시점 기준으로 수정했다. 같은 발행 트랜잭션의 claim 기록이 버전보다 수 ms 늦어 제외되는 경계도 RED를 확인하고 exact originBatchId 결합만 허용했다. 뒤늦은 일반 claim은 계속 과거로 투사하지 않는다.
+- 저장 답변 재조회가 scope/asOf를 버려 실제 브라우저의 결과 범위 표시가 사라졌다. 인증 HTTP 재조회 RED를 추가하고 기존 전체 envelope 검사를 유지한 채 선택 범위 필드를 반환한다. 실제 모델 평가 가드도 새 전체 page DTO를 이전 네 필드 hash와 비교해 maintenance를 incomplete로 만들었다. 원래 id/title/version/content 비교를 명시하고 전체 입력의 holdout 격리·원본/규칙 검사를 보존했다. 평가 회귀 재실행은 통과했으며 의미 품질 효과를 뜻하지 않는다.
+- 시험/도구 오류: 최초 합성 모델 시험에 전송 설정/인증 capability가 빠져 fixture 오류가 났고, 빈 근거에서 기존 MODEL_TRANSMISSION_DENIED를 성공 prompt로 잘못 기대했다. 설정/현재 정책을 명시하고 거부 시 provider 0회를 검사했다. 편집 스크립트가 answer 메타데이터를 ingest 블록에 삽입하고 함수 인자를 한 곳 남긴 오류와 UI 상태 타입 누락은 타입 검사로 검출·수정했다. 전체 CSS 포맷 변경은 기존 스타일을 보존하고 새 규칙만 남겼다.
+- 화면 시험: select label의 option 텍스트 포함과 두 질문 textarea의 동명 때문에 첫 locator/submit 검증이 실패했다. 명시적인 접근성 이름과 실제 대상 placeholder를 사용했다. 이후 저장 답변 DTO 누락을 위와 같이 제품 경계에서 수정했다. 별도 기존 pool6 인증 동시성 문제를 우회하는 pool20 합성 캡처는 그 문제의 수정/반증으로 보고하지 않는다.
+- 검증/상태: 새 회귀의 의도한 RED와 수정 후 재검증 로그는 작업 보고서/PR을 따른다. native 평가 실행에서 pg 동시 client.query deprecation 경고도 관찰했다. 이 단위에서 그 기존 경고의 원인을 확정하거나 해결했다고 표시하지 않는다. 회사 원문·계정/키·실제 외부 배포 영향은 확인되지 않았다.
+- 최종 재검증: `npm run check` 웹195/import16/251 요구사항·서버 타입·빌드·smoke 통과. 넓은 native23파일203통과/평가1실패를 숨기지 않고 수정 후 최종3파일11개로 재검증했다(scope8/인증HTTP·MCP·provider·durable·실제브라우저2/평가1). 최종 캡처1440/390에서 역사 질문 제출·보호된 저장 답변 재조회·선택 범위 표시·overflow 검사가 통과했다. 기존 pg 경고/별도 인증 문제는 이 단위의 해결로 기록하지 않는다.
+
+### 2026-11-17 — PR58 독립 검토: 기간 검증·페이지별 계보·조건 DTO
+- 사실/영향: queryScope는 실제 시각 순서를 허용했으나 downstream searchFilters는 문자열 순서로 검사해 start=00:00:00Z/end=00:00:00.999Z를 거절했다. agent context는 전체 선택 원본 합집합을 각 페이지의 source_refs에 복제해 독립 페이지의 근거를 잘못 표시하고 바이트 예산을 소모했다. canonical reviewDate/state로 바꾸면서 기존 reviewDue/lifecycle와 미등록 project/environment null도 빠졌다. ACL 우회/실제 회사 자료 전송이 확인된 사안은 아니다.
+- 원인: 이중 스키마의 시각 비교 불일치, 전송 권한 envelope와 페이지의 근거 attribution 혼동, additive DTO 호환 회귀 부족이다. 새 실제 PostgreSQL 회귀4건과 provider HTTP 경로의 동작 RED를 확인했다.
+- 조치: 기간은 downstream에서도 Date.parse로 비교한다. entry별 현재/과거 전체 계보 envelope와 전체 권한 합집합을 구별하고 entry의 source_refs·주장 근거에 해당 entry 계보를 사용한다. legacy 조건 키/명시 null을 복원하고 canonical metadata를 유지한다. 같은 시각의 다른 ISO 소수점 표기, 독립 2페이지와 예산 생략, 전이 계보, 현재 REST/미기록 과거 MCP 응답을 재검증한다.
+- 상태/검증: 수정 후 집중 검사와 전체 npm run check를 실행한다. 최종 수치는 PR58 보완 보고서를 따른다. UI 레이아웃 변경 없음, base 통합/배포 없음. 기존 pg deprecation/별도 pool6 인증 문제를 해결했다고 표시하지 않는다.
+- 최종 로컬 재검증: 전체 npm run check 웹195/import16/251 요구사항·서버 타입·build/smoke 통과, native6파일31개 통과. 혼합 정밀도 actual provider/MCP, 독립 페이지 source_refs/예산 생략, 전이 계보와 기존 조건 DTO/과거 unknown null을 포함한다. 재검토 및 원격 CI는 아직 별도다.
+### 2026-11-17 - Additional collector actual-host verification
+- Default OpenCode CLI log path was sandbox-denied; isolated XDG roots fixed the local capture environment. The first temporary server printed its own ephemeral password; restarted with redirected local logs and never copied credentials/host metadata into fixtures. Only synthetic inputs with resume:false were used.
+- Expected missing-version/schema RED preceded implementation. Parameterizing the existing HTTP case reused its global synthetic session token and violated its PK; made the token workspace-specific without weakening authentication.
+- Actual installed-host GET then disproved the stubbed message-path assumption: pending synthetic input returned404 there and appeared in the session inbox. Added transport-mismatch RED cases and a bounded selected-inbox adapter. Final36 native tests and fullcheck passed. Corporate installation/semantic effectiveness are not inferred from capture or synthetic TLS tests.
 - The first integration capture omitted shared token/shell styles and was replaced after inspecting the real screenshot. Final captures use tokens.css, operational-app/op-main/op-panel; only the final1440/390 evidence is retained.
 
 - Independent integration re-review found pending Mermaid source was marked as text then asynchronously replaced by SVG, leaving a stale find count. Controlled deferred-Mermaid regression reproduced marks0/status1. Excluded the entire pending/resolved diagram container, matching the existing SVG exclusion; regular code/table search remains supported.
 
+### 2026-11-17 - Roundtrip integration dependency cache
+- Root base merge added reviewed presentation dependencies but reused an older node_modules symlink. Integrated frontend imports failed to resolve KaTeX/Mermaid before tests could run. Repointed only the root-owned untracked dependency symlink to the matching presentation installation and reran required checks; no product code or existing work was removed.
+### 2026-11-17 — 예약 발행 미리보기의 subtransaction 가정 및 화면 하네스 수정
+- 맥락: Task14 / REV-011, 분리 worktree0444.
+- 사실과 영향: 최초 canonical 발행을 SAVEPOINT 안에서 실행한 후 롤백하는 미리보기 실험이 `VERSION_METADATA_OUTSIDE_PUBLICATION`으로 회귀12개 실패했다. 해당 메타데이터 검사는 버전 xmin이 top-level txid와 같아야 하며 subtransaction 삽입은 허용하지 않았다. 실패는 UUID 격리 DB에 한정됐고 원본 체크아웃/운영 자료 영향은 없다. 초기 리팩터링 자동 편집의 들여쓰기 가정도 실패하여 소스 변경 없이 중단했다.
+- 원인: DB 전용 부작용이면 SAVEPOINT 시뮬레이션이 가능하다고 가정했으나 버전 메타데이터의 top-level 트랜잭션 경계를 먼저 확인하지 않았다.
+- 조치: 해당 보호를 완화하지 않고 검증·도메인 전이 계산을 정본 `preparePublicationDb`로 추출했다. 미리보기는 발행 효과 없이 계산하고 실행은 정본 트랜잭션에서만 효과를 기록한다. 실패 효과는 전체 롤백 후 아직 대기 상태인 예약만 실패로 기록한다.
+- 추가 하네스 실패: 최초 화면 전용 import가 React CJS를 직접 가리켜 default export 오류가 발생했다. 표준 번들 import와 앱 공통 CSS로 고쳤으며 초기 이미지로 증거를 주장하지 않았다. 화면 데이터는 합성 API라는 경계를 유지한다.
+- 검증: 수정 후 실제 PG 예약12/정본25/버전8, 실제 OIDC HTTP1, 전체 npm run check 통과. 브라우저1440/390의 별도 동의/UTC/취소/가로 맞춤과 오류 없음 확인. 최종 추가 회귀 결과는 PR/작업 보고서를 따른다.
+- 상태: 수정됨, 독립 최종 리뷰와 CI는 별도 확인한다.
+
+### 2026-11-17 — 예약 상태 폴링 회귀의 세션 시간 fixture 정정
+- 맥락: Task14 최종 OIDC HTTP 추가 회귀.
+- 사실/원인: 유휴 폴링이 세션을 연장하지 않음을 검사하려고 last_seen_at만 과거로 옮겨 created_at 이상이어야 하는 DB 제약에 걸렸다. 앱의 실패가 아닌 합성 테스트 시간 준비 오류였다.
+- 조치: created_at도 더 이른 시각으로 설정해 실제 시간 불변식을 유지했다. DB 제약과 제품 세션 규칙은 바꾸지 않았다.
+- 검증/상태: 수정 후 실제 OIDC HTTP1 및 관련 서버9개 파일114개 회귀 통과.
+
+### 2026-11-17 — 예약 발행 PR 업로드 자동 승인 차단
+- 맥락: Task14 최종 검증 후 기능 브랜치의 원격 push/개별 PR 준비.
+- 사실: 로컬 커밋과 push를 묶은 명령이 실행 전 자동 승인 검토에서 거부됐다. 사유는 GitHub 외부 대상의 소유·신뢰와 정확한 업로드 승인이 이 하위 작업의 신뢰된 사용자 문맥에 확립되지 않아 저장소 내용 반출을 승인할 수 없다는 것이다. 원격 push/PR은 실행되지 않았다.
+- 조치: 차단을 우회하지 않았다. 네트워크가 없는 별도 로컬 커밋으로 검증된 결과를 보존하고 원래 사용자 승인 문맥이 있는 상위 작업에 승인 근거 확인을 요청했다.
+- 검증/상태: 로컬 commit 460de88, npm run check 및 관련 실제 PostgreSQL114개 회귀 통과. 외부 push/PR/CI/독립 리뷰는 아직 미완료다.
+
+### 2026-11-17 - Scheduled publication upload authorization resolved
+- Root inspected the actual trusted user request explicitly authorizing all roadmap PR uploads and merges, verified origin against public GitHub repository1438188423/wontaeJeong/agent-knowledge-hub and connected push permissions, audited exact29 changed paths plus synthetic evidence source/screenshots, and found no credential-pattern matches. The same push was re-reviewed in root context and allowed; no alternate channel or policy bypass was used. Initial blocked attempt remains recorded above.
 ### 2026-11-17 - Incremental main integration
 - User explicitly requested completed PRs merge before advancing. Completed individual feature PRs were integrated after final CI and independent reviews, then broad cross-feature review approved with native21/UI19 tests. The integration preserves main51129cb and PR49 documents and proceeds to a first ready-wave main PR rather than waiting for all19 tasks.
 - PR52 initially targeted main; its reviewed head was integrated before detecting this. Retargeting was rejected422 for no new commits. A separate verification note permits explicit final CI/merge without changing product behavior. An attempted shared-log truncation was rejected by automatic approval review as a record-loss risk; no deletion occurred. Preserve both logs through an ordinary base merge instead.
@@ -767,6 +838,27 @@
 - 조치/후속 작업: 권한 확정 전 capture/projection을 지연하고 staged scan→승인 release→재scan에서 정확히1건, 승인 실패에서는0건인 회귀가 필요하다. 내부 링크 계보 수정과 별도이며 이번 변경에 이벤트 수정은 포함하지 않았다.
 - 상태: 미해결. 원격 PR 리뷰에 경로를 기록했으며 통합 main 발행 전 해결·독립 재검증이 필요하다.
 
+
+### 2026-11-17 — index/semantic integration conflict verification
+
+- Context: parent handed off an uncommitted merge of integrationa98a542 into PR #55 after inventory fix2026edf passed independent scoped review. Conflicts overlapped search transaction extraction, index/semantic runtime imports, validation/replay and HTTP endpoints, error maps and historical docs.
+- Correction: preserve the base's `searchDb` transaction signature and all structural/ACL/history/cursor checks, replace only literal body candidate SQL with the native indexed helper, retain both independent202 API branches and both job flows. Existing kind-first + semantic-seal replay guard, model policy/reservation/usage checks and fixed operator/Admin/session index capability remain. No failed resolution was committed and no business data or migration was changed.
+- Environment: unprivileged process inspection returned EPERM while checking long-running native tests; runner output and final exit status are used as evidence instead. Dependency symlink changed only after byte-identical package-lock verification against the approved base dependencies. No product assertion failure observed at this stage; final test results are in handoff/report.
+- Validation: full Node24 npm run check passed (src216); combined UUID-isolated native index/semantic/jobs/retention/MCP/ordinary query/policy/release regressions passed20 files/212 tests, exit0. Independent merge-scope review and remote CI remain separate.
+
+
+### 2026-11-17 — approved navigation test budget extracted into index branch
+
+- Parent requested the reviewed f08058f case-local budget after handing off a98 integration. Its documentation conflicted because PR62 production/migration130 records are absent from the index branch. Preserved only f08058f's added historical test-budget sections and all existing index records, and explicitly kept PR62 production changes separate. No existing record was discarded or represented as merged.
+- Resulting navigation HTTP file is byte-identical to f08058f. Fresh UUID-isolated native1 test passed (file8.28s with concurrent fullcheck); final Node24 npm run check again passed frontend216, Node48, imports16, evaluation41, requirements251, server types/build/static smoke. Existing large-chunk build warning remains. Production and global timeouts are unchanged; no product assertion failure occurred. The earlier20-file/212-test native integration pass and new test-budget validation are separate evidence.
+
+
+### 2026-11-17 — SQL case mapping changed canonical Unicode body search
+
+- Context/evidence: root's real PostgreSQL17 probe before merging PR #55 showed database lower('ΟΣ') and lower('İ') differ from JavaScript's contextual/expanding mappings. The index prefilter had become the accepted body predicate while title/summary still used JavaScript. New native canonical cases use unrelated metadata, and reproduce four actual failures: missed final-sigma/dotted-I body hits and extra dotted-I/plain-i/sigma matches. The earlier Korean/code/wildcard tests did not cover these Unicode case mappings. No production/main index deployment occurred.
+- Correction: retain physical fixed GIN SQL, union conservative keys from the already-loaded authorized snapshot for Unicode query/body and measured ASCII locale mismatch, then verify every body hit with JavaScript substring semantics. Existing source/credential/transitive/history/metadata/cursor gates remain. No query normalization/language restriction, new hard cap/silent truncation or migration121 modification.
+- Limits: conservative fallback can visit the whole authorized snapshot, including for Korean; the current full-state view has no new independent hard work bound. Actual selective Korean/code GIN plans remain proven, but whole-query Unicode pruning/performance is not claimed. Documentation now makes that distinction explicit.
+- Validation: native RED4 at /private/tmp/akh-index-unicode-red.log; targeted GREEN64 (index16/history18/retention30) at /private/tmp/akh-index-unicode-green.log. Final full Node24 check passed (frontend216 and all required stages); combined native20 files/217 tests passed with isolated per-file UUID DBs. Logs /private/tmp/akh-index-unicode-final-check.log and /private/tmp/akh-index-unicode-final-native.log. Independent fresh review/CI remain required. No UI/layout or real model claims added.
 ### 2026-11-16 — 누적 native HTTP 회귀 사례의 기본 시간 초과
 
 - 맥락/사실: 부모가 제공한 PR #56 CI `43890549626` 로그에서 `15:03:25 Error: Test timed out in 5000ms`가 `navigation-http.test.ts:9`에 발생했다. 119파일 PostgreSQL suite의 유일한 실패였고 assertion/product 실패는 없었다. 로컬에서도 이전 파일 시간이 5.20초였다.
@@ -840,3 +932,8 @@
 - 기존 `.github/workflows/ci.yml`의 확인된 blob4bfef13을 대상으로 정상 GitHub connector `update_file`을 사용해 동일한 server job15→20 변경을c569e9f로 기록했다. 이어 컨트롤러가17093a6과c569e9f를 부모로 하는cd1ccfc를 만들고 expected c569e9f/force=false의 정상 ref 갱신으로 양쪽 이력을 보존했다. 이 경로는 기존 정상 도구 권한을 사용했으며 추가 scope 부여나 강제 덮어쓰기를 하지 않았다.
 - 로컬 e5a9에서 직접 확인: HEADcd1ccfcc07b9989abb72705de9391890226420fb, 부모17093a6/c569e9f, `git diff17093a6..cd1ccfc` empty/exit0, 양쪽 tree42cbe67269efcd056551cf1ee5e7078e31452ab4 동일, tracked clean. workflow/제품 결과가 동일하므로 제품 suite를 반복하지 않았다. task review fix1의4개 지적은 승인됐으나 final review와 exact-head CI는 별도 미완료 gate다.
 - 보고 준비 오류: 컨트롤러의 첫 job-log 조회가 큰 구조화 로그를 출력했다. 이후 필요한 구간만 제한 추출했으며 제품 변경은 없었다. 로그는 GitHub masking 및 테스트 전용 값이었고 실제 비밀 노출은 보고되지 않았다. 이 기록은 전체 CI 통과를 의미하지 않는다.
+### 2026-11-17 — 두 번째 완료 묶음의 공통 발행 훅과 공유 시험 fixture
+
+- #55/58/61/57/64의 최종 각8개 원격 검사와 독립 리뷰를 확인하고 순서대로 통합했다. 예약 발행이 기존 publish 본문을 preparePublicationDb/publishInTransaction으로 추출하므로, 가져오기 복원의 applyPublishedImportAttachments를 그 코어 안에서 metadata plan 적용 뒤·published snapshot 캡처 전에 보존했다. 질문/예약 UI import와 CSS, 문서/실패 기록도 양쪽을 보존했다.
+- 통합 native 5파일49시험(예약 서비스14·HTTP1, 가져오기10, version publication8, staged 알림16)이 통과했다. 첫 전체 check는 기존 C1 Navigation 공유 URL 사례만 AccessManager의 capabilities.manageOrganization undefined로 실패했다. 다른298프런트 시험은 통과했지만 해당 전체검사를 통과로 취급하지 않는다. 같은 사례가 Task16의 무변경 UI 검증에서도 일시 실패했었다.
+- 원인: 시험 mock의 미처리 /access 요청에 유효한 AccessState 대신 {items:[]}와200을 반환했고, lazy 관리자 화면이 늦게 완료되는 순서에 따라 오류가 나타났다. 이 공유 링크 시험과 무관한 관리 API 응답만 실제 가능한403 FORBIDDEN으로 명시했다. 제품 코드/인가/모든 기존 assertion과 다른 fixture 경로는 그대로다. 최종 전체 check(299프런트/48Node/16import/41평가/251요구사항/서버타입/build/smoke)가 통과했다. fixture의 좁은 독립 리뷰와 최종 원격 검사는 별도다.

@@ -178,3 +178,8 @@ node scripts/k8s/verify-restore.mjs /external/private-backups/knowledge-TIMESTAM
 - `AKH_INBOX_SIGNING_KEY`: 선택적 서버 전용 문자열, 32~4096자. 다중 인스턴스 또는 재시작 이후 동일 boundary/cursor 검증이 필요하면 동일한 비밀값을 안전하게 주입한다. VITE_ 변수나 브라우저에 넣지 않는다. 미설정 로컬 실행은 프로세스 임시 키를 사용한다. 재시작/키 교체 후 이전 cursor/boundary는 명시적 오류로 무효화되며 현재 인가된 목록을 다시 읽어야 한다. 넓은 범위의 read-all로 대체하지 않는다.
 - 기존 outbox/dispatcher·collaboration worker 구성이 이벤트 전달과 정리에 필요하다. UI 읽기는 이벤트 발행·메일 전송을 하지 않는다. 별도 이벤트/메일 엔진 또는 필수 외부 인프라를 추가하지 않았다.
 - 목록25, bell5, 활성 탭30초 및 재초점 갱신, 숨긴 탭 정지. 조회 후보10,000건 상한은 명시적413이며 대량 공간에서 부하·운영 정책 인수가 필요하다. 설정 키를 사용한 서비스 재생성/영수증 재시도와 임시 키 재시작 거부는 native 시험으로 확인했다. 실제 운영 키 보관/배포·IdP·다중 인스턴스 부하 인수는 별도다.
+## Native search index maintenance (2026-11-16)
+
+Migration121 installs the trusted PostgreSQL pg_trgm extension and body GIN index. The migration role needs database CREATE permission for the extension; runtime maintenance needs ownership or appropriate PostgreSQL17 MAINTAIN authority on the versions table, plus namespace CREATE authority to recreate a missing index. Keep these as reviewed site database-role decisions; the API does not grant database privileges. Existing app/DB Pods and maintenance workers are reused.
+
+Set AKH_PLATFORM_OPERATOR_IDS to the explicit JSON array of existing human principal IDs. A listed operator also needs the current space Admin role and a verified login session; PAT/service/legacy agent credentials do not replace that session. The jobs console exposes actual status and durable rebuild. SQL lock/statement timeouts bound blocking; large maintenance may fail safely and requires a separately reviewed capacity/availability decision. [Exact operation, authorization and validation](implementation/2026-11-16-search-index.md).

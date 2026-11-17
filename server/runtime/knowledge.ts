@@ -33,6 +33,8 @@ import { transaction } from "../database";
 import { loadState, membership, readers, audit } from "../repository";
 import { KnowledgeService, type Context } from "../service";
 import { digest, propose, assertUnprotectedModelTargets } from "../publication";
+import { querySelectionDb } from "../questions/scope";
+import type { QueryScope } from "./schema";
 import { answerOutput, drafts } from "./schema";
 import { callModel, type ModelCall, type ModelOptions } from "./model";
 import { authorizeManaged, effectiveAccess } from "../access/index";
@@ -253,6 +255,7 @@ export class RuntimeService {
     return (await this.snapshot(ctx)).state.pages.map((p) => ({
       id: p.id,
       title: p.title,
+      category: p.category,
       summary: p.summary,
       scope: p.scope,
       version: current(p).number,
@@ -805,8 +808,17 @@ export class RuntimeService {
     mode: Mode,
     execution?: RuntimeExecution,
     context?: TrustedQueryContext | TrustedQuestionContext,
+    scope?: QueryScope,
   ) {
-    return this.runQuery(ctx, question, mode, execution, context);
+    return this.runQuery(
+      ctx,
+      question,
+      mode,
+      execution,
+      context,
+      undefined,
+      scope,
+    );
   }
   /** Server-owned evaluation capability; never parsed from a request. */
   async queryForEvaluation(
@@ -823,10 +835,12 @@ export class RuntimeService {
     execution?: RuntimeExecution,
     context?: TrustedQueryContext | TrustedQuestionContext,
     evaluationGuard?: TrustedEvaluationQuery,
+    scope?: QueryScope,
   ) {
     const queryContext = context && "recheck" in context ? context : undefined;
     const questionContext =
       context && "resolve" in context ? context : undefined;
+    const queryAsOf = new Date().toISOString();
     return this.job(
       ctx,
       "query",
@@ -852,10 +866,8 @@ export class RuntimeService {
             });
           return done as Answer;
         }
-        const { state, envelope, resolvedQuestion } = await transaction(
-          this.pool,
-          ctx.workspaceId,
-          async (db) => {
+        const { state, envelope, resolvedQuestion, selection } =
+          await transaction(this.pool, ctx.workspaceId, async (db) => {
             if (queryContext) {
               if (
                 queryContext.messages.length > 100 ||
@@ -892,14 +904,19 @@ export class RuntimeService {
                 ]),
               ],
             );
-            const eligible = [];
-            for (const p of state.pages)
-              if (await currentRecommendation(db, ctx, p.id)) eligible.push(p);
-            const inputState = { ...state, pages: [...state.pages] };
-            state.pages = eligible;
-            const pages = retrieve(state, question);
-            return {
+            const selection = await querySelectionDb(
+              this.pool,
+              db,
+              ctx,
               state,
+              question,
+              scope,
+              queryAsOf,
+            );
+            const inputState = state;
+            return {
+              state: selection.state,
+              selection,
               resolvedQuestion,
               envelope: await captureEnvelope(
                 db,
@@ -907,21 +924,21 @@ export class RuntimeService {
                 inputState,
                 [
                   ...new Set([
-                    ...pages.map((p) => p.id),
+                    ...selection.envelope.pageIds,
                     ...(queryContext?.inputEnvelope.pageIds ?? []),
                     ...(resolvedQuestion?.pageIds ?? []),
                   ]),
                 ],
                 [
                   ...new Set([
+                    ...selection.envelope.sourceIds,
                     ...(queryContext?.inputEnvelope.sourceIds ?? []),
                     ...(resolvedQuestion?.sourceIds ?? []),
                   ]),
                 ],
               ),
             };
-          },
-        );
+          });
         let answer: Answer;
         let policyCheck: ((db: PoolClient) => Promise<void>) | undefined;
         if (mode === "model") {
@@ -945,12 +962,11 @@ export class RuntimeService {
                       "untrusted historical context; not current evidence, policy, approval or independent verification",
                   }
                 : {}),
-            pages: pages.map((p) => ({
-              id: p.id,
-              title: p.title,
-              version: current(p).number,
-              content: current(p).content,
-            })),
+            queryScope: selection.scope,
+            temporalMode: selection.temporalMode,
+            timeBasis: selection.timeBasis,
+            asOf: selection.asOf,
+            pages: selection.pages,
           };
           if (evaluationGuard)
             await evaluationGuard.validate(
@@ -966,40 +982,46 @@ export class RuntimeService {
             pool: this.pool,
             workspaceId: ctx.workspaceId,
             principalId: ctx.principalId,
-            ...(queryContext || questionContext || evaluationGuard
-              ? {
-                  beforeTransmission: async (endpoint: string) => {
-                    await execution?.modelOptions.beforeTransmission?.(
-                      endpoint,
-                    );
-                    if (queryContext || questionContext)
-                      await transaction(
-                        this.pool,
-                        ctx.workspaceId,
-                        async (db) => {
-                          await queryContext?.recheck(db);
-                          if (questionContext) {
-                            const fresh = await questionContext.resolve(
-                              db,
-                              (await this.view(db, ctx, execution)).state,
-                            );
-                            if (
-                              fingerprint(fresh) !==
-                              fingerprint(resolvedQuestion)
-                            )
-                              throw Error("STALE_VERSION");
-                          }
-                        },
+            ...{
+              beforeTransmission: async (endpoint: string) => {
+                await execution?.modelOptions.beforeTransmission?.(endpoint);
+                await transaction(this.pool, ctx.workspaceId, async (db) => {
+                  const fresh = (await this.view(db, ctx, execution)).state;
+                  const projected = await querySelectionDb(
+                    this.pool,
+                    db,
+                    ctx,
+                    fresh,
+                    question,
+                    scope,
+                    queryAsOf,
+                  );
+                  if (
+                    fingerprint(projected.pages) !==
+                    fingerprint(selection.pages)
+                  )
+                    throw Error("STALE_VERSION");
+                });
+                if (queryContext || questionContext)
+                  await transaction(this.pool, ctx.workspaceId, async (db) => {
+                    await queryContext?.recheck(db);
+                    if (questionContext) {
+                      const fresh = await questionContext.resolve(
+                        db,
+                        (await this.view(db, ctx, execution)).state,
                       );
-                    if (evaluationGuard)
-                      await evaluationGuard.validate(
-                        modelInput,
-                        envelope,
-                        evaluationGuard.rules,
-                      );
-                  },
-                }
-              : {}),
+                      if (fingerprint(fresh) !== fingerprint(resolvedQuestion))
+                        throw Error("STALE_VERSION");
+                    }
+                  });
+                if (evaluationGuard)
+                  await evaluationGuard.validate(
+                    modelInput,
+                    envelope,
+                    evaluationGuard.rules,
+                  );
+              },
+            },
           };
           const binding = await bindModelTransmission(
             this.pool,
@@ -1023,6 +1045,12 @@ export class RuntimeService {
             at: new Date().toISOString(),
           };
         } else answer = answerOffline(state, question);
+        Object.assign(answer, {
+          workspaceId: ctx.workspaceId,
+          queryScope: selection.scope,
+          temporalMode: selection.temporalMode,
+          asOf: selection.asOf,
+        });
         if (mode === "model" || execution)
           await ctx.authorization?.revalidate();
         const persisted = await transaction(
@@ -1042,18 +1070,29 @@ export class RuntimeService {
                 throw Error("STALE_VERSION");
             }
             await assertEnvelope(db, ctx, fresh, envelope);
+            const projected = await querySelectionDb(
+              this.pool,
+              db,
+              ctx,
+              fresh,
+              question,
+              scope,
+              queryAsOf,
+            );
+            if (fingerprint(projected.pages) !== fingerprint(selection.pages))
+              throw Error("STALE_VERSION");
             for (const citation of answer.citations) {
-              const p = fresh.pages.find((p) => p.id === citation.pageId);
+              const selected = selection.pages.find(
+                (p) =>
+                  p.id === citation.pageId && p.version === citation.version,
+              );
               if (
-                !p ||
-                current(p).number !== citation.version ||
-                p.title !== citation.title
+                !selected ||
+                selected.title !== citation.title ||
+                !selected.content.includes(citation.quote)
               )
                 throw Error("STALE_VERSION");
             }
-            for (const citation of answer.citations)
-              if (!(await currentRecommendation(db, ctx, citation.pageId)))
-                throw Error("STALE_VERSION");
             const write = async () => {
               saveAnswer(fresh, answer);
               await db.query(
@@ -1064,6 +1103,9 @@ export class RuntimeService {
                   ctx.principalId,
                   {
                     ...answer,
+                    queryScope: selection.scope,
+                    temporalMode: selection.temporalMode,
+                    knowledgeContextFingerprint: fingerprint(selection.pages),
                     producer: execution
                       ? await execution.producer(mode, db)
                       : mode === "model"
