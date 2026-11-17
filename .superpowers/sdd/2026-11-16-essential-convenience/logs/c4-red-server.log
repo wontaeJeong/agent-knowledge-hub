@@ -67,4 +67,3 @@ AssertionError: personal home service: expected undefined to be defined
  ❯ server/convenience/home.test.ts:58:10
 
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
-

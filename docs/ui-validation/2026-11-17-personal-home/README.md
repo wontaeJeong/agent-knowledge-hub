@@ -12,7 +12,7 @@
 
 실행: `AKH_C4_SYNTHETIC_CAPTURE=1 TEST_DATABASE_URL=<loopback test DB> npx tsx home-runtime.ts`, frontend5194, `PLAYWRIGHT_MODULE=<installed module> node capture.mjs`. 런타임4394와 frontend5194는 최종 제품 바이트에서 새로 시작했다. `manifest.mjs --frontend-start`는 시작 시 전체 server/src/SQL/CSS/JSON·lock/config SHA를 기록하며 capture는 backend/frontend/현재 source fingerprint 일치를 확인한다. `manifest.mjs`와 `--verify`는 최종 source/harness/artifact/log를 묶는다. 비밀값을 넣지 않는다.
 
-검증 로그는 `.superpowers/sdd/2026-11-16-essential-convenience/logs/c4-*`다. 최신 `c4-final-check.log` exit0: frontend436/Node48/import16/evaluation41/requirements251/server types/build/static smoke. 최신 native `c4-final-isolation-native.log`는4파일50개 exit0(Home10/HTTP1/manual9/new-document30). 이전 corrected governance14/workflows36 및 unchanged collaboration21/personal7/personal HTTP4/jobs48의 green130개를 carry한다. 고유10파일180 범위이며 단일 최종180개 실행으로 주장하지 않는다. 이전 실패/수정 로그와 pre-isolation/pre-scroll capture는 superseded다.
+Terminal 로그는 줄 끝 공백/EOF 빈 줄만 정규화하며 실패·결과·본문은 보존한다. 검증 로그는 `.superpowers/sdd/2026-11-16-essential-convenience/logs/c4-*`다. 최신 `c4-final-check.log` exit0: frontend436/Node48/import16/evaluation41/requirements251/server types/build/static smoke. 최신 native `c4-final-isolation-native.log`는4파일50개 exit0(Home10/HTTP1/manual9/new-document30). 이전 corrected governance14/workflows36 및 unchanged collaboration21/personal7/personal HTTP4/jobs48의 green130개를 carry한다. 고유10파일180 범위이며 단일 최종180개 실행으로 주장하지 않는다. 이전 실패/수정 로그와 pre-isolation/pre-scroll capture는 superseded다.
 
 `cleanup.json`은 소유 DB0/소유 profile0/4394·5194 해제, 부모PG 생존을 확인한다. 다른 세션·컨테이너는 중지하지 않았다.
 

@@ -2,6 +2,7 @@
 
 ## 2026-11-17 #49 C4 — 개인 홈·내 작업
 
+- 로컬 feature commit `cb0d42f2e8ffcd7a115db3b3e3b505a9efa94fdb`; 독립 review/CI/merge는 대기다.
 - UXC-05 / UX-001/003/004, REV-001/002, SRH-009. 빈 성공과 위젯 오류, 읽음과 업무 완료, 초안 공개 승인·지식 검토 승인·실제 발행을 구별한다. 기존251개 수용 기준/분류/North Star와 SQL142까지의 migration은 변경하지 않았다.
 - `server/convenience/home.ts`, `http.ts` 및 runtime adapter가 현재 인증 주체의 recent/favorites/초안/요청·수정 요청/현재 담당·검토 가능 변경/실패 작업/접근 요청을 조합한다. canonical drafts/review inbox의 선택적25후보 paging, own request/access metadata, JobService own failure filter와 C6 암호화 cursor helper를 확장했다. 공통 ACL·원본·삭제 fence는 failclosed이며 feed별 실제 테이블 장애는 다른 위젯에 전파하지 않는다. 관리자 집계를 받아 client에서 거르지 않는다.
 - `Home.tsx`, `MyTasks.tsx`, Home 전용 CSS와 `App.tsx`/`console.ts`가 기본 진입을 개인 홈으로 바꾸며 `/...?section=tasks`와 기존 `#overview` 운영 개요를 유지한다. Home은 미조회 운영 count/model bootstrap에 의존하거나 거짓0건 운영 aggregate를 표시하지 않는다. C6 `compose&draft`는 own exact ID로 분기하고 page-bound 초안은 기존 WorkflowPanel의 CAS/복구 editor에 위임한다. 계정·공간/API 세대/미저장 경고를 유지하며 foreign/missing exact ID는 오류다.

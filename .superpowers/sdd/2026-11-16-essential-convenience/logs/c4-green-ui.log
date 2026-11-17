@@ -45,4 +45,3 @@ TypeError: Cannot read properties of undefined (reading 'status')
       Tests  2 failed | 38 passed (40)
    Start at  20:32:01
    Duration  1.15s (environment 49%, tests 27%, import 16%, transform 7%)
-

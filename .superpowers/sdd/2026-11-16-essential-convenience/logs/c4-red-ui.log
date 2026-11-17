@@ -38,4 +38,3 @@ AssertionError: personal Home component: expected undefined to be defined
       Tests  2 failed (2)
    Start at  20:28:51
    Duration  559ms (environment 90%, import 5%, transform 3%, tests 2%)
-
