@@ -82,6 +82,7 @@ type RuntimeBatch = Batch & {
   producer?: NonNullable<import("../src/domain/types").Version["producer"]>;
   responsibleUserId?: string;
   proposedBy?: string;
+  initialDocument?: { pageId: string; parentId: string | null };
   importRunId?: string;
   importAuthorId?: string;
   contextDependencyIds?: string[];
@@ -286,7 +287,8 @@ export async function propose(
      * Runs only for a new proposal, after session admission and before permission/envelope/state capture.
      * Any later failure rolls this preparation back with the canonical proposal transaction.
      */
-    onBeforeCreate?: (db: PoolClient) => Promise<void>;
+    onBeforeCreate?: (db: PoolClient) => Promise<void | { id: string; hash: string }>;
+    initialDocument?: { pageId: string; parentId: string | null };
     /** Trusted integration hook; never accepted in request DTOs. Runs before the same transaction commits. */
     onCreated?: (
       db: PoolClient,
@@ -338,7 +340,8 @@ export async function propose(
           };
         }
       }
-      await options?.onBeforeCreate?.(db);
+      const replay = await options?.onBeforeCreate?.(db);
+      if (replay) return replay;
       const metadataPlans = [...(options?.versionMetadataPlans ?? [])].sort(
         (a, b) => a.pageId.localeCompare(b.pageId),
       );
@@ -405,6 +408,7 @@ export async function propose(
             current(p),
           ]);
         }
+        if (options?.initialDocument) (batch as RuntimeBatch).initialDocument = options.initialDocument;
         if (options?.answerId) batch.answerId = options.answerId;
         if (options?.candidates?.length)
           Object.assign(batch, { candidates: options.candidates });
@@ -1191,6 +1195,9 @@ export async function publishInTransaction(
         "INSERT INTO pages(workspace_id,id,data) VALUES($1,$2,$3) ON CONFLICT(workspace_id,id) DO UPDATE SET data=excluded.data",
         [ctx.workspaceId, d.id, metadata],
       );
+      const initial = (batch as RuntimeBatch).initialDocument;
+      if (d.baseVersion === 0 && initial?.pageId === d.id)
+        await db.query("INSERT INTO workflow_document_state(workspace_id,page_id,parent_id) VALUES($1,$2,$3)", [ctx.workspaceId,d.id,initial.parentId]);
       await db.query("INSERT INTO versions VALUES($1,$2,$3,$4)", [
         ctx.workspaceId,
         d.id,

@@ -1,5 +1,37 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — C6 최종 리뷰의 목록 단절·템플릿 fence와 실제 keyboard blur
+
+- F1 실제 probe는 승인/숨은25행 뒤의 유효한 이전 요청이 목록에서 영구 누락됨을 확인했다. F2는 completed workspace receipt 뒤 bare template 본문이 저장·목록에 재노출됨을 확인했다. 기존 exact-resume/erasure 회귀는 누적 목록과 template 쓰기 경계를 포함하지 않았다.
+- native RED5(목록2/fence3)를 확인하고 기존 GET의 bounded continuation/exact lookup 및 기존 fence 적용으로 수정했다. 초기 경계 시험은 Vitest에서 제거된 test(name,fn,options) signature, LegacyAccessService import, 수십 실제 요청의 기본5초 budget으로 실패했다. options 위치·canonical index import·해당 다량 요청 시험만30/60초로 정정했다. 실패 로그 c6-finalwave-*를 보존하며 no-tests/type failure를 GREEN으로 세지 않는다.
+- 첫 실제 capture는 Next의 native disabled blur가 body로 이동한 뒤 focus 복구를 놓쳤다. JSDOM은 disabled button.blur도 무시하여 첫 재현 fixture가 실패했고, 실제 Chromium blur를 enabled→blur→disabled로 명시 모사해 의도한 null-focus RED를 확인했다. pending 중 새로운 outside focus/pointer/window blur/pagehide만 취소하고 current DOM queue로 복구하도록 수정했다. empty는 통과했지만 stale-error focus는 추가 RED였고 같은 경계로 보완했다. focus 없는 programmatic click/disabled 외부 input을 의도로 취급한 fixture도 실제 focusable 외부 버튼과 선행 focus로 바로잡았다.
+- 중간 fullcheck424/native249는 첫 capture 이전 bytes다. 실제 focus 제품 변경 후 client26/fullcheck429를 다시 검증했으며 backend 동일249는 반복하지 않았다. 실제 final capture/runtime/manifest/cleanup과 현재 최종 숫자는 evidence/report에 별도 확정한다. 합성 실행은 운영/품질 인수를 뜻하지 않는다.
+
+### 2026-11-17 — C6 등록된 파생 사본의 삭제 closure 누락
+
+- I2 재검토 probe가 원초안→템플릿→사본의 등록을 원본 등록보다 먼저 완료한 뒤 실제 원본 삭제를 해도 파생 source/batch 본문이 남음을 확인했다. 이전230 native의 private 사본 범위만으로 등록/발행 후까지 해결됐다고 판단한 것이 부족했다.
+- RED: source_id 연결 누락3실패(erasure1/new-document2), derived private 삭제·template CAS 생략3실패, template source/page 상한 제거2실패를 실제 회귀로 확인했다. source 등록 관계 전파와 기존 보호 메타데이터의 서버 소유 최소 관계, DTO 명시 projection, 갱신 상한 보존으로 수정했다.
+- 중간 실행에 존재하지 않는 server/workflows/lineage.test.ts를 지정하여 INVALID_SERVER_TEST_FILTER exit1이었다(c6-r2-lifecycle-green.log). 테스트가 실행되지 않은 결과를 GREEN으로 세지 않고 실제 lineage-closure.test.ts로 정정했다. c6-r2-lifecycle-green-corrected.log는56통과, 최종 c6-r2-final-native.log는15파일239 exit0이며 fullcheck는421/48/16/41/251/types/build/smoke exit0이다. 파일명이 아니라 실제 exit와 summary로 판정한다.
+- 제출된 사본/실제 발행 version·파생 hold, 원본 및 파생 private 삭제, template 갱신, 현재 label 제거/과거 계보, 다른 owner/조작 입력 보존을 확인했다. 원래 그래프·보호 JSON만 확장했다. 운영/품질 인수와 독립 재검토/CI는 별도다.
+
+### 2026-11-17 — C6 task review의 승인 표시·명시 사본 삭제·사유·오류 누락
+
+- 리뷰 I1–I4를 실제 코드와 native probe로 확인했다. 고정 승인 audience/reviewer를 폼 선택과 비교하지 않아 재개 시 owner만 보이거나 reader 제거 후에도 과거 넓은 승인을 제출할 수 있었다. 등록 전 수동 초안→템플릿→사본은 sourceIds가 비어 있어 명시 templateId 이력을 기존 삭제 그래프가 따라가지 못했다. 사유는 hash에만 남았고 목록 catch-all은 예기치 않은 실패를200/빈 목록으로 바꿨다.
+- 원인/조치: 승인 대상의 immutable 표시·초기 선택 복원·선택 편집 시 fresh request, 기존 owner-scoped graph의 template/history token, 보호 snapshot/decision 사유 readback, 열거한 예상 denial만 제외하도록 수정했다. 새 삭제/댓글 엔진이나 권한 예외는 만들지 않았다. 첫 controlled 추가 독자 입력은 쉼표를 즉시 정규화하여 지우는 RED가 발생해 raw 입력 문자열과 정규화한 선택을 분리했다.
+- 증거: backend RED4/기존16통과 후 focused20 GREEN. UI RED4/기존4통과, delimiter RED1/9통과 후 composer10/recovery8 GREEN. 최종 fullcheck421/48/16/41/251/types/build/smoke와 native15파일230 exit0. 실제 네 화면 조건에서 승인된 exact resume·독자/검토자 변경의 이전 승인 차단·typed 반려 사유 readback·실제 DB dependency503 UI 오류를 기존 발행/복구와 함께 검사한다. 중간 로그는 c6-r1-*로 보존하며 이전 성공을 최종 코드로 재사용하지 않는다.
+- 범위: M3 ImportWorkbench 무수정은 controller가 승인한 파일 목록 예외로 명시했다. M1 책임 분리와 M2 기존 chunk 경고는 승인된 후속 triage 항목이며 숨기거나 해결로 올리지 않았다. 운영 인수·원격 CI/재검토 완료 주장은 하지 않는다.
+
+
+### 2026-11-17 — C6 정확한 초안·계보·검증 상태의 경계 누락
+
+- 초기 RED는 page-less recovery schema, 수동 공개/최초 제안 endpoint, Composer 및 title autosave 부재였다. 템플릿 계보를 일괄 완화한 초기 구현은 기존 strict template 2회귀를 실패시켰다. 서버 소유 `retainLineage`의 명시적 확장만 허용하고 기존 두 검사의 의미를 유지하여 lineage30 GREEN으로 복구했다. 원본 readers 누락도 실제 raw source 목록 RED 뒤 기존 provenance 교집합에 연결했다.
+- 실제 erasure에서 새 policy_mode를 본문처럼 지워 CHECK constraint가 실패했다. 고정 enum은 비본문 식별 열로 보존하고 submission은 null로 지워 유일 키를 유지했다. manual source 자체 삭제가 원래 private draft/템플릿을 놓친 RED를 disclosure 정본 source→owner/draft edge로 수정했다. 임의 Source JSON edge 주입/다른 owner 동명 보존도 시험했다. private draft 삭제가 등록 edge를 제거하던 후속 RED는 snapshot/decisions만 지우고 등록 관계를 유지하여 수정했다. 완료 workspace erasure 후 새 초안 쓰기 RED는 기존 product-write fence로 차단했다.
+- 실제 브라우저 재시작은 StrictMode 초기 cleanup의 캐시 삭제를 드러냈다. 초기화 이전 cleanup에서 기존 cache를 지우지 않도록 DOM RED→GREEN. 제출 후 App 재조회는 URL만 바뀌고 host draft 상태는 비어 있어 새 초안으로 remount했으며, 동일 active ID를 보존하는 host/Composer 경로로 수정했다. 최종 ACL 철회 보강에서 목록에 없는 정확한 draft가 일반 Error로 끝나 캐시를 남기는 DOM RED를 확인해 기존404 cleanup으로 연결했다. 템플릿 선택이 과거 복구 grant로 새 본문을 캐시할 수 있던 RED는 canonical lineage save 성공 뒤 적용하도록 고쳤다.
+- 두 탭 첫 capture는 재조회 전 placeholder를 읽었다. 실제 UI는 server=null 동안 충돌 선택 버튼 disabled였다. 임의 대기 대신 native 응답을 잠시 보류해 disabled를 단언하고 해제 후 정확한 서버 본문/활성화를 단언했다. capture의 생성 응답200 가정은 정본201로 수정했으며, 중간 실행이 남긴 제목과 충돌한 검색 assertion은 실행별 고유 제목으로 고쳤다. 화면은 전체 높이로 캡처하고 개인 확인 응답 완료를 기다렸다. 이는 harness 수정이며 제품 성공을 위조하지 않았다.
+- 최종 검사에서 기존 ALREADY_PROPOSED 중복 오류맵 키와 compose union 타입 오류가 검출됐다. cleanup 명령의 exit0을 양쪽 타입 GREEN으로 잘못 보고한 뒤 실제 로그에서 즉시 정정했다. 최종 결과는 명령별 실제 exit0와 로그 원문으로 확인했다. 잘못된 native 파일명은 시작 전 INVALID_SERVER_TEST_FILTER로 거부됐고 실제 파일명으로 정정했다. 불가능한 draft.write 위임 토큰 fixture는 발급 정책을 바꾸지 않고 실제 read/local.copy 발급 거부 경계로 교체했다.
+- 최종 검증: native14파일224, fullcheck frontend415/Node48/import16/eval41/251/타입/build/smoke, composer/recovery12; [실제 4조건 브라우저 증거](ui-validation/2026-11-17-new-document/README.md). 중간 실패 로그는 작업 report/logs에 보존했다. 운영 데이터 영향은 확인하지 않았으며 합성 검증·독립 리뷰/원격 CI 대기 상태를 구분한다.
+
+
 ### 2026-11-17 — 확장된 navigation HTTP 시험의 기본 5초 예산 초과
 
 - 맥락/관련 PR: PR #62 head `7387484`, CI run [43898200490/job133407397086](https://github.com/wontaeJeong/agent-knowledge-hub/actions/runs/43898200490/job/133407397086). 2026-11-16 15:47 UTC에 `server/workflows/navigation-http.test.ts:9`의 단일 시험이 5005ms에 `Test timed out in 5000ms`로 실패했다. 다른 서버 125파일과 staged 알림 신규 16시험(4017ms)은 통과했으나 해당 CI 실행 전체를 통과로 취급하지 않는다.
@@ -1024,3 +1056,10 @@
 - 검증: 관련4파일76 GREEN. 첫 focused run에는 새 실제 navigation을 JSDOM에서 실행하면서 미구현 window.scrollTo 안내2개가 있었고 해당 통합 시험에 브라우저 전용 scroll의 test double을 명시했다. 현재 최종코드의 단1회 `c5-final-onecheck.log` exit0(408/48/16/41/251/servertypes/build/smoke), M1 warning은 그대로다. backend bytes가 같아 기존 native10파일106 증거를 유지하며 반복하지 않았다. 실제4조건 capture/manifest/cleanup/commit은 최종 관찰 결과를 이어 기록한다.
 
 - ONE FINAL 실제 결과: `c5-final-onecheck.log` exit0(408/48/16/41/251/servertypes/build/smoke), `c5-final-browser.log` exit0 네 조건28PNG/JSON. 각 advancedIme2의 조합 중POST0/확정body, handoffChecks2의 fresh/already/cancel·조건/커서 reset·메모리만 전달, 기존equivalent6/readyArrow10과 모든 기존 경계/errors[]/overflowfalse를 확인했다. 최종16제품 SHA77ac4dd368f2e95a54aa91a25e6e60912cbde83410ed147315db9f778f5ea700. Backend/API/domain/legacy diff empty로106 native를 carry했다. 자기 runtime/Vite만 종료해 소유 DB0개·4395/5195닫힘을 확인했고 부모PG/다른서비스는 유지했다. M1/OS IME·실제IdP·의미 품질·운영 인수와 새 head scoped review/8CI/merge는 별도다. 이전e462 CI44032610937의8성공은 새 head CI를 대신하지 않는다.
+
+
+### C6 final wave evidence completion (2026-11-17)
+
+The new page-fence binding initially reused opaque template/draft IDs as page IDs. Actual RED3 reproduced unrelated same-name page tombstones blocking bare template, saveDraft and manual snapshot writes. Only the three C6-added calls were corrected to actual pageId/originPageId or empty no-page binding; workspace/physically-blocked fences remain. Final affected6files153 and fullcheck429 exited0, with unchanged9files99 retained from prior249 evidence (unique252, not one252 run).
+
+Final fresh-runtime four-condition capture passed. Its intentional12 HTTP503 responses match12 PG42P01 errors from the explicit policy-table rename fixture. An earlier unexpected390 initialization503 remains unexplained; a later901ms canonical parallel diagnostic,16 real27/81-distinct-draft initializations and2 real54approved/27pending distribution initializations passed but do not establish the original cause. Logs preserve both failure and success. The normal27-distinct-draft behavior was not removed from validation when the paging fixture was reduced to2 producers/27 requests. No hidden retries, fake successful DTOs or production load acceptance claims.

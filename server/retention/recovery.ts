@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { transaction } from "../database";
 import type { Context } from "../service";
-import { authorizeInTransaction } from "../access";
+import { authorizeInTransaction, effectiveAccess } from "../access";
 import { loadState, membership } from "../repository";
 import { captureEnvelope, fingerprint, versionProvenance } from "../provenance";
 import { assertDraftNotRetired } from "./drafts";
@@ -15,24 +15,12 @@ import {
 } from "../workflows/references";
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
-const metadata = z.object({
-  id,
-  pageId: id,
-  baseVersion: z.number().int().positive(),
-  expectedRevision: z.number().int().nonnegative(),
-  sourceIds: z.array(id).max(100).default([]),
-  dependencyVersions: dependencyVersions.default({}),
-});
-const bindingSchema = metadata
-  .extend({
-    principalId: id,
-    workspaceId: id,
-    lineageHash: z.string().regex(/^[a-f0-9]{64}$/),
-    policyHash: z.string().regex(/^[a-f0-9]{64}$/),
-    expiresAt: z.number().int(),
-    cacheBinding: z.string().regex(/^[a-f0-9]{64}$/),
-  })
-  .strict();
+const common = z.object({id,expectedRevision:z.number().int().nonnegative(),sourceIds:z.array(id).max(100).default([]),dependencyVersions:dependencyVersions.default({})});
+const pageMetadata = common.extend({kind:z.literal("page").optional(),pageId:id,baseVersion:z.number().int().positive()});
+const draftMetadata = common.extend({kind:z.literal("draft"),draftId:id});
+const metadata = z.union([pageMetadata,draftMetadata]);
+const bindingFields = {principalId:id,workspaceId:id,lineageHash:z.string().regex(/^[a-f0-9]{64}$/),policyHash:z.string().regex(/^[a-f0-9]{64}$/),expiresAt:z.number().int(),cacheBinding:z.string().regex(/^[a-f0-9]{64}$/)};
+const bindingSchema = z.union([pageMetadata.extend(bindingFields).strict(),draftMetadata.extend(bindingFields).strict()]);
 export type RecoveryBinding = z.infer<typeof bindingSchema>;
 const hash = (v: string) => createHash("sha256").update(v).digest("hex");
 
@@ -65,14 +53,21 @@ export class DraftRecoveryService {
     d: z.infer<typeof metadata>,
   ) {
     await assertDraftNotRetired(db, ctx, d.id);
-    await authorizeInTransaction(db, ctx, "draft.write", {
-      kind: "page",
-      id: d.pageId,
-    });
     const state = await loadState(db, ctx.workspaceId);
-    const page = state.pages.find((p) => p.id === d.pageId);
-    if (!page || page.versions.at(-1)?.number !== d.baseVersion)
-      throw Error("STALE_VERSION");
+    if (d.kind === "draft") {
+      if (d.id !== d.draftId) throw Error("FORBIDDEN");
+      await authorizeInTransaction(db, ctx, "draft.write");
+      // Own, persisted manual text has no original resource to export. Check
+      // capability here; every recorded page/source still passes canonical
+      // local.copy and its explicit source policy below.
+      if (!(await effectiveAccess(db,ctx)).capabilities.includes("local.copy")) throw Error("FORBIDDEN");
+      const own = (await db.query("SELECT revision,data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",[ctx.workspaceId,ctx.principalId,d.id])).rows[0];
+      if (!own || own.data.pageId) throw Error("NOT_FOUND");
+    } else {
+      await authorizeInTransaction(db,ctx,"draft.write",{kind:"page",id:d.pageId});
+      const page=state.pages.find(p=>p.id===d.pageId);
+      if (!page || page.versions.at(-1)?.number !== d.baseVersion) throw Error("STALE_VERSION");
+    }
     const history = (
       await db.query(
         "SELECT data FROM workflow_draft_revision_history WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3 UNION ALL SELECT data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
@@ -105,7 +100,7 @@ export class DraftRecoveryService {
       )
         throw Error("STALE_VERSION");
     const historyPages = history
-      .map((r) => r.data.pageId)
+      .flatMap((r) => [r.data.pageId, r.data.parentId])
       .filter((p): p is string => typeof p === "string");
     const historySources: string[] = history.flatMap(
       (r) => r.data.sourceIds ?? [],
@@ -114,7 +109,7 @@ export class DraftRecoveryService {
       db,
       ctx,
       state,
-      [d.pageId, ...Object.keys(dependencies), ...historyPages],
+      [...(d.kind === "draft" ? [] : [d.pageId]), ...Object.keys(dependencies), ...historyPages],
       [...d.sourceIds, ...historySources],
     );
     for (const pageId of envelope.pageIds) {
@@ -155,6 +150,10 @@ export class DraftRecoveryService {
       throw Error("VALIDATION_FAILED");
     return this.run(ctx, async (db) => {
       const ancestry = await this.ancestry(db, ctx, d);
+      if (d.kind === "draft") {
+        const current = (await db.query("SELECT revision FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",[ctx.workspaceId,ctx.principalId,d.id])).rows[0];
+        if (current?.revision !== d.expectedRevision) throw Error("STALE_VERSION");
+      }
       const cacheBinding = randomBytes(32).toString("hex");
       const binding = {
         ...d,

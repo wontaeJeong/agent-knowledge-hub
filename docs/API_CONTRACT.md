@@ -116,3 +116,36 @@ C3 최종 리뷰 보완: favorite 항목의 호환 추가 `canMoveUp`/`canMoveDo
 기존 `historical`은 과거 포함 **조회 모드**이고 `currentRecommendation=false`는 그 모드의 보수적 값이다. additive `isCurrentVersion`은 해당 결과의 실제 최신 버전 여부다. UI는 세 값을 혼동하지 않으며 구형 DTO의 최신 여부는 unknown으로 표시한다. 과거 속성/제목은 당시 snapshot 또는 unknown이며 현재 메타데이터로 채우지 않는다. UI의 날짜·시각 선택은 기기의 현지 시각이며 전송 시 기존 UTC ISO 계약으로 변환한다. 빈 값은 조건을 제외하고 잘못된 날짜·역전 기간은 오류를 표시한다.
 
 `GET /api/v1/versions/pages/{id}/{number}`는 기존 비방문 조회/DTO를 유지하고 `isCurrentVersion`을 추가한다. 실제 고정 문서 route 전체 열기만 `?visit=1`을 사용한다. visit 값은 정확히 하나의 `1`만 허용하며 잘못된 값/중복은 validation 오류다. VersionService의 동일 트랜잭션에서 현재 page/version/metadata 권한 확인 후 기존 문서 열기와 공유하는 `recordDocumentVisit`으로 인증 주체의 최근 방문을 upsert한다. 목록·미리보기·비교·인용·포커스 refresh는 비방문이다. URL에는 공간/문서/버전만 넣고 검색어·제목·본문은 URL/localStorage에 저장하지 않는다. `anchor` 경로는 C9 후속 범위다.
+
+## C6 수동 신규 문서의 현재 구현 계약
+
+`server/workflows/{service,manual-disclosure,new-document,http}.ts`가 아래 경로를 런타임 OIDC/CSRF 라우터 안에서 처리한다. 정적 데모의 저장이나 운영 인수 결과를 뜻하지 않는다.
+
+| 경로 (`/api/v1` 이후) | 현재 계약 |
+| --- | --- |
+| POST `/workflows/drafts` | 기존 개인 CAS 저장. `pageId` 없는 문서, `parentId`, `templateId`/`templateRevision`을 수용하며 서버가 전체 템플릿·과거 계보를 합친다. |
+| POST `/workflows/drafts/:id/disclosure` | `{expectedRevision,title,parentId,readers,reviewerId?,reason,mutationId}`. 소유자의 정확한 저장본·독자·위치·정책을 고정한다. 팀은 지정 독립 검토자, 실제 owner-only 개인 공간은 본인 확인 대기다. |
+| GET `/workflows/draft-disclosures` | optional `queue=all` 또는 `queue=assigned-pending`, `draftId`, `cursor`. 현재 권한의 본인/지정 검토를 기본 25건씩 반환한다. `{items,nextCursor,partial}`이며 정확한 draft 조회도 같은 권한/계속 조회 계약을 따른다. 타인의 일반 초안 읽기 권한은 부여하지 않는다. |
+| POST `/workflows/draft-disclosures/:id/decision` | `{hash,decision:'approve'|'reject',reason,mutationId}`. 서버가 검토 모드·현재 자격·계보를 재검사한다. |
+| POST `/workflows/drafts/:id/submit-new` | `{expectedRevision,title,parentId,reason,disclosureId,disclosureHash,mutationId}`. 승인한 같은 본문을 immutable 수동 원본과 초기 변경 집합으로 한 트랜잭션에 등록한다. `{status:'knowledge-review-pending',sourceId,batchId,hash}`이며 별도의 기존 approve/publish가 필요하다. |
+| POST `/workflows/recovery/permission`, `/validate` | 기존 page 바인딩과 `{kind:'draft',id,draftId,expectedRevision,sourceIds,dependencyVersions}`를 수용한다. 서버의 실제 owner·revision·전체 계보·local.copy 허용에 묶인다. |
+
+기존 `submitDraft`의 `SOURCE_REGISTRATION_REQUIRED`는 유지한다. 모델 호출·가짜 import_run·즉시 발행은 없다. 동일 mutation은 같은 결과만 반환하며 내용·기준·정책 변경 시 재검토한다. C4는 `/?app=1&space=<space>&section=compose&draft=<id>`로 정확한 새 초안을 재개할 수 있다. C7 복제는 기존 `saveDraft`의 `sourceIds`/`dependencyVersions`를 보존하는 개인 저장 계약을 사용하고 공개 절차를 생략할 수 없다.
+
+### 영속 스키마와 삭제 경계
+
+migration `142-new-document-disclosure.sql`은 `workflow_draft_disclosures`에 workspace/owner/draft/revision, snapshot/content hash, dependency envelope, parent/policy hash, audience/reviewer/server policy mode, status/revision, request/decision mutation 기록, source/batch/submission 관계를 저장한다. 요청·제출 유일 키가 중복 생성을 막는다. import 테이블과 FK는 변경하지 않는다.
+
+새 `sources.data.manualProvenance`는 기존 captureEnvelope에서 얻은 page/source ID만 보존하며 원본 직접 읽기·목록도 모든 현재/과거 계보의 canonical readers 교집합을 따른다. 외부 source DTO에 이 메타데이터 주입 권한은 없다. 초기 parent 위치는 hash-bound batch의 trusted `initialDocument`로 저장하고 실제 발행 시에만 정본 문서 위치가 된다.
+
+삭제 권위는 Source JSON의 임의 owner/draft 주장이 아니라 `workflow_draft_disclosures.source_id → owner_id,draft_id` 관계다. private draft 삭제 시 미제출 요청과 본문 이력/복구 grant를 삭제하고, 제출된 관계는 본문·사유·decisions를 지우고 snapshot의 서버 소유 templateIds만 남겨 템플릿 사본을 이후 원본 삭제 그래프에서 찾는다. 원계보 source 삭제와 등록된 manual source 자체 삭제 모두 기존 법정 삭제 walk를 사용한다. 보존 inventory는 비공개 본문을 해시로 투영하고 계보 ID만 유지한다. 기존 hold·retirement·workspace erasure write fence를 우회하지 않는다.
+
+C6 리뷰 수정 1차: 공개 요청의 `reason`은 보호 snapshot의 `requestReason`, 결정 사유는 기존 `decisions`의 `{decision,reason,principalId}`로 저장한다. authorized list는 이를 `requestReason`/`decision`으로 반환한다. 동일 mutation의 다른 사유는 idempotency conflict이며, 별도 댓글 권한이나 공개 감사 평문을 만들지 않는다. 이전 버전이 폐기한 사유는 없음으로 표시한다. 목록은 예상 권한/기준/retirement 거부만 제외하고 정책 의존성·SQL·프로그램 실패는 오류로 반환한다.
+
+명시적 templateId 복사 계보는 owner-scoped template→draft/history token으로 기존 삭제 그래프에 연결한다. 원본 등록 전 복사도 포함하며, 현재 초안에서 templateId를 지워도 서버 이력은 유지한다. 다른 소유자의 동명 템플릿/초안이나 연결 없는 동일 본문에는 삭제 권위를 부여하지 않는다. UI는 고정 공개 독자/검토자와 새 선택을 구분하고 선택이 바뀌면 fresh disclosure 없이 이전 승인으로 제출하지 않는다.
+
+C6 등록된 파생 사본의 삭제는 disclosure의 정본 `source_id`까지 전파하여 source/batch/발행 version을 같은 그래프에 포함한다. 공개 요청 snapshot의 내부 `templateIds`는 서버가 확인한 해당 owner의 현재+과거 초안에서 수집한다. 템플릿 내부 `producerDraftIds`는 검증한 생산 초안 ID를 누적하여 CAS 갱신에서 sourceDraftId를 생략해도 삭제 관계를 유지한다. 두 필드는 외부 입력 schema에서 허용하지 않고 save/list DTO에 노출하지 않는다. 이전 sourceIds/dependencyVersions 상한도 갱신에 보존하며 제거하려는 요청은 기존 scope 검사를 통과해야 한다. 새 테이블·삭제 API·동일 텍스트 추론은 추가하지 않는다.
+
+최종 리뷰 F1: 목록은 `(created_at DESC,id DESC)` keyset으로 한 요청에서 raw100까지 검사한다. `partial:true`는 탐색 미완료이며 숨은 수/ID나 전체0을 뜻하지 않는다. `nextCursor`로 이어 조회하고 `null`일 때만 완료다. cursor는 서버 프로세스 AES-GCM 키로 암호화하며 principal/credential/session/workspace/filter/고정25 한도, 현재 effective capability·검토자 설정, SQL 데이터/권한 hash 및 시간 만료를 바인딩한다. 변경·위조·15분 경과·프로세스 재시작은 `STALE_CURSOR`409로 처음부터 재조회한다. cursor·owner lookup 상태는 브라우저 메모리에만 두며 본문/제목/검색어를 URL/storage에 넣지 않는다. SQL hash는 비공개 corpus를 애플리케이션으로 반환하지 않지만 공간 데이터 크기에 비례한 DB 비용과 보수적인 무관 변경 invalidation이 있다. 운영 규모 성능 인수는 별도다.
+
+최종 리뷰 F2: template insert/CAS도 동일 트랜잭션·mutation gate의 기존 product-write fence를 먼저 적용한다. 완료 workspace receipt와 물리 purge 대기 blocked receipt는 새 제목/본문을 저장하지 않는다. provenance/current ACL 검사는 별도로 유지한다.

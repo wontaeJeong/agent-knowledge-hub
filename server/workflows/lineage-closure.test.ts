@@ -537,3 +537,45 @@ test("trusted origin also binds legacy absolute URL evidence in recovery without
   await revoke("source");
   await expect(recovery.validate(f.editor, { binding })).rejects.toThrow();
 });
+
+for (const lineage of ["source", "page"] as const)
+  test(`template replacement cannot drop its retained ${lineage} ceiling`, async () => {
+    await target();
+    await service.saveDraft(f.editor, {
+      id: "bound-producer",
+      expectedRevision: 0,
+      title: "생산 초안",
+      content: "bound text",
+      ...(lineage === "source"
+        ? { sourceIds: ["target-source"] }
+        : { dependencyVersions: { target: 1 } }),
+    });
+    await service.saveTemplate(f.editor, {
+      id: "bound-template",
+      expectedRevision: 0,
+      title: "계보 템플릿",
+      content: "bound text",
+      sourceDraftId: "bound-producer",
+      sourceDraftRevision: 1,
+      retainLineage: true,
+    });
+    await expect(
+      service.saveTemplate(f.editor, {
+        id: "bound-template",
+        expectedRevision: 1,
+        title: "갱신",
+        content: "edited text",
+      }),
+    ).rejects.toThrow("SOURCE_SCOPE_CONFLICT");
+    await revoke(lineage);
+    await expect(
+      service.saveDraft(f.editor, {
+        id: "blocked-copy",
+        expectedRevision: 0,
+        title: "복사",
+        content: "bound text",
+        templateId: "bound-template",
+        templateRevision: 1,
+      }),
+    ).rejects.toThrow();
+  });

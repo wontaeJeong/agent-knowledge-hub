@@ -1,3 +1,4 @@
+import { DocumentComposer } from "./convenience/DocumentComposer";
 import { DocumentSnapshot } from "./convenience/DocumentSnapshot";
 import { GlobalSearch } from "./convenience/QuickOpen";
 import { SearchPage, type SearchHandoff } from "./convenience/SearchPage";
@@ -48,7 +49,7 @@ import { consoleLabel, summarizeConsole } from "./console";
 import type { ConsoleTab } from "./console";
 import { PreviewApi } from "./preview";
 import "./styles.css";
-import { WorkflowPanel, SourceLifecycle } from "./workflows";
+import { SourceLifecycle } from "./workflows";
 import { VersionsPanel } from "./versions";
 import { QuestionsWorkbench } from "./questions";
 import { AccessPanel } from "./access";
@@ -407,7 +408,7 @@ function OperationalWorkspace({
       ? location
       : undefined;
   const pendingDestination =
-    (location.kind === "section" && !target && !["favorites","recent","subscriptions","search"].includes(location.section)) ||
+    (location.kind === "section" && !target && !["favorites","recent","subscriptions","search","compose"].includes(location.section)) ||
     (location.kind === "document" && !!location.anchor);
   const [pages, setPages] = useState<PublishedPage[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
@@ -983,6 +984,9 @@ function OperationalWorkspace({
                 readAttachment={readAttachment}
               />
             )}
+            {location.kind === "section" && location.section === "compose" && !preview && dataReady && (
+              <DocumentComposer mode="new" api={api} principalId={identity.principalId} spaceId={identity.workspaceId} initialDraftId={location.draft} onDraftBound={draft=>setLocation(current=>current.kind === "section" && current.section === "compose" && current.spaceId === identity.workspaceId && current.draft !== draft ? {...current,section:"compose",draft} : current)} capabilities={identity.capabilities ?? []} pages={pages} members={members} onChanged={load} onExpired={clearProtected}/>
+            )}
             {pendingDestination && (
               <section className="op-panel">
                 <h2>
@@ -1459,7 +1463,7 @@ function OperationalWorkspace({
                   </section>
                 )}
                 {tab === "workflows" && !preview && dataReady && !(location.kind === "document" && location.version !== undefined) && (
-                  <WorkflowPanel
+                  <DocumentComposer mode="edit"
                     principalId={identity.principalId}
                     spaceId={identity.workspaceId}
                     initialPageId={

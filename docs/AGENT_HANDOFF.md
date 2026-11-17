@@ -1,5 +1,41 @@
 # 에이전트 인계
 
+## 2026-11-17 #49 C6 — 최종 통합 수정 F1/F2
+
+- 같은 UXC-04 / EDT-001~003/006, REV-001~009, UX-002 범위다. F1은 현재 권한 필터 전25행 제한으로 오래된 독립 검토/승인 재개를 막던 문제다. 기존 GET의 deterministic keyset·암호화 cursor·raw100/visible25·truthful partial과 exact draft query로 해결한다. Composer owner 상태와 assigned-pending queue를 분리하고 다음/처음/새로고침, 현재 DOM keyboard focus를 연결했다.
+- F2는 template insert/CAS에 기존 동일 transaction/mutation-gate erasure fence를 적용한다. 완료/물리 blocked workspace와 page-origin 경계를 검증하며 무관 resource 작업을 보존한다. 새 삭제 엔진/역할/일반 private draft 읽기 권한은 없다.
+- 변경: server/workflows/{manual-disclosure,http,service}.ts, Composer와 manual-disclosure/new-document/composer 회귀, capture.mjs 및 API/기록. I1–I4 수정과 M3 ImportWorkbench 예외는 유지, M1 broad session refactor/M2 chunk 경고는 deferred다.
+- 실제 Chromium은 disabled Next→body blur로 포커스 복구 실패를 드러냈다. DOM 회귀로 재현하고 새 outside focus/pointer/window blur/pagehide 의도만 취소하는 경계로 수정했다. 임의 readiness sleep을 넣지 않았다. 최종 검증/소스/runtime/cleanup은 [증거 기록](ui-validation/2026-11-17-new-document/README.md)에 명시한다.
+- North Star의 독립 검토→발행 순환 도달성과 삭제 후 재유입 금지를 개선한다. 승인/사실/독립 증거/성능 효과는 구분하며 251/North Star는 그대로다. 운영 IdP/OS IME/대규모 DB hash 비용/전체 접근성/품질 인수는 미검증, scoped re-review·최종 CI/병합은 controller 소유다.
+
+## 2026-11-17 #49 C6 — 리뷰 수정 2차 (I2 등록된 사본 삭제)
+
+- UXC-04 / EDT-001~003/006, REV-001~009, UX-002와 기존 삭제·ACL 불변식 범위다. 이전230 native는 private 사본까지만 확인했으며 등록된 사본 source/batch까지의 삭제를 입증하지 못했다. 정본 disclosure.source_id를 기존 closure에 연결했다.
+- 보호 snapshot.templateIds는 서버 소유 현재+이력의 소비 관계, template.producerDraftIds는 검증된 생산 관계다. private 삭제와 template CAS 갱신 후에도 최소 ID만 남고 본문/사유는 삭제한다. 외부 입력 거부·DTO 제외·다른 owner 보존을 유지한다. 갱신은 이전 source/dependency 상한을 제거할 수 없다. 새 테이블/삭제 엔진/동일 텍스트 추론은 없다.
+- 변경: server/operations/erasure.ts, server/retention/inventory.ts, server/workflows/{service,manual-disclosure}.ts와 new-document/lineage-closure/erasure 회귀. 실제 제출/발행 descendant source·batch·version redaction, private 양쪽 삭제·template 갱신·hold·복구·spoof를 검사했다.
+- 최종 코드 검증: native15파일239, 단1회 fullcheck421/48/16/41/251/types/build/smoke 각각 exit0. 마지막 backend 변경 뒤 새 runtime의4조건 capture 및17제품/3harness/41artifact manifest를 [증거 기록](ui-validation/2026-11-17-new-document/README.md)에 확정했다. 기존 Vite chunk 경고와 운영/OS IME/품질 인수 한계는 유지한다.
+- North Star의 근거·파생 지식 삭제와 접근 상한을 보존하며 승인/독립 증거/성과는 구분한다. I1/I3/I4와 M3 예외는 유지, M1/M2 부채는 controller 최종 triage 대상이다. 재검토·새 head CI·PR71 병합은 controller가 수행한다.
+
+## 2026-11-17 #49 C6 — 리뷰 수정 1차 (I1–I4)
+
+- 같은 UXC-04 / EDT-001~003/006, REV-001~009, UX-002 범위. 정확한 승인 재개는 고정 독자/지정 검토자와 선택 폼을 일치시키고, 이후 선택 변경은 새 공개 요청 전까지 기존 승인 제출을 차단한다. 지연 응답/계정 전환 및 입력 중 쉼표 보존도 회귀로 검사했다.
+- 기존 erasure 그래프에 owner-scoped template token과 초안 이력의 templateId 연결을 추가했다. 등록 전 생성된 명시적 템플릿 사본의 초안/이력/mutation/recovery를 실제 원본 삭제로 지우며, 원래 초안 삭제 후에도 동작한다. 다른 owner의 같은 template/draft ID 및 계보 없는 같은 본문은 보존한다. retention projection도 이 ID를 보존한다.
+- 기존 보호 disclosure.snapshot.requestReason과 decisions의 reason/principalId를 저장하고 author/지정 reviewer 목록에서 읽는다. 요청·결정 idempotency는 사유 변경을 충돌로 처리한다. reviewer가 직접 입력한 사유로 승인/반려하며 원본 삭제·private draft 삭제는 이 사유도 지운다. 이전 버전에 이미 버려진 사유는 복원할 수 없으므로 없음으로 표시한다.
+- disclosure 목록은 명시적 NOT_FOUND/FORBIDDEN/stale/scope/erasure-fence만 제외하고 예상 밖 정책/SQL/프로그램 오류는 전파한다. 실제 합성 DB의 정책 테이블을 잠시 이용 불가하게 한 브라우저 검증에서503과 UI 오류를 확인한다.
+- 최종 검증: focused client18, fullcheck frontend421/Node48/import16/eval41/requirements251/types/build/smoke exit0; affected native15파일230 exit0. source/evidence는 같은 [검증 폴더](ui-validation/2026-11-17-new-document/README.md)에 갱신한다. 운영/품질·OS IME 한계는 유지한다.
+- M3는 controller 승인으로 ImportWorkbench의 예정 Modify 항목을 제거한 명시적 무수정 예외다(공통 helper/API/기존 import17회귀 유지). M1 큰 Composer 책임 분리는 최종 broad triage로 보류, M2 기존 Vite629/1499kB chunk 경고는 숨기지 않는다. 독립 재검토·PR71 최종 CI·병합은 controller 소유다.
+
+## 2026-11-17 #49 C6 — 신규 문서·수동 원본 공개·정확한 초안 복구
+
+- 요구사항: UXC-04 작업 매핑 EDT-001~003/006, REV-001~009, UX-002. 원본 접근·승인/발행·복구 불변식의 ACL/CORE 회귀를 포함했으며 기존 251 기준/North Star는 변경하지 않았다.
+- `DocumentComposer(mode:new|edit)`는 기존 편집 패널·CAS/1초 자동 저장·DocumentBody를 재사용한다. 전역 새 문서에서 제목/위치/기본·개인 템플릿/미리보기/공유 독자를 다루며 `section=compose&draft=<id>`는 정확한 page-less 초안을 재개한다. C4 홈 구현은 하지 않았다. C7은 기존 개인 saveDraft 계보 계약을 재사용할 수 있다.
+- `manual-disclosure.ts`, `new-document.ts`, migration142가 서버 결정 팀 독립 검토/실제 owner-only 개인 확인을 구현한다. 승인 전 source/batch가 없고, 승인 후 동일 본문 초기 제안을 기존 approve/publish에 연결한다. legacy submitDraft 거부·import run 의미를 유지하고 `imports/disclosure-policy.ts`만 공통 추출했다. 모델 호출은 필요 없다.
+- `repository.ts`의 raw manual source readers도 현재 원계보 교집합을 적용한다. `retention/{recovery,inventory}.ts`, `operations/erasure.ts`는 현재/과거/상위 위치 복구·서버 등록 관계 기반 owner별 삭제를 보존한다. 다른 owner 동명 초안 및 조작 Source JSON은 삭제 edge가 아니다. private draft 삭제는 등록 관계만 남기고 본문·사유·decisions를 지우고 최소 내부 관계만 남긴다. 완료 workspace erasure는 늦은 저장/새 공개 요청을 막는다.
+- 주요 변경: 위 새 모듈과 `workflows/{service,http}.ts`, `runtime/http.ts`, `publication.ts`, `imports/service.ts`, `src/operational/{App,workflows,draft-recovery}.tsx/ts`, Composer 및 해당 회귀, API/retention 문서. 모든 변경 생산 파일 해시는 [source manifest](ui-validation/2026-11-17-new-document/source-manifest.json)에 있다.
+- 최종 검증: Node24.22.2 `npm run check` exit0 — frontend415(65파일), Node48, imports16, evaluation41, requirements251, server types/build/static smoke. UUID DB 격리 native14파일/224시험 exit0. 새 recovery/composer12시험 GREEN. 중간414시험 성공 이후 ACL 누락 초안 캐시 삭제 RED를 고쳐415로 증가했다. Vite 기존500kB chunk 경고는 숨기지 않았다.
+- [실제 브라우저 증거](ui-validation/2026-11-17-new-document/README.md): 1440/390 light/dark, 실제 브라우저 프로세스 재시작·오프라인 미전송 복구·두 탭 양쪽 충돌·정확한 draft URL·현재 ACL 철회 캐시 삭제·키보드·개인 검색/백링크 제외·개인/팀 별도 원본 승인 및 지식 발행, 모델 호출0. 합성 PG17/loopback 인증 어댑터이며 OS IME(실제 검사는 CDP composition), 운영 SSO/부하·접근성 전체·품질 인수는 별도다.
+- North Star: 사람이 작성한 업무 근거를 개인 초안→공개 승인→검토 가능한 변경 집합→발행 순환으로 연결한다. 승인/사실/독립 증거를 구분하고 기존 지식 접근 상한을 보존했다. 지식·에이전트 성능 향상은 대조 실험 전 목표이며 합성 실행 성공으로 주장하지 않는다. 로컬 구현/검증/커밋 범위이며 독립 리뷰·원격8CI·PR/main 병합은 controller 후속이다.
+
 ## 2026-11-17 Task1c — Unicode lexical compatibility correction
 
 - SRH-001/002/004/006 and CORE-009/010: before PR #55 merge, an actual PostgreSQL17 locale probe showed SQL lower() differs from JavaScript toLocaleLowerCase() for contextual final sigma and dotted I. Native canonical tests with unrelated title/summary reproduced two missed body hits and two overmatches before implementation. A fifth Kelvin-sign/ASCII-query case retains coverage of Unicode bodies.
@@ -869,3 +905,8 @@ main537ba7a를 true base6366597로 병합한 체크포인트a2a76e2에서 #55ind
 - RED는 새13 search사례11fail/2pass, App fresh/already2fail/cancel control1pass였고 관련4파일76 GREEN이다. 최종 제품의 단1회 전체check `c5-final-onecheck.log` exit0: frontend408/Node48/import16/evaluation41/251/servertypes/build/smoke. 기존392는 이전 head 근거이며 F2/M2 검증으로 승격하지 않는다. Backend/domain/API/legacy QuestionsWorkbench diff empty로106 native는 carry하고 재실행하지 않았다. M1 chunk 경고와 운영/OS IME/의미 품질 한계는 유지한다.
 
 - ONE FINAL 실제 결과: `c5-final-onecheck.log` exit0(408/48/16/41/251/servertypes/build/smoke), `c5-final-browser.log` exit0 네 조건28PNG/JSON. 각 advancedIme2의 조합 중POST0/확정body, handoffChecks2의 fresh/already/cancel·조건/커서 reset·메모리만 전달, 기존equivalent6/readyArrow10과 모든 기존 경계/errors[]/overflowfalse를 확인했다. 최종16제품 SHA77ac4dd368f2e95a54aa91a25e6e60912cbde83410ed147315db9f778f5ea700. Backend/API/domain/legacy diff empty로106 native를 carry했다. 자기 runtime/Vite만 종료해 소유 DB0개·4395/5195닫힘을 확인했고 부모PG/다른서비스는 유지했다. M1/OS IME·실제IdP·의미 품질·운영 인수와 새 head scoped review/8CI/merge는 별도다. 이전e462 CI44032610937의8성공은 새 head CI를 대신하지 않는다.
+
+
+### C6 final combined wave: exact final evidence
+
+Current affected native6files153 plus unchanged9files99 from the prior249 run gives unique252 coverage, not a single current15file252 execution. Final fullcheck429/48/16/41/251/types/build/smoke and focused client26 exited0. Three C6-added erasure-fence calls use true page origins or no-page binding; actual same-ID regressions preserve unrelated work without removing workspace fences. Final runtime62204/Vite62218 started19:31:00 KST; four-condition capture passed, plus16 distinct27/81-draft initialization/resume cases and2 cases at81drafts/54approved/27pending. The earlier unexpected503 root cause is unconfirmed and remains a limit, not a repaired production-performance claim. Final manifest17production/5harness/55artifacts and cleanup are recorded in the C6 evidence folder/report. Controller owns scoped final review, exact-head CI and merge.

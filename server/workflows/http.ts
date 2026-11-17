@@ -26,6 +26,7 @@ export async function handleWorkflowRoute(
   };
   const empty = () => z.object({}).strict().parse(body);
   if (method === "GET") {
+    if (route === "/draft-disclosures") return reply(await service.manualDisclosures.list(ctx,Object.fromEntries(input.query??[])));
     if (route === "/drafts") return reply(await service.drafts(ctx));
     if (route === "/templates") return reply(await service.templates(ctx));
     if (route === "/notifications")
@@ -64,6 +65,10 @@ export async function handleWorkflowRoute(
       .parse(body);
     return reply(await service.requestAccess(ctx, d.resourceId, d.reason), 202);
   }
+  const manualDraft = route.match(/^\/drafts\/([^/]+)\/(disclosure|submit-new)$/);
+  if (manualDraft) return reply(manualDraft[2] === "disclosure" ? await service.manualDisclosures.request(ctx, manualDraft[1], body) : await service.submitNewDraft(ctx, manualDraft[1], body), 201);
+  const decision = route.match(/^\/draft-disclosures\/([^/]+)\/decision$/);
+  if (decision) return reply(await service.manualDisclosures.decide(ctx, decision[1], body));
   const draft = route.match(/^\/drafts\/([^/]+)\/(submit|delete)$/);
   if (draft) {
     if (draft[2] === "submit") {

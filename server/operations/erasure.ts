@@ -26,7 +26,7 @@ export interface ProductRow {
 const tablePattern =
   /^(scheduled_publications|sources|pages|versions|batches|requests|publications|approvals|workflow_[a-z_]+|runtime_(answers|lints|jobs)|agent_[a-z_]+|refinement_[a-z_]+|durable_(jobs|job_outbox|model_calls)|storage_(imports|import_sources|import_effects|snapshots|attachment_links)|question_(threads|turns|feedback|feedback_work)|version_(metadata|metadata_events|restore_previews|restore_plans|restore_applications)|versions_decisions|model_usage_events|collaboration_[a-z_]+|governance_[a-z_]+)$/;
 const identityColumns =
-  /^(id|workspace_id|principal_id|owner_id|created_by|recorded_by|reviewed_by|approved_by|actor_id|kind|state|status|operation|role|scope|parent_kind|[a-z_]+_id|[a-z_]+_hash|sha256|mime|provider|model|key|token_hash|mode|category|decision|action|requested_scope|cadence|backend|user_code|document_type|due_cycle|updated_by|applied_by|decision_by|resource_type)$/;
+  /^(id|workspace_id|principal_id|owner_id|created_by|recorded_by|reviewed_by|approved_by|actor_id|kind|state|status|operation|role|scope|parent_kind|[a-z_]+_id|[a-z_]+_hash|sha256|mime|provider|model|key|token_hash|mode|policy_mode|category|decision|action|requested_scope|cadence|backend|user_code|document_type|due_cycle|updated_by|applied_by|decision_by|resource_type)$/;
 const referenceKeys: Record<string, string> = {
   eventId: "collaboration-event",
   threadId: "question-thread",
@@ -207,6 +207,21 @@ function own(row: ProductRow) {
     d = row.data,
     id = d.id;
   const result = new Set<string>();
+  // Only persisted owner-scoped rows confer draft ownership. A Source JSON
+  // manualOwnerId/manualDraftId claim is never an erasure authority edge.
+  if (typeof d.owner_id === "string") {
+    if (t === "workflow_drafts" && typeof id === "string")
+      return new Set(["owned-draft:" + JSON.stringify([d.owner_id,id])]);
+    if (["workflow_draft_disclosures","workflow_draft_revision_history"].includes(t) && typeof d.draft_id === "string") {
+      result.add("owned-draft:" + JSON.stringify([d.owner_id,d.draft_id]));
+      // A selected registration also owns the immutable source it created.
+      // Follow this server column, never arbitrary Source JSON claims.
+      if (t === "workflow_draft_disclosures" && typeof d.source_id === "string") result.add("source:" + d.source_id);
+      return result;
+    }
+    if (t === "workflow_templates" && typeof id === "string")
+      return new Set(["owned-template:" + JSON.stringify([d.owner_id,id])]);
+  }
   let kind: string | undefined;
   if (t === "collaboration_events") kind = "collaboration-event";
   else if (t === "question_threads") kind = "question-thread";
@@ -249,11 +264,30 @@ function lineageRefs(row: ProductRow) {
       importId: row.data.import_id,
       importRunId: row.data.run_id,
     });
-  return refs(
-    row.table === "storage_import_sources"
-      ? { ...row.data, sourceId: row.data.target_id }
-      : row.data,
-  );
+  const result = refs(row.table === "storage_import_sources" ? {...row.data,sourceId:row.data.target_id} : row.data);
+  if (typeof row.data.owner_id === "string") {
+    const data = row.data.data as {sourceDraftId?:unknown}|undefined;
+    const binding = row.data.binding as {id?:unknown}|undefined;
+    const draftId = row.data.draft_id ?? (row.table === "workflow_draft_recovery_grants" ? binding?.id : data?.sourceDraftId);
+    if (typeof draftId === "string") result.add("owned-draft:" + JSON.stringify([row.data.owner_id,draftId]));
+    if (row.table === "workflow_templates") {
+      const producers = (row.data.data as {producerDraftIds?:unknown}|undefined)?.producerDraftIds;
+      if (Array.isArray(producers)) for (const producer of producers)
+        if (typeof producer === "string") result.add("owned-draft:" + JSON.stringify([row.data.owner_id,producer]));
+    }
+    if (row.table === "workflow_draft_disclosures") {
+      const templates = (row.data.snapshot as {templateIds?:unknown}|undefined)?.templateIds;
+      if (Array.isArray(templates)) for (const template of templates)
+        if (typeof template === "string") result.add("owned-template:" + JSON.stringify([row.data.owner_id,template]));
+    }
+    // templateId is authoritative only on owner-scoped, server-validated saved
+    // drafts/history. An arbitrary Source JSON field confers no deletion edge.
+    if (["workflow_drafts","workflow_draft_revision_history"].includes(row.table)) {
+      const templateId = (row.data.data as {templateId?:unknown}|undefined)?.templateId;
+      if (typeof templateId === "string") result.add("owned-template:" + JSON.stringify([row.data.owner_id,templateId]));
+    }
+  }
+  return result;
 }
 export function selectErasureRows(
   rows: ProductRow[],
@@ -539,7 +573,7 @@ export async function replayProductErasure(
       if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result") || (row.table === "version_restore_previews" && c.name === "hash")) continue;
       const value = row.data[c.name];
       if (c.type === "jsonb" || c.type === "json")
-        replacements[c.name] = scrubProductValue(value);
+        replacements[c.name] = row.table === "workflow_draft_disclosures" && c.name === "submission" ? null : scrubProductValue(value);
       else if (
         (c.type === "text" || c.type === "character varying") &&
         value !== null
@@ -748,7 +782,7 @@ export async function executeErasure(
             if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result") || (row.table === "version_restore_previews" && c.name === "hash")) continue;
             const value = row.data[c.name];
             if (c.type === "jsonb" || c.type === "json")
-              replacements[c.name] = scrubProductValue(value);
+              replacements[c.name] = row.table === "workflow_draft_disclosures" && c.name === "submission" ? null : scrubProductValue(value);
             else if (
               (c.type === "text" || c.type === "character varying") &&
               value !== null

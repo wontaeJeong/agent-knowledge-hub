@@ -124,3 +124,25 @@ test("typing is debounced at most one second and a disposed editor cannot update
   expect(save).toHaveBeenCalledTimes(1);
   vi.useRealTimers();
 });
+
+test("page-less recovery caches by exact draft ID and revalidates before exposing unsent content",async()=>{
+ const d={id:"new",revision:1,title:"새 문서",content:"서버 본문"};
+ const b={...binding(),kind:"draft" as const,id:"new",draftId:"new",pageId:undefined,baseVersion:undefined,expectedRevision:1};
+ const cache=new RecoveryCache(storage());expect(cache.write(b,d,"미전송 본문")).toBe(true);
+ const restored=await cache.recover("u","s","draft:new",async()=>({status:"ready",revision:1,serverDraft:d}));
+ expect(restored?.content).toBe("미전송 본문");expect(await cache.recover("u","s","draft:another",async()=>({status:"ready",revision:1,serverDraft:d}))).toBe(null);
+});
+test("title-only changes and newer titles during an in-flight save are persisted with CAS",async()=>{
+ const saved:unknown[]=[];let finish:(d:Draft)=>void=()=>{};
+ const a=new DraftAutosave({...draft,revision:1},async input=>{saved.push(input);if(saved.length===1)return new Promise(r=>{finish=r;});return {...input,revision:input.expectedRevision+1};},()=>{});
+ expect(typeof (a as any).editTitle,"title autosave support").toBe("function");
+ (a as any).editTitle("첫 제목");const flushing=a.flush();(a as any).editTitle("최종 제목");finish({...draft,title:"첫 제목",revision:2});await flushing;
+ expect(a.draft.title).toBe("최종 제목");expect(a.draft.revision).toBe(3);a.dispose();
+});
+test("new draft target position survives autosave and cache without losing a later in-flight target edit",async()=>{
+ const initial={...draft,pageId:undefined,baseVersion:undefined,revision:1,parentId:null};
+ let finish:(d:Draft)=>void=()=>{};let n=0;
+ const a=new DraftAutosave(initial,async input=>{if(++n===1)return new Promise(r=>{finish=r;});return {...input,revision:input.expectedRevision+1};},()=>{});
+ expect(typeof (a as any).editParent).toBe("function");(a as any).editParent("first");const pending=a.flush();(a as any).editParent("second");finish({...initial,parentId:"first",revision:2});await pending;
+ expect(a.draft).toMatchObject({parentId:"second",revision:3});a.dispose();
+});

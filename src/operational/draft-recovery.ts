@@ -34,14 +34,19 @@ export interface Draft {
   title: string;
   content: string;
   pageId?: string;
+  parentId?: string | null;
   baseVersion?: number;
+  templateId?: string;
+  templateRevision?: number;
   sourceIds?: string[];
   dependencyVersions?: Record<string, number>;
 }
 export interface RecoveryBinding {
   id: string;
-  pageId: string;
-  baseVersion: number;
+  kind?: "page" | "draft";
+  draftId?: string;
+  pageId?: string;
+  baseVersion?: number;
   expectedRevision: number;
   sourceIds: string[];
   dependencyVersions: Record<string, number>;
@@ -71,6 +76,7 @@ export interface RecoveredDraft {
 }
 const prefix = "akh:permitted-draft-recovery:v1:";
 const bytes = (value: string) => new TextEncoder().encode(value).length;
+export const recoveryTarget = (binding: RecoveryBinding) => binding.kind === "draft" ? "draft:" + binding.draftId : binding.pageId!;
 const key = (principal: string, space: string, page: string) =>
   prefix + [principal, space, page].map(encodeURIComponent).join(":");
 const validId = (v: unknown): v is string =>
@@ -82,7 +88,9 @@ function cleanDraft(d: Draft): Draft {
     title: d.title,
     content: d.content,
     pageId: d.pageId,
+    ...(d.parentId !== undefined ? {parentId:d.parentId} : {}),
     baseVersion: d.baseVersion,
+    ...(d.templateId ? {templateId:d.templateId,templateRevision:d.templateRevision} : {}),
     ...(d.sourceIds ? { sourceIds: [...d.sourceIds] } : {}),
     ...(d.dependencyVersions
       ? { dependencyVersions: { ...d.dependencyVersions } }
@@ -92,6 +100,8 @@ function cleanDraft(d: Draft): Draft {
 function cleanBinding(b: RecoveryBinding): RecoveryBinding {
   return {
     id: b.id,
+    ...(b.kind ? {kind:b.kind} : {}),
+    ...(b.draftId ? {draftId:b.draftId} : {}),
     pageId: b.pageId,
     baseVersion: b.baseVersion,
     expectedRevision: b.expectedRevision,
@@ -116,6 +126,7 @@ function sameInputs(b: RecoveryBinding, d: Draft) {
     );
   return (
     b.id === d.id &&
+    (b.kind !== "draft" || b.draftId === d.id && !d.pageId) &&
     b.pageId === d.pageId &&
     b.baseVersion === d.baseVersion &&
     sorted([...b.sourceIds].sort()) ===
@@ -167,7 +178,7 @@ export class RecoveryCache {
       !sameInputs(binding, draft)
     )
       return false;
-    const k = key(binding.principalId, binding.workspaceId, binding.pageId);
+    const k = key(binding.principalId, binding.workspaceId, recoveryTarget(binding));
     const safePending = pending
       ? {
           ...cleanDraft({ ...pending, revision: pending.expectedRevision }),
@@ -223,7 +234,7 @@ export class RecoveryCache {
         !validId(d.id) ||
         b.principalId !== principal ||
         b.workspaceId !== space ||
-        b.pageId !== page ||
+        recoveryTarget(b) !== page ||
         b.id !== d.id ||
         b.expiresAt <= this.clock() ||
         b.expiresAt > this.clock() + 300000 ||
@@ -283,6 +294,7 @@ export class DraftAutosave {
   private timer?: ReturnType<typeof setTimeout>;
   private inFlight?: Promise<Draft | null>;
   private disposed = false;
+  private metadataDirty = false;
   readonly abort = new AbortController();
   constructor(
     public draft: Draft,
@@ -296,6 +308,18 @@ export class DraftAutosave {
   }
   private notify() {
     if (!this.disposed) this.changed(this);
+  }
+  editParent(parentId: string | null) {
+    if (this.disposed) return;
+    this.draft = {...this.draft,parentId};
+    this.metadataDirty = true;
+    this.edit(this.content);
+  }
+  editTitle(title: string) {
+    if (this.disposed) return;
+    this.draft = {...this.draft,title};
+    this.metadataDirty = true;
+    this.edit(this.content);
   }
   edit(content: string) {
     if (this.disposed) return;
@@ -324,7 +348,7 @@ export class DraftAutosave {
   private async perform(): Promise<Draft | null> {
     for (let n = 0; n < 5 && !this.disposed; n++) {
       if (
-        !this.pending &&
+        !this.pending && !this.metadataDirty &&
         this.content === this.draft.content &&
         this.draft.revision > 0
       ) {
@@ -338,9 +362,11 @@ export class DraftAutosave {
       try {
         const saved = await this.save(this.pending, this.abort.signal);
         if (this.disposed) return null;
-        this.draft = cleanDraft(saved);
+        const nextTitle = this.draft.title, nextParent = this.draft.parentId;
+        this.metadataDirty = this.pending.title !== nextTitle || this.pending.parentId !== nextParent;
+        this.draft = {...cleanDraft(saved), ...(this.metadataDirty ? {title:nextTitle,parentId:nextParent} : {})};
         this.pending = undefined;
-        if (this.content === saved.content) {
+        if (this.content === saved.content && !this.metadataDirty) {
           this.status = "saved";
           this.notify();
           return this.draft;
