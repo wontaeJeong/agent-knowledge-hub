@@ -1,3 +1,5 @@
+import { bulkPreview, bulkApply } from "./bulk";
+import { RefinementService } from "../refinement/service";
 import {
   beginVersionMetadataChange,
   finishVersionMetadataChange,
@@ -5,6 +7,12 @@ import {
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
+import {
+  dependencyVersions,
+  mergeDependencyVersions,
+  internalReferenceIds,
+  referenceOrigin,
+} from "./references";
 import type { Context } from "../service";
 import type { Page } from "../../src/domain/types";
 import { current, draftOf } from "../../src/domain/wiki";
@@ -40,9 +48,6 @@ export type WorkflowAuthorizer = (
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const text = z.string().trim().min(1).max(100000);
 const revision = z.number().int().min(0);
-const dependencyVersions = z
-  .record(id, z.number().int().positive())
-  .refine((v) => Object.keys(v).length <= 100);
 const draftSchema = z
   .object({
     id,
@@ -80,20 +85,26 @@ const docSchema = z
     restoreParentId: id.nullable().optional(),
     restoreTitle: z.string().trim().min(1).max(300).optional(),
     reason: z.string().trim().min(1).max(2000),
+    tags: z.array(z.string().trim().min(1).max(100)).max(30).optional(),
     properties: z.record(z.string().max(100), z.string().max(2000)).optional(),
     reviewDue: z.iso.datetime().nullable().optional(),
     effectiveFrom: z.iso.datetime().nullable().optional(),
+    effectiveUntil: z.iso.datetime().nullable().optional(),
     replacementId: id.nullable().optional(),
     protected: z.boolean().optional(),
   })
   .strict();
 
 export class WorkflowService {
+  readonly origin: string | undefined;
   constructor(
     readonly pool: Pool,
     readonly runtime: RuntimeService,
     readonly authorize: WorkflowAuthorizer,
-  ) {}
+    origin?: string,
+  ) {
+    this.origin = referenceOrigin(origin);
+  }
   private async run<T>(
     ctx: Context,
     action: string,
@@ -163,6 +174,30 @@ export class WorkflowService {
       await requireRead(db, ctx, "source", sourceId);
     return v;
   }
+  /** Resolve rendered same-space links server-side; client metadata is not an authority boundary. */
+  private async referenceDependencies(
+    db: PoolClient,
+    ctx: Context,
+    content: string,
+    retained: Record<string, number>,
+  ) {
+    let dependencies = { ...retained };
+    for (const target of internalReferenceIds(
+      content,
+      ctx.workspaceId,
+      this.origin,
+    )) {
+      const p = await this.page(db, ctx, target);
+      if (!Object.hasOwn(dependencies, target))
+        dependencies = { ...dependencies, [target]: current(p).number };
+    }
+    dependencyVersions.parse(dependencies);
+    for (const [target, version] of Object.entries(dependencies)) {
+      const p = await this.page(db, ctx, target);
+      await this.requireVersion(db, ctx, p, version);
+    }
+    return dependencies;
+  }
   /** Management metadata only: ignore this page's trash flag, never its ACL, ancestors or inputs. */
   private async manageableTrash(
     db: PoolClient,
@@ -199,6 +234,12 @@ export class WorkflowService {
       throw Error("NOT_FOUND");
     return p;
   }
+  bulkPreview(ctx: Context, input: unknown) {
+    return bulkPreview(this, ctx, input);
+  }
+  bulkApply(ctx: Context, input: unknown) {
+    return bulkApply(this, ctx, input);
+  }
   async drafts(ctx: Context) {
     return this.run(ctx, "draft.write", undefined, async (db) => {
       const rows = await db.query(
@@ -209,7 +250,7 @@ export class WorkflowService {
       for (const row of rows.rows) {
         try {
           if (await isDraftRetired(db, ctx, row.id)) continue;
-          await this.draftHistoryAccess(db, ctx, row.id);
+          const lineage = await this.draftHistoryAccess(db, ctx, row.id);
           if (row.data.pageId) await this.page(db, ctx, row.data.pageId);
           for (const sid of row.data.sourceIds ?? [])
             await requireRead(db, ctx, "source", sid);
@@ -221,10 +262,17 @@ export class WorkflowService {
             id: row.id,
             revision: row.revision,
             ...row.data,
+            ...(Object.keys(lineage.dependencyVersions).length
+              ? { dependencyVersions: lineage.dependencyVersions }
+              : {}),
             updatedAt: row.updated_at,
           });
         } catch (e) {
-          if (!(e instanceof Error && e.message === "NOT_FOUND")) throw e;
+          if (!(
+            e instanceof Error &&
+            ["NOT_FOUND", "STALE_VERSION"].includes(e.message)
+          ))
+            throw e;
         }
       }
       return { items };
@@ -234,20 +282,37 @@ export class WorkflowService {
     db: PoolClient,
     ctx: Context,
     draftId: string,
+    maximumRevision?: number,
   ) {
     const history = await db.query(
-      "SELECT data FROM workflow_draft_revision_history WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3 UNION ALL SELECT data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
-      [ctx.workspaceId, ctx.principalId, draftId],
+      "SELECT data FROM workflow_draft_revision_history WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3 AND ($4::integer IS NULL OR revision<=$4) UNION ALL SELECT data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3 AND ($4::integer IS NULL OR revision<=$4)",
+      [ctx.workspaceId, ctx.principalId, draftId, maximumRevision ?? null],
     );
+    // Recorded pins are authoritative regardless of physical history row order.
+    let dependencies: Record<string, number> = {};
+    for (const row of history.rows)
+      dependencies = mergeDependencyVersions(
+        dependencies,
+        row.data.dependencyVersions ?? {},
+      );
+    const sources = new Set<string>();
     for (const row of history.rows) {
       const d = row.data;
       if (d.pageId) await this.page(db, ctx, d.pageId);
-      for (const sid of d.sourceIds ?? [])
+      for (const sid of d.sourceIds ?? []) {
         await requireRead(db, ctx, "source", sid);
-      for (const dependency of Object.keys(d.dependencyVersions ?? {}))
-        await this.page(db, ctx, dependency);
+        sources.add(sid);
+      }
+      dependencies = await this.referenceDependencies(
+        db,
+        ctx,
+        d.content,
+        dependencies,
+      );
     }
+    return { dependencyVersions: dependencies, sourceIds: [...sources] };
   }
+
   async saveDraft(ctx: Context, input: unknown) {
     const d = draftSchema.parse(input);
     return this.run(
@@ -258,7 +323,7 @@ export class WorkflowService {
         if (d.originSpaceId && d.originSpaceId !== ctx.workspaceId)
           throw Error("SOURCE_SCOPE_CONFLICT");
         await assertDraftNotRetired(db, ctx, d.id);
-        await this.draftHistoryAccess(db, ctx, d.id);
+        const history = await this.draftHistoryAccess(db, ctx, d.id);
         if (d.pageId) {
           const p = await this.page(db, ctx, d.pageId);
           if (!d.baseVersion) throw Error("VALIDATION_FAILED");
@@ -266,12 +331,26 @@ export class WorkflowService {
         }
         for (const sid of d.sourceIds ?? [])
           await requireRead(db, ctx, "source", sid);
-        for (const [dependency, version] of Object.entries(
-          d.dependencyVersions ?? {},
-        )) {
-          const p = await this.page(db, ctx, dependency);
-          await this.requireVersion(db, ctx, p, version);
-        }
+        const before = await db.query(
+          "SELECT revision,data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
+          [ctx.workspaceId, ctx.principalId, d.id],
+        );
+        const previous = before.rows[0]?.data;
+        const dependencies = await this.referenceDependencies(
+          db,
+          ctx,
+          d.content,
+          mergeDependencyVersions(
+            history.dependencyVersions,
+            previous?.dependencyVersions ?? {},
+            d.dependencyVersions ?? {},
+            previous?.pageId &&
+              previous.pageId !== d.pageId &&
+              previous.baseVersion
+              ? { [previous.pageId]: previous.baseVersion }
+              : {},
+          ),
+        );
         if (d.mutationId) {
           const previous = await db.query(
             "SELECT input_hash,result FROM workflow_draft_save_mutations WHERE workspace_id=$1 AND owner_id=$2 AND mutation_id=$3",
@@ -283,34 +362,20 @@ export class WorkflowService {
             return previous.rows[0].result;
           }
         }
-        const before = await db.query(
-          "SELECT revision,data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
-          [ctx.workspaceId, ctx.principalId, d.id],
-        );
         if ((before.rows[0]?.revision ?? 0) !== d.expectedRevision)
           throw Error("STALE_VERSION");
         const next = d.expectedRevision + 1;
         const { expectedRevision: _, mutationId: __, ...submitted } = d;
-        const previous = before.rows[0]?.data;
         // Removing client labels is not removal of inherited evidence. Keep
         // provenance in the current row too, so submitDraft's existing envelope
         // and commitGuard cannot publish a lineage-stripped private revision.
         const sourceIds = [
           ...new Set<string>([
+            ...history.sourceIds,
             ...(previous?.sourceIds ?? []),
             ...(d.sourceIds ?? []),
           ]),
         ];
-        const dependencies = {
-          ...(previous?.dependencyVersions ?? {}),
-          ...(d.dependencyVersions ?? {}),
-        };
-        if (
-          previous?.pageId &&
-          previous.pageId !== d.pageId &&
-          previous.baseVersion
-        )
-          dependencies[previous.pageId] = previous.baseVersion;
         const data = {
           ...submitted,
           ...(sourceIds.length ? { sourceIds } : {}),
@@ -404,9 +469,13 @@ export class WorkflowService {
         if (current(p).number !== edit.baseVersion)
           throw Error("STALE_VERSION");
         const state = await loadState(db, ctx.workspaceId);
-        for (const [dependency, version] of Object.entries(
+        const references = await this.referenceDependencies(
+          db,
+          ctx,
+          edit.content,
           dependencyVersions.parse(dependencies),
-        )) {
+        );
+        for (const [dependency, version] of Object.entries(references)) {
           const p = await this.page(db, ctx, dependency);
           if (current(p).number !== version) throw Error("STALE_VERSION");
         }
@@ -420,7 +489,7 @@ export class WorkflowService {
           db,
           ctx,
           state,
-          [...new Set([pageId, ...Object.keys(dependencies)])],
+          [...new Set([pageId, ...Object.keys(references)])],
           sourceIds,
         );
         return {
@@ -476,7 +545,7 @@ export class WorkflowService {
       undefined,
       async (db) => {
         await assertDraftNotRetired(db, ctx, draftId);
-        await this.draftHistoryAccess(db, ctx, draftId);
+        const lineage = await this.draftHistoryAccess(db, ctx, draftId);
         const row = await db.query(
           "SELECT revision,data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
           [ctx.workspaceId, ctx.principalId, id.parse(draftId)],
@@ -484,7 +553,7 @@ export class WorkflowService {
         if (!row.rowCount) throw Error("NOT_FOUND");
         if (row.rows[0].revision !== expectedRevision)
           throw Error("STALE_VERSION");
-        return row.rows[0].data;
+        return { ...row.rows[0].data, ...lineage };
       },
     );
     if (!d.pageId) throw Error("SOURCE_REGISTRATION_REQUIRED");
@@ -587,7 +656,91 @@ export class WorkflowService {
       },
     );
   }
-  async setDocumentState(ctx: Context, pageId: string, input: unknown) {
+  /** Navigation DTOs carry current metadata only. No historical bodies or hidden counts. */
+  private async navigablePages(db: PoolClient, ctx: Context) {
+    const state = await loadState(db, ctx.workspaceId);
+    const visible = await visiblePageIds(db, ctx, state);
+    // visiblePageIds includes current source lineage, ancestor ACLs, cycles and trash.
+    return state.pages
+      .filter((p) => visible.has(p.id))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  }
+  private linkedIds(p: Page, workspaceId: string) {
+    return new Set([
+      ...(p.links ?? []),
+      ...internalReferenceIds(current(p).content, workspaceId, this.origin),
+    ]);
+  }
+
+  async linkSearch(ctx: Context, input: unknown) {
+    const { query } = z
+      .object({ query: z.string().trim().min(1).max(200) })
+      .strict()
+      .parse(input);
+    return this.run(ctx, "knowledge.read", undefined, async (db) => {
+      const matches = (await this.navigablePages(db, ctx)).filter(
+        (p) =>
+          p.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()) ||
+          p.id.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+      );
+      return {
+        items: matches.slice(0, 20).map((p) => ({
+          id: p.id,
+          title: p.title,
+          version: current(p).number,
+        })),
+        truncated: matches.length > 20,
+      };
+    });
+  }
+  async navigation(ctx: Context, pageId: string) {
+    return this.run(
+      ctx,
+      "knowledge.read",
+      { kind: "page", id: pageId },
+      async (db) => {
+        const origin = await this.page(db, ctx, pageId);
+        const candidates = (await this.navigablePages(db, ctx)).filter(
+          (p) => p.id !== pageId,
+        );
+        const outgoing = this.linkedIds(origin, ctx.workspaceId);
+        const links = candidates.filter((p) => outgoing.has(p.id));
+        const backlinks = candidates.filter((p) =>
+          this.linkedIds(p, ctx.workspaceId).has(pageId),
+        );
+        const related = candidates.filter(
+          (p) =>
+            !outgoing.has(p.id) &&
+            !backlinks.some((b) => b.id === p.id) &&
+            origin.tags.some((tag) => p.tags.includes(tag)),
+        );
+        const metadata = (items: Page[]) =>
+          items.slice(0, 20).map((p) => ({
+            id: p.id,
+            title: p.title,
+            version: current(p).number,
+          }));
+        return {
+          pageId,
+          version: current(origin).number,
+          links: metadata(links),
+          backlinks: metadata(backlinks),
+          related: metadata(related),
+          truncated: {
+            links: links.length > 20,
+            backlinks: backlinks.length > 20,
+            related: related.length > 20,
+          },
+        };
+      },
+    );
+  }
+  async setDocumentState(
+    ctx: Context,
+    pageId: string,
+    input: unknown,
+    bulkReceiptId?: string,
+  ) {
     const d = docSchema.parse(input);
     return this.run(
       ctx,
@@ -624,6 +777,19 @@ export class WorkflowService {
         } else await this.page(db, ctx, pageId);
         for (const sid of current(p).sourceIds)
           await requireRead(db, ctx, "source", sid);
+        if (bulkReceiptId) {
+          const saved = await db.query(
+            "SELECT data FROM workflow_events WHERE workspace_id=$1 AND id=$2 AND principal_id=$3 AND kind='bulk.apply' AND resource_id=$4",
+            [ctx.workspaceId, bulkReceiptId, ctx.principalId, pageId],
+          );
+          if (saved.rowCount)
+            return {
+              id: pageId,
+              revision: Number(saved.rows[0].data.revision),
+              state: r.rows[0]?.state ?? "active",
+              parentId: r.rows[0]?.parent_id ?? null,
+            };
+        }
         if ((r.rows[0]?.revision ?? 0) !== d.expectedRevision)
           throw Error("STALE_VERSION");
         const restoring = r.rows[0]?.state === "trash" && d.state === "active";
@@ -684,6 +850,7 @@ export class WorkflowService {
           state: ___,
           restoreParentId: ____,
           restoreTitle: _____,
+          tags: ______,
           ...settings
         } = d;
         const next = { ...(r.rows[0]?.data ?? {}), ...settings };
@@ -788,6 +955,11 @@ export class WorkflowService {
               );
             }
         }
+        if (d.tags !== undefined)
+          await db.query(
+            "UPDATE pages SET data=jsonb_set(data,'{tags}',$3::jsonb) WHERE workspace_id=$1 AND id=$2",
+            [ctx.workspaceId, pageId, JSON.stringify([...new Set(d.tags)])],
+          );
         await finishVersionMetadataChange(
           db,
           ctx,
@@ -796,6 +968,17 @@ export class WorkflowService {
           this.authorize,
         );
         await audit(db, ctx, "page.lifecycle", pageId);
+        if (bulkReceiptId)
+          await db.query(
+            "INSERT INTO workflow_events(workspace_id,id,principal_id,kind,resource_id,data) VALUES($1,$2,$3,'bulk.apply',$4,$5)",
+            [
+              ctx.workspaceId,
+              bulkReceiptId,
+              ctx.principalId,
+              pageId,
+              { revision: d.expectedRevision + 1 },
+            ],
+          );
         return {
           id: pageId,
           revision: d.expectedRevision + 1,
@@ -915,7 +1098,8 @@ export class WorkflowService {
           ],
         );
         const subscribers = await db.query(
-          "SELECT principal_id FROM workflow_subscriptions WHERE workspace_id=$1 AND page_id=$2",
+          `SELECT principal_id FROM workflow_subscriptions WHERE workspace_id=$1 AND page_id=$2
+           UNION SELECT s.principal_id FROM collaboration_subscriptions s WHERE s.workspace_id=$1 AND (s.scope='space' OR s.target IN (SELECT data->>'category' FROM pages WHERE workspace_id=$1 AND id=$2))`,
           [ctx.workspaceId, pageId],
         );
         const recipients = new Set([
@@ -1067,7 +1251,7 @@ export class WorkflowService {
   async notifications(ctx: Context) {
     return this.run(ctx, "knowledge.read", undefined, async (db) => {
       const rows = await db.query(
-        "SELECT id,page_id,version,kind,data,read_at,created_at FROM workflow_notifications WHERE workspace_id=$1 AND principal_id=$2 ORDER BY created_at DESC LIMIT 500",
+        "SELECT id,page_id,version,kind,data,read_at,created_at FROM workflow_notifications WHERE workspace_id=$1 AND principal_id=$2 AND page_id IS NOT NULL AND NOT(data ? 'eventId') ORDER BY created_at DESC LIMIT 500",
         [ctx.workspaceId, ctx.principalId],
       );
       const items = [];
@@ -1144,6 +1328,100 @@ export class WorkflowService {
       return { items };
     });
   }
+  /** Templates currently carry one origin only. Additional draft lineage must
+   * stay in a private draft until templates have a reviewed multi-root contract. */
+  private async plainTemplateAccess(
+    db: PoolClient,
+    ctx: Context,
+    t: {
+      content: string;
+      originPageId?: string;
+      originVersion?: number;
+      dependencyVersions?: Record<string, number>;
+      sourceIds?: string[];
+      sourceDraftId?: string;
+      sourceDraftRevision?: number;
+    },
+  ) {
+    const origin = t.originPageId
+      ? await this.page(db, ctx, t.originPageId)
+      : undefined;
+    let dependencies = t.dependencyVersions ?? {};
+    const sources = new Set(t.sourceIds ?? []);
+    if (t.sourceDraftId) {
+      await assertDraftNotRetired(db, ctx, t.sourceDraftId);
+      if (!t.sourceDraftRevision) throw Error("NOT_FOUND");
+      const exact = await db.query(
+        "SELECT data FROM workflow_draft_revision_history WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3 AND revision=$4 UNION ALL SELECT data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3 AND revision=$4",
+        [
+          ctx.workspaceId,
+          ctx.principalId,
+          t.sourceDraftId,
+          t.sourceDraftRevision,
+        ],
+      );
+      if (
+        !exact.rowCount ||
+        exact.rows.some(
+          (row) =>
+            row.data.content !== t.content ||
+            row.data.pageId !== t.originPageId ||
+            (t.originVersion && row.data.baseVersion !== t.originVersion),
+        )
+      )
+        throw Error("NOT_FOUND");
+      const lineage = await this.draftHistoryAccess(
+        db,
+        ctx,
+        t.sourceDraftId,
+        t.sourceDraftRevision,
+      );
+      dependencies = mergeDependencyVersions(
+        dependencies,
+        lineage.dependencyVersions,
+      );
+      for (const sid of lineage.sourceIds) sources.add(sid);
+    } else {
+      // Legacy unbound templates use exact owner-scoped copied-body evidence.
+      // Merely sharing an origin is not evidence that another draft influenced it.
+      const candidates = await db.query(
+        "SELECT id FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND data->>'content'=$3 UNION SELECT draft_id AS id FROM workflow_draft_revision_history WHERE workspace_id=$1 AND owner_id=$2 AND data->>'content'=$3",
+        [ctx.workspaceId, ctx.principalId, t.content],
+      );
+      for (const row of candidates.rows) {
+        await assertDraftNotRetired(db, ctx, row.id);
+        const lineage = await this.draftHistoryAccess(db, ctx, row.id);
+        dependencies = mergeDependencyVersions(
+          dependencies,
+          lineage.dependencyVersions,
+        );
+        for (const sid of lineage.sourceIds) sources.add(sid);
+      }
+    }
+    dependencies = await this.referenceDependencies(
+      db,
+      ctx,
+      t.content,
+      dependencies,
+    );
+    const originVersion = origin
+      ? (t.originVersion ?? current(origin).number)
+      : undefined;
+    if (origin && originVersion)
+      await this.requireVersion(db, ctx, origin, originVersion);
+    const originSources = new Set(
+      origin ? inheritedProvenance(origin).sourceIds : [],
+    );
+    if (
+      Object.keys(dependencies).some(
+        (target) =>
+          target !== t.originPageId || dependencies[target] !== originVersion,
+      ) ||
+      [...sources].some((source) => !originSources.has(source))
+    )
+      throw Error("SOURCE_SCOPE_CONFLICT");
+    return originVersion;
+  }
   async saveTemplate(ctx: Context, input: unknown) {
     const t = z
       .object({
@@ -1152,27 +1430,56 @@ export class WorkflowService {
         title: z.string().trim().min(1).max(300),
         content: text,
         originPageId: id.optional(),
+        sourceDraftId: id.optional(),
+        sourceDraftRevision: z.number().int().positive().optional(),
       })
       .strict()
+      .refine((t) => !!t.sourceDraftId === !!t.sourceDraftRevision)
       .parse(input);
     return this.run(
       ctx,
       "draft.write",
       t.originPageId ? { kind: "page", id: t.originPageId } : undefined,
       async (db) => {
-        const origin = t.originPageId
-          ? await this.page(db, ctx, t.originPageId)
-          : undefined;
+        let draftOriginVersion: number | undefined;
+        if (t.sourceDraftId) {
+          await assertDraftNotRetired(db, ctx, t.sourceDraftId);
+          await this.draftHistoryAccess(db, ctx, t.sourceDraftId);
+          const draft = (
+            await db.query(
+              "SELECT revision,data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
+              [ctx.workspaceId, ctx.principalId, t.sourceDraftId],
+            )
+          ).rows[0];
+          if (!draft) throw Error("NOT_FOUND");
+          if (
+            draft.revision !== t.sourceDraftRevision ||
+            draft.data.content !== t.content ||
+            draft.data.pageId !== t.originPageId
+          )
+            throw Error("STALE_VERSION");
+          draftOriginVersion = draft.data.baseVersion;
+        }
         const row = await db.query(
-          "SELECT revision FROM workflow_templates WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
+          "SELECT revision,data FROM workflow_templates WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
           [ctx.workspaceId, ctx.principalId, t.id],
         );
         if ((row.rows[0]?.revision ?? 0) !== t.expectedRevision)
           throw Error("STALE_VERSION");
+        const previous = row.rows[0]?.data;
+        if (previous) {
+          await this.plainTemplateAccess(db, ctx, previous);
+          if (previous.originPageId && previous.originPageId !== t.originPageId)
+            throw Error("SOURCE_SCOPE_CONFLICT");
+        }
+        const originVersion = await this.plainTemplateAccess(db, ctx, {
+          ...t,
+          originVersion: previous?.originVersion ?? draftOriginVersion,
+        });
         const { expectedRevision: _, ...rest } = t;
         const data = {
           ...rest,
-          ...(origin ? { originVersion: current(origin).number } : {}),
+          ...(originVersion ? { originVersion } : {}),
         };
         await db.query(
           "INSERT INTO workflow_templates VALUES($1,$2,$3,$4,$5) ON CONFLICT(workspace_id,owner_id,id) DO UPDATE SET revision=excluded.revision,data=excluded.data",
@@ -1197,11 +1504,16 @@ export class WorkflowService {
       const items = [];
       for (const r of rows.rows) {
         try {
-          if (r.data.originPageId)
-            await this.page(db, ctx, r.data.originPageId);
+          await this.plainTemplateAccess(db, ctx, r.data);
           items.push({ id: r.id, revision: r.revision, ...r.data });
         } catch (e) {
-          if (!(e instanceof Error && e.message === "NOT_FOUND")) throw e;
+          if (!(
+            e instanceof Error &&
+            ["NOT_FOUND", "SOURCE_SCOPE_CONFLICT", "STALE_VERSION"].includes(
+              e.message,
+            )
+          ))
+            throw e;
         }
       }
       return { items };
@@ -1298,6 +1610,31 @@ export class WorkflowService {
         const audience = await readers(db, ctx.workspaceId, "source", sourceId);
         if (original.readers.some((who) => !audience.includes(who)))
           throw Error("SOURCE_SCOPE_CONFLICT");
+        await new RefinementService(
+          this.pool,
+          this.authorize,
+        ).sourceCorrectionDb(db, ctx, sourceId, d.id, d.reason);
+        // Approval was based on superseded evidence; immutable original sources remain readable.
+        const pending = await db.query(
+          "SELECT id,data FROM batches WHERE workspace_id=$1 AND data->>'status' IN ('pending','approved') FOR UPDATE",
+          [ctx.workspaceId],
+        );
+        for (const b of pending.rows)
+          if (
+            b.data.snapshots.some((s: { id: string }) => s.id === sourceId) ||
+            b.data.updates.some((u: { sourceIds: string[] }) =>
+              u.sourceIds.includes(sourceId),
+            )
+          ) {
+            await db.query(
+              "UPDATE batches SET data=jsonb_set(data,'{status}','\"conflict\"') WHERE workspace_id=$1 AND id=$2",
+              [ctx.workspaceId, b.id],
+            );
+            await db.query(
+              "DELETE FROM approvals WHERE workspace_id=$1 AND batch_id=$2",
+              [ctx.workspaceId, b.id],
+            );
+          }
         await db.query(
           "INSERT INTO workflow_events VALUES($1,$2,$3,'source.correct',$4,$5,now())",
           [

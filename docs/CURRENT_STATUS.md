@@ -21,6 +21,10 @@
 
 제품 목표는 [North Star](LLM_WIKI_CORE.md), 수용 기준은 [기준 요구사항](requirements/requirements.json)과 [CORE 추가 기준](requirements/core-requirements.json), 개발 순서는 [요구사항 정비 기준](requirements/MAINTENANCE.md)을 따른다. 251개 중 필수 236개·확장 12개·선택 3개이며, 전체 운영 수용 완료로 판정한 항목은 없다. 이것은 구현이 전혀 없다는 뜻이 아니다.
 
+## 2026-11-16 문서 표시·이미지 첨부 추가 근거
+
+EDT-001/008/009의 공통 Markdown 읽기, KaTeX MathML, 제한된 Mermaid flowchart/sequenceDiagram과 PNG/JPEG/WebP 업로드·현재 ACL 미리보기·불변 버전/검토 연결을 구현했다. 외부 자동 자원/HTML·스크립트 실행은 차단하며 PDF 추출·SVG/GIF는 미지원이다. 독립 리뷰 후 APNG 청크 거부와 요청별 이미지 응답·닫기 무효화 회귀를 추가했다. [실제 연결·지원 형식](DOCUMENT_PRESENTATION.md), [1440/390 실제 서버 화면과 합성 회귀](pr-assets/roadmap-presentation/README.md)를 따른다. 이는 전체 수용 기준이나 실제 사내 운영 인수 완료가 아니다.
+
 ## 상태를 읽는 방법
 
 2026-11-16 편의기능 후속 설계는 [설계안](superpowers/specs/2026-11-16-essential-convenience-design.md)과 [구현 플랜](superpowers/plans/2026-11-16-essential-convenience.md)을 따른다. 10개 작업의 현재 격차·기존 PR 재사용·화면/API·권한·인수 기준과 12개 PR 단위 의존성을 정리했다. 이 문서 추가는 기존 구현·검증·운영 인수 상태를 승격하지 않는다. PR #30 및 #45~48의 병합/최종 검사는 각 PR 기록을 별도로 확인한다.
@@ -67,3 +71,45 @@
 
 - P9 보존 리뷰 후속: 복구 재생에서 원본 법적 보류·비공개 참조·최신 스냅샷을 보수적으로 보호하고 초안의 현재 및 이력 계보에 대한 실행 자격증명의 접근을 재검사한다. CAS 물리 purge와 실제 운영 정책 검증은 남아 있다.
 - P7/P9 integration: applied workspace erasure receipts, including physical-purge-pending states, fence trusted collection before outbound requests and at final commit. Legal-hold and failed preflight alone are not treated as completed erasure. Verified with synthetic PostgreSQL 17, native HTTP and local TLS; external physical deletion and production operation remain separate.
+
+- SHR-007: fixed current descendants can be previewed and explicitly selected for an authenticated recipient. Atomic creation rechecks input rights and policy/selected versions; no later descendants or expanded source audience. Max50 pages, preview10minutes.
+### 2026-11-16 — Task 5 일반 편입 계보·검토 환류
+- KNO-002~006/013/014: [일반 편입](../server/runtime/knowledge.ts)도 [공통 후보 바인딩](../server/runtime/ingest-lineage.ts)을 사용해 정확한 원본 fingerprint/위치·조건·유효 기간·예외를 미검증 주장 후보로 저장한다. 승인된 원자적 발행에서만 기존 refinement 주장/근거/상충 요청으로 연결한다. 승인/모델 성공을 독립 실행 검증으로 바꾸지 않는다.
+- 반려 사유·검토자·시각을 저장하고, 전체 현재 ACL의 반려 내용·발행된 사람 수정/보호 이유가 다음 일반 편입/답변 재편입에 전달된다. 동일 원본·동일 내용 재제안은 서버가 차단한다. 원본 정정은 영향 발행 버전/주장별 재검토 요청과 미발행 승인 무효화에 연결되며 원본/이전 주장을 덮어쓰지 않는다.
+- 연결: 기존 REST·MCP·durable Ingest가 같은 RuntimeService를 호출한다. 검토 화면의 반려 사유 입력/이력, 정련 화면의 원본 정정 이유·원본/대체 ID를 표시한다. [설계와 한계](superpowers/specs/2026-11-16-knowledge-lineage-feedback.md), [실제 화면 증거](pr-assets/roadmap-knowledge-lineage/README.md).
+- 검증/경계: 실제 PostgreSQL·loopback 모델/OIDC·MCP SDK·브라우저 회귀이며 실제 사내 모델 의미 품질/독립 업무 증거/운영 수용을 뜻하지 않는다. 정확히 같은 제안의 반복 차단과 의미상 같은 제안의 판단을 구분한다. 피드백 이력/모델 컨텍스트 한도 초과는 명시 오류로 남긴다.
+- PR52 검토 P1 보완: 반려안의 외부 링크·전이/과거 원본·상위 문서 전체를 현재 권한으로 검사하고, 그 완전한 envelope를 모델 전송/저장 시 다시 검증한다. 답변 편입에는 원래 답변 envelope 밖의 피드백을 보내지 않는다. 권한을 잃은 링크 ID만 제거하며 반려 본문을 유지하던 부분 검사는 사용하지 않는다.
+- 2026-11-16 Task 8 (CLB-004–006): current-category/space subscriptions, document comment integration, transactional publication/pending-review/terminal-job-failure outbox, explicit lifecycle expiry and personal processed state are connected to the existing collaboration notification/digest worker and UI. Read/final-send gates reauthorize current identity, whole source context and subscriptions; retries deduplicate. [Exact API/limits](superpowers/specs/2026-11-16-notifications-contract.md) · [synthetic browser evidence](pr-assets/roadmap-notifications/README.md). Local PostgreSQL/native HTTP/React/project checks are distinct from actual directory/gateway and operational acceptance; no semantic quality claim is added.
+- EDT-012: 운영 편집 화면의 다중 문서 태그/위치/보관 미리보기·대상별CAS 결과·실패 재시도 연결. 미리보기는 최대50문서/10분이고 현재권한을 적용 시 재검사한다.
+
+## 2026-11-16 추가: 문서 탐색과 개인 목록
+
+EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행본 목차·코드/표 본문 검색 위치 이동, 현재 ACL의 내부 링크 자동완성·삽입 전 재검사·한 단계 백링크와 태그 관계, 기존 서버 즐겨찾기/최근 목록을 제공한다. 관계는 펼칠 때 최대 20건씩 조회하며 숨긴 문서 제목·개수는 반환하지 않는다. [설계·API·한계](design/2026-11-16-document-navigation.md)와 [실제 브라우저 1440/390 캡처](pr-assets/roadmap-navigation/README.md)를 따른다. 포커스 복귀/60초 권한 새로 고침은 실시간 푸시 철회를 뜻하지 않는다. 전체 상태 ACL 계산의 대규모 부하 시험·사내 운영 인수·실제 업무 효과는 남는다. 기존 요구사항의 운영 검증 상태는 변경하지 않는다.
+
+## 2026-11-16 Task 1a — Unified scoped search
+
+- Requirements: SRH-002/003/004/005/007, CORE-009/010 search integration. AgentService, ScopedSearch, cookie MCP and runtime HTTP share strict filters, actual historical bodies, current ACL and credential ceilings. Agent legacy offset DTO remains, with signed cursors and explicit historical metadata status. Unknown history is never filled from current title/conditions.
+- Default search/context uses canonical currentRecommendation, excluding active+replacementId, archived and future-effective pages. Explicit history/read stays available and is not described as current recommendation.
+- [API decisions, North Star invariants and remaining limits](implementation/2026-11-16-unified-search.md). Semantic selection and index operations are separate following units; no whole-requirement or company model quality/agent-performance acceptance claim.
+- Verified Task1a: final Node24 `npm run check` passed (src172 + Node48 + imports16 + evaluation41, requirements251, server typecheck, build/static HTTP smoke). Native PostgreSQL17 per-file runner passed 10 files/68 tests; final changed-search rerun passed 3 files/24 tests after cookie DTO compatibility mapping. No model/provider calls or semantic quality claim in this unit.
+
+## 2026-11-17 Task 7 — 주간 지식 유지관리·월간 운영 검토
+
+MGR-003/004와 관련 MGR-005/006의 운영 일정 API/worker/UI를 연결했다. Weekly는 Daily와 분리되어 기존 발행본·명시 주장·적용 조건·예외·시간·연결의 구조 검토 목록 또는 실제 설정 모델의 여러 문서 변경 제안을 만든다. Monthly는 확인된 업무 담당자/미확인 상태, 선택 문서의 보존 분류·정책·법적 보류, 실행 서비스 주체의 해당 공간 두 달 실측 비용 비교를 제안만 한다. 소유권·권한·정책 변경이나 폐기를 수행하지 않는다. 월간 현지 날짜·말일 clamp/skip·윤년·휴일·DST·누락 실행·동일 회차 및 제안 중복 방지를 기존 durable queue에 연결했다. [계약·North Star 판단·검증·한계](implementation/2026-11-16-maintenance-cycles.md). 합성 HTTP 모델 및 PostgreSQL/OIDC 회귀는 실제 의미 품질·운영 인수가 아니다. 혼합 원본 범위는 분리 승인한 일정이 필요하고 비용은 다른 사용자의 사적 사용량을 포함하지 않는다.
+
+- Task7 실제 화면: [1440/390 캡처와 검증 commit/환경](pr-assets/roadmap-maintenance/README.md). 별도 승인 auth 수정이 적용된 native 검증 worktree의 실제 pool6/OIDC/HTTP에서 월간 일정 저장→정본 재조회와 가로 overflow 없음·pageerror 0을 확인했다. 최종 기능 프런트 소스는 동일하며 인증 수정은 별도다.
+## 2026-11-16 Task1b - configured semantic retrieval
+
+- Requirements: SRH-001/002/003/004/005/007 and CORE-009/010 implementation scope. Actual model selection over the complete authorized filtered corpus (up to100 versions, without lexical prefilter), exact quote checks, canonical historical metadata and current source/dependency checks. Durable budgets, actual telemetry and current result-read authorization remain enforced.
+- Connected authenticated REST, agent/cookie MCP and web mode admit/poll real jobs; unconfigured/policy/budget/limit/invalid-output cases remain failures. No answer/wiki/publication effect. [API, North Star decisions and limits](implementation/2026-11-16-semantic-search.md), [1440/390 browser evidence](pr-assets/semantic-search/README.md).
+- Company semantic quality, external CLI interoperability, large-wiki performance and downstream utility remain unverified acceptance; native provider replies are synthetic. Index freshness/rebuild is separate Task1c.
+- Validation Task1b: final Node24 npm run check passed (src173, Node48, imports16, evaluation41, requirements251, server typecheck, build/static HTTP smoke). PostgreSQL17 per-file isolated broad regression passed15 files/154 tests; final semantic11-test isolated rerun passed after malformed-schema repair. Browser1440/390 success/failure screenshots are explicitly synthetic UI evidence.
+
+### Task1b review corrections - semantic retry and key collisions
+
+- Stored job kind and sealed semantic payload are checked before accessing snapshotHash. Reusing an ordinary query/lint key returns IDEMPOTENCY_CONFLICT and creates no additional job/model call.
+- Web semantic search releases its key when job progress definitively reports dead/cancelled, allowing identical-filter retry to create a fresh job. Unknown admission, network interruption and poll timeout retain the original key to prevent duplicate uncertain jobs. No layout changed; existing screenshot evidence remains applicable to presentation.
+- Added native query/lint collision RED regressions and UI dead/cancelled/new-key plus admission-network/poll-network/poll-timeout/same-key checks. Final command/results recorded below after execution.
+- Review-fix validation: final Node24 npm run check passed (src178, Node48, imports16, evaluation41, requirements251, server typecheck, build/static smoke). Isolated PostgreSQL17 runtime52 plus semantic13 tests passed; UI semantic6 passed. Both terminal retry and uncertain same-key cases are executed regressions. git diff --check clean.
+
+- 2026-11-17 PR60 검토 A 보완: Weekly도 통합된 일반 ingest와 동일한 후보 스키마/원본 인용 binder를 사용하고 후보·변경 이유를 canonical 검토 해시에 보존한다. 독립 발행에서 새 버전의 미검증 주장·근거로 연결하며 invalid quote/out-of-scope 및 현재 원본 철회는 실패한다. 전체 고정 원본 텍스트가 허용된 모델 문맥에 들어가며 모델이 source version/검증 상태를 정하지 않는다. 무변경 응답과 기존 권한/예산을 유지한다. [수정·검증 기록](implementation/2026-11-16-maintenance-cycles.md).

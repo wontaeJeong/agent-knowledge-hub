@@ -44,13 +44,23 @@ export function storageRoutes(
       send(200, artifacts ? await artifacts.list(ctx) : { items: [] });
       return true;
     }
-    const connection = /^collector-connections\/([a-zA-Z0-9_-]+)\/(collect|revoke)$/.exec(suffix);
+    const connection =
+      /^collector-connections\/([a-zA-Z0-9_-]+)\/(collect|revoke)$/.exec(
+        suffix,
+      );
     if (method === "POST" && connection) {
       if (!artifacts) throw Error("COLLECTOR_NOT_CONFIGURED");
-      if (connection[2] === "collect") send(201, await artifacts.collect(ctx, connection[1], body));
+      if (connection[2] === "collect")
+        send(201, await artifacts.collect(ctx, connection[1], body));
       else {
-        const d = z.object({ expectedRevision: z.number().int().positive() }).strict().parse(body);
-        send(200, await artifacts.revoke(ctx, connection[1], d.expectedRevision));
+        const d = z
+          .object({ expectedRevision: z.number().int().positive() })
+          .strict()
+          .parse(body);
+        send(
+          200,
+          await artifacts.revoke(ctx, connection[1], d.expectedRevision),
+        );
       }
       return true;
     }
@@ -144,9 +154,13 @@ export function storageRoutes(
       }
     }
     const match =
-      /^blobs\/([a-zA-Z0-9_-]+)(?:\/(extract|ticket|local-copy))?$/.exec(
+      /^blobs\/([a-zA-Z0-9_-]+)(?:\/(extract|ticket|local-copy|preview))?$/.exec(
         suffix,
       );
+    if (match && method === "GET" && match[2] === "preview") {
+      send(200, await service.previewBlob(ctx, match[1]));
+      return true;
+    }
     if (match && method === "GET" && (!match[2] || match[2] === "local-copy")) {
       const result = await service.download(
         ctx,

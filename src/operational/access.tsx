@@ -1,3 +1,4 @@
+import {ShareSelection} from "./ShareSelection";
 import { useEffect, useState, useCallback } from "react";
 import { ApiError, OperationalApi, pageItems } from "./api";
 import { Button } from "../ui/primitives";
@@ -828,6 +829,7 @@ export function AccessPanel({
       {admin && access?.space.namespaceKind === "team" && (
         <details>
           <summary>버전 고정 공유 · 만료·철회</summary>
+          <ShareSelection api={api} scope={access.space.id} onChanged={onChanged} onExpired={onExpired}/>
           <p>
             수신자도 현재 원본·파생 입력에 접근할 수 있어야 합니다. 링크가 원본
             권한을 우회하지 않습니다.

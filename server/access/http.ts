@@ -84,6 +84,8 @@ export async function accessRoute(
         await access.issueServiceCredential(ctx, serviceCredential[1], body),
         201,
       );
+    if(path === "/api/v1/shares/preview")return send(await access.previewShareSelection(ctx,body));
+    if(path === "/api/v1/shares/selection")return send(await access.createShareSelection(ctx,body),201);
     if (path === "/api/v1/shares")
       return send(await access.createShare(ctx, body), 201);
     const personalSave = path.match(/^\/api\/v1\/changesets\/([^/]+)\/save$/);

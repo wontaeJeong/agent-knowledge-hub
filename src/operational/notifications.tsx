@@ -16,7 +16,8 @@ interface Preferences {
 interface InAppNotification {
   pageId: string;
   title: string;
-  events: { id: string; read: boolean }[];
+  url?: string;
+  events: { id: string; read: boolean; kind?: string; processed?: boolean }[];
 }
 interface Delivery {
   id: string;
@@ -40,6 +41,12 @@ interface Review {
   reason: string;
   assignedId: string | null;
 }
+const eventLabels: Record<string, string> = {
+  publication: "발행 변경",
+  "change-review-request": "변경 검토 요청",
+  expiry: "유효기간 만료",
+  "job-failure": "작업 실패",
+};
 const labels: Record<string, string> = {
   queued: "대기",
   running: "전달 처리 중",
@@ -83,6 +90,11 @@ export function NotificationPanel({
     [deliveries, setDeliveries] = useState<Delivery[]>([]),
     [notifications, setNotifications] = useState<InAppNotification[]>([]),
     [reviews, setReviews] = useState<Review[]>([]),
+    [subscriptions, setSubscriptions] = useState<
+      { scope: string; target: string }[]
+    >([]),
+    [topics, setTopics] = useState<string[]>([]),
+    [topic, setTopic] = useState(""),
     [offset, setOffset] = useState(0),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -99,6 +111,8 @@ export function NotificationPanel({
       setReviews([]);
       setDeliveries([]);
       setPreview(null);
+      setSubscriptions([]);
+      setTopics([]);
       if (e instanceof ApiError && e.status === 401) onExpired?.();
       setError(
         e instanceof Error ? e.message : "알림 요청을 완료하지 못했습니다.",
@@ -110,7 +124,7 @@ export function NotificationPanel({
     if (!canRead) return;
     const current = ++generation.current;
     try {
-      const [p, n, d, r] = await Promise.all([
+      const [p, n, d, r, s] = await Promise.all([
         api.get<Preferences>("/collaboration/preferences"),
         api.get<{ items: InAppNotification[] }>(
           `/collaboration/notifications?offset=${offset}`,
@@ -121,12 +135,18 @@ export function NotificationPanel({
         api.get<{ items: Review[] }>(
           `/collaboration/review-due?offset=${offset}&all=${all && manage}`,
         ),
+        api.get<{
+          items: { scope: string; target: string }[];
+          topics?: string[];
+        }>("/collaboration/subscriptions"),
       ]);
       if (current !== generation.current) return;
       setPrefs(p);
       setNotifications(n.items);
       setDeliveries(d.items);
       setReviews(r.items);
+      setSubscriptions(s.items);
+      setTopics(s.topics ?? []);
     } catch (e) {
       if (current === generation.current) failure(e);
     }
@@ -163,6 +183,82 @@ export function NotificationPanel({
       </p>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      <details open>
+        <summary>주제·공간 구독</summary>
+        <p>
+          주제는 현재 문서 분류입니다. 분류가 바뀌면 해당 주제의 알림 대상도
+          바뀝니다. 문서 구독은 편집·협업 화면에서 관리합니다.
+        </p>
+        <Button
+          disabled={busy}
+          onClick={() =>
+            void perform(async () => {
+              await api.post("/collaboration/subscriptions", {
+                scope: "space",
+                enabled: !subscriptions.some((s) => s.scope === "space"),
+              });
+            })
+          }
+        >
+          {subscriptions.some((s) => s.scope === "space")
+            ? "공간 구독 해제"
+            : "현재 공간 구독"}
+        </Button>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void perform(async () => {
+              await api.post("/collaboration/subscriptions", {
+                scope: "topic",
+                target: topic,
+                enabled: true,
+              });
+              setTopic("");
+            });
+          }}
+        >
+          <label>
+            주제 (문서 분류)
+            <select
+              disabled={busy}
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+            >
+              <option value="">주제 선택</option>
+              {topics.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button type="submit" disabled={busy || !topic}>
+            주제 구독
+          </Button>
+        </form>
+        {subscriptions
+          .filter((s) => s.scope === "topic")
+          .map((s) => (
+            <p key={s.target}>
+              {s.target}{" "}
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void perform(async () => {
+                    await api.post("/collaboration/subscriptions", {
+                      scope: "topic",
+                      target: s.target,
+                      enabled: false,
+                    });
+                  })
+                }
+              >
+                주제 구독 해제
+              </Button>
+            </p>
+          ))}
+        {!subscriptions.length && <p>주제·공간 구독이 없습니다.</p>}
+      </details>
       <details open>
         <summary>알림 설정 · 버전 {prefs.revision}</summary>
         <form
@@ -335,10 +431,33 @@ export function NotificationPanel({
       {!notifications.length && <p>표시할 알림이 없습니다.</p>}
       {notifications.map((item) => (
         <div key={item.pageId}>
-          <a href={documentHref(spaceId, item.pageId)}>{item.title}</a>
+          <a href={item.url ?? documentHref(spaceId, item.pageId)}>
+            {item.title}
+          </a>
           {item.events.map((event) => (
             <div key={event.id}>
+              {event.kind && (
+                <span>
+                  {eventLabels[event.kind] ?? "알림"} ·{" "}
+                  {event.processed ? "처리 완료" : "미처리"} ·{" "}
+                </span>
+              )}
               <span>{event.read ? "읽음" : "읽지 않음"}</span>{" "}
+              {event.kind && !event.processed && (
+                <Button
+                  disabled={busy}
+                  onClick={() =>
+                    void perform(async () => {
+                      await api.post(
+                        `/collaboration/notifications/${encodeURIComponent(event.id)}/process`,
+                        {},
+                      );
+                    })
+                  }
+                >
+                  처리 완료 표시
+                </Button>
+              )}
               {!event.read && (
                 <Button
                   disabled={busy}

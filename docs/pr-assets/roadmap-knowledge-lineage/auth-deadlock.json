@@ -1,0 +1,73 @@
+{
+  "environment": "Synthetic loopback OIDC/model HTTP, PostgreSQL, real Chromium, browser fixture pool max6",
+  "observed": "Parallel authenticated app reads returned401 after a successful session read; session was discarded",
+  "code": "40P01",
+  "message": "deadlock detected",
+  "failingQuery": "SELECT pg_advisory_xact_lock(7203101)",
+  "elapsedMs": 1004,
+  "connectionErrors": 0,
+  "recentLockStatements": [
+    {
+      "at": "2026-11-16T14:15:43.469Z",
+      "kind": "query-ok",
+      "elapsed": 0,
+      "sql": "SELECT pg_advisory_xact_lock(7203101)"
+    },
+    {
+      "at": "2026-11-16T14:15:43.472Z",
+      "kind": "query-ok",
+      "elapsed": 0,
+      "sql": "SELECT pg_advisory_xact_lock(7203101)"
+    },
+    {
+      "at": "2026-11-16T14:15:43.475Z",
+      "kind": "query-ok",
+      "elapsed": 9,
+      "sql": "UPDATE runtime_sessions SET legacy_role_ceiling=$2,legacy_verified_at=clock_timestamp() WHERE id=$1"
+    },
+    {
+      "at": "2026-11-16T14:15:43.475Z",
+      "kind": "query-ok",
+      "elapsed": 0,
+      "sql": "SELECT pg_advisory_xact_lock(7203101)"
+    },
+    {
+      "at": "2026-11-16T14:15:43.476Z",
+      "kind": "query-ok",
+      "elapsed": 1,
+      "sql": "SELECT pg_advisory_xact_lock_shared($1)"
+    },
+    {
+      "at": "2026-11-16T14:15:43.479Z",
+      "kind": "query-ok",
+      "elapsed": 4,
+      "sql": "SELECT pg_advisory_xact_lock(7203101)"
+    },
+    {
+      "at": "2026-11-16T14:15:43.479Z",
+      "kind": "query-ok",
+      "elapsed": 53,
+      "sql": "SELECT pg_advisory_xact_lock(7203110, hashtext($1))"
+    },
+    {
+      "at": "2026-11-16T14:15:43.480Z",
+      "kind": "query-ok",
+      "elapsed": 1,
+      "sql": "SELECT s.id FROM runtime_sessions s\n JOIN identity_session_activity a ON a.session_id=s.id\n JOIN access_principals p ON p.id=s.principal_id AND p.active AND p.kind='human'\n WHERE s"
+    },
+    {
+      "at": "2026-11-16T14:15:43.480Z",
+      "kind": "query-ok",
+      "elapsed": 0,
+      "sql": "SELECT pg_advisory_xact_lock_shared($1)"
+    },
+    {
+      "at": "2026-11-16T14:15:43.480Z",
+      "kind": "query-ok",
+      "elapsed": 0,
+      "sql": "UPDATE runtime_sessions SET legacy_role_ceiling=$2,legacy_verified_at=clock_timestamp() WHERE id=$1"
+    }
+  ],
+  "status": "Unresolved auth lock-order issue; raising screenshot fixture pool is not a product fix",
+  "task5Boundary": "No authentication/identity lock or network behavior changed in Task5"
+}

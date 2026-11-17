@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import {
+  RasterImage,
+  type ImagePreview,
+  presentationFormats,
+} from "../ui/Markdown";
 import type { OperationalApi } from "./api";
 export type StorageParent = { kind: "source" | "page"; id: string };
 export type StorageTransport = (
@@ -69,7 +74,13 @@ export function storageUploadHeaders(
             ? "application/json"
             : /\.pdf$/i.test(file.name)
               ? "application/pdf"
-              : "application/octet-stream"),
+              : /\.png$/i.test(file.name)
+                ? "image/png"
+                : /\.jpe?g$/i.test(file.name)
+                  ? "image/jpeg"
+                  : /\.webp$/i.test(file.name)
+                    ? "image/webp"
+                    : "application/octet-stream"),
     ...(replacement
       ? {
           "X-Attachment-Slot": replacement.slotId,
@@ -113,6 +124,7 @@ export function StoragePanel({
       complete: boolean;
       omittedCharacters: number;
     } | null>(null),
+    [imagePreview, setImagePreview] = useState<ImagePreview | null>(null),
     [reason, setReason] = useState(""),
     [editorBase, setEditorBase] = useState(baseVersion ?? 0),
     [archiveId, setArchiveId] = useState(""),
@@ -128,6 +140,7 @@ export function StoragePanel({
     setImportText("");
     setReplacement(undefined);
     setPreview(null);
+    setImagePreview(null);
     setArchiveId("");
     setBaseVersions("{}");
     setSourceMap("{}");
@@ -180,6 +193,10 @@ export function StoragePanel({
         파일당 최대 5 MiB. 원본은 덮어쓰지 않으며 PDF는 검사 승인 전 내려받을 수
         없습니다. PDF 변환은 지원하지 않습니다.
       </p>
+      <p>
+        {presentationFormats} 이미지는 최대 400만 화소·한 변 4096px의 정지
+        이미지만 지원합니다.
+      </p>
       <p role="status" aria-live="polite">
         {message}
       </p>
@@ -202,11 +219,12 @@ export function StoragePanel({
             <input
               type="file"
               disabled={busy || !transport}
-              accept=".txt,.md,.json,.pdf"
+              accept=".txt,.md,.json,.pdf,.png,.jpg,.jpeg,.webp"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (!file) return;
                 void perform(async () => {
+                  const epoch = generation.current;
                   if (file.size > 5 * 1024 * 1024)
                     throw Error("5 MiB를 초과한 파일입니다.");
                   if (!transport) throw Error("파일 전송 연결이 필요합니다.");
@@ -219,9 +237,9 @@ export function StoragePanel({
                     throw Error(
                       "업로드에 실패했습니다. 원본 권한과 파일 형식을 확인하세요.",
                     );
+                  if (epoch !== generation.current) return;
                   setReplacement(undefined);
                   await refresh();
-                  await onChanged();
                 });
                 event.currentTarget.value = "";
               }}
@@ -287,24 +305,47 @@ export function StoragePanel({
                 busy ||
                 item.withdrawn ||
                 item.scan_state !== "clean" ||
-                !["text/plain", "text/markdown", "application/json"].includes(
-                  item.mime,
-                )
+                ![
+                  "text/plain",
+                  "text/markdown",
+                  "application/json",
+                  "image/png",
+                  "image/jpeg",
+                  "image/webp",
+                ].includes(item.mime)
               }
               onClick={() =>
                 void perform(async () => {
-                  const result = await api.get<{
-                    text: string;
-                    complete: boolean;
-                    omittedCharacters: number;
-                  }>(
+                  const epoch = generation.current;
+                  setPreview(null);
+                  setImagePreview(null);
+                  const result = await api.get<
+                    | {
+                        text: string;
+                        complete: boolean;
+                        omittedCharacters: number;
+                      }
+                    | ImagePreview
+                  >(
                     `/storage/attachments/${item.slot_id}/versions/${item.file_revision}/preview`,
                   );
-                  setPreview(result);
+                  if (epoch !== generation.current) return;
+                  if ("render" in result && result.render === "raster-image")
+                    setImagePreview(result);
+                  else
+                    setPreview(
+                      result as {
+                        text: string;
+                        complete: boolean;
+                        omittedCharacters: number;
+                      },
+                    );
                 })
               }
             >
-              안전한 텍스트 미리보기
+              {item.mime.startsWith("image/")
+                ? "이미지 미리보기"
+                : "안전한 텍스트 미리보기"}
             </button>
           )}
           {canCreate && item.slot_id && item.is_head && !item.withdrawn && (
@@ -367,6 +408,7 @@ export function StoragePanel({
                         { expectedRevision: item.head_revision, reason },
                       );
                       setPreview(null);
+                      setImagePreview(null);
                       await refresh();
                     })
                   }
@@ -378,6 +420,14 @@ export function StoragePanel({
           )}
         </div>
       ))}
+      {imagePreview && (
+        <figure>
+          <RasterImage preview={imagePreview} label="첨부 이미지" />
+          <button onClick={() => setImagePreview(null)}>
+            이미지 미리보기 닫기
+          </button>
+        </figure>
+      )}
       {preview && (
         <AttachmentPreview preview={preview} onClose={() => setPreview(null)} />
       )}

@@ -1,5 +1,40 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — 확장된 navigation HTTP 시험의 기본 5초 예산 초과
+
+- 맥락/관련 PR: PR #62 head `7387484`, CI run [43898200490/job133407397086](https://github.com/wontaeJeong/agent-knowledge-hub/actions/runs/43898200490/job/133407397086). 2026-11-16 15:47 UTC에 `server/workflows/navigation-http.test.ts:9`의 단일 시험이 5005ms에 `Test timed out in 5000ms`로 실패했다. 다른 서버 125파일과 staged 알림 신규 16시험(4017ms)은 통과했으나 해당 CI 실행 전체를 통과로 취급하지 않는다.
+- 사실과 원인: PR #56이 completion → draft → submit 및 여러 URL 형태/회수 검사를 같은 native HTTP 사례에 추가해 34개 순차 HTTP 요청을 수행하게 됐지만 기본 5초 예산은 그대로였다. 승인된 통합 기준 `a98a542`를 해당 worktree에 병합하고 lockfile이 일치하는 의존성을 사용해 수정 전 로컬에서도 5002ms timeout을 재현했다. 성공/실패나 보안 assertion 실패로 바꾸지 않는다.
+- 진단: 임시 per-route/fixture/teardown 계측에서 전체 사례 4193.95ms와 3952.36ms, fixture 317.51/319.36ms, 개별 요청 최대 230/252ms, teardown 각각 0.43ms/1.26ms였다. 모든 기대 status/회수 assertion을 끝냈고 DB deadlock/lock-timeout 오류는 없었다. 이 실행은 누적 HTTP/인가 작업과 5초 경계의 환경별 변동을 뒷받침하며 모든 환경의 교착 부재를 입증하지는 않는다. 진단 계측은 최종 코드에서 제거했다.
+- 조치: 해당 단일 시험의 Vitest 예산만 20초로 지정한다. 본문·요청·모든 권한/계보 assertion과 production DB/HTTP/인가 timeout은 그대로 유지한다. 전역 timeout이나 제품 동작은 변경하지 않는다.
+- 검증/상태: 원래 CI 실패 및 로컬 RED를 보존했다. 최종 코드의 native staged 16·lineage 30·navigation 1시험(파일 전체 3.96초)과 Node 24.22.2 전체 `npm run check`(프런트 213, Node 48, import 16, 평가 41, 요구사항 251, 서버 타입·빌드·smoke)가 통과했다. 동일 본문 비교로 모든 기존 assertion의 보존을 확인했다. 최종 SHA·추가 원격 CI는 같은 PR의 후속 보고서를 따른다. 이 시험 예산 수정은 기존 `7387484`의 독립 승인과 별도로 재검토한다.
+
+### 2026-11-17 — 기존 리뷰의 staged 검토 알림 소실 미해결 수정
+
+- 맥락/관련 PR: PR #48 리뷰 5921247928 및 5921544871은 최종 요청 인가 해제 전 이벤트가 영구 소비되는 문제를 이미 보고했다. 이후 head에서도 미해결로 남았으며 이번 별도 수정은 새로운 최초 발견으로 표시하지 않는다. PR #56의 링크 계보 문제와 분리한다.
+- 사실과 영향: migration 120은 비공개 staging 변경안의 리뷰 이벤트를 생성했다. 스캐너가 `NOT_FOUND`를 정상 거부로 처리하고 `projected_at`을 기록한 뒤 최종 해제는 같은 키의 `ON CONFLICT DO NOTHING`에 막혀 검토 가능 알림이 사라졌다. 실제 PostgreSQL 재현에서 직접 제안과 RuntimeService 최종 인가 barrier가 해제 전에 이벤트를 만드는 것을 확인했다. 운영 자료에서 발생한 건수는 확인하지 않았다.
+- 원인: private staging 결과의 수명주기와 트랜잭션 outbox의 ready 시점을 맞추지 않았고, 이전 미해결 리뷰를 완료 여부와 연결하지 못했다.
+- 조치 및 재발 방지: 적용된 migration 120은 수정하지 않고 additive 130에서 실제 해제 때 이벤트를 생성/재큐잉한다. scanner는 old staged 이벤트를 소비하지 않는다. 현재 pending/model/hash에 한정한 기존 이벤트의 보수적 복구는 원래 구독 시각을 유지하며, 과거 해제/수신 이력을 추정하지 않는다. 정확한 복구 대상·제약은 AGENT_HANDOFF의 같은 날짜 항목에 기록했다.
+- 작업 중 검증 실패: 첫 upgrade 시험은 여러 pending 변경안이 같은 페이지를 수정하게 만들어 기존 중복 방지에 `VALIDATION_FAILED`로 거부됐다. 독립 fixture로 분리했다. stale 해시를 만드는 fixture UPDATE는 정상 트리거의 새 revision 이벤트도 만들므로 해당 새 이벤트를 fixture에서 분리하여 역사 이벤트 복구 범위만 검사했다. 초기 없는 migration 파일 오류를 넘어서기 위해 기존 120과 같은 함수 동작을 담은 무변경 130으로 재실행했고, 의미 있는 8개 RED를 확인한 뒤 실제 수정했다. 첫 branch 생성은 sandbox 메타데이터 쓰기 제한으로 실패했고 승인된 escalation으로 지정 worktree에서만 재시도했다.
+- 검증: 16개 신규 PostgreSQL 회귀 및 실제 migration runner/retry 통과. 전체 `npm run check`와 관련 DB 14파일 123시험 통과. 소스·검토자 현재 권한 회수, 최종 인가 실패의 batch cleanup/알림0, 롤백/동시 scan/고정 ID를 확인했다. UI 변경은 없으며 운영 DB 부하·사내 운영 인수는 미실행이다.
+- 상태/후속 작업: 로컬 회귀 검증 완료, 별도 수정 PR의 새 독립 검토와 최종 원격 CI 대기. 기존 리뷰 스레드를 확인 없이 해결 처리하지 않는다.
+
+### 2026-11-16 — APNG 프레임 누락과 최신 이미지 응답 경합
+- 맥락: 문서 이미지 첨부의 독립 리뷰. 195바이트 합성 2프레임 APNG와 실제 React deferred promise로 두 문제를 재현했다.
+- 사실/영향/원인: Sharp 메타데이터에 APNG pages가 없어 단일 프레임으로 간주했고, 원본 바이트를 받은 브라우저는 검증되지 않은 추가 프레임을 표시했다. 이미지 요청은 컨텍스트 세대만 비교하여 최근 권한 거부 후 예전 성공이 이미지를 복구할 수 있었다. 최초 구현·집중 시험이 이 입력과 완료 순서를 놓쳤다.
+- 조치: PNG의 서명·실제 청크 길이/종료를 순회하며 모든 APNG 애니메이션 청크를 거부한다. 원본 보존·400만 화소 제한은 유지한다. 이미지별 요청 토큰을 모든 선택/닫기/컨텍스트/언마운트에서 갱신하고 다이어그램 세대와 분리했다. 대기 중 닫기도 늦은 응답을 무효화한다. data URL만 사용하므로 미회수 object URL은 없다.
+- 검증/상태: codec 및 실제 OIDC/CSRF HTTP에서 APNG 승인 문제가 RED→GREEN, 메타데이터 생성0. 손상 청크·정상 PNG/JPEG/WebP·불활성 청크 문자열 구분을 검사했다. 실제 React의 최신 거부/역순 응답/닫기/컨텍스트·언마운트 회귀 RED→GREEN. 최종 전체 검사와 실제 대기 중 닫기 화면 결과는 PR 증거 README에 기록한다. 사내 운영 인수는 미실행이다.
+
+### 2026-11-16 — 문서 표시의 정제·화면 상태와 검증 요약 수정
+- 맥락: EDT-001/008/009 이미지·수식·Mermaid 구현. 모든 자료와 계정은 합성이다.
+- 사실/원인: 첫 이미지 연결 fixture에서 원본 부모의 명시 pageId를 빠뜨려 기존 보호 규칙이 거부했다. 집중 실행의 마지막 두 파일만 보고 전체가 통과했다고 부모 에이전트에 보고했으나 전체 로그에서 lifecycle 실패를 확인해 즉시 정정했다. 이 검사는 정상 차단이며 정책을 약화하지 않았다.
+- 추가 실패: 실제 런타임 검사에서 INVALID_IMAGE 오류 매핑 누락이 일반503으로 나타났다. 브라우저에서는 화살표 포함 data 속성이 정제되어 Mermaid가 표시되지 않았고, MathML annotation 문자열이 중복 표시됐다. 기존 업로드의 전체 문서 재조회는 첨부 목록을 초기화했다. DOM/HTTP 증거로 각 원인을 재현했다.
+- 조치: 명시 대상 fixture, 안전한415 매핑, 단순 마커와 정제된 코드 본문을 읽는 다이어그램 처리, 비표시 TeX annotation 제거, 업로드의 로컬 목록 갱신과 늦은 응답 컨텍스트 검사를 적용했다. 보안 정제와 원본/권한 경계는 유지했다. 허용 SVG는 외부 스타일 없이 로컬 CSS로 읽을 수 있게 표시한다.
+- 검증/상태: 관련 서버·클라이언트 회귀 RED→GREEN. 실제 Chromium에서 수식/다이어그램/업로드/이미지/교체/현재 ACL 차단, 1440/390 캡처, 외부 요청0·브라우저 오류0을 확인했다. 마지막 전체 검사와 저장/삭제 회귀 결과는 PR 증거에 기록한다. 사내 운영 인수는 미실행이다.
+### 2026-11-16 — 일괄 결과가 실제 호스트 재조회에서 사라짐
+
+- 사실/원인: BulkEditor 단독 시험은 onChanged를 no-op으로 사용해 통과했으나 실제 App.load는 dataReady를 내려 패널을 unmount한다. apply 후 결과와 같은 토큰 재확인 상태가 즉시 소실됐다. 합성 fixture/독립 코드 검토로 확인했으며 운영 자료 영향은 확인하지 않았다.
+- 조치: 적용 직후 부모 자동 갱신 대신 명시적 ‘결과 확인 후 문서 목록 새로고침’을 제공한다. 호스트 unmount 경계 시험은 수정 전 실패, 수정 후 통과했다. 명시적 갱신 이후의 결과 보존은 제공하지 않는다.
+- 검증: 프런트 회귀 3건·전체 기본 검사·1440/390 실제 컴포넌트 화면·동일 토큰 재확인·독립 재검토. 최종 원격 CI는 해당 PR head 기준으로 확인한다.
 ### 2026-11-17 — C1 최종 검토의 기존 공유·개인 도구·preview 호환 누락
 
 - 맥락/관련 작업: #49 / PR #63 전체 분기 검토, 수정 기준 `3f3e63f`.
@@ -552,7 +587,222 @@
 - 검증: 최종 수정의 PostgreSQL 17 관련 9파일과 전체 `npm run check` 통과. 잘못 지정한 `legacy-compat.test.ts` 필터는 실행 전 거부됐으며 실제 `legacy-compatibility.test.ts`로 수정해 실행했다. 원격 최종 CI를 다시 통과해야 병합한다.
 - 남은 제약: 기존 final guard/directory gate 경합의 더 넓은 잠금 순서는 별도 재현·검토 대상이다. 이번 검증을 모든 동시성 문제의 해결로 표시하지 않는다.
 
+### 2026-11-16 - Share preview authorization fixtures and merge checks
+- Initial missing preview methods failed as expected. First implementation tests used writer role, which correctly lacked share.manage; test explicitly grants admin and production authorization stays strict. NativeOIDC/CSRF and current source revocation then pass.
+- During roadmap integration, PR30 merge was rejected by strict required check after main advanced; updated branch, verified finalCI and merged24550c5. A later merge command used an abbreviated expectedSHA and was rejected422 without mutation; subsequent merges use40-character SHAs only.
+- Search/discovery documentation conflicts preserve both records and re-run checks; no reset/clean/discard used.
+
+### 2026-11-16 - Hidden descendant threshold review fix
+- Independent review found the raw descendant limit ran before actor/recipient checks, so hidden or unshareable children could block a root-only preview and reveal a threshold.
+- Added50 unshareable descendant regression; it failed SHARE_SELECTION_LIMIT before the fix. Removed raw row count threshold and enforce50 only after complete current-ACL/input checks. Native5tests now pass.
+- Recursion remains cycle-safe and bounded to50levels; large-space performance is not claimed. No hidden title/count is returned.
+### 2026-11-16 — Independent search eligibility and schema construction
+- Context: Task 1a canonical search integration.
+- Impact/cause: agent search duplicated eligibility logic, omitted replacementId and per-resource authorizer checks, and searched only current body in history mode. Five new native regressions failed before changes. Canonical ScopedSearch/currentRecommendation now owns retrieval.
+- Implementation error: using omit on a refined Zod object caused an import failure; explicitly mapping its shape fixed construction. Canonical search rejected unadopted fixtures; explicit adoptFixture setup fixed test identities without weakening production authorization. Existing historical expectation incorrectly used current effectiveFrom; it now expects unknown historical metadata.
+- Verification: five new search regressions, one native cookie MCP regression and nine existing agent regressions passed. Broader final checks are recorded in handoff. Actual company model and operational acceptance remain unverified.
+
+### 2026-11-16 - Semantic integration and test isolation
+- Context: Task1b actual configured semantic retrieval. Four native RED tests exposed the missing durable query variant; later HTTP404 and UI interaction failures exposed missing entry points. Added sealed payloads and connected routes/tools/UI.
+- Automated insertion initially placed worker execution inside validateScope (undefined value/e); typecheck/native failures exposed it. Moved execution to the worker handler, preserving read-only admission. The real three-call HTTP/MCP test exceeded default5s timeout; gave that specific IO test30s. Fixed a test expecting error_code rather than the existing job error field. Malformed provider schema produced generic EXECUTION_FAILED; a RED regression now requires MODEL_INVALID.
+- Test command mistake: malformed-output RED once ran direct Vitest against the coordinator test-only base URL instead of scripts/test-server.mjs. It migrated base and created one synthetic workspace. No reset/truncate/drop or production access. Parent informed; base left untouched as admin anchor until owned test-container cleanup after all work. All later DB runs use UUID per-file runner databases exclusively. Never run direct DB Vitest on a shared base, even for a filtered test.
+- Browser worktree screenshots were rejected by allowed-root policy; captured to allowed ignored output and copied evidence. Ambiguous selectors were rejected; corrected and recaptured actual unconfigured state. Rejected captures are not success evidence.
+- Final validation is recorded in handoff/report. Provider replies and UI data are synthetic; no company quality or production acceptance claim.
+
+### 2026-11-16 - Semantic idempotency variant and terminal retry review findings
+- Context: independent PR51 review found two Important defects in3636d48.
+- Cause/impact: replay construction dereferenced the stored semantic seal before checking its kind/variant, so a key belonging to ordinary query/lint caused TypeError instead of IDEMPOTENCY_CONFLICT. The browser cleared its search key only on success, so confirmed dead/cancelled jobs remained the target of identical retries indefinitely.
+- Reproduction: two new native query/lint regressions observed the TypeError. Two UI interaction regressions observed identical request keys after dead/cancelled. Uncertain admission/network/poll timeout cases explicitly preserve keys.
+- Fix: guard stored kind and validate semantic seal before replay; release browser key only on observed terminal failure/cancellation.
+- Test correction: the first timeout fixture advanced Date.now on the first arbitrary call, which React consumed. It now advances at the actual pending API response. The existing real provider/identity/budget test crossed the default5s timeout during concurrent native runs; semantic native file now has a30s real-IO timeout. Neither was hidden as a pass.
+- Verification: six UI regressions passed after the fix; final native/full-check results are in handoff and task report. Presentation unchanged, so no new screenshot claim.
+### 2026-11-16 — Notification expiry clock ordering and capability fixture
+- Context: Task 8 CLB-004–006 in isolated `feat/roadmap-notifications-20261116`.
+- Observed impact: an expiry regression intermittently produced no notification when comparing DB subscription timestamps with the application clock; no production data or external message was involved. A later UI fixture omitted the protection capability required by the canonical lifecycle API and failed after controls were correctly gated.
+- Cause: two clocks (and initially different timestamp precision) were used for event/subscription ordering. The UI fixture represented lifecycle access without the separate protected-setting capability.
+- Correction: use DB `clock_timestamp()` and exact timestamp text (preserving PostgreSQL microseconds across the JS boundary) for outbox/subscription ordering, while the injectable clock controls deadline evaluation and delivery windows. Discover candidates from subscriptions/explicit job responsibility, then use current canonical authorization. Align the UI fixture and actual controls with both required capabilities.
+- Validation: the initially failing expiry DB regression and protected-setting UI interaction now pass; event retry/current-category/source-revocation/native HTTP/final-digest gates are covered. Intentional TDD red runs for missing subscription/event/processing/expiry controls were observed before those implementations; these were expected missing-feature failures.
+- Additional discovery regression: resource authorization ceilings must be checked alongside stored reader ACLs before listing category names; the new source-denial regression failed first and now passes through the shared authorized envelope gate.
+- Integration discovery: the new durable tables initially failed the existing retention inventory gate. Added explicit classifications/private target hashing and subscription deletion under reviewed erasure, with graph lineage and a failing-first regression; generic target redaction would violate the space target CHECK or collide across topic keys.
+- Status: corrected locally; actual company directory/gateway and production acceptance remain separate. Final regression evidence is attached to the feature PR.
+
+### 2026-11-16 — Publication outbox lineage used a page kind for a batch ID
+- Context: independent review N1 of Task 8, PR #48.
+- Observed impact: source-only selection reached the originating batch but omitted the publication event and linked notification when their target page had no independently selected edge. Event rows contain identifiers; no body disclosure was established.
+- Cause: the erasure mapper grouped publication with page-scoped expiry although migration 120 stores `NEW.batch_id` for publication `resource_id`.
+- Correction: publication and review request map to batch; expiry keeps page and job failure keeps job. Regression tests use the exported graph selector and actual source-scoped deletion plus trusted recovery replay, retaining an independent target page.
+- Validation: all three new assertions failed before the production fix and passed after it; initial native fixture setup also required its existing resources FK row. Full project and affected native regressions are recorded in the PR follow-up report. No schema/UI change or external delivery.
+- Status: corrected locally; independent re-review/integration CI still required before merge.
+### 2026-11-16 — 다중 문서 편집 회귀와 화면 검증
+- 미구현 bulkPreview/bulkApply를 호출하는 도메인 회귀3건이 예상대로 실패한 뒤 구현으로 통과했다.
+- 첫 독립 화면 캡처에서 앱 shell CSS 클래스가 없어 스타일이 적용되지 않은 검증 harness 문제를 확인했다. 실제 앱의 전역CSS와 shell 클래스를 사용해1440/390 캡처를 다시 생성했다. 제품 런타임의 CSS누락은 아니며 합성 화면임을 명시했다.
+- 미리보기 위조·다른사용자·권한철회·CAS 재시도·CSRF를 도메인과 인증HTTP에서 확인했다.
+
+### 2026-11-16 - Bulk editing independent review fixes
+- Review found that tags changed a property string rather than canonical Page.tags, and unexpected errors after partial commits discarded results.
+- Added a failing canonical-tag regression, then updated Page.tags inside the metadata transaction. ScopedSearch tag filtering is verified.
+- Added per-preview/per-target workflow_events receipts atomically with mutations. A response lost after commit is unconfirmed until the same preview reconciles the receipt, without duplicating the metadata revision.
+- The first search regression needed adoptFixture because canonical authorization correctly rejected missing legacy evidence. Production authorization was not relaxed.
+- A documentation append command failed with source encoding error; retried ASCII source. No product data was affected. Node24 npm run check and native bulk5/workflows25 tests pass; scoped independent re-review follows.
+
 ### 2026-11-16 — 탐색 PR 최신 main 통합
 - 사실/원인: 오래된 PR30과 최근 기능 병합 사이에서 인계·실수 기록과 HTTP me 경로 충돌이 발생했다.
 - 조치: 양쪽 기록을 보존하고 현재 me 처리 뒤에 discovery GET을 연결했다. 검증은 후속 실행 결과에 기록한다.
 - 상태: 통합 검증 중.
+
+### 2026-11-16 - Concurrent valid-session authentication deadlock
+- Initial screenshot401 was hypothesized to be pool starvation. SQL instrumentation disproved it:40P01, process2579 holding a session update waiting directory7203101; process2575 holding directory gate waiting its transaction/session row. Larger pool was not accepted as a fix.
+- Reproduced with two actual auth/protected transactions and observed pg_blocking_pids. Central gate acquisition now orders directory serialization before row locks across shared transaction entrypoints; direct OperationsService shared SQL and callback/switch-space were covered.
+- Transient backend faults preserve session while denying the request503. Fixture's first second-test attempt reused a global session hash and failed unique-key; changed synthetic hash to workspace-specific. No production session was affected.
+- The central gate lengthens global serialized sections; initialApp1/DB1 behavior is validated, throughput improvement is not claimed.
+### 2026-11-16 — 일반 편입의 후보 누락과 검토 이유 환류 공백
+- 맥락/관련 PR: remaining-roadmap Task 5. 기존 일반 모델 Ingest는 답변 재편입과 달리 반환 candidates를 버렸고 반려 사유/발행된 사람 편집 이유를 다음 입력에 전달하지 않았다. 원본 정정도 영향 주장 재검토를 생성하지 않았다.
+- 사실과 영향: 새 실제 PostgreSQL 회귀에서 후보 부재, 동일 반려안 재생성, 정정 요청 부재가 RED였고 사람의 편집/보호 이유 부재도 확인했다. 코드 경로 공백이며 실제 사내 정보 유출/운영 데이터 영향은 확인되지 않았다.
+- 조치: 공통 정확한 원본 후보 바인딩, 발행 연결, 반려/수정/보호 이유 입력 및 저장 직전 재검사, 정정 버전별 영향 요청과 승인 무효화를 추가했다. 원본·과거 주장·검증 상태는 변경하지 않는다.
+- 검증: `server/runtime/lineage.test.ts`, 실제 loopback HTTP/OIDC/MCP의 `lineage-http.test.ts`와 관련 회귀. 전체 품질·업무 효과는 미검증이며 별도 평가 대상이다.
+- 상태/후속 작업: 연결 회귀 검증, 최종 CI/독립 검토는 해당 PR 기록을 따른다.
+
+### 2026-11-16 — Task 5 검증 도구/fixture 오류
+- 사실과 영향: 구현 중 pg 결과에 `.rows` 대신 배열 메서드를 호출한 오류, 새 React 테스트의 전역 타입 누락으로 최초 서버 회귀/전체 빌드가 실패했다. 실제 MCP SDK가 throw하는 오류를 `isError` 응답으로 가정한 통합 테스트도 실패했다. 모두 임시 DB/격리 worktree에서 발견했고 최종 결과를 통과로 숨기지 않았다.
+- 조치/검증: pg 결과·React 전역 타입·실제 SDK 오류 assertion을 수정했다. 추가 보호 fixture도 테이블 확장 칼럼에 의존한 VALUES 대신 명시 칼럼으로 바꾸고 동작 부재 RED를 확인했다. 최종 `npm run check`와 연결 회귀를 다시 실행했다.
+- 화면 검증: 처음 `BrowserContext.newPage`에 viewport 옵션을 잘못 주어 두 파일이 기본1280 크기로 생성됐다. `page.setViewportSize`와 실제 폭 assertion으로 수정하고 1440/390으로 다시 캡처했다. 캡처 도중 한 번 로딩 timeout이 있었으며 동시 재빌드에 의한 assets 교체 가능성은 가설이다. 빌드 종료 후 단독 재실행은 통과했고 문서 폭을 검증했다.
+- 상태/후속 작업: 수정 검증. 캡처는 빌드 종료 후 실행하며 Playwright API가 실제 적용한 크기를 assertion으로 확인한다.
+- 추가 화면 검증: 정련 패널의 실제 POST는 동적 웹 origin을 사용하지만 첫 캡처 fixture는 HTTP 시험용 `http://localhost`로만 CSRF를 설정했다. 정련 초기 조회가 완료되지 않아 캡처가 timeout됐다. 제품 CSRF를 완화하지 않고 별도 웹 handler의 OIDC/CSRF origin을 실제 listen URL과 맞췄다.
+- 모바일 정정 화면에서 긴 `correction_*` 요청 ID 제목이390px 화면을457px로 늘리는 실제 overflow를 검출했다. 정련 제목의 줄바꿈을 적용하고 같은 실제 브라우저 너비 assertion으로 재검증한다. 기존 화면의 긴 ID 표현 문제이며 데이터/권한 변경은 없다.
+
+### 2026-11-16 — 브라우저 병렬 인증 조회의 기존 deadlock (미해결)
+- 사실/근거: 브라우저 fixture pool6에서 `/session`200 후 병렬 `/pages`, `/model`, `/changesets`, `/spaces`, `/sources`, `/jobs`401과 세션 폐기를 관찰했다. 임시 PG 계측이 `SELECT pg_advisory_xact_lock(7203101)`에서 SQLSTATE `40P01` / deadlock detected / 약1004ms를 수집했다. 이 실행의 연결 timeout은0건이다. 따라서 단순 pool starvation 가설은 이 관측을 설명하지 않는다. [안전한 요약](pr-assets/roadmap-knowledge-lineage/auth-deadlock.json).
+- 원인: 세션 검증/identity projection 잠금 순서의 정확한 cycle은 미확정이다. 최근 실행에는 session advisory7203110, identity_session_activity, access_group_members projection이 포함됐다. Task5는 이 인증/identity 함수를 바꾸지 않았으며 새 network/reauth를 트랜잭션에 추가하지 않았다.
+- 조치/상태: 독립 검토자에게 원본 합성 로그와 임시 계측을 전달했다. UI 캡처는 networkidle 대기와 별도 pool20 설정으로 수행하지만 이것을 제품 수정·원인 반증으로 간주하지 않는다. 실제 앱의 기본 pool 및 worker 병렬 조건을 포함한 별도 원인 분석/동시성 회귀가 필요하다. 인증/CSRF/권한 검사를 완화하지 않는다. **미해결**.
+
+### 2026-11-16 — PR52 검토 P1: 반려안의 외부 링크 의존성 누락
+- 사실/영향: 독립 검토에서 현재 권한을 잃은 링크 페이지를 가진 과거 오프라인 반려안을 검토 큐는 숨기지만 새 `rejectedFeedback`은 모델로 보낼 수 있음을 실제 PostgreSQL로 확인했다. 본문/사유/링크 ID가 전송 envelope의 ACL·정책 범위 밖에 남는 도입 결함이었다. 실제 사내 자료가 전송됐다는 증거는 없다.
+- 원인: 기존 snapshots/sourceIds/inputEnvelope/대상 페이지를 확인하면서 제안의 `updates.links`와 그 전체 파생 의존성은 빠뜨렸다. 답변 피드백의 부분 집합 검사도 같은 누락을 이어받았다.
+- 조치: 제안 외부 링크·기존 대상·원본/이전 컨텍스트·과거 파생/원본·상위 문서 전체에 현재 권한을 적용하고 별도 envelope를 고정한다. 누락/철회 시 피드백 전체를 제외한다. 일반 편입은 전체 영향 envelope를 합치고, 답변 편입은 원래 답변 envelope 안의 완전한 피드백만 쓴다. 전송 직전/저장 직전 모두 재검사한다.
+- 검증: 새 실제 DB/모델 입력/실제 provider HTTP 회귀11개가 수정 전 RED(노출/빈 envelope/금지 전송), 수정 후 GREEN이었다. 리뷰어의 원래 임시 재현도 빈 feedback이 되는지 다시 실행한다. 답변 철회·제안 내부 새 페이지 회귀와 전체 필수 검사/관련 native 결과는 후속 PR 기록을 따른다.
+- 상태: 수정 검증, 독립 재검토 필요. 기존 별도 auth deadlock은 이 수정에 포함하지 않는다.
+- 회귀 fixture 보정: 처음 새 오프라인 제안에서 서로 다른 공개 범위를 직접 연결하려 해 canonical `VALIDATION_FAILED`를 받았다. 해당 금지를 완화하지 않고 동일 범위에서 만든 과거/보관 링크로 동작 RED를 확인했다. 이후 분류 범위가 바뀐 legacy 반려안은 별도 합성 DB 이관 시나리오로 확인했다.
+- 최종 검증: reviewer 임시 PostgreSQL 재현은 `rejectedVisible:false, feedback:[], visiblePages:["topic"]`로 바뀌었다. 새 집중 회귀15개, 관련 native6파일110개와 `npm run check`(웹178/import16/251 요구사항·서버 타입·빌드·HTTP smoke) 통과. native6파일 실행 뒤 추가한 legacy 분류 회귀를 포함해 집중15개를 다시 실행했다. auth deadlock은 별도 미해결 기록을 유지한다.
+### 2026-11-16 — 문서 탐색 검증 환경과 합성 fixture 수정
+
+- 맥락: EDT-007/010, SRH-009/010 기능 worktree.
+- 사실/영향: 최초 기본 검사에서 sandbox의 localhost 바인딩 EPERM으로 HTTP 시험 10건이 실패했다. 예전 로컬 PG 포트는 종료돼 ECONNREFUSED가 났다. 신규 DB fixture는 pages의 명시적 data 컬럼 없이 INSERT하여 not-null 오류가 났으며, 작성 화면 캡처는 recovery 권한 API에 빈 목록 fixture를 반환해 바인딩 검사로 초안이 닫혀 타임아웃됐다. 인계 문서 갱신용 Python stdin의 인코딩 오류도 발생해 UTF-8 heredoc 작성으로 전환했다. 제품 상태나 원격 배포는 변경하지 않았다.
+- 원인/조치: 도구 권한·환경과 API별 fixture 계약 확인이 부족했다. 권한 있는 실행에서 localhost 회귀를 재실행하고 공유 disposable PostgreSQL17의 파일별 UUID DB 실행기를 사용했다. INSERT 컬럼을 명시하고 recovery의 실제 명시적 403 응답을 fixture에 사용했다. 제품 인증·바인딩 검사를 완화하지 않았다.
+- 검증: 환경/fixture 문제 수정 후 신규 기능의 의도한 RED를 확인했다. 자동완성·삽입 전 철회·Markdown 코드 오인 회귀는 실제 실패 후 수정했고 targeted green, native 인증 HTTP green, 실제 Chromium 1440/390 캡처 성공·pageerror 0건을 확인했다. 최종 전체 `npm run check`와 workflow 서버 8파일 회귀도 통과했다.
+- 상태: 수정·검증됨. 실제 회사 자료·디렉터리·부하 시험은 미실행이다.
+
+### 2026-11-16 — 링크 삽입 권한 재검사 중 작성 입력 유실
+
+- 맥락: PR #47 독립 리뷰, EDT-007 및 개인 초안 자동 저장 경로.
+- 확인된 원인/영향: 링크 대상의 현재 권한을 재검사하는 Promise가 과거 `onInsert` 콜백과 본문을 보관했다. 응답을 기다리는 동안 계속 입력하면 이전 본문에 링크를 붙여 화면과 자동 저장에서 새 입력을 잃었다. 실제 사용자 데이터 영향은 확인하지 않았으며 합성 편집창으로 재현했다.
+- 조치: 링크 응답은 최신 커밋된 삽입 콜백을 사용한다. WorkflowPanel은 현재 초안·계정 바인딩을 확인하고 활성 DraftAutosave의 현재 본문에 추가한 동일 값을 React 입력과 자동 저장에 전달한다. 기존 대상/요청 세대·권한 철회 검사를 유지한다.
+- 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
+- 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
+
+### 2026-11-16 - Auth lock-order CI integration finding
+- Full CI found discovery admission now waited on the new shared directory serialization before trying its nonblocking per-space gate, admitting a second same-space report after the first completed. Moved the identifier-only nonblocking discovery gate before the common mutation gate, without taking workspace/session/identity rows first.
+- The previous cross-space test assumed protected transactions ran concurrently. The intentionally shared directory serialization invalidates that performance assumption; its functional assertion now directly probes the waiting workspace row with NOWAIT. Global serialization is documented as a throughput limit, not a performance improvement. Full CI must pass again.
+### 2026-11-17 - Lineage PR base mismatch
+- PR52 originally targeted main while other featurePRs targeted the approved integration branch. Its exact reviewed/CI-green head was locally integrated0c84ee8 before detecting the mismatch, so a later base update was rejected422 for no new commits. Added a verification note and retargeted before its explicit PR merge; final CI still required. No source changes were discarded or falsely marked merged.
+### 2026-11-16 - Presentation and navigation renderer overlap
+- Separate PRs both owned published-body rendering. Taking navigation alone would preserve its earlier DOMPurify renderer, allowing remote img and omitting configured math/image preview behavior. Taking Markdown alone would lose outline/find. Added a failing integration regression, then composed safe Markdown under navigation without replacing its event-bound DOM. Targeted16 and fullcheck passed; independent review remains required.
+### 2026-11-16 - Integration scheduling and native filter correction
+- Started the presentation merge before its final CI inspection, then cancelled only that uncommitted merge to integrate the already-CI-green bulk PR first. No committed or external changes were discarded. The presentation remote was already ff769e8; the initial stale-ref suspicion was incorrect.
+- A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.
+
+### 2026-11-17 — Task 7 캘린더 조회·체크포인트와 검증 환경
+
+- 맥락: MGR-003/004 주간·월간 유지관리 worktree. 초기 baseline runtime 52시험 중 `an omitted response model is unknown...` 1건이 기본 5초 제한으로 시간 초과됐다. 전체 jobs 재실행에서는 runtime 52/52, 총115시험이 통과했다. 근거 없이 원인을 제품 결함으로 확정하거나 실패를 생략하지 않았다.
+- 발견/영향: 최초 월간 장기 보충 구현은 분 단위로 수년을 순회해 신규 회귀가 5초를 초과했다. 주간 제안 commit 직후 실패를 주입하자 재시도가 기존 effect와 충돌해 VALIDATION_FAILED가 됐다. 잘못된 월간 누락 정책은 HTTP에서 503으로 표시됐다. 모두 합성 데이터에서 재현했고 실제 운영 자료/원격 상태 변경은 없다.
+- 조치: 월간은 최대14개 실제 달력 날짜를 조회한다. 주간 입력·모델·제안·결과를 각각 고정하고 기존 제안/모델 응답을 재사용한다. 명시한 일정 오류 코드를 400으로 매핑한다. 동작 회귀의 RED 후 GREEN을 확인했다. 신규 DB fixture의 pages INSERT 컬럼/리소스 FK 순서 오류도 수정했다. DB는 파일별 UUID 실행기로만 격리했다.
+- 브라우저: 실제 pool6 초기 화면의 병렬 인증 갱신 후 세션이 폐기되는 기존 auth lock-order 문제가 재현됐다. 승인된 별도 인증 수정이 있는 독립 검증 worktree에서만 화면을 재검증하고 provenance를 기록한다. Task7 기능 브랜치에 인증 변경을 섞지 않는다. 첫 Playwright 보조 탭은 다른 공유 컨텍스트의 종료 영향도 있어 이후 독립 context를 사용한다.
+- 상태: 캘린더·제안 재시도·HTTP 오류·계보·unknown meter 회귀 통과. 최종 검증·독립 리뷰·원격 CI와 화면 근거는 PR 기록을 따른다. 실제 회사 모델 의미 품질과 운영 인수는 미검증이다.
+
+- Task7 추가 자체 검토: 전체 공간의 evidence 테이블을 읽던 경로와 깊은 계보를 조용히 생략하던 경계를 발견했다. 101단계 계보 회귀가 잘못된 succeeded를 반환하는 RED를 확인하고, 선택 주장에 참조된 현재 source ceiling의 evidence만 제한 조회하고 깊이/총수 초과는 INPUT_LIMIT로 실패하도록 수정했다. 별도 auth 검증 worktree의 충돌 해소 정규식도 파일 끝부분을 잘라 테스트 변환 실패를 냈다. 원본 feature commit의 전체 문서/errors에 승인된 auth 항목만 다시 더해 복구하고 server typecheck 후 재실행했다. 기능 worktree와 실제 자료는 영향이 없다.
+
+- Task7의 누락 링크 진단 가설 시험은 유지관리 진입 전에 정본 ACL의 의존 상한 검사에서 NOT_FOUND로 차단됐다. 이를 Weekly 진단의 결함으로 오인해 권한 검사를 넓히지 않고, 일정 admission이 누락 의존성을 안전하게 차단하는 회귀로 정리했다.
+
+- Task7 최종 커밋/push 결합 명령은 자동 승인 검토에서 원격 목적지와 민감 payload 권한이 불명확하다는 사유로 실행 전 거부됐다. 우회 실행하지 않고 기존 origin과 연결된 GitHub 저장소 메타데이터, 정확한 변경 목록·합성 화면 범위를 읽기 전용으로 확인했다. 실제 외부 전송 여부와 후속 승인/차단 상태는 PR 인계에 남긴다.
+### 2026-11-16 - Semantic search integration MCP inventory
+- Native integration runtime tools/list correctly advertised knowledge_semantic_search but the pre-existing exact tool inventory expectation omitted it. This caused one assertion failure; the13 semantic provider tests passed. Updated the authenticated inventory expectation to the connected reviewed feature, preserving the explicit prohibition on approval tools. No production behavior changed.
+
+- The first integration capture omitted shared token/shell styles and was replaced after inspecting the real screenshot. Final captures use tokens.css, operational-app/op-main/op-panel; only the final1440/390 evidence is retained.
+
+- Independent integration re-review found pending Mermaid source was marked as text then asynchronously replaced by SVG, leaving a stale find count. Controlled deferred-Mermaid regression reproduced marks0/status1. Excluded the entire pending/resolved diagram container, matching the existing SVG exclusion; regular code/table search remains supported.
+
+### 2026-11-17 - Incremental main integration
+- User explicitly requested completed PRs merge before advancing. Completed individual feature PRs were integrated after final CI and independent reviews, then broad cross-feature review approved with native21/UI19 tests. The integration preserves main51129cb and PR49 documents and proceeds to a first ready-wave main PR rather than waiting for all19 tasks.
+- PR52 initially targeted main; its reviewed head was integrated before detecting this. Retargeting was rejected422 for no new commits. A separate verification note permits explicit final CI/merge without changing product behavior. An attempted shared-log truncation was rejected by automatic approval review as a record-loss risk; no deletion occurred. Preserve both logs through an ordinary base merge instead.
+
+### 2026-11-16 — 자동완성 내부 링크의 출처 바인딩 누락
+
+- 맥락/관련 PR: PR #47의 병합 전 독립 리뷰, EDT-007/010 및 개인 초안→검토 제안 경로.
+- 확인된 사실/영향: 링크 삽입은 접근 가능한 대상의 제목을 복사했지만 본문만 변경했고, 서버 저장·제안은 명시적 의존 메타데이터만 확인했다. 합성 시험에서 넓은 A에 좁은 B의 제목을 복사한 초안에 B의 계보가 없었고 B/원본 접근 철회 뒤 저장 또는 제출이 허용됐다. 실제 사용자 자료 영향은 확인하지 않았다.
+- 원인/조치: 삽입 직전 재확인한 대상 ID/버전을 초안 의존 집합에 전달한다. 저장 중 응답이 새 바인딩을 덮는 추가 RED도 확인해 저장 응답과 현재 초안 의존 집합을 합쳤다. 서버는 기존 코드 제외 Markdown 파서로 같은 공간 참조를 추론하고 기존 의존 집합을 보존·재확인해 보통 발행 envelope와 원본/대상 독자 상한 검사에 넣는다. 객체 프로토타입 이름인 문서 ID를 `??=`로 추가하지 못하는 추가 RED를 확인하고 own-property 검사/명시 속성 생성으로 수정했다.
+- 실행 중 실패: native PostgreSQL 첫 기동은 `/tmp` Unix 소켓 생성 EPERM으로 실패했다. Unix 소켓 없이 TCP 전용으로 재기동했다. 번들에 `createdb`가 없어 `pg` 관리 연결로 자체 테스트 DB를 만들었다. 존재하지 않는 `server/retention/drafts.test.ts` 필터는 실행 전 거부되어 실제 recovery/http/retention 시험으로 수정했다. 인증 HTTP 오류 응답 필드가 `error`라는 잘못된 테스트 가정도 실제 `code` 계약으로 수정했다. 제품 권한 검사는 완화하지 않았다.
+- 검증: 의도한 서버 RED 6건·클라이언트 RED 및 저장 진행 중/프로토타입 ID RED 뒤 집중 GREEN. 최종 Node24 `npm run check` 전체, 전용 native PostgreSQL17 workflow·인증 HTTP·보존/복구 5파일 73시험, 클라이언트 3파일 13시험 통과. npm의 기존 `http-proxy` 환경 설정 경고는 검사 실패가 아니다.
+- 상태/후속 작업: 수정·로컬 검증됨. Docker dump/restore는 도구가 없어 미실행, 화면 모양 변경 없음. 독립 재리뷰·원격 최종 CI·발행은 부모 작업이 담당한다.
+
+
+### 2026-11-16 — 링크 계보 수정의 경계 누락을 독립 리뷰에서 발견
+
+- 맥락/관련 PR: PR #47에서 파생한 내부 링크 출처 복구, 첫 로컬 수정 `ad2fbca` 이후 독립 리뷰. 이전 집중 시험은 일부 정규 URL과 `constructor`만 다뤄 전체 렌더/키/파생 경로를 검증하지 못했다.
+- 확인된 영향: 기존 핀이 새 버전으로 대체될 수 있었고 Zod record가 `__proto__`를 버렸다. query-relative/HTML href, 템플릿으로 복사한 추가 출처, 업그레이드 전 저장된 URL을 다음 저장에서 제거하는 경로도 누락됐다. 합성 19시험 중 18건과 반복 삽입 클라이언트 2건의 RED로 재현했으며 실제 사용자 자료 영향은 확인하지 않았다.
+- 조치: 핀 충돌 거부와 공유 키 보존 스키마, 렌더 HTML의 실제 href 파싱, 과거 초안 본문에서의 증거 보존, 추가 출처 템플릿의 명시적 fail-closed 정책을 한 묶음으로 적용했다. 일반 단일 origin 템플릿은 유지하고 저장한 초안의 리비전으로 생성 요청을 바인딩했다. parse5는 기존 전이 버전 8.0.1을 runtime 직접 의존성으로 승격했으며 MIT 고지/원문을 보존했다.
+- 추가 자체 검증: URL 파싱용 sentinel 호스트와 동일한 절대 외부 URL을 내부로 오인하는 RED를 발견해 절대/네트워크 URL을 제외했다. envelope의 일반 객체 해시 맵도 `__proto__`를 잃는 RED를 관찰해 null-prototype 맵으로 수정했다. 원시 로그는 같은 task report 옆에 남겼다. 제품 권한이나 테스트 기대를 완화하지 않았다.
+- 검증/남은 일: 각 RED 뒤 집중 GREEN과 최종 전체 `npm run check`를 실행했다. ordinary provenance·native 인증 HTTP·보존/복구를 포함한 집중 PostgreSQL 검증과 기존 늦은 입력 보존 시험을 유지한다. 반복 visibility 조회의 비용과 capped 검색에서 정확한 ID 후보 누락 가능성은 이번 Important 수정 밖의 제약이다. Docker 기반 복원/전체 운영 인수는 미실행이며 최종 독립 재리뷰·게시를 부모 작업에서 수행한다.
+
+
+### 2026-11-16 — 계보 보완에서 발생한 origin/템플릿/목록 회귀
+
+- 맥락: `132ec8d`의 독립 재리뷰. 앞선 중요한 계보 누락은 해결됐지만 보수적 조건을 넓게 적용하면서 정상 경로를 누락하거나 차단했다. 실제 사용자 자료 영향은 확인하지 않았다.
+- 확인된 원인/영향: 모든 절대 URL을 제외해 실제 같은 배포의 permalink도 놓쳤다. 검증된 source draft 바인딩을 사용하고도 동일 origin의 다른 초안 전체를 합쳐 안전한 템플릿을 막았다. 이력 행 순서대로 먼저 추론하거나 명시 핀 충돌을 목록 전체로 전파해 건강한 다른 초안도 읽지 못했다. 신규 closure 9건과 인증 HTTP 1건의 RED로 재현했다. 기존 closure 21건은 RED 실행에서도 계속 통과했다.
+- 조치: 신뢰된 runtime origin만 서버 생성 시 주입하고 같은 origin의 절대/네트워크 href를 추론한다. 검증된 템플릿은 정확한 source revision과 그 이전 증거에 한정하며 legacy unbound 템플릿은 일치 본문 증거만 조사한다. 모든 명시 핀을 먼저 모으고 충돌 legacy 항목은 목록에서만 격리한다. 접근 권한을 새로 부여하거나 충돌 내용을 노출하지 않는다.
+- 검증: 집중 GREEN 후 최종 native PostgreSQL 7파일 115시험과 전체 `npm run check`를 통과했다. native HTTP에서 위조 Host의 외부 링크가 내부 출처로 승격되지 않는 것도 확인했다. 원시 명령/출력은 기존 task report에 추가했다. Docker dump/restore·운영 인수는 미실행이며 capped 검색/visibility 성능은 별도 Minor로 남겼다.
+
+### 2026-11-16 — 구독 알림의 승인 대기 이벤트 유실 경로
+
+- 맥락/관련 PR: #48 최종20e7c33 독립 리뷰5921247928·5921544871. 다른 진행 작업에서 이 커밋이 통합69197be에 병합된 사실을 확인했다.
+- 확인된 원인/영향: migration120은 requestAuthorizationPending 검토 배치에도 동일 review:id:hash 이벤트를 만들고, event projection은 checkedBatch의 NOT_FOUND를 처리 완료로 소비한다. 후속 releaseAuthorizedResult가 pending 플래그를 지워도 같은 키의 이벤트 삽입이 충돌해 실제 검토 알림이 영구 누락될 수 있다. 실제 사용자 데이터 영향은 확인하지 않았다.
+- 조치/후속 작업: 권한 확정 전 capture/projection을 지연하고 staged scan→승인 release→재scan에서 정확히1건, 승인 실패에서는0건인 회귀가 필요하다. 내부 링크 계보 수정과 별도이며 이번 변경에 이벤트 수정은 포함하지 않았다.
+- 상태: 미해결. 원격 PR 리뷰에 경로를 기록했으며 통합 main 발행 전 해결·독립 재검증이 필요하다.
+
+### 2026-11-16 — 누적 native HTTP 회귀 사례의 기본 시간 초과
+
+- 맥락/사실: 부모가 제공한 PR #56 CI `43890549626` 로그에서 `15:03:25 Error: Test timed out in 5000ms`가 `navigation-http.test.ts:9`에 발생했다. 119파일 PostgreSQL suite의 유일한 실패였고 assertion/product 실패는 없었다. 로컬에서도 이전 파일 시간이 5.20초였다.
+- 원인: 하나의 현재 권한/철회 시나리오에 fixture 초기화와 34건의 순차 HTTP 검사가 누적됐지만 기본 5초 상한을 유지했다. 요청별 fresh OIDC·현재 ACL을 생략해 시간을 줄이는 것은 검증 범위를 약화한다.
+- 조치/검증: peer native HTTP 사례와 같은 명시적 20초 상한을 해당 사례에만 적용하고 이유를 주석으로 남겼다. 기존 assertion·제품·전역 CI gate는 그대로다. 임의 sleep/retry 없이 해당 파일 native PostgreSQL 1/1(파일 5.46초) 및 서버 typecheck를 통과했다. 전체 광역 suite는 지시대로 반복하지 않았으며 최종 원격 확인은 부모 작업이 담당한다.
+### 2026-11-16 — 통합 검증의 의존성 캐시와 파일 필터 수정
+
+- 관찰: 새 렌더링 의존성을 offline 설치할 때 zod-to-json-schema tarball 캐시가 없어 ENOTCACHED로 중단됐다. 공용 node_modules 링크는 대상 폴더를 변경하지 않고 제거했으며, 독립 작업 트리에 정상 `npm ci --ignore-scripts`로334패키지를 설치했다.
+- 관찰/조치: 추가 presentation HTTP 필터를 `server/workflows`로 잘못 적어 runner가 실행 전에 INVALID_SERVER_TEST_FILTER로 거절했다. 실제 `server/storage/presentation-http.test.ts`로 고쳐13파일155시험을 통과했다. 제품/권한 검사는 변경하지 않았다.
+- 검증: 렌더링 통합175ed7a와 링크 수정의 전체 `npm run check`(프런트213) 및 위 native PostgreSQL155회귀 통과. 최종 원격 통합 검사는 별도 확인한다.
+
+### 2026-11-16 - Semantic search integration MCP inventory
+- Native integration runtime tools/list correctly advertised knowledge_semantic_search but the pre-existing exact tool inventory expectation omitted it. This caused one assertion failure; the13 semantic provider tests passed. Updated the authenticated inventory expectation to the connected reviewed feature, preserving the explicit prohibition on approval tools. No production behavior changed.
+
+### 2026-11-17 — Task7 통합된 모델 후보 계약 누락
+
+- 맥락/사실: PR60 독립 리뷰 A에서 이미 통합된 모든-ingest `candidates` 계약과 Weekly strict 출력 스키마가 달라, 유효한 비어 있는 후보까지 실패함을 확인했다. Weekly는 후보/변경 이유를 canonical `propose`에 전달하지도 않았다. 이전 기록에서 통합 위험을 적은 것은 연결 구현·검증을 대신하지 못했다. 실제 회사 자료에 적용한 사실은 없다.
+- 원인: 이전 고정 기준의 후보 없는 모델 fixture를 사용했고 공통 prompt/schema/binder/배치/발행 경로를 함께 검사하지 않았다. 실제 provider형 HTTP 회귀에서 유효/빈 후보가 EXECUTION_FAILED, invalid 인용·원본·대상도 공통 binder 검증 이전에 실패하는 RED 5건을 확인했다.
+- 조치: 요청된 통합 기준 `7791a75`를 병합하며 semantic query 및 후보 prompt와 양쪽 문서를 보존했다. Weekly는 공통 후보 스키마와 exact source binder를 사용하고 후보·이유를 승인 해시가 있는 canonical 배치에 보존한다. strict unknown 필드를 무작정 버리거나 prompt 계약을 축소하지 않았다. 정확한 고정 원본 텍스트·조건·예외·기간·불확실성·미검증 상태·현재 권한·producer·예산을 유지한다.
+- 검증: 교정 후 실제 HTTP 모델→후보→독립 승인/원자 발행→버전2 주장/정확한 근거, no-change, 잘못된 인용·범위·철회, 승인 후 후보/이유 해시 변조와 발행 전 철회를 포함한20/20 회귀가 통과했다. 최종 전체 검사와 넓은 native 회귀 결과는 PR/후속 기록을 따른다. 독립 재리뷰·최종 CI·사내 운영 수용과 의미 품질은 별도다.
+- Task7 검토 A 교정 검증 완료: 통합 기준과 자체 수정 후 전체 `npm run check`(source215/Node48/import16/evaluation41/251요구사항/types/build/smoke), jobs·정련·lineage15파일224시험이 모두 exit0이었다. 실제로 존재하지만 실행 서비스에 읽기 권한이 없는 동일 공간 원본의 텍스트가 모델 입력에 포함되지 않으며 후보가 거부되는 강화 시험까지 유지관리20/20을 재통과했다. 독립 재리뷰·원격 최종 CI는 미완료로 남긴다.
+### 2026-11-17 - Auth CI inherited cumulative navigation budget
+- Final auth620c505 CI failed only the existing34-request navigation HTTP test at its default5000ms; every other native file passed. Adopted the exact independently reviewed f08058f test file (same assertions, single case20s) and reran auth/discovery/navigation. No product timeout change. Final auth CI must pass again.
+
+### 2026-11-17 — 통합 검증의 호스트/DB 시계 차이와 파일 필터
+
+- PR #59에 C1 main `a1dba1f`, Task7 #60 및 인증 #54를 통합했다. 최초 native 실행은 추정한 두 파일 경로가 존재하지 않아 INVALID_SERVER_TEST_FILTER로 종료됐고 실제 파일 경로로 바로잡았다.
+- 호스트 Node의 discovery 15시험 중 4개(별도 재실행 3개)가 최근 answer를 집계하지 못했다. 읽기 전용 측정에서 호스트 `16:30:58.176Z`, DB `16:30:58.123Z`, 응답 직후 호스트 `.184Z`로 약61ms 차이가 확인됐다. 서버의 JS answer 시각이 DB report cutoff보다 미래가 되는 환경 경계다. 실패를 성공 처리하거나 제품/시험 assertion을 변경하지 않았다.
+- 동일 소스의 별도 임시 복사본을 Node24.22.0 Alpine 컨테이너에 복사하고 소유한 PG17 테스트 컨테이너의 네트워크/시계에서 실행했다. lockfile npm ci 후 discovery15/auth-lock2/navigation1 전부 통과했다. 호스트와 컨테이너 간 시계 차이를 제거한 검증이며 임의의 다중 호스트 clock skew 대응을 증명하지 않는다. 원격 필수 CI와 실제 운영 시계 동기화 인수는 별도다.
+- 첫 bind mount는 Docker 데몬 호스트에 로컬 경로가 없어 실행 전 거부됐다. 기존 컨테이너를 변경하지 않고 새 소유 컨테이너에 docker cp로 복사했다. 실제 DB 시험은 파일별 UUID 생성/정리 runner를 사용했고 공유 base DB에는 자료를 쓰지 않았다.
+- Independent integration re-review found pending Mermaid source was marked as text then asynchronously replaced by SVG, leaving a stale find count. Controlled deferred-Mermaid regression reproduced marks0/status1. Excluded the entire pending/resolved diagram container, matching the existing SVG exclusion; regular code/table search remains supported.
+
+### 2026-11-17 — 유지관리 native 시험의 기본 5초 예산과 재개 환경 복원
+
+- PR #59 `6d74a36` 최종 CI job133444826151에서 maintenance-runtime의 weekly retry 사례가5000ms 한도를 넘겼다. 나머지128서버 파일과 플랫폼/Docker/K8s 검사는 통과했다. 첫 원본 로컬20시험은35.67초에 통과했지만, 병렬 검증 부하에서 empty-candidates/invalid-quote와 protected-target/retry 사례도5000ms에 실패했다. 실패를 권한·주장 assertion 실패로 바꾸지 않았다.
+- 재시도 단계의 별도 시각 계측: setup590ms, model fixture618ms, schedule/run1190ms, 첫worker4919ms, 재시도worker5025ms(시작 후 누적). 따라서 assertion 종료 전 기본 예산을 넘는 비용을 관찰했다. 실제 PG·정책/모델 admission·지속 worker 호출의 제한된 통합 예산을 명시하며 제품 timeout·작업 제한·assertion은 바꾸지 않는다. 같은 파일의 기본 예산을 사용하던 async 통합14선언/그룹만20초로 지정했고, 기존15초 사례와 순수 달력 사례는 유지한다. 진단 import/log/file-write는 최종 제품/시험에 없다.
+- 검증 준비 실수: 첫 문자열 변환의 경계 assertion, 이어 설치 TypeScript의 API 차이 및 없는 Babel parser 때문에 자동 변환이 쓰기 전에 실패했다. 각 실패 때 변경 완료를 잘못 전달한 내부 검토 요청을 정정했다. 최종은 읽고 확인한 선언 경계를 사용했고 원본 대비 timeout/comment 차이만 검증했다. 진단 상태에서 실행된 두 회귀 로그는 최종 검증으로 취급하지 않는다.
+- 재개 시 이전 임시 캐시/보고서와 일부 worktree가 없어졌다. 커밋된 원격 기능 브랜치를 native worktree로 복원하고 원본 main/남은 미커밋 변경을 보존했다. 기존 테스트 컨테이너를 시작한 뒤 동적 host port가32777에서32768로 바뀌었다. 첫 연결 실패 후 실제 포트를 확인했고 UUID별 DB runner로만 재실행했다. 사라진 의존성의 소유 untracked 링크는 현재 lockfile의 독립 설치로 교체했다.
+- 최종 계측 없는 코드의 Node24 전체 npm run check 및 maintenance HTTP1/runtime20 회귀가 모두 통과했다. 독립 검토와 최종 원격 CI는 후속 기록을 따른다.

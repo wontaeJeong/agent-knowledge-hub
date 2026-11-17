@@ -1,8 +1,14 @@
+import { BulkEditor } from "./BulkEditor";
 import { NavigationProtection } from "./convenience/Navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+import { Markdown, type ImagePreview, presentationFormats } from "../ui/Markdown";
+import {
+  DocumentBody,
+  PersonalDocuments,
+  RelatedDocuments,
+  LinkCompletion,
+} from "./document-navigation";
 import { StoragePanel } from "./storage";
 import { Button } from "../ui/primitives";
 import type { Page } from "../domain/types";
@@ -35,6 +41,7 @@ interface DocumentDetail {
     parent_id: string | null;
     data: {
       protected?: boolean;
+      effectiveUntil?: string | null;
       reason?: string;
       properties?: Record<string, string>;
     };
@@ -329,6 +336,7 @@ export function WorkflowPanel({
   spaceId?: string;
   initialPageId?: string;
 }) {
+  const readAttachment = useCallback((blobId: string) => api.get<ImagePreview>(`/storage/blobs/${blobId}/preview`), [api]);
   const [selected, setSelected] = useState(initialPageId ?? "");
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -386,6 +394,7 @@ export function WorkflowPanel({
   const [historyPage, setHistoryPage] = useState(0);
   const [parent, setParent] = useState("");
   const [properties, setProperties] = useState("{}");
+  const [expiry,setExpiry]=useState("");
   const [editingComment, setEditingComment] = useState<{
     id: string;
     content: string;
@@ -482,12 +491,21 @@ export function WorkflowPanel({
       original,
       async (input, signal) => {
         try {
-          return await draftRequest<PrivateDraft>(
+          const saved = await draftRequest<PrivateDraft>(
             api,
             "/workflows/drafts",
             input,
             signal,
           );
+          // A completion can finish while this save is pending. Retain its binding
+          // for the next autosave along with the coordinator's newer editor text.
+          return {
+            ...saved,
+            dependencyVersions: {
+              ...saved.dependencyVersions,
+              ...instance.draft.dependencyVersions,
+            },
+          };
         } catch (e) {
           if (
             active &&
@@ -685,6 +703,7 @@ export function WorkflowPanel({
               );
           }
           setParent(d.settings.parent_id ?? "");
+          setExpiry(d.settings.data.effectiveUntil?.slice(0,16)??"");
           setProperties(
             JSON.stringify(d.settings.data.properties ?? {}, null, 2),
           );
@@ -761,6 +780,7 @@ export function WorkflowPanel({
     <section className="op-panel">
       <NavigationProtection dirty={!!draft && content !== draft.content} />
       <h2>편집과 협업</h2>
+      {manage && <BulkEditor api={api} pages={pages} scope={`${spaceId ?? ""}:${principalId ?? ""}`} onChanged={onChanged} onExpired={onExpired} />}
       <p>
         개인 초안은 본인에게만 보입니다. 검토·승인 전에는 발행본이 바뀌지
         않습니다.
@@ -818,6 +838,15 @@ export function WorkflowPanel({
           </Button>
         </section>
       )}
+      {spaceId && (
+        <PersonalDocuments
+          key={identityScope}
+          api={api}
+          spaceId={spaceId}
+          refreshKey={`${selected}:${notice}:${detail?.page.versions.at(-1)?.number}`}
+          onError={fail}
+        />
+      )}
       <label>
         문서 선택
         <select
@@ -851,15 +880,23 @@ export function WorkflowPanel({
           )}
           <details open>
             <summary>현재 발행본 본문 · v{latest.number}</summary>
-            <div
-              className="op-markdown"
-              dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(
-                  marked.parse(latest.content, { async: false }),
-                ),
-              }}
+            <DocumentBody
+              key={`${selected}:${latest.number}`}
+              content={latest.content}
+              readAttachment={readAttachment}
             />
+            <details><summary>지원하는 문서 형식</summary><p>{presentationFormats}</p></details>
           </details>
+          {spaceId && (
+            <RelatedDocuments
+              key={`${identityScope}:${selected}`}
+              api={api}
+              spaceId={spaceId}
+              pageId={selected}
+              version={latest.number}
+              onError={fail}
+            />
+          )}
           <StoragePanel
             key={`${spaceId}:${selected}`}
             api={api}
@@ -943,6 +980,43 @@ export function WorkflowPanel({
               </Button>
             )}
           </div>
+          {draft && spaceId && (
+            <LinkCompletion
+              key={`${identityScope}:${selected}:${draft.id}`}
+              api={api}
+              spaceId={spaceId}
+              onError={fail}
+              onInsert={(markdown, target) => {
+                const editor = autosave.current;
+                if (
+                  !editor ||
+                  editor.draft.id !== draft.id ||
+                  previousIdentity.current !== identityScope
+                )
+                  return;
+                // Authorization may finish after more typing; append to the active editor.
+                const retained = editor.draft.dependencyVersions;
+                if (
+                  retained &&
+                  Object.hasOwn(retained, target.id) &&
+                  retained[target.id] !== target.version
+                )
+                  throw Error(
+                    "이 초안의 기존 링크 기준 버전이 변경되었습니다. 새 초안에서 다시 검토하세요.",
+                  );
+                const next = `${editor.content}\n${markdown}`;
+                editor.draft = {
+                  ...editor.draft,
+                  dependencyVersions: {
+                    ...editor.draft.dependencyVersions,
+                    [target.id]: target.version,
+                  },
+                };
+                setContent(next);
+                editor.edit(next);
+              }}
+            />
+          )}
           {draft && (
             <form
               onSubmit={(e) => {
@@ -1083,12 +1157,15 @@ export function WorkflowPanel({
                 disabled={busy}
                 onClick={() =>
                   action(async () => {
+                    const saved = await flushDraft();
                     await api.post("/workflows/templates", {
                       id: crypto.randomUUID(),
                       expectedRevision: 0,
-                      title: draft.title,
-                      content,
-                      originPageId: selected,
+                      title: saved.title,
+                      content: saved.content,
+                      originPageId: saved.pageId,
+                      sourceDraftId: saved.id,
+                      sourceDraftRevision: saved.revision,
                     });
                     setNotice(
                       "개인 템플릿으로 저장했습니다. 원본 권한을 계속 따릅니다.",
@@ -1246,6 +1323,34 @@ export function WorkflowPanel({
           {manage && (
             <details>
               <summary>문서 수명주기</summary>
+              {can("knowledge.protect") && (
+                <>
+                  <label>
+                    유효기간 종료 (UTC)
+                    <input
+                      type="datetime-local"
+                      value={expiry}
+                      disabled={busy}
+                      onChange={(e) => setExpiry(e.target.value)}
+                    />
+                  </label>
+                  <p>설정한 시각이 지나면 구독자에게 만료 알림을 생성합니다. 빈 값은 종료 시각 미설정입니다.</p>
+                  <Button
+                    disabled={busy || !reason.trim()}
+                    onClick={() => action(async () => {
+                      await api.post(`${pagePath}/state`, {
+                        expectedRevision: detail.settings.revision,
+                        effectiveUntil: expiry ? new Date(expiry + "Z").toISOString() : null,
+                        reason,
+                      });
+                      await refreshDocument();
+                      setNotice("유효기간을 저장했습니다.");
+                    })}
+                  >
+                    유효기간 저장
+                  </Button>
+                </>
+              )}
               <div className="op-actions">
                 <Button
                   disabled={busy || !reason.trim()}

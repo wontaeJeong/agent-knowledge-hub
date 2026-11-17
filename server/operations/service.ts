@@ -18,7 +18,7 @@ import type {
 } from "../workflows/service";
 import { membership, requireRead } from "../repository";
 import { hashHasLiveReference } from "../../scripts/k8s/operations-storage-graph.mjs";
-import { MUTATION_GATE } from "./gate";
+import { MUTATION_GATE, acquireSharedMutationGate } from "./gate";
 export { MUTATION_GATE } from "./gate";
 const resourceSchema = z
   .object({
@@ -301,12 +301,8 @@ export class OperationsService {
       await db.query("BEGIN");
       await db.query("SET LOCAL lock_timeout='5s'");
       await db.query("SET LOCAL statement_timeout='15s'");
-      await db.query(
-        exclusive
-          ? "SELECT pg_advisory_xact_lock($1)"
-          : "SELECT pg_advisory_xact_lock_shared($1)",
-        [MUTATION_GATE],
-      );
+      if(exclusive) await db.query("SELECT pg_advisory_xact_lock($1)",[MUTATION_GATE]);
+      else await acquireSharedMutationGate(db);
       if (
         !(
           await db.query("SELECT id FROM workspaces WHERE id=$1 FOR UPDATE", [

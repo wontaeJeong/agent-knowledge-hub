@@ -68,10 +68,12 @@ const batchHash = ({
   approvedFingerprint: _f,
   requestAuthorizationPending: _pending,
   reviewWarnings: _warnings,
+  reviewFeedback: _feedback,
   ...content
 }: Batch & {
   requestAuthorizationPending?: boolean;
   reviewWarnings?: PropertyWarning[];
+  reviewFeedback?: { reason: string; recordedAt: string; recordedBy: string };
 }) => digest(content);
 type RuntimeBatch = Batch & {
   producer?: NonNullable<import("../src/domain/types").Version["producer"]>;
@@ -814,6 +816,20 @@ async function reviewQualification(
     authorId: author.rows[0].principal_id,
     personal: a.space.namespaceKind === "personal",
   };
+}
+
+/** Read-only notification gate shares the exact current review qualification and
+ * whole changeset/source/approval checks used by approval. Does not approve. */
+export async function reviewNotificationDb(
+  db: PoolClient,
+  ctx: Context,
+  id: string,
+  hash: string,
+) {
+  const batch = await checkedBatch(db, ctx, id, hash);
+  await reviewQualification(db, ctx, id, true);
+  if (batch.status !== "pending") throw Error("NOT_FOUND");
+  return batch;
 }
 
 export async function approve(

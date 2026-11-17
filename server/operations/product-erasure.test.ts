@@ -224,3 +224,36 @@ test.each(['execute','replay'] as const)("%s preserves distinct restore preview 
   const locator=(await f.pool.query("SELECT ctid::text AS locator FROM version_restore_previews WHERE workspace_id=$1 AND hash='preview-one'",[f.workspaceId])).rows[0].locator;
   await expect(f.pool.query("SELECT operations_privileged_product_redaction('version_restore_previews',$1::tid,$2::jsonb)",[locator,JSON.stringify({hash:'changed'})])).rejects.toThrow('ERASURE_IDENTITY_COLUMN_FORBIDDEN');
 });
+test("notification subscriptions and event lineage participate in retention and workspace erasure",async()=>{
+ const f=await setup();const {inventory}=await import('../retention/inventory');
+ await f.pool.query("INSERT INTO collaboration_subscriptions(workspace_id,principal_id,scope,target) VALUES($1,'reader','space',''),($1,'reader','topic','private-category-one'),($1,'reader','topic','private-category-two')",[f.workspaceId]);
+ const db=await f.pool.connect();try{await db.query('BEGIN');const rows=await inventory(db,f.workspaceId);expect(JSON.stringify(rows)).not.toContain('private-category');await db.query('ROLLBACK');}finally{db.release();}
+ const input={scope:'workspace' as const};const preview=await previewErasure(f.service,f.owner,input);
+ expect((await executeErasure(f.service,f.owner,{...input,previewHash:preview.previewHash,confirm:'ERASE_ENTIRE_WORKSPACE'})).status).toBe('completed');
+ expect((await f.pool.query("SELECT 1 FROM collaboration_subscriptions WHERE workspace_id=$1",[f.workspaceId])).rowCount).toBe(0);
+});
+for (const path of ["execute", "replay"] as const) {
+  test(`source-only publication lineage redacts its event and notification through ${path}`, async () => {
+    const f = await setup();
+    // A retained/recovered publication target can be independent of the selected
+    // source. Its originating batch remains the required event ancestry edge.
+    await f.pool.query("INSERT INTO resources(workspace_id,kind,id) VALUES($1,'page','independent-target')",[f.workspaceId]);
+    await f.pool.query("INSERT INTO pages(workspace_id,id,data) VALUES($1,'independent-target',$2)",[f.workspaceId,{id:'independent-target',title:'Independent retained page'}]);
+    await f.pool.query("INSERT INTO batches(workspace_id,id,data,hash) VALUES($1,'source-only-batch',$2,'fixture')",[f.workspaceId,{status:'published',updates:[{id:'independent-target',sourceIds:['source-a']}],snapshots:[]}]);
+    await f.pool.query("INSERT INTO publications(workspace_id,batch_id,result) VALUES($1,'source-only-batch',$2)",[f.workspaceId,{batchId:'source-only-batch',versions:{'independent-target':1}}]);
+    const eventId='publication:source-only-batch:independent-target';
+    await f.pool.query("INSERT INTO workflow_notifications(workspace_id,id,principal_id,page_id,version,kind,data) VALUES($1,'source-only-notice','reader','independent-target',1,'publication',$2)",[f.workspaceId,{eventId,detail:'source-only-private-marker'}]);
+    if(path==='execute') {
+      const input={scope:'resource' as const,resource:{kind:'source' as const,id:'source-a'}};
+      const preview=await previewErasure(f.service,f.owner,input);
+      expect((await executeErasure(f.service,f.owner,{...input,previewHash:preview.previewHash,confirm:'ERASE_PREVIEWED_RESOURCE_LINEAGE'})).status).toBe('completed');
+    } else {
+      const db=await f.pool.connect();
+      try {await db.query('BEGIN');await replayProductErasure(db,f.workspaceId,[{kind:'source',id:'source-a'}]);await db.query('COMMIT');}
+      catch(e){await db.query('ROLLBACK');throw e;}finally{db.release();}
+    }
+    expect((await f.pool.query("SELECT revision FROM collaboration_events WHERE workspace_id=$1 AND id=$2",[f.workspaceId,eventId])).rows[0].revision).toBe('[법정 삭제]');
+    expect((await f.pool.query("SELECT data FROM workflow_notifications WHERE workspace_id=$1 AND id='source-only-notice'",[f.workspaceId])).rows[0].data).toMatchObject({eventId,detail:'[법정 삭제]'});
+    expect((await f.pool.query("SELECT data->>'title' title FROM pages WHERE workspace_id=$1 AND id='independent-target'",[f.workspaceId])).rows[0].title).toBe('Independent retained page');
+  });
+}

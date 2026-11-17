@@ -11,9 +11,17 @@ import type { Context } from "../service";
 import { ingestInput, queryInput } from "./schema";
 import type { RuntimeJobsBridge } from "../jobs/runtime";
 import { createHash, randomUUID } from "node:crypto";
-import {recordJobTrace} from './traces';
+import { recordJobTrace } from "./traces";
 import { hash } from "../imports/parser";
 import { PART_SIZE, selectionSchema } from "../imports/service";
+import { semanticSearchRequest } from "../questions/semantic";
+import { ScopedSearch, searchFilters } from "../questions/search";
+import { authorizeInTransaction } from "../access/index";
+const searchers = new WeakMap<RuntimeService, ScopedSearch>();
+const { query: _query, ...filterShape } = searchFilters.shape;
+const mcpSearchInput = z
+  .object({ ...filterShape, question: z.string().trim().min(1).max(2000) })
+  .strict();
 const requestKey = z.string().min(1).max(200).optional();
 const jobKey = (kind: string, key: string | undefined) =>
   "mcp-" +
@@ -28,6 +36,7 @@ export async function handleMcp(
   service: RuntimeService,
   ctx: Context,
   jobs?: RuntimeJobsBridge,
+  scopedSearch?: ScopedSearch,
 ) {
   const server = new Server(
     { name: "agent-knowledge-hub", version: "1.0.0" },
@@ -92,12 +101,10 @@ export async function handleMcp(
       required: ["runId"],
       additionalProperties: false,
     },
-    knowledge_search: {
-      type: "object",
-      properties: { question: { type: "string" } },
-      required: ["question"],
-      additionalProperties: false,
-    },
+    knowledge_semantic_search: z.toJSONSchema(semanticSearchRequest, {
+      io: "input",
+    }),
+    knowledge_search: z.toJSONSchema(mcpSearchInput, { io: "input" }),
     knowledge_query: {
       type: "object",
       properties: {
@@ -130,14 +137,22 @@ export async function handleMcp(
     },
   } as const;
   const agentTools = ctx.agent
-    ? new Set(ctx.agent.scope==="read"
-      ? ["knowledge_search","knowledge_jobs"]
-      : ["knowledge_search","knowledge_jobs","knowledge_query","knowledge_ingest","knowledge_lint"])
+    ? new Set(
+        ctx.agent.scope === "read"
+          ? ["knowledge_search", "knowledge_jobs"]
+          : [
+              "knowledge_search",
+              "knowledge_jobs",
+              "knowledge_query",
+              "knowledge_ingest",
+              "knowledge_lint",
+            ],
+      )
     : null;
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: Object.entries(schemas)
-      .filter(([name])=> !agentTools || agentTools.has(name))
-      .map(([name,inputSchema])=>({name,inputSchema})),
+      .filter(([name]) => !agentTools || agentTools.has(name))
+      .map(([name, inputSchema]) => ({ name, inputSchema })),
   }));
   server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
     let result: unknown;
@@ -259,20 +274,43 @@ export async function handleMcp(
         ](ctx, b.runId);
         break;
       }
+      case "knowledge_semantic_search": {
+        if (!jobs) throw Error("SEMANTIC_SEARCH_NOT_CONFIGURED");
+        const data = semanticSearchRequest.parse(input);
+        result = await jobs.submitInteractive(
+          ctx,
+          "query",
+          { semanticSearch: data.filters, mode: "model" },
+          data.idempotency_key,
+        );
+        break;
+      }
       case "knowledge_search": {
-        const { question } = z
-          .object({ question: z.string().min(1).max(2000) })
-          .strict()
-          .parse(input);
-        const pages = await service.pages(ctx);
+        const { question, ...filters } = mcpSearchInput.parse(input);
+        let search = scopedSearch ?? searchers.get(service);
+        if (!search) {
+          search = new ScopedSearch(service.pool, {
+            runtime: service,
+            authorize: authorizeInTransaction,
+          });
+          searchers.set(service, search);
+        }
+        const found = await search.search(ctx, { ...filters, query: question });
         result = {
-          items: pages
-            .filter((p) =>
-              (p.title + " " + p.summary + " " + p.content)
-                .toLowerCase()
-                .includes(question.toLowerCase()),
-            )
-            .slice(0, 20),
+          ...found,
+          items: found.items.map((item) => ({
+            ...item,
+            id: item.pageId,
+            summary: item.metadata?.summary ?? item.content.slice(0, 300),
+            scope: item.metadata?.scope ?? null,
+            lifecycle: item.metadata?.state ?? null,
+            effectiveFrom: item.metadata?.effectiveFrom ?? null,
+            replacementId: item.metadata?.replacementId ?? null,
+            reviewDue: item.metadata?.reviewDate ?? null,
+            reviewOverdue: item.metadata?.reviewDate
+              ? Date.parse(item.metadata.reviewDate) < Date.now()
+              : false,
+          })),
         };
         break;
       }
@@ -328,9 +366,30 @@ export async function handleMcp(
       default:
         throw Error("UNKNOWN_TOOL");
     }
-    if(jobs&&ctx.requestId&&typeof result==='object'&&result!==null&&'id' in result&&'status' in result&&typeof result.id==='string'&&['knowledge_query','knowledge_ingest','knowledge_lint'].includes(params.name)){
-      await recordJobTrace(service.pool,ctx,ctx.requestId,params.name==='knowledge_query'?'query':params.name==='knowledge_ingest'?'ingest':'lint',result.id);
-      result={...result,requestId:ctx.requestId};
+    if (
+      jobs &&
+      ctx.requestId &&
+      typeof result === "object" &&
+      result !== null &&
+      "id" in result &&
+      "status" in result &&
+      typeof result.id === "string" &&
+      ["knowledge_query", "knowledge_ingest", "knowledge_lint"].includes(
+        params.name,
+      )
+    ) {
+      await recordJobTrace(
+        service.pool,
+        ctx,
+        ctx.requestId,
+        params.name === "knowledge_query"
+          ? "query"
+          : params.name === "knowledge_ingest"
+            ? "ingest"
+            : "lint",
+        result.id,
+      );
+      result = { ...result, requestId: ctx.requestId };
     }
     return { content: [{ type: "text", text: JSON.stringify(result) }] };
   });

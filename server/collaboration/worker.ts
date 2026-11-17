@@ -27,6 +27,7 @@ export class CollaborationWorker {
   private async run() {
     await this.service.syncPlans();
     await this.service.scanReviews();
+    await this.service.scanEvents();
     await this.service.planDigests();
     if (this.closing) return false;
     const lease = await this.service.claim(
