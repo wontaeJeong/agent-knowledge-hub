@@ -1,5 +1,5 @@
 {
-  "sha256": "ffc48255b9ad6778dc309ab186f7130b041fea4f84e20783471309a7d20190f1",
+  "sha256": "2c5571bdef21713848605543526dc4629388abead85218708fc067cd3e090705",
   "algorithm": "SHA256 of sorted relative path + NUL + bytes + NUL",
   "files": [
     "server/convenience/http.ts",

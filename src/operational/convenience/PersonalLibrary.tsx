@@ -49,7 +49,14 @@ function LibrarySession({
     mutationBusy = useRef(false),
     sequence = useRef(0),
     container = useRef<HTMLElement>(null),
-    focus = useRef<{ pageId: string; direction: number } | null>(null),
+    interaction = useRef<{ node: HTMLButtonElement; left: boolean } | null>(
+      null,
+    ),
+    focus = useRef<{
+      pageId: string;
+      direction: number;
+      interaction: { node: HTMLButtonElement; left: boolean };
+    } | null>(null),
     errorHandler = useRef(onError);
   errorHandler.current = onError;
   const refresh = useCallback(async () => {
@@ -65,6 +72,8 @@ function LibrarySession({
     } catch (e) {
       if (active.current && seq === sequence.current) {
         setResult(null);
+        focus.current = null;
+        interaction.current = null;
         setError(personalFailure(e));
         errorHandler.current?.(e);
       }
@@ -90,9 +99,35 @@ function LibrarySession({
     };
   }, [refresh]);
   useEffect(() => {
+    const leave = (event: Event) => {
+      const current = interaction.current;
+      if (
+        current &&
+        event.target instanceof Node &&
+        !current.node.contains(event.target)
+      )
+        current.left = true;
+    };
+    document.addEventListener("focusin", leave);
+    document.addEventListener("pointerdown", leave, true);
+    return () => {
+      document.removeEventListener("focusin", leave);
+      document.removeEventListener("pointerdown", leave, true);
+      interaction.current = null;
+      focus.current = null;
+    };
+  }, []);
+  useEffect(() => {
     if (page && !busy && focus.current) {
       const target = focus.current;
       focus.current = null;
+      interaction.current = null;
+      if (
+        target.interaction.left ||
+        (document.activeElement !== target.interaction.node &&
+          document.activeElement !== document.body)
+      )
+        return;
       const row = Array.from(
         container.current?.querySelectorAll<HTMLElement>(
           "[data-personal-page]",
@@ -112,8 +147,17 @@ function LibrarySession({
       next?.focus({ preventScroll: true });
     }
   }, [page, busy]);
-  const reorder = async (index: number, step: number) => {
+  const reorder = async (
+    index: number,
+    step: number,
+    initiator: HTMLButtonElement,
+  ) => {
     if (!page || busy || mutationBusy.current) return;
+    const currentInteraction = {
+      node: initiator,
+      left: document.activeElement !== initiator,
+    };
+    interaction.current = currentInteraction;
     mutationBusy.current = true;
     const ids = page.items.map((item) => item.id);
     [ids[index], ids[index + step]] = [ids[index + step], ids[index]];
@@ -128,13 +172,18 @@ function LibrarySession({
       });
       if (!active.current || seq !== sequence.current) return;
       mutationBusy.current = false;
-      focus.current = { pageId: page.items[index].id, direction: step };
+      focus.current = {
+        pageId: page.items[index].id,
+        direction: step,
+        interaction: currentInteraction,
+      };
       if (cursor) setCursor(null);
       else await refresh();
     } catch (e) {
       if (active.current && seq === sequence.current) {
         setResult(null);
         focus.current = null;
+        interaction.current = null;
         setError(personalFailure(e));
         errorHandler.current?.(e);
       }
@@ -207,7 +256,9 @@ function LibrarySession({
                             index + step < 0 ||
                             index + step >= page.items.length
                           }
-                          onClick={() => void reorder(index, step)}
+                          onClick={(event) =>
+                            void reorder(index, step, event.currentTarget)
+                          }
                         >
                           {step < 0 ? "위로" : "아래로"}
                         </Button>
@@ -255,7 +306,6 @@ function ControlSession({ api, pageId, onError }: ControlsProps) {
   const refresh = useCallback(async () => {
     if (!active.current || mutationBusy.current) return false;
     const seq = ++sequence.current;
-    setState(null);
     setError("");
     try {
       const value = await api.get<{ favorite: boolean; subscribed: boolean }>(
@@ -267,6 +317,7 @@ function ControlSession({ api, pageId, onError }: ControlsProps) {
       }
     } catch (e) {
       if (active.current && seq === sequence.current) {
+        setState(null);
         setError(personalFailure(e));
         errorHandler.current?.(e);
       }
@@ -322,14 +373,14 @@ function ControlSession({ api, pageId, onError }: ControlsProps) {
         <>
           <Button
             aria-pressed={state.favorite}
-            disabled={busy}
+            aria-disabled={busy}
             onClick={() => void toggle("favorite", !state.favorite)}
           >
             {state.favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
           </Button>
           <Button
             aria-pressed={state.subscribed}
-            disabled={busy}
+            aria-disabled={busy}
             onClick={() => void toggle("subscribe", !state.subscribed)}
           >
             {state.subscribed ? "구독 해제" : "알림 구독"}

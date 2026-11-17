@@ -267,3 +267,162 @@ test("obsolete library mutation completion cannot refresh a new API/account and 
   expect(element.textContent).not.toContain("문서 c");
   expect(fresh.get).toHaveBeenCalledTimes(1);
 });
+
+test.each([
+  ["favorite", "즐겨찾기 해제", "즐겨찾기 추가"],
+  ["subscribe", "구독 해제", "알림 구독"],
+])(
+  "delayed %s readback keeps the initiating keyboard control connected and focused",
+  async (kind, before, after) => {
+    const { DocumentPersonalControls } = await components();
+    let favorite = true,
+      subscribed = true,
+      hold = false,
+      release: () => void = () => {};
+    const api = {
+      get: async () => {
+        if (hold) {
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          hold = false;
+        }
+        return { favorite, subscribed };
+      },
+      post: async () => {
+        if (kind === "favorite") favorite = false;
+        else subscribed = false;
+        hold = true;
+        return { enabled: false };
+      },
+    } as unknown as OperationalApi;
+    const { element } = await mount(DocumentPersonalControls, {
+      api,
+      spaceId: "s",
+      principalId: "p",
+      pageId: "a",
+    });
+    const original = button(element, before);
+    original.focus();
+    await act(async () => original.click());
+    expect(original.isConnected).toBe(true);
+    expect(document.activeElement).toBe(original);
+    await act(async () => release());
+    expect(button(element, after)).toBe(original);
+    expect(document.activeElement).toBe(original);
+  },
+);
+
+test.each(["즐겨찾기 해제", "구독 해제"])(
+  "delayed current-state refresh preserves %s keyboard focus",
+  async (label) => {
+    const { DocumentPersonalControls } = await components();
+    let hold = false,
+      release: () => void = () => {};
+    const api = {
+      get: async () => {
+        if (hold)
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        return { favorite: true, subscribed: true };
+      },
+    } as unknown as OperationalApi;
+    const { element } = await mount(DocumentPersonalControls, {
+      api,
+      spaceId: "s",
+      principalId: "p",
+      pageId: "a",
+    });
+    const original = button(element, label);
+    original.focus();
+    hold = true;
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(original.isConnected).toBe(true);
+    expect(document.activeElement).toBe(original);
+    await act(async () => release());
+    expect(button(element, label)).toBe(original);
+    expect(document.activeElement).toBe(original);
+  },
+);
+
+test.each(["keyboard", "pointer"])(
+  "delayed reorder does not reclaim focus after intentional %s departure",
+  async (departure) => {
+    const { PersonalLibrary } = await components();
+    let ids = ["a", "b"],
+      finish: (v: unknown) => void = () => {};
+    const api = {
+      get: async () => page(ids),
+      post: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    } as unknown as OperationalApi;
+    const { element } = await mount(PersonalLibrary, {
+      api,
+      spaceId: "s",
+      principalId: "p",
+      kind: "favorites",
+    });
+    const outside = document.createElement("button");
+    outside.textContent = "다른 작업";
+    document.body.append(outside);
+    const move = element.querySelector<HTMLButtonElement>(
+      '[aria-label="문서 b 위로 이동"]',
+    )!;
+    move.focus();
+    await act(async () => move.click());
+    await act(async () => {
+      if (departure === "pointer")
+        outside.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      else outside.focus();
+    });
+    ids = ["b", "a"];
+    await act(async () => finish({ revision: 2 }));
+    expect(
+      Array.from(element.querySelectorAll("a")).map((a) => a.textContent),
+    ).toEqual(["문서 b", "문서 a"]);
+    if (departure === "keyboard") expect(document.activeElement).toBe(outside);
+    else
+      expect(document.activeElement).not.toBe(
+        element.querySelector('[aria-label="문서 b 아래로 이동"]'),
+      );
+  },
+);
+
+test("reorder readback does not reclaim focus when departure happens after POST commits", async () => {
+  const { PersonalLibrary } = await components();
+  let hold = false,
+    release: () => void = () => {};
+  const api = {
+    get: async () => {
+      if (hold)
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      return page(hold ? ["b", "a"] : ["a", "b"]);
+    },
+    post: async () => {
+      hold = true;
+      return { revision: 2 };
+    },
+  } as unknown as OperationalApi;
+  const { element } = await mount(PersonalLibrary, {
+    api,
+    spaceId: "s",
+    principalId: "p",
+    kind: "favorites",
+  });
+  const outside = document.createElement("button");
+  outside.textContent = "다른 작업";
+  document.body.append(outside);
+  const move = element.querySelector<HTMLButtonElement>(
+    '[aria-label="문서 b 위로 이동"]',
+  )!;
+  move.focus();
+  await act(async () => move.click());
+  outside.focus();
+  await act(async () => release());
+  expect(document.activeElement).toBe(outside);
+});

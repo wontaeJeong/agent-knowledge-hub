@@ -29,6 +29,32 @@ try {
         page = await context.newPage(),
         errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
+      let stateGate = null,
+        reorderGate = null;
+      const delay = (kind) => {
+        let entered, release;
+        const wait = new Promise((resolve) => {
+          release = resolve;
+        });
+        const gate = {
+          wait,
+          release,
+          entered: new Promise((resolve, reject) => {
+            const timer = setTimeout(
+              () => reject(Error(`No delayed ${kind} response`)),
+              10000,
+            );
+            entered = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+          }),
+          enter: () => entered(),
+        };
+        if (kind === "state") stateGate = gate;
+        else reorderGate = gate;
+        return gate;
+      };
       await page.route("**/api/**", async (route) => {
         const request = route.request(),
           u = new URL(request.url());
@@ -40,6 +66,18 @@ try {
             origin: "http://127.0.0.1:5193",
           },
         });
+        // Only delay actual canonical responses; never fabricate API DTOs.
+        const gate = u.pathname.endsWith("/personal-state")
+          ? stateGate
+          : u.pathname.endsWith("/favorites/reorder")
+            ? reorderGate
+            : null;
+        if (gate) {
+          if (u.pathname.endsWith("/personal-state")) stateGate = null;
+          else reorderGate = null;
+          gate.enter();
+          await gate.wait;
+        }
         await route.fulfill({ response });
       });
       const visits = async () =>
@@ -106,6 +144,48 @@ try {
       await page.screenshot({
         path: `${output}/favorites-${width}-${theme}.png`,
       });
+      for (const departure of ["keyboard", "pointer"]) {
+        const row = page.locator(".personal-library-list li").nth(1);
+        const title = await row.locator("a").innerText();
+        const move = row.getByRole("button", {
+          name: `${title} 아래로 이동`,
+          exact: true,
+        });
+        const gate = delay("reorder");
+        await move.focus();
+        await page.keyboard.press("Enter");
+        await gate.entered;
+        const outside = page
+          .locator(".console-topbar")
+          .getByRole("button", { name: "검색", exact: true });
+        if (departure === "keyboard") await outside.focus();
+        else await page.locator(".console-topbar strong").click();
+        const readback = page.waitForResponse((r) =>
+          r.url().includes("/workflows/favorites?"),
+        );
+        gate.release();
+        await readback;
+        await page.waitForFunction(
+          (title) =>
+            document.querySelectorAll(".personal-library-list a")[2]
+              ?.textContent === title,
+          title,
+        );
+        if (
+          departure === "keyboard" &&
+          !(await outside.evaluate((e) => document.activeElement === e))
+        )
+          throw Error("Reorder stole intentional outside keyboard focus");
+        if (
+          departure === "pointer" &&
+          (await page.evaluate(() =>
+            document
+              .querySelector(".personal-library")
+              ?.contains(document.activeElement),
+          ))
+        )
+          throw Error("Reorder stole intentional outside pointer focus");
+      }
       await page
         .getByRole("button", { name: "다음 25개", exact: true })
         .click();
@@ -154,18 +234,76 @@ try {
       await controls
         .getByRole("button", { name: "즐겨찾기 해제", exact: true })
         .waitFor();
-      await controls
-        .getByRole("button", { name: "즐겨찾기 해제", exact: true })
-        .click();
-      await controls
-        .getByRole("button", { name: "즐겨찾기 추가", exact: true })
-        .waitFor();
-      await controls
-        .getByRole("button", { name: "즐겨찾기 추가", exact: true })
-        .click();
-      await controls
-        .getByRole("button", { name: "즐겨찾기 해제", exact: true })
-        .waitFor();
+      for (const [before, after] of [
+        ["즐겨찾기 해제", "즐겨찾기 추가"],
+        ["즐겨찾기 추가", "즐겨찾기 해제"],
+        ["알림 구독", "구독 해제"],
+        ["구독 해제", "알림 구독"],
+      ]) {
+        const control = controls.getByRole("button", {
+          name: before,
+          exact: true,
+        });
+        const node = await control.elementHandle();
+        const gate = delay("state");
+        await control.focus();
+        await page.keyboard.press("Enter");
+        await gate.entered;
+        if (
+          !(await node.evaluate(
+            (e) => e.isConnected && document.activeElement === e,
+          ))
+        )
+          throw Error("Pending toggle readback removed keyboard focus");
+        const readback = page.waitForResponse((r) =>
+          r.url().includes("/pages/library-28/personal-state"),
+        );
+        gate.release();
+        await readback;
+        await controls
+          .getByRole("button", { name: after, exact: true })
+          .waitFor();
+        await page.waitForFunction(
+          () =>
+            !document.querySelector(
+              '[aria-label="개인 문서 설정"] button[aria-disabled="true"]',
+            ),
+        );
+        if (
+          !(await node.evaluate(
+            (e) => e.isConnected && document.activeElement === e,
+          ))
+        )
+          throw Error("Authorized toggle readback lost keyboard focus");
+      }
+      for (const label of ["즐겨찾기 해제", "알림 구독"]) {
+        const control = controls.getByRole("button", {
+            name: label,
+            exact: true,
+          }),
+          node = await control.elementHandle(),
+          gate = delay("state");
+        await control.focus();
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await gate.entered;
+        if (
+          !(await node.evaluate(
+            (e) => e.isConnected && document.activeElement === e,
+          ))
+        )
+          throw Error("Pending focus refresh removed control focus");
+        const readback = page.waitForResponse((r) =>
+          r.url().includes("/pages/library-28/personal-state"),
+        );
+        gate.release();
+        await readback;
+        if (
+          !(await node.evaluate(
+            (e) => e.isConnected && document.activeElement === e,
+          ))
+        )
+          throw Error("Authorized focus refresh lost control focus");
+      }
       await controls.scrollIntoViewIfNeeded();
       await page.evaluate((t) => {
         document.documentElement.dataset.theme = t;
@@ -228,6 +366,10 @@ try {
         focusRestored: true,
         mobileNavigation: true,
         currentStateToggle: true,
+        delayedBothToggleFocus: true,
+        delayedBothRefreshFocus: true,
+        reorderOutsideKeyboardNoSteal: true,
+        reorderOutsidePointerNoSteal: true,
         documentThemeVerified: theme,
         listsDoNotVisit: true,
         currentAclRevocation: true,

@@ -1,6 +1,6 @@
 # C3 개인 문서 목록 화면 검증
 
-2026-11-17, C1/C2 병합 main `d4c52824df823c57681c128c930287c68574c69e` 이후 격리 worktree931e에서 실제 Chromium `158.0.8127.18`로 확인했다. Vite5193과 실제 native runtime4393을 사용했다. 최종 제품 소스로 runtime을 재시작하고 새 전용 PostgreSQL DB를 만든 뒤 최종24PNG를 수집했다. [소스 fingerprint](product-source.json)는 해당 제품16파일을 경로 순으로 SHA256 계산한 `ffc48255b9ad6778dc309ab186f7130b041fea4f84e20783471309a7d20190f1`이다. 이후 변경은 시험 단언과 문서뿐이다.
+2026-11-17, C1/C2 병합 main `d4c52824df823c57681c128c930287c68574c69e` 이후 격리 worktree931e에서 실제 Chromium `158.0.8127.18`로 확인했다. Vite5193과 실제 native runtime4393을 사용했다. 최종 제품 소스로 runtime을 재시작하고 새 전용 PostgreSQL DB를 만든 뒤 최종24PNG를 수집했다. [소스 fingerprint](product-source.json)는 해당 제품16파일을 경로 순으로 SHA256 계산한 `2c5571bdef21713848605543526dc4629388abead85218708fc067cd3e090705`이다. 현재 fingerprint는 아래 리뷰 Round1의 최종 UI 소스에 해당한다.
 
 28개 합성 문서, 본인 즐겨찾기28개·구독3개·실제 GET 방문4개로 시작한다. synthetic reviewer/editor는 evidence-only 인증 어댑터이며 실제 회사 OIDC·토큰·자료를 사용하지 않는다. 실제 API를 intercept된 mock DTO로 대체하지 않는다. Playwright는 요청을 loopback 실제 API로 전달하며 합성 cookie와 Origin만 부착한다. 원본 reader 철회는 같은 전용 DB에서 수행한다. harness는 명시적 opt-in 없이는 DB 생성 전에 종료한다.
 
@@ -25,6 +25,10 @@ AKH_C3_SYNTHETIC_CAPTURE=1 PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node 
 
 런타임은 이름이 `akh_c3_ui_<timestamp>`인 자신의 DB만 만들고 SIGINT/SIGTERM 때 삭제한다. 다른 컨테이너·공유 DB·실제 IdP에 접속하지 않는다. final capture 뒤 owned runtime/DB와 Vite를 정리했다. raw logs는 local `.superpowers/sdd/2026-11-16-essential-convenience/logs/c3-*`, full report는 같은 디렉터리의 `task-3-report.md`에 있다.
 
-최종 `npm run check` exit0: frontend340/Node48/import16/evaluation41/251요구사항/서버types/build/smoke. native21파일 첫 실행은20파일234시험 성공·기존 exact DTO 기대1실패였으며, exact `{items:[],nextCursor:null,revision:1}` 단언을 유지·보강한 뒤 관련3파일10시험을 다시 통과했다(고유21파일235시험 확인). 첫 exit1을 전체 성공으로 바꾸지 않는다. 프로세스 범위 cursor 키, 후보10,000개 한도, 대규모 부하/다중 인스턴스/실제 사내 인증·운영 인수는 남은 제약이다. 기존 Vite >500kB chunk 경고도 남아 있다. 독립 리뷰·원격 CI·PR·main 병합은 별도 대기다.
+리뷰 Round1 최종 `npm run check` exit0: frontend347/Node48/import16/evaluation41/251요구사항/서버types/build/smoke. native21파일 첫 실행은20파일234시험 성공·기존 exact DTO 기대1실패였으며, exact `{items:[],nextCursor:null,revision:1}` 단언을 유지·보강한 뒤 관련3파일10시험을 다시 통과했다(고유21파일235시험 확인). 첫 exit1을 전체 성공으로 바꾸지 않는다. 프로세스 범위 cursor 키, 후보10,000개 한도, 대규모 부하/다중 인스턴스/실제 사내 인증·운영 인수는 남은 제약이다. 기존 Vite >500kB chunk 경고도 남아 있다. 독립 리뷰·원격 CI·PR·main 병합은 별도 대기다.
 
 증거 정정: 첫 feature commit `28b2fcb`의 `document-state` 4PNG 중 dark2장은 문서 `goto` 뒤 앱이 기본 테마로 돌아가 light와 같은 바이트였다. 나머지 목록/철회 화면은 로드 뒤 명시적으로 테마를 적용했으므로 이 누락의 대상이 아니었다. 문서 제어가 로드되고 실제 toggle이 완료된 뒤 테마를 다시 적용하고 `document.documentElement.dataset.theme`를 확인하도록 capture를 보강했다. 새 전용 DB/runtime의 `c3-browser-final3.log` exit0으로 네 조건24PNG를 다시 수집했으며 browser-results의 `documentThemeVerified`가 요청 테마와 모두 같다. 1440/390 각각 dark/light 문서 PNG의 SHA256이 다름을 확인하고 mobile/dark 실제 이미지를 열어 검증했다. 제품 fingerprint는 변하지 않아 npmcheck/native는 반복하지 않았다.
+
+리뷰 Round1 (I1/I2): 실제 API의 `route.fetch` 응답을 받은 후 전달만 지연하는 gate를 추가했다. DTO/저장 결과를 꾸미지 않고 favorite 해제/추가 및 subscribe 설정/해제의 지연 readback, 두 제어의 지연 재초점 조회 전후에 같은 DOM 노드와 키보드 초점을 확인했다. 지연된 실제 reorder POST 완료 전 외부 검색 버튼으로 키보드 초점을 옮기거나 외부 제목을 pointer로 선택하면 readback 이후에도 목록이 초점을 가져오지 않는다. 기존 활성 방향 경계 fallback은 그대로다. `c3-r1-browser-final.log` exit0의 네 조건24PNG에서 새4개 focus assertion과 기존 조건이 모두 true, errors[]/overflowfalse다. mobile/dark document PNG를 실제로 열어 현재 구독 제어 초점 표시를 확인했다.
+
+같은 scope의 문서 제어는 readback 중 제거하지 않으며 `aria-disabled`와 mutation guard로 중복 변경을 막는다. 오류/권한 철회는 상태를 지우고 계정/공간/API 교체는 기존 session 격리를 사용한다. 재정렬은 시작 제어를 벗어난 focusin/pointerdown을 기록해 동일 interaction에만 초점을 복구한다. 프로젝트 RED7 → 관련3파일49 GREEN, 최종 한 번 전체check347/48/16/41/251 통과. backend/schema/authority는 b9090bd와 동일하므로 앞선 native21파일235시험은 반복하지 않았다. 독립 scoped 재리뷰·최종 branch 리뷰·새 HEAD 원격 CI/병합은 대기다.

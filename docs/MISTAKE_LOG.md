@@ -965,3 +965,10 @@
 - 첫 로컬 feature commit28b2fcb의 artifact 점검에서 document-state dark/light 파일이 각 viewport에서 같은 바이트임을 발견했다. 목록 캡처는 화면 로드 뒤 테마를 적용했지만 문서 goto 뒤에는 앱의 기본 테마 초기화를 다시 처리하지 않았다. 영향은 document-state4PNG의 theme 검증 공백이며 실제 잘못된 표시는 dark2장이다. 다른 목록·철회 캡처와 제품 기능/테스트 결과를 이 실패로 바꾸지 않되, 기존 네 조건 성공 주장이 이 문서 다크 표시까지 증명하지 않았음을 명시한다.
 - 조치: 실제 문서 제어 로드/toggle 뒤, PNG 직전에 요청 테마를 적용하고 DOM dataset과 일치하는지 assert한다. 새 owned runtime/합성 DB로 전체24장을 다시 수집하고 결과에 documentThemeVerified를 기록했다. source16파일 fingerprint가 기존 ffc48255와 같아 제품 검사는 반복하지 않았다.
 - 검증: c3-browser-final3.log exit0,4조건 pageerrors[]/overflowfalse 및 기존 키보드/모바일/ACL/no-storage assertion 통과.1440/390 dark/light 문서 PNG의 SHA256이 각각 다르고 실제 mobile/dark 이미지를 열어 다크 제어를 확인했다. owned runtime/DB/Vite를 다시 정리했다. 최종 evidence-only commit과 독립 리뷰/원격 CI는 별도다.
+
+### 2026-11-17 — C3 리뷰 Round1 지연 응답의 초점 손실과 초점 되가져오기
+
+- 독립 리뷰 I1/I2는 지연 personal-state GET에서 setState(null)이 focused 버튼을 제거해 BODY로 초점이 남고, 지연 reorder 중 사용자가 외부로 옮긴 초점을 완료 effect가 되가져오는 문제를 실제 임시2RED로 재현했다. 리뷰 준비의 절대 config/JSX 해석 실패는 시험 실행 전 임시 harness 오류였고 제품 RED가 아니다. 리뷰의 즉시 응답 I1 시도는 지연 경계를 재현하지 못했다.
+- 원인: 상태 읽기 때 same-scope 제어를 불필요하게 unmount했고, reorder 완료 시 initiating interaction의 현재 의도를 추적하지 않았다. 초기 즉시 응답·성공 위치 시험만으로 키보드 연속성을 확인했다고 범위를 넓힌 것이 검증 공백이었다.
+- 조치: 프로젝트에서 delayed favorite/subscribe2·focus refresh2·외부 keyboard/pointer departure2·POST 이후 readback departure1, 총7RED를 확인했다. readback 동안 기존 제어를 유지하고 aria-disabled와 기존 mutation guard로 변경을 막으며 오류/권한 철회 시 상태를 비운다. reorder는 시작 제어에서 다른 곳으로의 focusin/pointerdown을 기록해 같은 interaction일 때만 활성 방향 초점을 복구한다. readback 실패/cleanup 시 남은 의도를 지운다.
+- 검증: c3-r1-red.log7fail/7pass exit1 → c3-r1-green-final.log 관련3파일49pass exit0. 최종 한 번 c3-r1-check-final.log347/48/16/41/251+types/build/smoke exit0. 실제 native 응답 전달만 지연한 c3-r1-browser-final.log4조건24PNG의 양 toggle readback/refresh와 외부 keyboard/pointer no-steal 및 기존조건 pass. server/schema/authority 무변경이라 native package 재반복은 하지 않았다. 실제 사내 SSO·부하·모델/지식 효과 검증이 아니며 기존 chunk M1·독립 재리뷰/원격CI/병합은 별도다.

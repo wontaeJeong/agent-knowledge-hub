@@ -818,3 +818,12 @@ main537ba7a를 true base6366597로 병합한 체크포인트a2a76e2에서 #55ind
 - 검증: 최종 `npm run check` exit0(frontend340, Node48, imports16, evaluation41, 251요구사항, 서버types/build/smoke). 첫 check의 C1 미연결 favorites 단언은 미래 saved-views guard로 유지하고 새3목록 경로 시험을 추가했다. native21파일 중20파일234시험 통과했고, 나머지 navigation exact DTO 단언을 새 `{items:[],nextCursor:null,revision:1}`로 보강해 관련3파일10시험을 다시 통과했다(고유21파일235시험). 첫 실패를 전체 통과로 기록하지 않는다. raw logs는 local `.superpowers/sdd/2026-11-16-essential-convenience/logs/c3-*`와 task-3-report.md에 있다.
 - [실제 Chromium 1440/390·light/dark 24장](ui-validation/2026-11-17-personal-library/README.md): 최종 제품 소스의 새 runtime/새 합성 DB에서 25→3 pagination, 구독3, sidebar 모바일 이동·키보드 reorder/끝 초점, 현재 toggle, 목록 non-visit, 실제 원본 reader 철회 후 제목 제거 및 브라우저 저장소 미보관을 확인했다. DB/서버는 증거 수집 전용이며 실제 회사 IdP/자료·모델 호출은 사용하지 않았다.
 - 한계: 프로세스 범위 cursor 키(재시작/인스턴스 전환 시 새 조회), 후보10,000개 명시적 오류, 첫 페이지 재조회 방식의 reorder, 대규모 부하/다중 인스턴스/실제 사내 인증 및 운영 인수 미검증. 기존 Vite >500kB chunk 경고는 deferred. C4 홈/C5 전역 검색/C6 신규 초안과 #44 작업은 구현하지 않았다.
+
+### C3 리뷰 Round1 — 문서 제어와 재정렬의 키보드 초점
+
+- 독립 task review의 Important I1/I2를 전문 확인하고 지연 readback/refresh에서 버튼이 제거되는 문제와 외부로 이동한 초점을 재정렬 완료가 가져오는 문제를 프로젝트 RED7로 재현했다. 기존 초기 구현의 즉시 Promise 시험/캡처는 이 지연 경계를 보장하지 않았다.
+- PersonalLibrary.tsx만 제품 수정: 같은 scope 문서 상태 조회 중 기존 제어를 유지하고 aria-disabled+기존 mutation guard를 사용한다. 오류/권한 철회는 현재 상태를 비우며 API/계정/공간 격리는 유지한다. 재정렬은 시작 제어의 keyboard/pointer departure를 감시해 계속 같은 interaction일 때만 활성 방향 fallback으로 초점을 복구하고, 실패/정리 때 의도를 버린다.
+- 검증: 관련 personal/document-navigation/Navigation3파일49시험 pass, 최종 한 번 npmruncheck exit0(frontend347/Node48/import16/evaluation41/251요구사항/서버types/build/smoke). server/schema/authority diff가 없어 기존 고유21파일235 native 증거를 유지하고 재실행하지 않았다. 기존 chunk 경고 M1은 deferred다.
+- 실제 API 응답을 route.fetch한 뒤 전달만 지연시켜 네 Chromium조건24PNG를 다시 수집했다. 두 toggle의 양방향 지연 readback/재초점에서 DOM·초점 유지, 실제 reorder commit 뒤 외부 keyboard/pointer 선택 no-steal, 기존 경계 fallback/mobile/현재 ACL/theme/nonvisit/no-storage 모두 pass. 현재 제품16파일 fingerprint는 `2c5571bdef21713848605543526dc4629388abead85218708fc067cd3e090705`; [최신 결과/캡처](ui-validation/2026-11-17-personal-library/README.md). scoped 재리뷰·최종 branch 리뷰·새 HEAD 원격 CI/PR 병합은 컨트롤러의 미완료 단계다. North Star/251 기준과 운영·품질/효과 미검증 한계는 그대로다.
+
+컨트롤러 확인: 이전 b9090bd HEAD의 CI44013758359 필수8jobs(전체 PostgreSQL 포함)는 성공했다. 이 이력은 backend가 동일하다는 근거와 구분해 보존하며, 현재 Round1 수정 HEAD의 새8CI를 대신하지 않는다.
