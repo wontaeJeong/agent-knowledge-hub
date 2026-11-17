@@ -1044,3 +1044,25 @@ it("enqueue takes the shared mutation gate before queue mutex, so retention sees
   await probe.query('ROLLBACK');await gate.query('COMMIT');await pending;
  } finally {await gate.query('ROLLBACK');await probe.query('ROLLBACK');gate.release();probe.release();if(pending)await pending.catch(()=>{});}
 });
+
+
+describe("calendar monthly maintenance", () => {
+  it("clamps invalid month days explicitly, preserves leap years and skips holidays", () => {
+    const spec = {cadence:"monthly" as const,dayOfMonth:31,invalidDay:"clamp" as const,time:"09:00",timezone:"Asia/Seoul",holidays:[]};
+    expect(nextOccurrence(spec,new Date("2028-02-01T00:00:00Z")).toISOString()).toBe("2028-02-29T00:00:00.000Z");
+    expect(nextOccurrence({...spec,holidays:["2028-02-29"]},new Date("2028-02-01T00:00:00Z")).toISOString()).toBe("2028-03-31T00:00:00.000Z");
+    expect(nextOccurrence({...spec,invalidDay:"skip" as const},new Date("2028-02-01T00:00:00Z")).toISOString()).toBe("2028-03-31T00:00:00.000Z");
+    expect(()=>nextOccurrence({...spec,invalidDay:undefined} as any,new Date())).toThrow("INVALID_SCHEDULE");
+  });
+  it("uses calendar months for long-downtime latest catchup and enqueues once",async()=>{
+    const f=await setup();
+    const spec={key:"monthly",cadence:"monthly",dayOfMonth:31,invalidDay:"clamp",time:"10:00",timezone:"UTC",holidays:[],catchup:"latest",identity:{workspaceId:f.workspaceId,principalId:"editor",credentialId:"scoped-credential"},job:{...f.input,kind:"monthly",key:undefined},approvedPageIds:["topic"],approvedSourceIds:["source-a"]};
+    const {key:_,...job}=spec.job;
+    const schedule=await f.service.saveSchedule(f.ctx,{...spec,job});
+    f.advance(1200*86400000);
+    expect(await f.service.scheduleTick()).toBe(1);
+    expect(await f.service.scheduleTick()).toBe(0);
+    const runs=(await f.pool.query("SELECT scheduled_at FROM durable_schedule_runs WHERE schedule_id=$1",[schedule.id])).rows;
+    expect(new Date(runs[0].scheduled_at).toISOString()).toBe("2030-01-31T10:00:00.000Z");
+  });
+});
