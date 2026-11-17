@@ -177,3 +177,6 @@ Visually inspected four current PNG across all configs:390-dark-reading-restored
 Cleanup stopped only identified own listeners. All owned `akh_c9_test_ui_*` DBs/profiles absent;4399/5199 closed; parent `knowledge_test` query alive=1. No root/other-worktree mutation; root observed clean main. New text logs/report normalize only line-end/EOF whitespace before manifest hashing; old evidence remains in prior commits. Final feature commit/PR metadata is recorded after commit below; independent scoped review and exact-head CI remain controller-owned. No merge.
 
 Packaging note: the first fail-fast staging command refused the ignored `.superpowers` path before commit. Retried only the explicit task report/review/log files with `git add -f`, preserving the ignore policy and rerunning staged/manifest checks.
+
+
+Final combined-wave fix/evidence commit: `08fcea78ceb6dbc61b9bce3bfb6ee182148b3e89`, scoped against FIX_BASE `4615153d420970d5ace98d4f1b54a6948e0ada0c`. Same [draft PR75](https://github.com/wontaeJeong/agent-knowledge-hub/pull/75); no merge. Current manifest verifies336production/3harness/6regressions/42artifacts(40PNG+2JSON)/72logs. This follow-up records commit/handoff only; final production/test/harness/browser/log bytes remain exactly those tested and captured. Independent final-wave review and exact-head CI remain pending.

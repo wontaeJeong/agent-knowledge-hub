@@ -1081,3 +1081,5 @@ Final combined F1/F2 fix/evidence commit: `4a9e24c286fea3d1654bf904a7ebe4cbb03ca
 - Same draft PR75, no merge. Final fresh browser/cleanup/fingerprint/commit record follows in task-9-report and UI README. Controller owns scoped re-review, required exact-head CI and integration; no production/semantic-quality acceptance inferred.
 
 - Final browser complete: Chromium158,1440×1000/390×844 light/dark,각412 API/errors[],40freshPNG. Fingerprint `c3887659bfeaeb3327ed73990be8fac28998c0ab1e372050619914c1b342f15f`; actual60s timer callback clock가속, 읽기 상태 복원/수식 copy-revisit/실제PG source철회+양방향 응답 순서 통과. OwnDB/profile0·ports닫힘·parentPG alive1 확인. 마지막 제품 바이트 fullcheck는 `c9-final-check-verified.log`, focused는 `c9-final-green-verified.log`; browser는 `c9-final-browser-complete.log`다.
+
+- Combined final-wave fix/evidence commit `08fcea78ceb6dbc61b9bce3bfb6ee182148b3e89` (FIX_BASE4615153), same draft PR75. Manifest336production/3harness/6regressions/42artifacts/72logs verified. Documentation-only follow-up leaves tested/captured bytes unchanged; independent re-review/exact-head CI pending, no merge.
