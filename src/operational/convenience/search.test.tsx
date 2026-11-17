@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from "react";
+import { act, Profiler } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
 import { OperationalApi } from "../api";
@@ -682,4 +682,142 @@ test.each([
   );
   expect(element.querySelector('[role="dialog"]')).toBeNull();
   expect(document.activeElement).toBe(child);
+});
+
+test.each([
+  ["quick", "rendered"],
+  ["quick", "pending"],
+  ["detail-query", "rendered"],
+  ["detail-query", "pending"],
+  ["detail-tags", "rendered"],
+  ["detail-tags", "pending"],
+] as const)(
+  "equivalent raw edits automatically recover %s results after %s",
+  async (surface, phase) => {
+    const { QuickOpen } = await load();
+    const { SearchPage } = await import("./SearchPage");
+    vi.useFakeTimers();
+    const requests: {
+      path: string;
+      body: Record<string, unknown>;
+      signal: AbortSignal | undefined;
+    }[] = [];
+    let finish: ((value: ReturnType<typeof result>) => void) | undefined;
+    let held = false;
+    const api = {
+      post: async (
+        path: string,
+        body: Record<string, unknown>,
+        _key: string | undefined,
+        signal: AbortSignal | undefined,
+      ) => {
+        requests.push({ path, body, signal });
+        const bound =
+          body.query === "code" || (body.tags as string[]).includes("code");
+        if (bound && phase === "pending" && !held) {
+          held = true;
+          return new Promise<ReturnType<typeof result>>((resolve) => {
+            finish = resolve;
+          });
+        }
+        return result(bound ? "code" : "initial");
+      },
+    } as unknown as OperationalApi;
+    const { element } =
+      surface === "quick"
+        ? await mount(QuickOpen, { api, onOpen: () => {}, onClose: () => {} })
+        : await mount(SearchPage, {
+            api,
+            identityKey: "s:p",
+            onOpen: () => {},
+          });
+    if (surface !== "quick") await tick();
+    const control =
+      element.querySelectorAll("input")[surface === "detail-tags" ? 3 : 0];
+    const rows = () =>
+      element.querySelectorAll(
+        surface === "quick" ? '[role="option"]' : ".search-results li",
+      );
+    await input(control, "code");
+    await tick();
+    const previous = requests.at(-1)!;
+    const count = requests.length;
+    if (phase === "rendered") expect(rows()).toHaveLength(1);
+    else expect(rows()).toHaveLength(0);
+    await input(control, surface === "detail-tags" ? "code, " : "code ");
+    if (phase === "pending") expect(previous.signal?.aborted).toBe(true);
+    await tick(199);
+    expect(requests).toHaveLength(count);
+    await tick(1);
+    expect(rows()).toHaveLength(1);
+    expect(element.textContent).toContain("code");
+    expect(requests.at(-1)?.body).toMatchObject(
+      surface === "detail-tags"
+        ? { query: "", tags: ["code"] }
+        : { query: "code", tags: [] },
+    );
+    expect(requests.at(-1)?.body.cursor).toBeUndefined();
+    expect(
+      requests.every((request) => request.path === "/questions/search"),
+    ).toBe(true);
+    if (finish) {
+      await act(async () => finish!(result("obsolete private response")));
+      expect(rows()).toHaveLength(1);
+      expect(element.textContent).not.toContain("obsolete private response");
+    }
+  },
+);
+
+test("a newly ready result commit cannot erase the first Arrow selection", async () => {
+  const { QuickOpen } = await load();
+  vi.useFakeTimers();
+  let selectedAtReady = false;
+  const api = {
+    post: async () => ({
+      ...result("first"),
+      items: [item("first"), item("second")],
+    }),
+  } as unknown as OperationalApi;
+  const Probe = () => (
+    <Profiler
+      id="result-ready"
+      onRender={() => {
+        if (
+          selectedAtReady ||
+          document.querySelectorAll('.quick-open [role="option"]').length !== 2
+        )
+          return;
+        selectedAtReady = true;
+        document
+          .querySelector<HTMLInputElement>(".quick-open input")!
+          .dispatchEvent(
+            new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+          );
+      }}
+    >
+      <QuickOpen api={api} onOpen={() => {}} onClose={() => {}} />
+    </Profiler>
+  );
+  const { element } = await mount(Probe, {});
+  const q = element.querySelector("input")!;
+  await input(q, "code");
+  await tick();
+  expect(selectedAtReady).toBe(true);
+  const selectedTitle = () => {
+    const id = q.getAttribute("aria-activedescendant");
+    const option = id ? document.getElementById(id) : null;
+    expect(option?.getAttribute("aria-selected")).toBe("true");
+    return option?.querySelector("strong")?.textContent;
+  };
+  expect(selectedTitle()).toBe("first");
+  for (const [key, title] of [
+    ["ArrowDown", "second"],
+    ["ArrowUp", "first"],
+    ["ArrowUp", "second"],
+  ]) {
+    await act(async () =>
+      q.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })),
+    );
+    expect(selectedTitle()).toBe(title);
+  }
 });

@@ -62,6 +62,18 @@
     "keyboardTrap": true,
     "escapeFocusReturn": true,
     "activeResultVisible": true,
+    "readyArrowTitles": [
+      "코드_retry 안내",
+      "합성 검색 문서 01",
+      "합성 검색 문서 02",
+      "합성 검색 문서 03",
+      "합성 검색 문서 04",
+      "합성 검색 문서 05",
+      "합성 검색 문서 06",
+      "합성 검색 문서 07",
+      "합성 검색 문서 08",
+      "합성 검색 문서 09"
+    ],
     "datetimeLocalToUtc": true,
     "shortcutOtherOwnerPreserved": true,
     "historicalRows": {
@@ -72,6 +84,75 @@
     "exactCurrentOpen": true,
     "exactHistoricalOpen": true,
     "lateRealResponseBlocked": true,
+    "equivalentEdits": [
+      {
+        "surface": "quick-query",
+        "phase": "rendered",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "quick-query",
+        "phase": "pending",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      }
+    ],
     "historicalDefaultExcluded": true,
     "searchNonvisit": true,
     "snapshotVisitOneRow": true,
@@ -147,6 +228,18 @@
     "keyboardTrap": true,
     "escapeFocusReturn": true,
     "activeResultVisible": true,
+    "readyArrowTitles": [
+      "코드_retry 안내",
+      "합성 검색 문서 01",
+      "합성 검색 문서 02",
+      "합성 검색 문서 03",
+      "합성 검색 문서 04",
+      "합성 검색 문서 05",
+      "합성 검색 문서 06",
+      "합성 검색 문서 07",
+      "합성 검색 문서 08",
+      "합성 검색 문서 09"
+    ],
     "datetimeLocalToUtc": true,
     "shortcutOtherOwnerPreserved": true,
     "historicalRows": {
@@ -157,6 +250,75 @@
     "exactCurrentOpen": true,
     "exactHistoricalOpen": true,
     "lateRealResponseBlocked": true,
+    "equivalentEdits": [
+      {
+        "surface": "quick-query",
+        "phase": "rendered",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "quick-query",
+        "phase": "pending",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      }
+    ],
     "historicalDefaultExcluded": true,
     "searchNonvisit": true,
     "snapshotVisitOneRow": true,
@@ -232,6 +394,18 @@
     "keyboardTrap": true,
     "escapeFocusReturn": true,
     "activeResultVisible": true,
+    "readyArrowTitles": [
+      "코드_retry 안내",
+      "합성 검색 문서 01",
+      "합성 검색 문서 02",
+      "합성 검색 문서 03",
+      "합성 검색 문서 04",
+      "합성 검색 문서 05",
+      "합성 검색 문서 06",
+      "합성 검색 문서 07",
+      "합성 검색 문서 08",
+      "합성 검색 문서 09"
+    ],
     "datetimeLocalToUtc": true,
     "shortcutOtherOwnerPreserved": true,
     "historicalRows": {
@@ -242,6 +416,75 @@
     "exactCurrentOpen": true,
     "exactHistoricalOpen": true,
     "lateRealResponseBlocked": true,
+    "equivalentEdits": [
+      {
+        "surface": "quick-query",
+        "phase": "rendered",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "quick-query",
+        "phase": "pending",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      }
+    ],
     "historicalDefaultExcluded": true,
     "searchNonvisit": true,
     "snapshotVisitOneRow": true,
@@ -317,6 +560,18 @@
     "keyboardTrap": true,
     "escapeFocusReturn": true,
     "activeResultVisible": true,
+    "readyArrowTitles": [
+      "코드_retry 안내",
+      "합성 검색 문서 01",
+      "합성 검색 문서 02",
+      "합성 검색 문서 03",
+      "합성 검색 문서 04",
+      "합성 검색 문서 05",
+      "합성 검색 문서 06",
+      "합성 검색 문서 07",
+      "합성 검색 문서 08",
+      "합성 검색 문서 09"
+    ],
     "datetimeLocalToUtc": true,
     "shortcutOtherOwnerPreserved": true,
     "historicalRows": {
@@ -327,6 +582,75 @@
     "exactCurrentOpen": true,
     "exactHistoricalOpen": true,
     "lateRealResponseBlocked": true,
+    "equivalentEdits": [
+      {
+        "surface": "quick-query",
+        "phase": "rendered",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "quick-query",
+        "phase": "pending",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      }
+    ],
     "historicalDefaultExcluded": true,
     "searchNonvisit": true,
     "snapshotVisitOneRow": true,

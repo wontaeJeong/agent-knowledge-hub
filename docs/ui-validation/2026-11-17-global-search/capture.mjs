@@ -61,7 +61,10 @@ try {
             origin: "http://127.0.0.1:5195",
           },
         });
-        if (gate && body?.query === gate.query) {
+        if (
+          gate &&
+          (gate.matches ? gate.matches(body) : body?.query === gate.query)
+        ) {
           const current = gate;
           gate = null;
           current.enter();
@@ -85,6 +88,97 @@ try {
       };
       const searches = () =>
         posts.filter((p) => p.path === "/api/v1/questions/search");
+      const equivalentEdits = [];
+      const bodyMatches = (body, expected) =>
+        body?.query === expected.query &&
+        JSON.stringify(body.tags) === JSON.stringify(expected.tags);
+      const nextResponse = (expected) =>
+        page.waitForResponse(
+          (response) =>
+            response.request().method() === "POST" &&
+            new URL(response.url()).pathname === "/api/v1/questions/search" &&
+            bodyMatches(response.request().postDataJSON(), expected),
+        );
+      const rowsReady = (selector, count) =>
+        page.waitForFunction(
+          ({ selector, count }) =>
+            document.querySelectorAll(selector).length === count,
+          { selector, count },
+        );
+      const equivalentRendered = async (
+        surface,
+        control,
+        value,
+        selector,
+        count,
+        expected,
+      ) => {
+        const before = searches().length,
+          response = nextResponse(expected);
+        await control.fill(value);
+        await response;
+        await rowsReady(selector, count);
+        assert(searches().length > before);
+        assert(bodyMatches(searches().at(-1).body, expected));
+        assert.equal(searches().at(-1).body.cursor, undefined);
+        assert.equal(await control.inputValue(), value);
+        equivalentEdits.push({
+          surface,
+          phase: "rendered",
+          count,
+          canonical: expected,
+          newCanonicalResponse: true,
+        });
+      };
+      const equivalentPending = async (
+        surface,
+        control,
+        start,
+        value,
+        selector,
+        count,
+        expected,
+      ) => {
+        let release, enter;
+        const wait = new Promise((resolve) => (release = resolve));
+        const entered = new Promise((resolve, reject) => {
+          const timer = setTimeout(
+            () => reject(Error("No pending canonical response for " + surface)),
+            10000,
+          );
+          enter = () => {
+            clearTimeout(timer);
+            resolve();
+          };
+        });
+        gate = { matches: (body) => bodyMatches(body, expected), wait, enter };
+        try {
+          await control.fill(start);
+          await entered;
+          const before = searches().length,
+            response = nextResponse(expected);
+          await control.fill(value);
+          await response;
+          await rowsReady(selector, count);
+          assert(searches().length > before);
+          assert(bodyMatches(searches().at(-1).body, expected));
+          assert.equal(searches().at(-1).body.cursor, undefined);
+          release();
+          await page.waitForTimeout(100);
+          assert.equal(await page.locator(selector).count(), count);
+          assert.equal(await control.inputValue(), value);
+          equivalentEdits.push({
+            surface,
+            phase: "pending",
+            count,
+            canonical: expected,
+            newCanonicalResponse: true,
+            oldRealResponseReleased: true,
+          });
+        } finally {
+          release();
+        }
+      };
       const activity = async () =>
         Number(
           (
@@ -167,6 +261,25 @@ try {
       );
       assert.equal(await page.locator(".quick-open img").count(), 0);
       assert.equal(await activity(), 0);
+      await equivalentRendered(
+        "quick-query",
+        input,
+        "코드_retry ",
+        '.quick-open [role="option"]',
+        10,
+        { query: "코드_retry", tags: [] },
+      );
+      await input.fill("합성 검색");
+      await rowsReady('.quick-open [role="option"]', 10);
+      await equivalentPending(
+        "quick-query",
+        input,
+        "코드_retry",
+        "코드_retry ",
+        '.quick-open [role="option"]',
+        10,
+        { query: "코드_retry", tags: [] },
+      );
       await page.screenshot({
         path: `${output}/quick-open-${width}-${theme}.png`,
       });
@@ -196,7 +309,37 @@ try {
           document.querySelectorAll('.quick-open [role="option"]').length ===
           10,
       );
-      for (let n = 0; n < 10; n++) await page.keyboard.press("ArrowDown");
+      assert.equal(await input.getAttribute("aria-activedescendant"), null);
+      const expectedTitles = [
+        "코드_retry 안내",
+        "합성 검색 문서 01",
+        "합성 검색 문서 02",
+        "합성 검색 문서 03",
+        "합성 검색 문서 04",
+        "합성 검색 문서 05",
+        "합성 검색 문서 06",
+        "합성 검색 문서 07",
+        "합성 검색 문서 08",
+        "합성 검색 문서 09",
+      ];
+      for (const title of expectedTitles) {
+        await page.keyboard.press("ArrowDown");
+        const selected = await input.evaluate((el) => {
+          const option = document.getElementById(
+            el.getAttribute("aria-activedescendant"),
+          );
+          return {
+            connected: !!option?.isConnected,
+            selected: option?.getAttribute("aria-selected"),
+            title: option?.querySelector("strong")?.textContent,
+          };
+        });
+        assert.deepEqual(selected, {
+          connected: true,
+          selected: "true",
+          title,
+        });
+      }
       assert.equal(
         await page
           .locator('.quick-open [aria-selected="true"]')
@@ -207,6 +350,12 @@ try {
         true,
       );
       await page.keyboard.press("ArrowDown");
+      assert.equal(
+        await page
+          .locator('.quick-open [aria-selected="true"] strong')
+          .innerText(),
+        "코드_retry 안내",
+      );
       await page.keyboard.press("Enter");
       await page.waitForURL(/document=search-28/);
       await page
@@ -243,6 +392,55 @@ try {
       await page.waitForTimeout(100);
       assert.equal(await q.inputValue(), "코드_retry");
       assert.equal(await page.locator(".search-results li").count(), 25);
+      await equivalentRendered(
+        "detail-query",
+        q,
+        "코드_retry ",
+        ".search-results li",
+        25,
+        { query: "코드_retry", tags: [] },
+      );
+      await q.fill("합성 검색");
+      await rowsReady(".search-results li", 25);
+      await equivalentPending(
+        "detail-query",
+        q,
+        "코드_retry",
+        "코드_retry ",
+        ".search-results li",
+        25,
+        { query: "코드_retry", tags: [] },
+      );
+      await q.fill("");
+      await rowsReady(".search-results li", 25);
+      await page.locator(".search-page summary").click();
+      const tags = page.getByLabel("태그 (쉼표 구분)", { exact: true });
+      await tags.fill("synthetic");
+      await rowsReady(".search-results li", 25);
+      await equivalentRendered(
+        "detail-tags",
+        tags,
+        "synthetic, ",
+        ".search-results li",
+        25,
+        { query: "", tags: ["synthetic"] },
+      );
+      await tags.fill("missing");
+      await rowsReady(".search-results li", 0);
+      await equivalentPending(
+        "detail-tags",
+        tags,
+        "synthetic",
+        "synthetic, ",
+        ".search-results li",
+        25,
+        { query: "", tags: ["synthetic"] },
+      );
+      await tags.fill("");
+      await q.fill("코드_retry");
+      await rowsReady(".search-results li", 25);
+      await page.locator(".search-page summary").click();
+      assert.equal(equivalentEdits.length, 6);
       await page.screenshot({ path: `${output}/detail-${width}-${theme}.png` });
       await page.locator(".search-page summary").click();
       await page
@@ -446,6 +644,7 @@ try {
         keyboardTrap: true,
         escapeFocusReturn: true,
         activeResultVisible: true,
+        readyArrowTitles: expectedTitles,
         datetimeLocalToUtc: true,
         shortcutOtherOwnerPreserved: true,
         historicalRows: { currentVersion: 2, oldVersion: 1 },
@@ -453,6 +652,7 @@ try {
         exactCurrentOpen: true,
         exactHistoricalOpen: true,
         lateRealResponseBlocked: true,
+        equivalentEdits,
         historicalDefaultExcluded: true,
         searchNonvisit: true,
         snapshotVisitOneRow: true,

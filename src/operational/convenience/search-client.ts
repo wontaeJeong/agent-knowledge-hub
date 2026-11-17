@@ -98,6 +98,7 @@ export function useDocumentSearch(
   quick = false,
 ) {
   const signature = JSON.stringify(filters);
+  const [inputRevision, setInputRevision] = useState(0);
   const [result, setResult] = useState<{
     api: OperationalApi;
     signature: string;
@@ -109,10 +110,12 @@ export function useDocumentSearch(
     controller = useRef<AbortController | null>(null);
   const current = useRef({ api, signature });
   current.current = { api, signature };
-  const invalidate = () => {
+  const invalidate = (restartDebounce = true) => {
     generation.current++;
     controller.current?.abort();
     setResult(null);
+    // Raw edits can keep the same canonical scope after trimming or tag parsing.
+    if (restartDebounce) setInputRevision((revision) => revision + 1);
   };
   async function run(cursor?: string | null) {
     controller.current?.abort();
@@ -161,10 +164,10 @@ export function useDocumentSearch(
     };
     // The normalized signature is the complete search binding.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, signature, composing, quick]);
+  }, [api, signature, composing, quick, inputRevision]);
   useEffect(() => {
     const refresh = () => {
-      invalidate();
+      invalidate(false); // This refresh supplies its own immediate request.
       if (!composing && (!quick || filters.query)) void run();
     };
     window.addEventListener("focus", refresh);

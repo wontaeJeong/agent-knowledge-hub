@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useId, useRef, useState } from "react";
 import type { OperationalApi } from "../api";
 import {
   normalizeSearchFilters,
@@ -35,7 +35,7 @@ function QuickOpenSession({ api, onOpen, onClose, onSearch }: Props) {
   useEffect(() => {
     input.current?.focus();
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     setActive(-1);
   }, [search.page]);
   useEffect(() => {
