@@ -11,6 +11,8 @@ import { claim as storedClaim } from "../refinement/fixtures";
 import { digest } from "../publication";
 import { RuntimeService } from "../runtime/knowledge";
 import { createRuntimeJobs } from "./runtime";
+// Live PG, policy admission and model/worker cases need a case-local native budget.
+// Keep production timeouts, assertions and the pure calendar test unchanged.
 const pools: Pool[] = [];
 const servers: Server[] = [];
 afterEach(async () => {
@@ -121,7 +123,7 @@ it("weekly inspects published processed knowledge and returns typed structural c
       )
     ).rows[0].n,
   ).toBe(0);
-});
+}, 20_000);
 it("monthly proposes ownership retention and measured cost review without changing policy or owners", async () => {
   const f = await setup();
   await f.pool.query(
@@ -181,7 +183,7 @@ it("monthly proposes ownership retention and measured cost review without changi
       )
     ).rows[0].n,
   ).toBe(0);
-});
+}, 20_000);
 
 async function addPage(f: Awaited<ReturnType<typeof setup>>) {
   const { versions, ...metadata } = page;
@@ -378,7 +380,7 @@ it("weekly stale input during actual model transmission prevents proposal effect
       )
     ).rows[0].n,
   ).toBe(0);
-});
+}, 20_000);
 it("weekly model cannot target a protected document and never falls back to fake structural success", async () => {
   const f = await setup();
   await f.pool.query(
@@ -398,7 +400,7 @@ it("weekly model cannot target a protected document and never falls back to fake
       )
     ).rows[0].n,
   ).toBe(0);
-});
+}, 20_000);
 it("monthly and weekly windows use local calendar periods across DST rather than fixed hour subtraction", () => {
   expect(
     maintenanceWindow(
@@ -471,7 +473,7 @@ it("weekly retry after proposal commit reuses the exact proposal and cached mode
       )
     ).rows[0].n,
   ).toBe(1);
-});
+}, 20_000);
 
 it("weekly claim review preserves exact lineage, duplicate candidates, applicability and expired validity", async () => {
   const f = await setup(),
@@ -518,7 +520,7 @@ it("weekly claim review preserves exact lineage, duplicate candidates, applicabi
       }),
     ],
   });
-});
+}, 20_000);
 it("monthly unknown metering never becomes zero-cost trend or automatic policy mutation", async () => {
   const f = await setup();
   await f.pool.query(
@@ -537,7 +539,7 @@ it("monthly unknown metering never becomes zero-cost trend or automatic policy m
     knownCostDeltaUsd: null,
     status: "incomplete-measurement",
   });
-});
+}, 20_000);
 
 it("weekly evidence ancestry limits fail explicitly before silently dropping supported claims", async () => {
   const f = await setup();
@@ -568,7 +570,7 @@ it("weekly evidence ancestry limits fail explicitly before silently dropping sup
   expect(row.status).toBe("dead");
   expect(row.error_code).toBe("INPUT_LIMIT");
   expect(row.result).toBeNull();
-});
+}, 20_000);
 
 it("weekly schedule admission fails closed for a missing link dependency", async () => {
   const f = await setup();
@@ -585,7 +587,7 @@ it("weekly schedule admission fails closed for a missing link dependency", async
       )
     ).rows[0].n,
   ).toBe(0);
-});
+}, 20_000);
 
 const weeklyCandidate = {
   pageId: "topic",
@@ -727,7 +729,7 @@ it("weekly accepts the shared empty candidates no-change response without creati
       )
     ).rows[0].n,
   ).toBe(0);
-});
+}, 20_000);
 it.each([
   {
     label: "invalid quote",
@@ -789,6 +791,7 @@ it.each([
       ).rows[0].n,
     ).toBe(0);
   },
+  20_000,
 );
 it("weekly candidate source revocation during model transmission prevents every proposal and lineage effect", async () => {
   const f = await setup();
@@ -815,7 +818,7 @@ it("weekly candidate source revocation during model transmission prevents every 
         )
       ).rows[0].n,
     ).toBe(0);
-});
+}, 20_000);
 
 it.each(["candidate", "reason"])(
   "weekly %s remains bound to the independently approved batch hash",
@@ -862,6 +865,7 @@ it.each(["candidate", "reason"])(
       ).rows[0].n,
     ).toBe(1);
   },
+  20_000,
 );
 it("weekly reviewed candidates recheck current source access before canonical publication and roll back lineage", async () => {
   const f = await setup();
@@ -899,4 +903,4 @@ it("weekly reviewed candidates recheck current source access before canonical pu
       )
     ).rows[0].n,
   ).toBe(1);
-});
+}, 20_000);
