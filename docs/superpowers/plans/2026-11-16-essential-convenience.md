@@ -132,6 +132,8 @@
 
 **리뷰 수정 2차:** I2 등록된 파생 사본의 정본 source_id 전파, private 삭제·template CAS 갱신 뒤 최소 내부 관계 및 기존 source/page 상한 보존을 추가했다. 실제 제출/발행/hold 변형을 포함한 native15파일239와 fullcheck421이 exit0이다. 새 runtime/현재 소스 증거는 C6 검증 폴더에 기록하며 독립 재검토·새 head CI·PR71 병합은 아직 controller 단계다.
 
+**최종 통합 수정 F1/F2:** 승인/숨은25행 뒤 검토·정확한 재개 누락은 기존 GET의 bounded keyset/암호화 cursor/partial/exact draft query와 별도 owner/queue 상태로 보완한다. template 쓰기는 기존 product erasure fence에 연결한다. 실제 Chromium keyboard blur 후 current DOM focus·outside intent 회귀를 포함한다. 검증·현재 runtime·hash는 C6 증거/report로 확정하며 scoped final re-review와 exact-head CI/병합은 controller 단계다. M1/M2는 deferred, M3 예외/I1–I4는 유지한다.
+
 ## Task 7: 문서 트리·이동·복제
 
 **Files:** Create `server/migrations/119-document-order.sql`, `server/convenience/structure.ts`, `structure.test.ts`, `src/operational/convenience/PageTree.tsx`, `Breadcrumbs.tsx`, `structure.test.tsx`; Modify `server/workflows/service.ts`, `server/convenience/http.ts`, `src/operational/App.tsx`, `workflows.tsx`.

@@ -1,5 +1,12 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — C6 최종 리뷰의 목록 단절·템플릿 fence와 실제 keyboard blur
+
+- F1 실제 probe는 승인/숨은25행 뒤의 유효한 이전 요청이 목록에서 영구 누락됨을 확인했다. F2는 completed workspace receipt 뒤 bare template 본문이 저장·목록에 재노출됨을 확인했다. 기존 exact-resume/erasure 회귀는 누적 목록과 template 쓰기 경계를 포함하지 않았다.
+- native RED5(목록2/fence3)를 확인하고 기존 GET의 bounded continuation/exact lookup 및 기존 fence 적용으로 수정했다. 초기 경계 시험은 Vitest에서 제거된 test(name,fn,options) signature, LegacyAccessService import, 수십 실제 요청의 기본5초 budget으로 실패했다. options 위치·canonical index import·해당 다량 요청 시험만30/60초로 정정했다. 실패 로그 c6-finalwave-*를 보존하며 no-tests/type failure를 GREEN으로 세지 않는다.
+- 첫 실제 capture는 Next의 native disabled blur가 body로 이동한 뒤 focus 복구를 놓쳤다. JSDOM은 disabled button.blur도 무시하여 첫 재현 fixture가 실패했고, 실제 Chromium blur를 enabled→blur→disabled로 명시 모사해 의도한 null-focus RED를 확인했다. pending 중 새로운 outside focus/pointer/window blur/pagehide만 취소하고 current DOM queue로 복구하도록 수정했다. empty는 통과했지만 stale-error focus는 추가 RED였고 같은 경계로 보완했다. focus 없는 programmatic click/disabled 외부 input을 의도로 취급한 fixture도 실제 focusable 외부 버튼과 선행 focus로 바로잡았다.
+- 중간 fullcheck424/native249는 첫 capture 이전 bytes다. 실제 focus 제품 변경 후 client26/fullcheck429를 다시 검증했으며 backend 동일249는 반복하지 않았다. 실제 final capture/runtime/manifest/cleanup과 현재 최종 숫자는 evidence/report에 별도 확정한다. 합성 실행은 운영/품질 인수를 뜻하지 않는다.
+
 ### 2026-11-17 — C6 등록된 파생 사본의 삭제 closure 누락
 
 - I2 재검토 probe가 원초안→템플릿→사본의 등록을 원본 등록보다 먼저 완료한 뒤 실제 원본 삭제를 해도 파생 source/batch 본문이 남음을 확인했다. 이전230 native의 private 사본 범위만으로 등록/발행 후까지 해결됐다고 판단한 것이 부족했다.
@@ -1049,3 +1056,10 @@
 - 검증: 관련4파일76 GREEN. 첫 focused run에는 새 실제 navigation을 JSDOM에서 실행하면서 미구현 window.scrollTo 안내2개가 있었고 해당 통합 시험에 브라우저 전용 scroll의 test double을 명시했다. 현재 최종코드의 단1회 `c5-final-onecheck.log` exit0(408/48/16/41/251/servertypes/build/smoke), M1 warning은 그대로다. backend bytes가 같아 기존 native10파일106 증거를 유지하며 반복하지 않았다. 실제4조건 capture/manifest/cleanup/commit은 최종 관찰 결과를 이어 기록한다.
 
 - ONE FINAL 실제 결과: `c5-final-onecheck.log` exit0(408/48/16/41/251/servertypes/build/smoke), `c5-final-browser.log` exit0 네 조건28PNG/JSON. 각 advancedIme2의 조합 중POST0/확정body, handoffChecks2의 fresh/already/cancel·조건/커서 reset·메모리만 전달, 기존equivalent6/readyArrow10과 모든 기존 경계/errors[]/overflowfalse를 확인했다. 최종16제품 SHA77ac4dd368f2e95a54aa91a25e6e60912cbde83410ed147315db9f778f5ea700. Backend/API/domain/legacy diff empty로106 native를 carry했다. 자기 runtime/Vite만 종료해 소유 DB0개·4395/5195닫힘을 확인했고 부모PG/다른서비스는 유지했다. M1/OS IME·실제IdP·의미 품질·운영 인수와 새 head scoped review/8CI/merge는 별도다. 이전e462 CI44032610937의8성공은 새 head CI를 대신하지 않는다.
+
+
+### C6 final wave evidence completion (2026-11-17)
+
+The new page-fence binding initially reused opaque template/draft IDs as page IDs. Actual RED3 reproduced unrelated same-name page tombstones blocking bare template, saveDraft and manual snapshot writes. Only the three C6-added calls were corrected to actual pageId/originPageId or empty no-page binding; workspace/physically-blocked fences remain. Final affected6files153 and fullcheck429 exited0, with unchanged9files99 retained from prior249 evidence (unique252, not one252 run).
+
+Final fresh-runtime four-condition capture passed. Its intentional12 HTTP503 responses match12 PG42P01 errors from the explicit policy-table rename fixture. An earlier unexpected390 initialization503 remains unexplained; a later901ms canonical parallel diagnostic,16 real27/81-distinct-draft initializations and2 real54approved/27pending distribution initializations passed but do not establish the original cause. Logs preserve both failure and success. The normal27-distinct-draft behavior was not removed from validation when the paging fixture was reduced to2 producers/27 requests. No hidden retries, fake successful DTOs or production load acceptance claims.

@@ -1,0 +1,273 @@
+{
+  "at": "2026-11-17T10:39:02.521Z",
+  "synthetic": true,
+  "distinctDrafts": 81,
+  "approved": 54,
+  "pending": 27,
+  "observations": [
+    {
+      "actor": "editor",
+      "width": 390,
+      "theme": "light",
+      "elapsedMs": 1383,
+      "failures": [],
+      "responses": [
+        {
+          "at": "2026-11-17T10:38:58.518Z",
+          "path": "/api/v1/me",
+          "status": 200,
+          "elapsedMs": 27
+        },
+        {
+          "at": "2026-11-17T10:38:58.529Z",
+          "path": "/api/v1/me",
+          "status": 200,
+          "elapsedMs": 35
+        },
+        {
+          "at": "2026-11-17T10:38:58.543Z",
+          "path": "/api/v1/me",
+          "status": 200,
+          "elapsedMs": 12
+        },
+        {
+          "at": "2026-11-17T10:38:58.561Z",
+          "path": "/api/v1/collaboration/inbox",
+          "status": 200,
+          "elapsedMs": 21
+        },
+        {
+          "at": "2026-11-17T10:38:58.568Z",
+          "path": "/api/v1/collaboration/inbox",
+          "status": 200,
+          "elapsedMs": 27
+        },
+        {
+          "at": "2026-11-17T10:38:58.583Z",
+          "path": "/api/v1/model",
+          "status": 200,
+          "elapsedMs": 38
+        },
+        {
+          "at": "2026-11-17T10:38:58.637Z",
+          "path": "/api/v1/changesets",
+          "status": 200,
+          "elapsedMs": 92
+        },
+        {
+          "at": "2026-11-17T10:38:58.648Z",
+          "path": "/api/v1/jobs",
+          "status": 200,
+          "elapsedMs": 103
+        },
+        {
+          "at": "2026-11-17T10:38:58.651Z",
+          "path": "/api/v1/spaces",
+          "status": 200,
+          "elapsedMs": 106
+        },
+        {
+          "at": "2026-11-17T10:38:58.677Z",
+          "path": "/api/v1/pages",
+          "status": 200,
+          "elapsedMs": 133
+        },
+        {
+          "at": "2026-11-17T10:38:58.709Z",
+          "path": "/api/v1/sources",
+          "status": 200,
+          "elapsedMs": 164
+        },
+        {
+          "at": "2026-11-17T10:38:58.764Z",
+          "path": "/api/v1/imports/config",
+          "status": 200,
+          "elapsedMs": 42
+        },
+        {
+          "at": "2026-11-17T10:38:58.782Z",
+          "path": "/api/v1/imports/config",
+          "status": 200,
+          "elapsedMs": 57
+        },
+        {
+          "at": "2026-11-17T10:38:58.884Z",
+          "path": "/api/v1/workflows/drafts",
+          "status": 200,
+          "elapsedMs": 163
+        },
+        {
+          "at": "2026-11-17T10:38:58.892Z",
+          "path": "/api/v1/workflows/templates",
+          "status": 200,
+          "elapsedMs": 170
+        },
+        {
+          "at": "2026-11-17T10:38:58.928Z",
+          "path": "/api/v1/workflows/draft-disclosures",
+          "status": 200,
+          "elapsedMs": 206
+        },
+        {
+          "at": "2026-11-17T10:38:59.003Z",
+          "path": "/api/v1/workflows/draft-disclosures",
+          "status": 200,
+          "elapsedMs": 281
+        },
+        {
+          "at": "2026-11-17T10:38:59.095Z",
+          "path": "/api/v1/workflows/drafts",
+          "status": 200,
+          "elapsedMs": 371
+        },
+        {
+          "at": "2026-11-17T10:38:59.103Z",
+          "path": "/api/v1/workflows/templates",
+          "status": 200,
+          "elapsedMs": 378
+        },
+        {
+          "at": "2026-11-17T10:38:59.140Z",
+          "path": "/api/v1/workflows/draft-disclosures",
+          "status": 200,
+          "elapsedMs": 414
+        },
+        {
+          "at": "2026-11-17T10:38:59.214Z",
+          "path": "/api/v1/workflows/draft-disclosures",
+          "status": 200,
+          "elapsedMs": 488
+        },
+        {
+          "at": "2026-11-17T10:38:59.248Z",
+          "path": "/api/v1/workflows/recovery/permission",
+          "status": 200,
+          "elapsedMs": 29
+        }
+      ]
+    },
+    {
+      "actor": "reviewer",
+      "width": 390,
+      "theme": "light",
+      "elapsedMs": 2911,
+      "failures": [],
+      "responses": [
+        {
+          "at": "2026-11-17T10:38:59.996Z",
+          "path": "/api/v1/me",
+          "status": 200,
+          "elapsedMs": 23
+        },
+        {
+          "at": "2026-11-17T10:39:00.005Z",
+          "path": "/api/v1/me",
+          "status": 200,
+          "elapsedMs": 31
+        },
+        {
+          "at": "2026-11-17T10:39:00.021Z",
+          "path": "/api/v1/me",
+          "status": 200,
+          "elapsedMs": 14
+        },
+        {
+          "at": "2026-11-17T10:39:00.037Z",
+          "path": "/api/v1/collaboration/inbox",
+          "status": 200,
+          "elapsedMs": 22
+        },
+        {
+          "at": "2026-11-17T10:39:00.043Z",
+          "path": "/api/v1/collaboration/inbox",
+          "status": 200,
+          "elapsedMs": 27
+        },
+        {
+          "at": "2026-11-17T10:39:00.065Z",
+          "path": "/api/v1/model",
+          "status": 200,
+          "elapsedMs": 41
+        },
+        {
+          "at": "2026-11-17T10:39:00.107Z",
+          "path": "/api/v1/changesets",
+          "status": 200,
+          "elapsedMs": 83
+        },
+        {
+          "at": "2026-11-17T10:39:00.115Z",
+          "path": "/api/v1/jobs",
+          "status": 200,
+          "elapsedMs": 91
+        },
+        {
+          "at": "2026-11-17T10:39:00.118Z",
+          "path": "/api/v1/spaces",
+          "status": 200,
+          "elapsedMs": 94
+        },
+        {
+          "at": "2026-11-17T10:39:00.146Z",
+          "path": "/api/v1/pages",
+          "status": 200,
+          "elapsedMs": 123
+        },
+        {
+          "at": "2026-11-17T10:39:00.181Z",
+          "path": "/api/v1/sources",
+          "status": 200,
+          "elapsedMs": 157
+        },
+        {
+          "at": "2026-11-17T10:39:00.222Z",
+          "path": "/api/v1/imports/config",
+          "status": 200,
+          "elapsedMs": 28
+        },
+        {
+          "at": "2026-11-17T10:39:00.248Z",
+          "path": "/api/v1/imports/config",
+          "status": 200,
+          "elapsedMs": 52
+        },
+        {
+          "at": "2026-11-17T10:39:00.259Z",
+          "path": "/api/v1/workflows/drafts",
+          "status": 200,
+          "elapsedMs": 66
+        },
+        {
+          "at": "2026-11-17T10:39:00.266Z",
+          "path": "/api/v1/workflows/templates",
+          "status": 200,
+          "elapsedMs": 73
+        },
+        {
+          "at": "2026-11-17T10:39:01.277Z",
+          "path": "/api/v1/workflows/draft-disclosures",
+          "status": 200,
+          "elapsedMs": 1083
+        },
+        {
+          "at": "2026-11-17T10:39:01.284Z",
+          "path": "/api/v1/workflows/drafts",
+          "status": 200,
+          "elapsedMs": 1090
+        },
+        {
+          "at": "2026-11-17T10:39:01.292Z",
+          "path": "/api/v1/workflows/templates",
+          "status": 200,
+          "elapsedMs": 1098
+        },
+        {
+          "at": "2026-11-17T10:39:02.204Z",
+          "path": "/api/v1/workflows/draft-disclosures",
+          "status": 200,
+          "elapsedMs": 2008
+        }
+      ]
+    }
+  ]
+}

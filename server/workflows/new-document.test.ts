@@ -970,3 +970,127 @@ test("clients cannot inject internal producer or template-erasure relations", as
     }),
   ).rejects.toThrow();
 });
+
+test.each([
+  ["completed", null],
+  ["blocked", "PHYSICAL_BLOB_PURGE_REQUIRED"],
+  ["blocked", "SHARED_LIVE_BLOB_RETAINED"],
+])(
+  "workspace receipt %s/%s fences bare template insertion and CAS",
+  async (status, errorCode) => {
+    await s.saveDraft(f.editor, {
+      id: "template-producer",
+      expectedRevision: 0,
+      title: "생산",
+      content: "producer",
+    });
+    await s.saveTemplate(f.editor, {
+      id: "existing-before-fence",
+      expectedRevision: 0,
+      title: "기존",
+      content: "original",
+    });
+    const before = (
+      await f.pool.query(
+        "SELECT revision,data FROM workflow_templates WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows;
+    await f.pool.query(
+      "INSERT INTO operations_erasure_receipts(workspace_id,id,preview_hash,scope,approved_by,status,error_code,counts) VALUES($1,$2,$3,'workspace','fixture-owner',$4,$5,'{}')",
+      [f.workspaceId, randomUUID(), "b".repeat(64), status, errorCode],
+    );
+    for (const value of [
+      { id: "fresh", expectedRevision: 0, title: "차단", content: "plaintext" },
+      {
+        id: "existing-before-fence",
+        expectedRevision: 1,
+        title: "변경",
+        content: "changed",
+      },
+      {
+        id: "bound-draft",
+        expectedRevision: 0,
+        title: "생산",
+        content: "producer",
+        sourceDraftId: "template-producer",
+        sourceDraftRevision: 1,
+        retainLineage: true,
+      },
+      {
+        id: "bound-page",
+        expectedRevision: 0,
+        title: "위치",
+        content: "page text",
+        originPageId: "topic",
+      },
+    ])
+      await expect(s.saveTemplate(f.editor, value)).rejects.toThrow(
+        "ERASURE_PRODUCT_WRITES_FENCED",
+      );
+    expect(
+      (
+        await f.pool.query(
+          "SELECT revision,data FROM workflow_templates WHERE workspace_id=$1",
+          [f.workspaceId],
+        )
+      ).rows,
+    ).toEqual(before);
+  },
+);
+test("unrelated resource erasure does not fence ordinary template insert or CAS", async () => {
+  await f.pool.query(
+    "INSERT INTO operations_erasure_receipts(workspace_id,id,preview_hash,scope,resource_kind,resource_id,approved_by,status,counts) VALUES($1,$2,$3,'resource','source','unrelated','fixture-owner','completed','{}')",
+    [f.workspaceId, randomUUID(), "c".repeat(64)],
+  );
+  await s.saveTemplate(f.editor, {
+    id: "permitted",
+    expectedRevision: 0,
+    title: "허용",
+    content: "original",
+  });
+  expect(
+    await s.saveTemplate(f.editor, {
+      id: "permitted",
+      expectedRevision: 1,
+      title: "갱신",
+      content: "changed",
+    }),
+  ).toMatchObject({ revision: 2, content: "changed" });
+});
+
+test("page tombstone fences its bound template while unrelated bare templates remain writable", async () => {
+  await f.pool.query(
+    "INSERT INTO operations_tombstones(workspace_id,id,resource_kind,resource_id,delete_content,approved_by) VALUES($1,'template-page-fence','page','topic',true,'fixture-owner')",
+    [f.workspaceId],
+  );
+  await expect(
+    s.saveTemplate(f.editor, {
+      id: "bound-fenced-page",
+      expectedRevision: 0,
+      title: "차단",
+      content: "private",
+      originPageId: "topic",
+    }),
+  ).rejects.toThrow("ERASURE_PRODUCT_WRITES_FENCED");
+  expect(
+    await s.saveTemplate(f.editor, {
+      id: "other-permitted",
+      expectedRevision: 0,
+      title: "허용",
+      content: "independent",
+    }),
+  ).toMatchObject({ revision: 1 });
+});
+test('unrelated erased page with the same opaque ID does not become a bare template origin',async()=>{
+ await f.pool.query("INSERT INTO operations_tombstones(workspace_id,id,resource_kind,resource_id,delete_content,approved_by) VALUES($1,'same-label-page','page','independent-template',true,'fixture-owner')",[f.workspaceId]);
+ expect(await s.saveTemplate(f.editor,{id:'independent-template',expectedRevision:0,title:'다른 리소스',content:'independent body'})).toMatchObject({revision:1});
+});
+test('page-less draft ID is not an unrelated erased page binding',async()=>{
+ await f.pool.query("INSERT INTO operations_tombstones(workspace_id,id,resource_kind,resource_id,delete_content,approved_by) VALUES($1,'same-label-draft','page','independent-draft',true,'fixture-owner')",[f.workspaceId]);
+ expect(await s.saveDraft(f.editor,{id:'independent-draft',expectedRevision:0,title:'독립 초안',content:'independent'})).toMatchObject({revision:1});
+});
+test('manual snapshot ID is not an unrelated erased page binding',async()=>{
+ await save();await f.pool.query("INSERT INTO operations_tombstones(workspace_id,id,resource_kind,resource_id,delete_content,approved_by) VALUES($1,'same-label-snapshot','page','new-private',true,'fixture-owner')",[f.workspaceId]);
+ expect(await request()).toMatchObject({status:'pending'});
+});

@@ -333,7 +333,7 @@ export class WorkflowService {
       async (db) => {
         if (d.originSpaceId && d.originSpaceId !== ctx.workspaceId)
           throw Error("SOURCE_SCOPE_CONFLICT");
-        await assertProductWritesNotErased(db,ctx.workspaceId,d.pageId ?? d.id);
+        await assertProductWritesNotErased(db,ctx.workspaceId,d.pageId ?? "");
         await assertDraftNotRetired(db, ctx, d.id);
         const history = await this.draftHistoryAccess(db, ctx, d.id);
         if (!!d.templateId !== !!d.templateRevision) throw Error("VALIDATION_FAILED");
@@ -1651,6 +1651,7 @@ export class WorkflowService {
       "draft.write",
       t.originPageId ? { kind: "page", id: t.originPageId } : undefined,
       async (db) => {
+        await assertProductWritesNotErased(db,ctx.workspaceId,t.originPageId ?? "");
         let draftOriginVersion: number | undefined;
         if (t.sourceDraftId) {
           await assertDraftNotRetired(db, ctx, t.sourceDraftId);

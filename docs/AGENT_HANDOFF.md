@@ -1,5 +1,13 @@
 # 에이전트 인계
 
+## 2026-11-17 #49 C6 — 최종 통합 수정 F1/F2
+
+- 같은 UXC-04 / EDT-001~003/006, REV-001~009, UX-002 범위다. F1은 현재 권한 필터 전25행 제한으로 오래된 독립 검토/승인 재개를 막던 문제다. 기존 GET의 deterministic keyset·암호화 cursor·raw100/visible25·truthful partial과 exact draft query로 해결한다. Composer owner 상태와 assigned-pending queue를 분리하고 다음/처음/새로고침, 현재 DOM keyboard focus를 연결했다.
+- F2는 template insert/CAS에 기존 동일 transaction/mutation-gate erasure fence를 적용한다. 완료/물리 blocked workspace와 page-origin 경계를 검증하며 무관 resource 작업을 보존한다. 새 삭제 엔진/역할/일반 private draft 읽기 권한은 없다.
+- 변경: server/workflows/{manual-disclosure,http,service}.ts, Composer와 manual-disclosure/new-document/composer 회귀, capture.mjs 및 API/기록. I1–I4 수정과 M3 ImportWorkbench 예외는 유지, M1 broad session refactor/M2 chunk 경고는 deferred다.
+- 실제 Chromium은 disabled Next→body blur로 포커스 복구 실패를 드러냈다. DOM 회귀로 재현하고 새 outside focus/pointer/window blur/pagehide 의도만 취소하는 경계로 수정했다. 임의 readiness sleep을 넣지 않았다. 최종 검증/소스/runtime/cleanup은 [증거 기록](ui-validation/2026-11-17-new-document/README.md)에 명시한다.
+- North Star의 독립 검토→발행 순환 도달성과 삭제 후 재유입 금지를 개선한다. 승인/사실/독립 증거/성능 효과는 구분하며 251/North Star는 그대로다. 운영 IdP/OS IME/대규모 DB hash 비용/전체 접근성/품질 인수는 미검증, scoped re-review·최종 CI/병합은 controller 소유다.
+
 ## 2026-11-17 #49 C6 — 리뷰 수정 2차 (I2 등록된 사본 삭제)
 
 - UXC-04 / EDT-001~003/006, REV-001~009, UX-002와 기존 삭제·ACL 불변식 범위다. 이전230 native는 private 사본까지만 확인했으며 등록된 사본 source/batch까지의 삭제를 입증하지 못했다. 정본 disclosure.source_id를 기존 closure에 연결했다.
@@ -897,3 +905,8 @@ main537ba7a를 true base6366597로 병합한 체크포인트a2a76e2에서 #55ind
 - RED는 새13 search사례11fail/2pass, App fresh/already2fail/cancel control1pass였고 관련4파일76 GREEN이다. 최종 제품의 단1회 전체check `c5-final-onecheck.log` exit0: frontend408/Node48/import16/evaluation41/251/servertypes/build/smoke. 기존392는 이전 head 근거이며 F2/M2 검증으로 승격하지 않는다. Backend/domain/API/legacy QuestionsWorkbench diff empty로106 native는 carry하고 재실행하지 않았다. M1 chunk 경고와 운영/OS IME/의미 품질 한계는 유지한다.
 
 - ONE FINAL 실제 결과: `c5-final-onecheck.log` exit0(408/48/16/41/251/servertypes/build/smoke), `c5-final-browser.log` exit0 네 조건28PNG/JSON. 각 advancedIme2의 조합 중POST0/확정body, handoffChecks2의 fresh/already/cancel·조건/커서 reset·메모리만 전달, 기존equivalent6/readyArrow10과 모든 기존 경계/errors[]/overflowfalse를 확인했다. 최종16제품 SHA77ac4dd368f2e95a54aa91a25e6e60912cbde83410ed147315db9f778f5ea700. Backend/API/domain/legacy diff empty로106 native를 carry했다. 자기 runtime/Vite만 종료해 소유 DB0개·4395/5195닫힘을 확인했고 부모PG/다른서비스는 유지했다. M1/OS IME·실제IdP·의미 품질·운영 인수와 새 head scoped review/8CI/merge는 별도다. 이전e462 CI44032610937의8성공은 새 head CI를 대신하지 않는다.
+
+
+### C6 final combined wave: exact final evidence
+
+Current affected native6files153 plus unchanged9files99 from the prior249 run gives unique252 coverage, not a single current15file252 execution. Final fullcheck429/48/16/41/251/types/build/smoke and focused client26 exited0. Three C6-added erasure-fence calls use true page origins or no-page binding; actual same-ID regressions preserve unrelated work without removing workspace fences. Final runtime62204/Vite62218 started19:31:00 KST; four-condition capture passed, plus16 distinct27/81-draft initialization/resume cases and2 cases at81drafts/54approved/27pending. The earlier unexpected503 root cause is unconfirmed and remains a limit, not a repaired production-performance claim. Final manifest17production/5harness/55artifacts and cleanup are recorded in the C6 evidence folder/report. Controller owns scoped final review, exact-head CI and merge.

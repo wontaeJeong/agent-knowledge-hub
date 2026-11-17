@@ -1,12 +1,17 @@
 import { assertProductWritesNotErased } from "../operations/product-erasure";
-import { randomUUID } from "node:crypto";
+import {
+  randomUUID,
+  randomBytes,
+  createCipheriv,
+  createDecipheriv,
+} from "node:crypto";
 import type { PoolClient } from "pg";
 import { z } from "zod";
 import type { Context } from "../service";
 import type { WorkflowService } from "./service";
 import { transaction } from "../database";
 import { audit, loadState, membership } from "../repository";
-import { authorizeInTransaction } from "../access";
+import { authorizeInTransaction, effectiveAccess } from "../access";
 import {
   captureEnvelope,
   fingerprint,
@@ -19,6 +24,107 @@ import {
   readDisclosureInputs,
   assertDisclosureAudience,
 } from "../imports/disclosure-policy";
+// Process-local authenticated encryption hides scan positions and hidden row IDs.
+const cursorKey = randomBytes(32);
+const listQuery = z
+  .object({
+    cursor: z.string().max(4096).nullable().optional(),
+    draftId: z
+      .string()
+      .regex(/^[a-zA-Z0-9_-]{1,100}$/)
+      .optional(),
+    queue: z.enum(["all", "assigned-pending"]).default("all"),
+  })
+  .strict();
+function encodeCursor(value: unknown) {
+  const iv = randomBytes(12),
+    cipher = createCipheriv("aes-256-gcm", cursorKey, iv);
+  const data = Buffer.concat([
+    cipher.update(JSON.stringify(value)),
+    cipher.final(),
+  ]);
+  return Buffer.concat([iv, cipher.getAuthTag(), data]).toString("base64url");
+}
+function decodeCursor(raw: string) {
+  try {
+    const data = Buffer.from(raw, "base64url"),
+      decipher = createDecipheriv(
+        "aes-256-gcm",
+        cursorKey,
+        data.subarray(0, 12),
+      );
+    decipher.setAuthTag(data.subarray(12, 28));
+    return z
+      .object({
+        binding: z.string(),
+        at: z.string(),
+        id: z.string(),
+        expires: z.number(),
+      })
+      .strict()
+      .parse(
+        JSON.parse(
+          Buffer.concat([
+            decipher.update(data.subarray(28)),
+            decipher.final(),
+          ]).toString(),
+        ),
+      );
+  } catch {
+    throw Error("STALE_CURSOR");
+  }
+}
+// Conservative data/authority invalidation; only fixed-size SQL digests leave
+// PostgreSQL. No private corpus or hidden count is materialized for pagination.
+const scopedCursorTables = [
+  "workflow_draft_disclosures",
+  "workflow_drafts",
+  "workflow_draft_revision_history",
+  "workflow_document_state",
+  "workflow_source_state",
+  "sources",
+  "pages",
+  "versions",
+  "resources",
+  "resource_readers",
+  "memberships",
+  "access_spaces",
+  "access_grants",
+  "access_reviewers",
+  "access_credentials",
+  "access_shares",
+  "access_source_policy",
+  "governance_type_policies",
+  "operations_tombstones",
+  "operations_erasure_receipts",
+  "operations_erased_artifacts",
+];
+const globalCursorTables = [
+  "access_principals",
+  "access_namespaces",
+  "access_team_members",
+  "access_groups",
+  "access_group_members",
+  "access_service_accounts",
+  "identity_directory_bindings",
+  "identity_directory_edges",
+  "identity_directory_proofs",
+  "identity_manual_group_members",
+  "identity_group_denies",
+];
+async function listRevision(db: PoolClient, ctx: Context) {
+  const parts = [
+    ...scopedCursorTables.map((table) => ({ table, scoped: true })),
+    ...globalCursorTables.map((table) => ({ table, scoped: false })),
+  ];
+  const sql = parts
+    .map(
+      ({ table, scoped }) =>
+        `SELECT '${table}' AS name,md5(COALESCE(string_agg(h,'' ORDER BY h),'')) AS hash FROM (SELECT md5((to_jsonb(t)-'last_used_at')::text || CASE WHEN to_jsonb(t)->>'expires_at' IS NULL THEN '' ELSE ((to_jsonb(t)->>'expires_at')::timestamptz>clock_timestamp())::text END || CASE WHEN to_jsonb(t)->>'valid_until' IS NULL THEN '' ELSE ((to_jsonb(t)->>'valid_until')::timestamptz>clock_timestamp())::text END) AS h FROM ${table} t ${scoped ? "WHERE workspace_id=$1" : ""}) hashes`,
+    )
+    .join(" UNION ALL ");
+  return (await db.query(sql, [ctx.workspaceId])).rows;
+}
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 export const manualTargetSchema = z.object({
   expectedRevision: z.number().int().positive(),
@@ -108,7 +214,7 @@ export class ManualDraftDisclosureService {
   ) {
     await authorizeInTransaction(db, ctx, "draft.write");
     await authorizeInTransaction(db, ctx, "changeset.propose");
-    await assertProductWritesNotErased(db, ctx.workspaceId, draftId);
+    await assertProductWritesNotErased(db, ctx.workspaceId, "");
     await assertDraftNotRetired(db, ctx, id.parse(draftId));
     const r = (
       await db.query(
@@ -150,7 +256,16 @@ export class ManualDraftDisclosureService {
       sourceIds: lineage.sourceIds,
       dependencyVersions: lineage.dependencyVersions,
     };
-    return { snapshot: { ...snapshot, ...(lineage.templateIds.length ? { templateIds: lineage.templateIds } : {}) }, envelope, contentHash: fingerprint(snapshot) };
+    return {
+      snapshot: {
+        ...snapshot,
+        ...(lineage.templateIds.length
+          ? { templateIds: lineage.templateIds }
+          : {}),
+      },
+      envelope,
+      contentHash: fingerprint(snapshot),
+    };
   }
   private async policy(
     db: PoolClient,
@@ -328,16 +443,44 @@ export class ManualDraftDisclosureService {
       return { id: disclosureId, hash, status };
     });
   }
-  async list(ctx: Context) {
+  async list(ctx: Context, input: unknown = {}) {
+    const q = listQuery.parse(input);
     return this.run(ctx, async (db) => {
+      const binding = fingerprint({
+        workspace: ctx.workspaceId,
+        principal: ctx.principalId,
+        credential: ctx.credentialId ?? null,
+        agent: ctx.agent ?? null,
+        session: ctx.authorization?.sessionId ?? null,
+        draftId: q.draftId ?? null,
+        queue: q.queue,
+        limit: 25,
+        access: await effectiveAccess(db, ctx),
+        reviewers: (await qualifiedReviewers(db, ctx)).sort(),
+        revision: await listRevision(db, ctx),
+      });
+      const old = q.cursor ? decodeCursor(q.cursor) : null;
+      if (old && (old.binding !== binding || old.expires < Date.now()))
+        throw Error("STALE_CURSOR");
       const rows = (
         await db.query(
-          "SELECT * FROM workflow_draft_disclosures WHERE workspace_id=$1 AND (owner_id=$2 OR reviewer_id=$2) ORDER BY created_at DESC LIMIT 25",
-          [ctx.workspaceId, ctx.principalId],
+          `SELECT *,created_at::text AS sort_at FROM workflow_draft_disclosures WHERE workspace_id=$1 AND (owner_id=$2 OR reviewer_id=$2)
+        AND ($3::text IS NULL OR draft_id=$3) AND ($4::boolean=false OR (reviewer_id=$2 AND status IN ('pending','pending-confirmation')))
+        AND ($5::timestamptz IS NULL OR (created_at,id)<($5::timestamptz,$6::text)) ORDER BY created_at DESC,id DESC LIMIT 101`,
+          [
+            ctx.workspaceId,
+            ctx.principalId,
+            q.draftId ?? null,
+            q.queue === "assigned-pending",
+            old?.at ?? null,
+            old?.id ?? null,
+          ],
         )
-      ).rows as DisclosureRow[];
+      ).rows as (DisclosureRow & { sort_at: string })[];
       const items = [];
-      for (const row of rows) {
+      let scanned = 0;
+      for (const row of rows.slice(0, 100)) {
+        scanned++;
         try {
           await this.current(db, ctx, row);
           if (
@@ -381,8 +524,23 @@ export class ManualDraftDisclosureService {
           )
             throw error;
         }
+        if (items.length === 25) break;
       }
-      return { items };
+      const more = scanned < rows.length,
+        last = rows[scanned - 1];
+      return {
+        items,
+        nextCursor:
+          more && last
+            ? encodeCursor({
+                binding,
+                at: last.sort_at,
+                id: last.id,
+                expires: Date.now() + 15 * 60 * 1000,
+              })
+            : null,
+        partial: more && items.length < 25,
+      };
     });
   }
   async decide(ctx: Context, disclosureId: string, input: unknown) {

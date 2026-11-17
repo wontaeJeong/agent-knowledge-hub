@@ -63,6 +63,21 @@ async function make(width, theme, actor, profile) {
       state.holdDrafts
     )
       await state.holdDrafts;
+    if (
+      request.method() === "GET" &&
+      u.pathname === "/api/v1/workflows/draft-disclosures" &&
+      u.searchParams.get("queue") === "assigned-pending" &&
+      state.holdQueue
+    )
+      await state.holdQueue;
+    if (response.status() >= 500)
+      console.error(
+        "Observed HTTP failure",
+        request.method(),
+        u.pathname + u.search,
+        response.status(),
+        await response.text(),
+      );
     await route.fulfill({ response });
   });
   const page = context.pages()[0] ?? (await context.newPage());
@@ -411,6 +426,278 @@ try {
         ),
         false,
       );
+      // Real pending queue overflow, cursor invalidation, then older exact approval.
+      const queued = [],
+        queueDraftIds = [crypto.randomUUID(), crypto.randomUUID()];
+      for (let i = 0; i < 27; i++) {
+        const id = queueDraftIds[i === 0 ? 0 : 1],
+          queuedTitle = `대기 ${width} ${theme} ${i === 0 ? "이전" : "최근"}`;
+        if (i < 2)
+          assert.equal(
+            (
+              await ui.api("/workflows/drafts", {
+                id,
+                expectedRevision: 0,
+                title: queuedTitle,
+                content: "합성 대기 본문",
+              })
+            ).status,
+            201,
+          );
+        const request = await ui.api(`/workflows/drafts/${id}/disclosure`, {
+          expectedRevision: 1,
+          title: queuedTitle,
+          parentId: null,
+          readers: ["editor", "reviewer"],
+          reviewerId: "reviewer",
+          reason: "목록 탐색 검증",
+          mutationId: crypto.randomUUID(),
+        });
+        assert.equal(request.status, 201);
+        queued.push({ id, title: queuedTitle, ...request.body, draftId: id });
+      }
+      const hiddenDraft = crypto.randomUUID();
+      assert.equal(
+        (
+          await ui.api("/workflows/drafts", {
+            id: hiddenDraft,
+            expectedRevision: 0,
+            title: "숨은 탐색 자료",
+            content: "obsolete private body",
+          })
+        ).status,
+        201,
+      );
+      for (let i = 0; i < 101; i++)
+        assert.equal(
+          (
+            await ui.api(`/workflows/drafts/${hiddenDraft}/disclosure`, {
+              expectedRevision: 1,
+              title: "숨은 탐색 자료",
+              parentId: null,
+              readers: ["editor", "reviewer"],
+              reviewerId: "reviewer",
+              reason: "합성 stale prefix",
+              mutationId: crypto.randomUUID(),
+            })
+          ).status,
+          201,
+        );
+      assert.equal(
+        (
+          await ui.api("/workflows/drafts", {
+            id: hiddenDraft,
+            expectedRevision: 1,
+            title: "숨은 탐색 자료",
+            content: "new body",
+          })
+        ).status,
+        201,
+      );
+      await reviewer.go(fixture.workspaceId);
+      const queue = reviewer.page.getByLabel("원본 공개 검토함", {
+        exact: true,
+      });
+      const partialQueue = await reviewer.api(
+        "/workflows/draft-disclosures?queue=assigned-pending",
+      );
+      assert.equal(partialQueue.body.items.length, 0);
+      assert.equal(partialQueue.body.partial, true);
+      assert(partialQueue.body.nextCursor);
+      await queue
+        .getByText("검토 요청 탐색이 끝나지 않았습니다. 계속 조회하세요.")
+        .waitFor();
+      assert.equal(await queue.getByRole("article").count(), 0);
+      await reviewer.page.screenshot({
+        fullPage: true,
+        path: `${output}/review-partial-${width}-${theme}.png`,
+      });
+      await queue
+        .getByRole("button", { name: "다음 검토 요청", exact: true })
+        .focus();
+      await reviewer.page.keyboard.press("Enter");
+      await queue.getByRole("article").first().waitFor();
+      const firstQueue = await reviewer.api(
+        "/workflows/draft-disclosures?queue=assigned-pending&cursor=" +
+          encodeURIComponent(partialQueue.body.nextCursor),
+      );
+      assert.equal(firstQueue.body.items.length, 25);
+      assert(firstQueue.body.nextCursor);
+      await queue
+        .getByRole("button", { name: "다음 검토 요청", exact: true })
+        .focus();
+      await reviewer.page.keyboard.press("Enter");
+      await queue
+        .getByRole("heading", { name: queued[0].title + " · r1", exact: true })
+        .waitFor();
+      assert.equal(
+        await reviewer.page.evaluate(() =>
+          document.activeElement?.getAttribute("aria-label"),
+        ),
+        "원본 공개 검토함",
+      );
+      await reviewer.page.screenshot({
+        fullPage: true,
+        path: `${output}/review-queue-${width}-${theme}.png`,
+      });
+      let releaseQueue;
+      reviewer.state.holdQueue = new Promise((resolve) => {
+        releaseQueue = resolve;
+      });
+      const restartButton = queue.getByRole("button", {
+        name: "검토함 처음",
+        exact: true,
+      });
+      await restartButton.focus();
+      await reviewer.page.keyboard.press("Enter");
+      await reviewer.page.waitForFunction(
+        () =>
+          document.querySelector('[aria-label="원본 공개 검토함"] button')
+            ?.disabled === true,
+      );
+      const outsideQueue = reviewer.page.getByRole("button", {
+        name: "새 문서",
+        exact: true,
+      });
+      await outsideQueue.focus();
+      releaseQueue();
+      reviewer.state.holdQueue = null;
+      await queue
+        .getByText("검토 요청 탐색이 끝나지 않았습니다. 계속 조회하세요.")
+        .waitFor();
+      assert.equal(
+        await outsideQueue.evaluate((node) => node === document.activeElement),
+        true,
+      );
+      assert.equal(
+        (
+          await reviewer.api(
+            `/workflows/draft-disclosures/${queued[0].id}/decision`,
+            {
+              hash: queued[0].hash,
+              decision: "reject",
+              reason: "합성 목록 검증 완료",
+              mutationId: crypto.randomUUID(),
+            },
+          )
+        ).status,
+        200,
+      );
+      assert.equal(
+        (
+          await reviewer.api(
+            "/workflows/draft-disclosures?queue=assigned-pending&cursor=" +
+              encodeURIComponent(firstQueue.body.nextCursor),
+          )
+        ).status,
+        409,
+      );
+      await queue
+        .getByRole("button", { name: "검토함 처음", exact: true })
+        .click();
+      await queue
+        .getByRole("button", { name: "다음 검토 요청", exact: true })
+        .waitFor();
+      await queue
+        .getByRole("button", { name: "다음 검토 요청", exact: true })
+        .click();
+      await queue.getByRole("article").first().waitFor();
+      const modified = queued[1];
+      assert.equal(
+        (
+          await ui.api("/workflows/drafts", {
+            id: crypto.randomUUID(),
+            expectedRevision: 0,
+            title: "커서 데이터 변경",
+            content: "서버 revision 변경 확인",
+          })
+        ).status,
+        201,
+      );
+      await queue
+        .getByRole("button", { name: "다음 검토 요청", exact: true })
+        .click();
+      await reviewer.page
+        .getByRole("alert")
+        .filter({ hasText: "STALE_CURSOR" })
+        .waitFor();
+      assert.equal(await queue.getByRole("article").count(), 0);
+      await queue
+        .getByRole("button", { name: "검토함 처음", exact: true })
+        .click();
+      await queue
+        .getByRole("button", { name: "다음 검토 요청", exact: true })
+        .click();
+      await queue.getByRole("article").first().waitFor();
+      for (const item of queued.slice(1))
+        assert.equal(
+          (
+            await reviewer.api(
+              `/workflows/draft-disclosures/${item.id}/decision`,
+              {
+                hash: item.hash,
+                decision: "approve",
+                reason: "합성 검토 완료",
+                mutationId: crypto.randomUUID(),
+              },
+            )
+          ).status,
+          200,
+        );
+      await queue
+        .getByRole("button", { name: "검토함 처음", exact: true })
+        .focus();
+      await reviewer.page.keyboard.press("Enter");
+      await reviewer.page.waitForFunction(() =>
+        [
+          ...document.querySelectorAll(
+            '[aria-label="원본 공개 검토함"] button',
+          ),
+        ].every((b) => !b.disabled),
+      );
+      for (
+        let continuation = 0;
+        continuation < 8 &&
+        (await queue
+          .getByRole("button", { name: "다음 검토 요청", exact: true })
+          .count());
+        continuation++
+      ) {
+        await queue
+          .getByRole("button", { name: "다음 검토 요청", exact: true })
+          .focus();
+        await reviewer.page.keyboard.press("Enter");
+        await reviewer.page.waitForFunction(() =>
+          [
+            ...document.querySelectorAll(
+              '[aria-label="원본 공개 검토함"] button',
+            ),
+          ].every((b) => !b.disabled),
+        );
+      }
+      assert.equal(
+        await queue
+          .getByRole("button", { name: "다음 검토 요청", exact: true })
+          .count(),
+        0,
+      );
+      assert.equal(await queue.getByRole("article").count(), 0);
+      assert.equal(
+        await reviewer.page.evaluate(() =>
+          document.activeElement?.getAttribute("aria-label"),
+        ),
+        "원본 공개 검토함",
+      );
+      await reviewer.page.screenshot({
+        fullPage: true,
+        path: `${output}/review-empty-${width}-${theme}.png`,
+      });
+      assert.equal(
+        (await ui.api("/workflows/draft-disclosures")).body.items.some(
+          (d) => d.draftId === draftId,
+        ),
+        false,
+      );
       // Reload the exact draft: its controls and the immutable disclosure must agree.
       await ui.go(fixture.workspaceId, draftId);
       assert.equal(
@@ -485,7 +772,7 @@ try {
         );
         const failed = page.waitForResponse(
           (r) =>
-            r.url().endsWith("/workflows/draft-disclosures") &&
+            r.url().includes("/workflows/draft-disclosures") &&
             r.status() === 503,
         );
         await page
@@ -703,6 +990,11 @@ try {
         theme,
         exactDraftId: draftId,
         approvedResumeAudienceExact: true,
+        olderExactApprovalBeyondQueue: true,
+        reviewQueueKeyboardContinuation: true,
+        staleCursorVisibleAndRestartable: true,
+        boundedHiddenPrefixContinuation: true,
+        queueOutsideFocusAndEmptyRecovery: true,
         readerReviewerEditInvalidatesApproval: true,
         rejectionRationaleReadback: true,
         actualDependencyFailureVisible: true,

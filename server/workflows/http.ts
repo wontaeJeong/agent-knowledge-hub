@@ -26,7 +26,7 @@ export async function handleWorkflowRoute(
   };
   const empty = () => z.object({}).strict().parse(body);
   if (method === "GET") {
-    if (route === "/draft-disclosures") return reply(await service.manualDisclosures.list(ctx));
+    if (route === "/draft-disclosures") return reply(await service.manualDisclosures.list(ctx,Object.fromEntries(input.query??[])));
     if (route === "/drafts") return reply(await service.drafts(ctx));
     if (route === "/templates") return reply(await service.templates(ctx));
     if (route === "/notifications")

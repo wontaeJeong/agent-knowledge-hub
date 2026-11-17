@@ -34,7 +34,8 @@ test("exact new draft resume loads the requested private ID and preserves it for
     if (path === "/workflows/templates") return { items: [] } as any;
     if (path === "/imports/config")
       return { personal: false, reviewers: ["reviewer"] } as any;
-    if (path === "/workflows/draft-disclosures") return { items: [] } as any;
+    if (path.startsWith("/workflows/draft-disclosures"))
+      return { items: [] } as any;
     throw Error(path);
   });
   vi.spyOn(api, "transport").mockResolvedValue(
@@ -323,7 +324,11 @@ test("a requested draft removed by current ACL clears its restart cache before r
     localStorage.clear();
   }
 });
-async function disclosureComposer(status = "approved", principalId = "editor") {
+async function disclosureComposer(
+  status = "approved",
+  principalId = "editor",
+  omitQueue = false,
+) {
   const { DocumentComposer } = await import("./DocumentComposer");
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const api = new OperationalApi();
@@ -355,8 +360,8 @@ async function disclosureComposer(status = "approved", principalId = "editor") {
       ? { items: principalId === "editor" ? [draft] : [] }
       : path === "/imports/config"
         ? { personal: false, reviewers: ["reviewer", "reviewer2"] }
-        : path === "/workflows/draft-disclosures"
-          ? { items: requests }
+        : path.startsWith("/workflows/draft-disclosures")
+          ? { items: omitQueue && path.includes("queue=") ? [] : requests }
           : ({ items: [] } as any),
   );
   vi.spyOn(api, "transport").mockResolvedValue(
@@ -565,3 +570,191 @@ test("additional reader input retains a typed comma while requiring a fresh appr
     await t.close();
   }
 });
+
+test("exact approved resume is independent of the first review queue page", async () => {
+  const t = await disclosureComposer("approved", "editor", true);
+  try {
+    expect(t.api.get).toHaveBeenCalledWith(
+      "/workflows/draft-disclosures?draftId=approved-draft",
+    );
+    expect(t.button("지식 검토 요청")).toBeDefined();
+  } finally {
+    await t.close();
+  }
+});
+test("review queue next page replaces rows and moves keyboard focus without losing author approval", async () => {
+  const t = await disclosureComposer("pending", "reviewer");
+  try {
+    vi.mocked(t.api.get).mockImplementation(async (path) =>
+      path.includes("draft-disclosures")
+        ? {
+            items: [
+              {
+                ...t.disclosure,
+                id: path.includes("cursor=") ? "older" : "newer",
+                title: path.includes("cursor=") ? "오래된 요청" : "최근 요청",
+              },
+            ],
+            nextCursor: path.includes("cursor=") ? null : "opaque-next",
+          }
+        : ({ items: [] } as any),
+    );
+    await act(async () => t.button("검토함 새로고침")?.click());
+    expect(t.button("다음 검토 요청")).toBeDefined();
+    t.button("다음 검토 요청")!.focus();
+    await act(async () => t.button("다음 검토 요청")!.click());
+    expect(t.el.textContent).toContain("오래된 요청");
+    expect(t.el.textContent).not.toContain("최근 요청");
+    expect(document.activeElement?.getAttribute("aria-label")).toBe(
+      "원본 공개 검토함",
+    );
+  } finally {
+    await t.close();
+  }
+});
+
+test("late review page cannot cross identity and page focus respects a newer outside intent", async () => {
+  const t = await disclosureComposer("pending", "reviewer");
+  try {
+    let release!: (value: any) => void;
+    vi.mocked(t.api.get).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }) as any,
+    );
+    const outside = document.createElement("button");
+    t.el.append(outside);
+    t.button("검토함 새로고침")!.focus();
+    await act(async () => t.button("검토함 새로고침")!.click());
+    outside.focus();
+    await act(async () => release({ items: [t.disclosure], nextCursor: null }));
+    expect(document.activeElement).toBe(outside);
+    vi.mocked(t.api.get).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }) as any,
+    );
+    await act(async () => t.button("검토함 새로고침")!.click());
+    const { DocumentComposer } = await import("./DocumentComposer");
+    vi.mocked(t.api.get).mockResolvedValue({
+      items: [],
+      personal: false,
+      reviewers: [],
+    } as any);
+    await act(async () =>
+      t.root.render(
+        <DocumentComposer
+          mode="new"
+          api={t.api}
+          pages={[]}
+          capabilities={["draft.write"]}
+          principalId="other"
+          spaceId="other"
+          onChanged={async () => {}}
+          onExpired={() => {}}
+        />,
+      ),
+    );
+    await act(async () =>
+      release({
+        items: [{ ...t.disclosure, title: "OLD ACCOUNT SECRET" }],
+        nextCursor: "old-cursor",
+      }),
+    );
+    expect(t.el.textContent).not.toContain("OLD ACCOUNT SECRET");
+  } finally {
+    await t.close();
+  }
+});
+test("native disabled-button blur during queue load still restores intended keyboard focus", async () => {
+  const t = await disclosureComposer("pending", "reviewer");
+  try {
+    let release!: (v: any) => void;
+    vi.mocked(t.api.get).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }) as any,
+    );
+    const button = t.button("검토함 새로고침")!;
+    button.focus();
+    await act(async () => button.click());
+    button.disabled = false;
+    button.blur();
+    button.disabled = true;
+    expect(document.activeElement).toBe(document.body);
+    await act(async () => release({ items: [t.disclosure], nextCursor: null }));
+    expect(document.activeElement?.getAttribute("aria-label")).toBe(
+      "원본 공개 검토함",
+    );
+  } finally {
+    await t.close();
+  }
+});
+
+test.each(["pointerdown", "blur"])(
+  "queue restoration preserves newer %s intent",
+  async (kind) => {
+    const t = await disclosureComposer("pending", "reviewer");
+    try {
+      let release!: (v: any) => void;
+      vi.mocked(t.api.get).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = resolve;
+          }) as any,
+      );
+      const b = t.button("검토함 새로고침")!;
+      b.focus();
+      await act(async () => b.click());
+      b.disabled = false;
+      b.blur();
+      b.disabled = true;
+      if (kind === "blur") window.dispatchEvent(new Event("blur"));
+      else
+        document.body.dispatchEvent(
+          new Event("pointerdown", { bubbles: true }),
+        );
+      await act(async () => release({ items: [t.disclosure] }));
+      expect(document.activeElement).toBe(document.body);
+    } finally {
+      await t.close();
+    }
+  },
+);
+test.each(["empty", "error"])(
+  "queue %s response restores keyboard focus to current controls",
+  async (kind) => {
+    const t = await disclosureComposer("pending", "reviewer");
+    try {
+      let release!: (v: any) => void, reject!: (v: any) => void;
+      vi.mocked(t.api.get).mockImplementationOnce(
+        () =>
+          new Promise((yes, no) => {
+            release = yes;
+            reject = no;
+          }) as any,
+      );
+      const b = t.button("검토함 새로고침")!;
+      b.focus();
+      await act(async () => b.click());
+      b.disabled = false;
+      b.blur();
+      b.disabled = true;
+      await act(async () => {
+        if (kind === "error") reject(Error("STALE_CURSOR"));
+        else release({ items: [], nextCursor: null });
+      });
+      expect(document.activeElement?.getAttribute("aria-label")).toBe(
+        "원본 공개 검토함",
+      );
+      expect(
+        t.el.querySelector('[aria-label="원본 공개 검토함"] article'),
+      ).toBeNull();
+    } finally {
+      await t.close();
+    }
+  },
+);

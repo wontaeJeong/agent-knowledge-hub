@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ComponentProps } from "react";
+import {
+  useLayoutEffect,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import { Button } from "../../ui/primitives";
 import type { ImagePreview } from "../../ui/Markdown";
 import { ApiError } from "../api";
@@ -122,6 +128,10 @@ function NewDocument({
       principalId ? [principalId] : [],
     ),
     [disclosures, setDisclosures] = useState<Disclosure[]>([]),
+    [ownerDisclosures, setOwnerDisclosures] = useState<Disclosure[]>([]),
+    [queueNext, setQueueNext] = useState<string | null>(null),
+    [queuePartial, setQueuePartial] = useState(false),
+    [ownerNext, setOwnerNext] = useState<string | null>(null),
     [savedTemplates, setTemplates] = useState<Template[]>([]),
     [server, setServer] = useState<Draft | null>(null),
     [recovered, setRecovered] = useState<
@@ -135,6 +145,10 @@ function NewDocument({
     binding = useRef<RecoveryBinding | null>(null),
     generation = useRef(0),
     selectionRevision = useRef(0),
+    queueGeneration = useRef(0),
+    queueSection = useRef<HTMLElement | null>(null),
+    queueFocus = useRef(false),
+    queueIntent = useRef(false),
     composing = useRef(false);
   const write = capabilities.includes("draft.write"),
     propose = capabilities.includes("changeset.propose"),
@@ -157,15 +171,106 @@ function NewDocument({
       setContent("");
       setTitle("");
       setDisclosures([]);
+      setOwnerDisclosures([]);
+      setQueueNext(null);
+      setOwnerNext(null);
       if (e.status === 401) onExpired();
     }
   };
-  const refresh = async () => {
-    const epoch = generation.current;
-    const result = await api.get<{ items: Disclosure[] }>(
-      "/workflows/draft-disclosures",
+  type DisclosurePage = {
+    items: Disclosure[];
+    nextCursor?: string | null;
+    partial?: boolean;
+  };
+  const ownerPath = (draftId: string, cursor?: string | null) =>
+    `/workflows/draft-disclosures?draftId=${encodeURIComponent(draftId)}${cursor ? "&cursor=" + encodeURIComponent(cursor) : ""}`;
+  const queuePath = (cursor?: string | null) =>
+    `/workflows/draft-disclosures?queue=assigned-pending${cursor ? "&cursor=" + encodeURIComponent(cursor) : ""}`;
+  const initializeAudience = (resumed: Disclosure) => {
+    setAudience(resumed.audience);
+    setAdditionalReaders(
+      resumed.audience
+        .filter(
+          (id) =>
+            id !== principalId &&
+            id !== resumed.reviewerId &&
+            !members.some((m) => m.principalId === id),
+        )
+        .join(", "),
     );
-    if (epoch === generation.current) setDisclosures(result.items);
+    setReviewer(
+      resumed.policyMode === "personal-owner" ? "" : resumed.reviewerId,
+    );
+    setReason(resumed.requestReason ?? "");
+  };
+  const refreshOwner = async (cursor?: string | null, initialize = false) => {
+    const epoch = generation.current,
+      id = coordinator.current?.draft.id;
+    if (!id) return;
+    const result = await api.get<DisclosurePage>(ownerPath(id, cursor));
+    if (epoch !== generation.current) return;
+    setOwnerDisclosures(result.items);
+    setOwnerNext(result.nextCursor ?? null);
+    if (initialize && !selectionRevision.current && result.items[0])
+      initializeAudience(result.items[0]);
+  };
+  const refreshQueue = async (cursor?: string | null, focus = false) => {
+    const epoch = generation.current,
+      request = ++queueGeneration.current,
+      origin = document.activeElement;
+    // Disabled native controls can blur to body without a new user intent.
+    queueIntent.current =
+      focus && queueSection.current?.contains(origin) === true;
+    try {
+      const result = await api.get<DisclosurePage>(queuePath(cursor));
+      if (epoch !== generation.current || request !== queueGeneration.current)
+        return;
+      queueFocus.current = queueIntent.current;
+      setDisclosures(result.items);
+      setQueueNext(result.nextCursor ?? null);
+      setQueuePartial(result.partial ?? false);
+    } catch (e) {
+      if (epoch === generation.current && request === queueGeneration.current) {
+        queueFocus.current = queueIntent.current;
+        setDisclosures([]);
+        setQueueNext(null);
+        setQueuePartial(false);
+        throw e;
+      }
+    }
+  };
+  useEffect(() => {
+    const leave = (event: Event) => {
+      if (
+        event.target instanceof Node &&
+        !queueSection.current?.contains(event.target)
+      )
+        queueIntent.current = false;
+    };
+    const blur = () => {
+      queueIntent.current = false;
+    };
+    document.addEventListener("focusin", leave);
+    document.addEventListener("pointerdown", leave, true);
+    window.addEventListener("blur", blur);
+    window.addEventListener("pagehide", blur);
+    return () => {
+      queueIntent.current = false;
+      queueFocus.current = false;
+      document.removeEventListener("focusin", leave);
+      document.removeEventListener("pointerdown", leave, true);
+      window.removeEventListener("blur", blur);
+      window.removeEventListener("pagehide", blur);
+    };
+  }, []);
+  useLayoutEffect(() => {
+    if (queueFocus.current) {
+      queueFocus.current = false;
+      queueSection.current?.focus({ preventScroll: true });
+    }
+  }, [disclosures]);
+  const refresh = async () => {
+    await Promise.all([refreshOwner(), refreshQueue()]);
   };
   const permission = async (instance: DraftAutosave, epoch: number) => {
     if (!instance.draft.revision) return;
@@ -296,19 +401,26 @@ function NewDocument({
     }
     const init = async () => {
       try {
-        const [saved, ts, config, requests] = await Promise.all([
+        const [saved, ts, config, requests, owned] = await Promise.all([
           api.get<{ items: Draft[] }>("/workflows/drafts"),
           api.get<{ items: Template[] }>("/workflows/templates"),
           api.get<{ personal: boolean; reviewers: string[] }>(
             "/imports/config",
           ),
-          api.get<{ items: Disclosure[] }>("/workflows/draft-disclosures"),
+          api.get<DisclosurePage>(queuePath()),
+          initialDraftId
+            ? api.get<DisclosurePage>(ownerPath(initialDraftId))
+            : Promise.resolve({ items: [] } as DisclosurePage),
         ]);
         if (!active) return;
         setTemplates(ts.items);
         setPersonal(config.personal);
         setReviewers(config.reviewers.filter((x) => x !== principalId));
         setDisclosures(requests.items);
+        setQueueNext(requests.nextCursor ?? null);
+        setQueuePartial(requests.partial ?? false);
+        setOwnerDisclosures(owned.items);
+        setOwnerNext(owned.nextCursor ?? null);
         const d = initialDraftId
           ? saved.items.find((x) => x.id === initialDraftId && !x.pageId)
           : { id: crypto.randomUUID(), revision: 0, title: "", content: "" };
@@ -318,7 +430,7 @@ function NewDocument({
             404,
             "NOT_FOUND",
           );
-        const resumed = requests.items.find(
+        const resumed = owned.items.find(
           (x) =>
             x.draftId === d.id &&
             x.ownerId === principalId &&
@@ -327,23 +439,7 @@ function NewDocument({
             x.content === d.content &&
             x.parentId === (d.parentId ?? null),
         );
-        if (resumed) {
-          setAudience(resumed.audience);
-          setAdditionalReaders(
-            resumed.audience
-              .filter(
-                (id) =>
-                  id !== principalId &&
-                  id !== resumed.reviewerId &&
-                  !members.some((m) => m.principalId === id),
-              )
-              .join(", "),
-          );
-          setReviewer(
-            resumed.policyMode === "personal-owner" ? "" : resumed.reviewerId,
-          );
-          setReason(resumed.requestReason ?? "");
-        }
+        if (resumed) initializeAudience(resumed);
         initialized = true;
         start(d);
         if (initialDraftId && cache.current) {
@@ -417,7 +513,7 @@ function NewDocument({
     if (!saved) throw Error("초안 저장을 먼저 확인하세요.");
     return saved;
   };
-  const current = disclosures.find(
+  const current = ownerDisclosures.find(
     (d) =>
       d.draftId === draft?.id &&
       d.ownerId === principalId &&
@@ -828,6 +924,19 @@ function NewDocument({
             <Button disabled={busy} onClick={() => void action(refresh)}>
               검토 상태 새로고침
             </Button>
+            {ownerNext && (
+              <>
+                <p role="status">이전 공개 요청 탐색이 끝나지 않았습니다.</p>
+                <Button
+                  disabled={busy}
+                  onClick={() =>
+                    void action(() => refreshOwner(ownerNext, true))
+                  }
+                >
+                  이전 공개 요청 확인
+                </Button>
+              </>
+            )}
             {current && (
               <div aria-label="고정 공개 대상">
                 <p>요청에 고정된 독자: {current.audience.join(", ")}</p>
@@ -913,8 +1022,33 @@ function NewDocument({
           </section>
         </>
       )}
-      <section aria-label="원본 공개 검토함">
+      <section aria-label="원본 공개 검토함" ref={queueSection} tabIndex={-1}>
         <h3>원본 공개 검토함</h3>
+        <Button
+          disabled={busy}
+          onClick={() => void action(() => refreshQueue(null, true))}
+        >
+          검토함 새로고침
+        </Button>
+        <Button
+          disabled={busy}
+          onClick={() => void action(() => refreshQueue(null, true))}
+        >
+          검토함 처음
+        </Button>
+        {queuePartial && (
+          <p role="status">
+            검토 요청 탐색이 끝나지 않았습니다. 계속 조회하세요.
+          </p>
+        )}
+        {queueNext && (
+          <Button
+            disabled={busy}
+            onClick={() => void action(() => refreshQueue(queueNext, true))}
+          >
+            다음 검토 요청
+          </Button>
+        )}
         {disclosures
           .filter(
             (d) =>
@@ -967,7 +1101,10 @@ function NewDocument({
                         mutationId: crypto.randomUUID(),
                       },
                     );
-                    await refresh();
+                    await Promise.all([
+                      refreshOwner(),
+                      refreshQueue(null, true),
+                    ]);
                   })
                 }
               >
@@ -988,7 +1125,10 @@ function NewDocument({
                         mutationId: crypto.randomUUID(),
                       },
                     );
-                    await refresh();
+                    await Promise.all([
+                      refreshOwner(),
+                      refreshQueue(null, true),
+                    ]);
                   })
                 }
               >

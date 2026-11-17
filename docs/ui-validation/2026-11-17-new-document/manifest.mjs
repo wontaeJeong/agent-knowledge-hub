@@ -8,7 +8,7 @@ if(process.argv.includes("--verify")){
 }else{
  const changed=[...new Set([...execFileSync("git",["diff","--name-only",base],{encoding:"utf8"}).trim().split("\n"),...execFileSync("git",["ls-files","--others","--exclude-standard"],{encoding:"utf8"}).trim().split("\n")])];
  const paths=changed.filter(p=>/^(server|src)\//.test(p)&&/\.(tsx?|sql|css)$/.test(p)&&!p.includes(".test."));const production=Object.fromEntries(await Promise.all(paths.sort().map(async p=>[p,await digest(p)])));
- const harness=Object.fromEntries(await Promise.all(["capture.mjs","composer-runtime.ts","manifest.mjs"].map(async p=>[dir+"/"+p,await digest(dir+"/"+p)])));
- const {readdir}=await import("node:fs/promises");const artifacts=Object.fromEntries(await Promise.all((await readdir(dir)).filter(p=>p.endsWith(".png")||p==="browser-results.json").sort().map(async p=>[dir+"/"+p,await digest(dir+"/"+p)])));
+ const harness=Object.fromEntries(await Promise.all(["capture.mjs","composer-runtime.ts","manifest.mjs","draft-initialization.mjs","draft-distribution.mjs"].map(async p=>[dir+"/"+p,await digest(dir+"/"+p)])));
+ const {readdir}=await import("node:fs/promises");const artifacts=Object.fromEntries(await Promise.all((await readdir(dir)).filter(p=>p.endsWith(".png")||["browser-results.json","draft-initialization.json","draft-distribution.json"].includes(p)).sort().map(async p=>[dir+"/"+p,await digest(dir+"/"+p)])));
  await writeFile(file,JSON.stringify({generatedAt:new Date().toISOString(),base,scope:"Exact changed production bytes, final capture harness and generated browser evidence; commit is the commit containing this manifest",production,harness,artifacts},null,2)+"\n");console.log(`Bound ${paths.length} production paths`);
 }

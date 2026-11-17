@@ -34,6 +34,22 @@ let pool: Pool | undefined;
 try {
   const f = await fixture();
   pool = f.pool;
+  // Diagnostic only: preserve actual PostgreSQL failures in this owned synthetic runtime.
+  const instrumented = new WeakSet();
+  f.pool.on("acquire", (client) => {
+    if (instrumented.has(client)) return;
+    instrumented.add(client);
+    const query = client.query.bind(client);
+    client.query = ((...args: any[]) => {
+      const result = (query as any)(...args);
+      return result && typeof result.catch === "function"
+        ? result.catch((error: any) => {
+            console.error("Synthetic PG failure", error.code, error.message);
+            throw error;
+          })
+        : result;
+    }) as typeof client.query;
+  });
   await adoptFixture(f.pool, f.workspaceId);
   const p = await new AccessService(f.pool).createSpace(
     f.editor,

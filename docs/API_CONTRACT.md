@@ -125,7 +125,7 @@ C3 최종 리뷰 보완: favorite 항목의 호환 추가 `canMoveUp`/`canMoveDo
 | --- | --- |
 | POST `/workflows/drafts` | 기존 개인 CAS 저장. `pageId` 없는 문서, `parentId`, `templateId`/`templateRevision`을 수용하며 서버가 전체 템플릿·과거 계보를 합친다. |
 | POST `/workflows/drafts/:id/disclosure` | `{expectedRevision,title,parentId,readers,reviewerId?,reason,mutationId}`. 소유자의 정확한 저장본·독자·위치·정책을 고정한다. 팀은 지정 독립 검토자, 실제 owner-only 개인 공간은 본인 확인 대기다. |
-| GET `/workflows/draft-disclosures` | 현재 권한이 유효한 본인 요청/지정 검토만 최대 25건. 타인의 일반 초안 읽기 권한은 부여하지 않는다. |
+| GET `/workflows/draft-disclosures` | optional `queue=all` 또는 `queue=assigned-pending`, `draftId`, `cursor`. 현재 권한의 본인/지정 검토를 기본 25건씩 반환한다. `{items,nextCursor,partial}`이며 정확한 draft 조회도 같은 권한/계속 조회 계약을 따른다. 타인의 일반 초안 읽기 권한은 부여하지 않는다. |
 | POST `/workflows/draft-disclosures/:id/decision` | `{hash,decision:'approve'|'reject',reason,mutationId}`. 서버가 검토 모드·현재 자격·계보를 재검사한다. |
 | POST `/workflows/drafts/:id/submit-new` | `{expectedRevision,title,parentId,reason,disclosureId,disclosureHash,mutationId}`. 승인한 같은 본문을 immutable 수동 원본과 초기 변경 집합으로 한 트랜잭션에 등록한다. `{status:'knowledge-review-pending',sourceId,batchId,hash}`이며 별도의 기존 approve/publish가 필요하다. |
 | POST `/workflows/recovery/permission`, `/validate` | 기존 page 바인딩과 `{kind:'draft',id,draftId,expectedRevision,sourceIds,dependencyVersions}`를 수용한다. 서버의 실제 owner·revision·전체 계보·local.copy 허용에 묶인다. |
@@ -145,3 +145,7 @@ C6 리뷰 수정 1차: 공개 요청의 `reason`은 보호 snapshot의 `requestR
 명시적 templateId 복사 계보는 owner-scoped template→draft/history token으로 기존 삭제 그래프에 연결한다. 원본 등록 전 복사도 포함하며, 현재 초안에서 templateId를 지워도 서버 이력은 유지한다. 다른 소유자의 동명 템플릿/초안이나 연결 없는 동일 본문에는 삭제 권위를 부여하지 않는다. UI는 고정 공개 독자/검토자와 새 선택을 구분하고 선택이 바뀌면 fresh disclosure 없이 이전 승인으로 제출하지 않는다.
 
 C6 등록된 파생 사본의 삭제는 disclosure의 정본 `source_id`까지 전파하여 source/batch/발행 version을 같은 그래프에 포함한다. 공개 요청 snapshot의 내부 `templateIds`는 서버가 확인한 해당 owner의 현재+과거 초안에서 수집한다. 템플릿 내부 `producerDraftIds`는 검증한 생산 초안 ID를 누적하여 CAS 갱신에서 sourceDraftId를 생략해도 삭제 관계를 유지한다. 두 필드는 외부 입력 schema에서 허용하지 않고 save/list DTO에 노출하지 않는다. 이전 sourceIds/dependencyVersions 상한도 갱신에 보존하며 제거하려는 요청은 기존 scope 검사를 통과해야 한다. 새 테이블·삭제 API·동일 텍스트 추론은 추가하지 않는다.
+
+최종 리뷰 F1: 목록은 `(created_at DESC,id DESC)` keyset으로 한 요청에서 raw100까지 검사한다. `partial:true`는 탐색 미완료이며 숨은 수/ID나 전체0을 뜻하지 않는다. `nextCursor`로 이어 조회하고 `null`일 때만 완료다. cursor는 서버 프로세스 AES-GCM 키로 암호화하며 principal/credential/session/workspace/filter/고정25 한도, 현재 effective capability·검토자 설정, SQL 데이터/권한 hash 및 시간 만료를 바인딩한다. 변경·위조·15분 경과·프로세스 재시작은 `STALE_CURSOR`409로 처음부터 재조회한다. cursor·owner lookup 상태는 브라우저 메모리에만 두며 본문/제목/검색어를 URL/storage에 넣지 않는다. SQL hash는 비공개 corpus를 애플리케이션으로 반환하지 않지만 공간 데이터 크기에 비례한 DB 비용과 보수적인 무관 변경 invalidation이 있다. 운영 규모 성능 인수는 별도다.
+
+최종 리뷰 F2: template insert/CAS도 동일 트랜잭션·mutation gate의 기존 product-write fence를 먼저 적용한다. 완료 workspace receipt와 물리 purge 대기 blocked receipt는 새 제목/본문을 저장하지 않는다. provenance/current ACL 검사는 별도로 유지한다.
