@@ -67,6 +67,11 @@ try {
       pools.push(f.pool);
       await adoptFixture(f.pool, f.workspaceId);
     }
+    // Explicit synthetic policy permits real online-gated browser recovery.
+    await f.pool.query(
+      "INSERT INTO access_source_policy(workspace_id,source_id,local_copy_allowed,export_allowed) VALUES($1,'source-a',true,false)",
+      [f.workspaceId],
+    );
     for (let i = 0; i < 28; i++)
       await workflows.saveDraft(f.editor, {
         id: `d${String(i).padStart(2, "0")}`,

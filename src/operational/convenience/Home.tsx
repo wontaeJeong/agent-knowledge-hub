@@ -104,18 +104,9 @@ function HomeSession({
   useEffect(() => {
     active.current = true;
     void refresh();
-    const reload = () => {
-      if (document.visibilityState !== "hidden") void refresh();
-    };
-    window.addEventListener("focus", reload);
-    document.addEventListener("visibilitychange", reload);
-    const timer = setInterval(reload, 30000);
     return () => {
       active.current = false;
       seq.current++;
-      clearInterval(timer);
-      window.removeEventListener("focus", reload);
-      document.removeEventListener("visibilitychange", reload);
     };
   }, [refresh]);
   const focus = useCurrentListFocus<HTMLDivElement>({
@@ -175,40 +166,71 @@ function HomeWidget({
 }) {
   const [page, setPage] = useState(initial),
     [busy, setBusy] = useState(false),
+    [checking, setChecking] = useState(false),
     [error, setError] = useState("");
   const live = useRef(true),
-    seq = useRef(0);
-  useEffect(() => {
-    live.current = true;
-    return () => {
-      live.current = false;
-      seq.current++;
-    };
-  }, []);
+    seq = useRef(0),
+    requested = useRef<string | null>(null),
+    backgroundRequest = useRef<number | null>(null),
+    handler = useRef(onError);
+  handler.current = onError;
   const focus = useCurrentListFocus<HTMLElement>({
     rowSelector: "[data-home-item]",
     fallbackSelector: "[data-home-fallback]",
     message: "목록이 변경되어 현재 항목으로 초점을 옮겼습니다.",
   });
-  const read = async (cursor?: string | null) => {
-    const n = ++seq.current;
-    setBusy(true);
-    setError("");
-    setPage({ status: "error", items: [], nextCursor: null });
-    try {
-      const result = await api.get<Page>(
-        `/convenience/home?${new URLSearchParams({ widget, ...(cursor ? { cursor } : {}) })}`,
-      );
-      if (live.current && n === seq.current) setPage(result);
-    } catch (e) {
-      if (live.current && n === seq.current) {
-        setError(personalFailure(e));
-        if (e instanceof ApiError && e.status === 401) onError?.(e);
+  const read = useCallback(
+    async (cursor: string | null = requested.current, background = false) => {
+      // Repeated focus/visibility/timer events must not supersede a slow check
+      // forever: its timeout/error must be allowed to clear the current rows.
+      if (background && backgroundRequest.current === seq.current) return;
+      requested.current = cursor;
+      const n = ++seq.current;
+      backgroundRequest.current = background ? n : null;
+      setChecking(background);
+      setError("");
+      if (!background) {
+        setBusy(true);
+        setPage({ status: "error", items: [], nextCursor: null });
       }
-    } finally {
-      if (live.current && n === seq.current) setBusy(false);
-    }
-  };
+      try {
+        const result = await api.get<Page>(
+          `/convenience/home?${new URLSearchParams({ widget, ...(cursor ? { cursor } : {}) })}`,
+        );
+        if (live.current && n === seq.current) setPage(result);
+      } catch (e) {
+        if (live.current && n === seq.current) {
+          setPage({ status: "error", items: [], nextCursor: null });
+          setError(personalFailure(e));
+          if (e instanceof ApiError && e.status === 401) handler.current?.(e);
+        }
+      } finally {
+        if (live.current && n === seq.current) {
+          backgroundRequest.current = null;
+          setBusy(false);
+          setChecking(false);
+        }
+      }
+    },
+    [api, widget],
+  );
+  useEffect(() => {
+    live.current = true;
+    const reload = () => {
+      if (document.visibilityState !== "hidden")
+        void read(requested.current, true);
+    };
+    window.addEventListener("focus", reload);
+    document.addEventListener("visibilitychange", reload);
+    const timer = setInterval(reload, 30000);
+    return () => {
+      live.current = false;
+      seq.current++;
+      clearInterval(timer);
+      window.removeEventListener("focus", reload);
+      document.removeEventListener("visibilitychange", reload);
+    };
+  }, [read]);
   const permitted = widget !== "drafts" || capabilities.includes("draft.write");
   return (
     <section
@@ -216,12 +238,15 @@ function HomeWidget({
       onFocusCapture={focus.onFocusCapture}
       className="op-panel personal-library"
       data-home-widget={widget}
-      aria-busy={busy}
+      aria-busy={busy || checking}
     >
       <h2 tabIndex={-1} data-home-fallback>
         {labels[widget]}
       </h2>
       {focus.notice && <p role="status">{focus.notice}</p>}
+      {checking && (
+        <p role="status">현재 페이지의 권한과 상태를 확인하는 중…</p>
+      )}
       {busy ? (
         <p role="status">불러오는 중…</p>
       ) : page.status === "error" ? (
@@ -267,6 +292,11 @@ function HomeWidget({
         <Button disabled={busy} onClick={() => void read()}>
           {page.status === "error" ? "다시 시도" : "새로 고침"}
         </Button>
+        {requested.current && (
+          <Button disabled={busy} onClick={() => void read(null)}>
+            처음부터
+          </Button>
+        )}
         {page.nextCursor && (
           <Button disabled={busy} onClick={() => void read(page.nextCursor)}>
             다음 25개

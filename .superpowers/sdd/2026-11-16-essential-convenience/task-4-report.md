@@ -1,6 +1,6 @@
 # Task 4 report — personal Home / My Tasks
 
-Status: **DONE_WITH_CONCERNS** — I1 fix round1 local implementation/verification is complete; controller re-review, exact-head CI and PR72 integration remain pending. Initial-package counts/hashes below are historical; the I1 closure section supplies current447 checks/52 captures and new hashes.
+Status: **DONE_WITH_CONCERNS** — F1/F2 are locally repaired and verified in the SAME combined final wave; controller scoped re-review, exact-head CI and PR72 integration remain pending. Current final-wave evidence is471 frontend tests/76 fresh PNG; prior sections are historical.
 
 ## Ownership and commits
 
@@ -170,3 +170,88 @@ The implementation mistake was changing the empty legacy default without jointly
 I1 is locally repaired with current evidence. Controller scoped re-review, whole-branch final review, new exact-head CI and PR72 push/merge remain pending; the implementer did not push, create reviewers or merge.
 
 Packaging note: checked git add stopped on ignored `.superpowers` ancestry despite staging the tracked report. The owned report/new I1 logs were explicitly force-added, leaving baseline/brief files untouched; checked diff/manifest gates then precede commit. This was packaging/tool handling, not a product or test failure.
+
+
+## C4 ONE combined final wave — F1/F2 (continuation, not a second wave)
+
+FIX_BASE `f74f408c0b056725fc55b26548b0853a48a921d5`. The assigned native worktree/branch were reused. Existing three modified production files and two untracked regression files were preserved when the first worker was interrupted by a usage limit. No reset/stash/discard, helper agent, push, PR or merge was performed. The whole supplied final review is retained as `c4-finalwave-review.log`; its two Important findings are reproduced below.
+
+### Supplied findings (verbatim)
+
+1. **C4-F1 — Automatic Home refresh discards the user's continuation page even when nothing changed.**
+
+   **Files:** `src/operational/convenience/Home.tsx:90`, `:110`, `:141`, `:178`.
+
+   `refresh()` clears `summary` at line92 and always requests the first-page summary. The focus/visibility handlers and 30-second timer call it. While summary is null, all `HomeWidget` instances unmount; their current page state is lost, and the new instances initialize from the first-page results. This applies to both Home and My Tasks.
+
+   A user who has opened page2 to continue an older task loses that location merely by switching tabs/windows and returning, or by spending 30 seconds reviewing the queue. The dataset need not change. Repeated resets make large backlogs difficult to inspect and also replace the focused list controls. This is a functional continuation/keyboard workflow problem, not cosmetic refresh flicker. A reasonable user expects a background authorization refresh to preserve the page being viewed if it remains valid.
+
+   **Focused reproduction:** `/private/tmp/akh-c4-final-probe/home-refresh.test.tsx`, test `unchanged queue retains selected second page after returning focus`. The test clicked the real Next button, verified `second-page-draft`, dispatched window focus, and then observed `first-page-draft`. API calls were:
+
+   ```text
+   /convenience/home
+   /convenience/home?widget=drafts&cursor=page2
+   /convenience/home
+   ```
+
+   The unchanged-page retention assertion failed. Full output: `/private/tmp/akh-c4-final-probe/output-native.log`.
+
+   **Fix:** retain each widget's requested cursor and identity-bound state through automatic refresh, revalidate the current page, and update it without wholesale widget remounting. Keep current fail-closed behavior: stale/revoked/error results must clear invalid data and provide an explicit restart/retry. Do not fix this by disabling current-permission revalidation or indefinitely retaining stale rows. Add regressions for page2 across focus, visibility and the timer, including a refresh racing with Next and a stale/revoked cursor.
+
+2. **C4-F2 — Exact page-bound draft resume bypasses the existing permitted local-recovery flow.**
+
+   **Files:** `src/operational/workflows.tsx:702`–705 (changed initialization), `:440` (recovery guard), `:532` and `:641` (cache cleanup); integration entry at `src/operational/convenience/DocumentComposer.tsx:152`.
+
+   The new initial-draft branch sets `draft` and server `content` immediately. The existing local-recovery effect explicitly returns whenever `draft` exists. Therefore an exact `section=compose&draft=<page-bound ID>` resume never checks/offers an otherwise valid newer local recovery for that same draft. It proceeds with the older server text and shows the ordinary saved status. Later successful autosave/flush or editor cleanup can remove the unoffered local cache.
+
+   This affects a concrete restart scenario covered by the preservation contract: the browser has a still-valid, policy-permitted cache containing unsent text; the user returns through the Home draft card or reloads that exact URL. The ordinary document-entry path offers recovery, while the new direct resume path silently bypasses it. The persisted server draft remains intact, but the user's recoverable unsent edits can be lost; this is an Important integration defect.
+
+   **Focused comparison:** the same temporary probe seeded a real `RecoveryCache` with a page-bound draft at r1, server body `server body`, and local `UNSENT LOCAL BODY`, using a current five-minute grant. Its transport supplied successful current identity and canonical validation responses. The ordinary-page case passed the recovery-dialog assertion. The exact-draft case failed and reported:
+
+   ```json
+   {"mode":"exact-draft","recoveryOffered":false,"calls":["/workflows/recovery/permission"],"editor":["server body"],"cachePresent":true}
+   ```
+
+   Thus the exact path never calls `/me` or `/workflows/recovery/validate` for recovery; it only asks permission for future caching. Output: `/private/tmp/akh-c4-final-probe/recovery-output.log`. Existing new exact-resume coverage deliberately denies recovery and has no seeded restart cache, so it cannot detect this (`src/operational/convenience/home.test.tsx:117`, `:157`).
+
+   **Fix:** integrate exact page-bound resume with the existing online identity/full-lineage/local-copy/CAS recovery handshake before initializing/clearing the ordinary saved editor state. Match the cached draft ID to the requested exact ID (page-bound caches are keyed by page, so never silently select another draft for that page). Offer explicit restore/discard and preserve the conflict path; do not assign cached content before authorization. Cover matching valid cache, different draft on the same page, changed server revision/conflict, revoked/expired grant and failed validation, along with ordinary and page-less resume regressions.
+
+
+### Root causes and final repair
+
+- **F1:** summary-level refresh unmounted all widgets and restarted at page1. Each identity/API/capability-bound widget now retains its requested cursor and current DOM through focus, visibility and the actual30s interval. A current-page response replaces only that widget. 403/409/503/error DTO clears invalid rows; Retry revalidates the same page, while explicit “처음부터” restarts. Sequence checks protect both Next/refresh orderings and old-identity completions. Repeated background events coalesce while the current background request is pending, so they cannot starve its API timeout/error indefinitely. Next still supersedes an older background request. This uses existing canonical per-widget endpoints, not a client permission cache.
+- **F2:** exact page-bound resume used to assign the saved server draft before the ordinary recovery effect could run. Exact initialization now awaits the existing RecoveryCache online `/me` and full-lineage/local-copy/CAS validation before offering a matching cached draft. Cached ID must equal the requested ID, not merely the page key. Explicit restore revalidates; explicit discard initializes the exact saved server draft. Conflict retains the old CAS and requires explicit resolution. Matching expired/invalid/revoked/failed validation fails closed; pending or wrong-identity responses never expose cached content.
+- A different unexpired draft on the same page is not restored, overwritten by a cache write, or removed by the exact editor’s saved/flush/dispose cleanup. Optional expectedDraftId scopes RecoveryCache clear/recover; ordinary and page-less call contracts remain compatible. Authority/identity failure still clears protected recovery data.
+- **Actual-browser F2 lifecycle finding within this same wave:** the generic `action()` reloaded parent App after local restoration; App’s dataReady=false unmounted the coordinator before its1s autosave, leaving server r1 and losing the cache. The retained browser failure and focused parent-reload RED prove this. Local-only restore now skips that server-mutation reload; all actual server mutation actions retain it. Online revalidation, coordinator CAS, original base and explicit conflict behavior remain unchanged. The final successful actual capture verifies canonical server r2 persistence and the subsequent concurrent-writer conflict, not merely displayed text.
+
+The changed production paths are only `Home.tsx`, `draft-recovery.ts`, `workflows.tsx`. No server/SQL/route/capability implementation changes occur in this wave. UXC-05 / UX-001/003/004, REV-001/002, SRH-009 and preserved EDT recovery contracts are affected; existing251 criteria and North Star are unchanged. The improvement concerns the human continuation/review loop and recoverable author input. It does not publish knowledge or establish model/agent quality effects.
+
+### Commands and observed evidence
+
+All commands run in the assigned9cab worktree with Node24.22.2 on PATH. Log names below are under the existing scoped logs directory.
+
+| Command / log | Actual result |
+| --- | --- |
+| Previous worker `vitest` new interaction cases → `c4-finalwave-red.log` |14 failing /2 passing across16; failure assertions include page2 lost and absent recovery offer. Missing-button TypeErrors in dependent restore/discard tests are distinguished from the primary behavioral assertions. |
+| Resumed focused Home/exact-recovery/Home legacy/Composer/draft-recovery/WorkflowPanel → `c4-finalwave-resume-focused.log` |6 files52 passed, exit0, before extended cases. Previous first GREEN51 remains historical. |
+| Extended focused → `c4-finalwave-green-focused.log` |6 files58 passed, exit0; includes both race orderings, actual pending identity result, outside focus, error DTO/503 and recovery revalidation revocation. |
+| Actual initial capture → `c4-finalwave-browser-first.log` |exit1: recovery text displayed, canonical server remained r1 because parent reload unmounted autosave. Retained as product failure, not a harness timeout excuse. |
+| Parent-reload regression → `c4-finalwave-red-parent-reload.log` |1 failed /12 passed, exit1; no saved CAS reached the server transport. |
+| Focused after local-only restore repair → `c4-finalwave-green-parent-reload.log` |6 files59 passed, exit0. |
+| Repeated pending automatic refresh regression → `c4-finalwave-red-overlap.log` |1 failed /10 passed, exit1:3 background requests superseded one another instead of permitting the outstanding failure to settle. |
+| `npx vitest run src/operational/convenience/{home-refresh,exact-recovery,home,composer}.test.tsx src/operational/draft-recovery.test.ts src/operational/workflows.test.tsx` → `c4-finalwave-final-focused.log` |6 files60 passed, exit0 on final product bytes. |
+| `npm run check` → `c4-finalwave-final-check.log` |frontend471/Node48/import16/evaluation41/requirements251/server types/build/static smoke, exit0. Pre-browser469 and parent-reload470 full checks are retained historical logs, not the final count. Existing629.09/1499.04kB warnings remain. |
+| Parent-reload capture → `c4-finalwave-parent-reload-browser.log` |exit1 after actual restore persisted r2: conflict fixture posted read DTO `updatedAt` to strict write schema, correctly received400 VALIDATION_FAILED. Harness now selects canonical write fields; no server validation was weakened. |
+
+Final actual browser, manifest and cleanup evidence is recorded below. Synthetic use only; real IdP/retention operating acceptance, representative scale/load, multi-instance cursor continuity, inherited editor accessible-name debt, OS IME/screen-reader certification and EVALUATION quality effects remain unverified. C1/C2 unchanged exact review/job/access/login browser journeys remain carried, with C12 broad journey validation outstanding.
+
+**Backend native carry, explicitly not a fresh native run:** `git diff f74f408 -- server` is empty. Prior4 files50 (Home10/HTTP1/manual9/new-document30) plus6 files130 (governance14/workflows36/collaboration21/personal7/personal HTTP4/jobs48) are carried separately,10 unique files180, never a claimed current180-test execution.
+
+### Final actual evidence and packaging
+
+- Fresh backend `2026-11-17T15:26:08.455Z` / frontend `2026-11-17T15:26:06.919Z`; both start fingerprints equal final production `be63334376c81a8cd2c5e1c88db1ba1a89e8711468ec75a51d3dd6bdada49291`. Current browser `c4-finalwave-final-browser.log` exits0 for1440 light/dark and390 light/dark.19 states each,76 new PNG,22 semantic checks per configuration, pageerror/overflow0.
+- Actual real30s timer, focus/visibility preserve page2 node/focus. Canonical revision change clears the stale page and explicit restart works. Real offline autosave cache, wrong same-page draft preservation, exact online offer, canonical r2 restore persistence and old-CAS concurrent-writer conflict pass alongside I1/legacy flows. Network abort is intentional for draft-save failure; no successful DTO is fabricated.
+- Visual QA inspected current-page-refresh1440-light and recovery-offered1440-light; final mobile dark recovery/conflict captures are also inspected before handoff. Existing long WorkflowPanel/accessibility debt is not concealed or redesigned in this repair.
+- Fresh `cleanup.json` records0 owned DBs/profiles/Chrome, ports4394/5194 free, parentPG alive. Only owned runtime/frontend are stopped.
+- Source manifest binds322 production,3 harness,6 focused regression source paths,78 artifacts and scoped logs. Manifest SHA: 62a5afad06255aba6a105d323207d137f980d356f66292d36dc8a6966ee6ec2c. Source/hash/cleanup verification and `git diff --check` pass before the scoped commit.
+- Same-backend native50+130 remains carried, unchanged. No helper/reviewer/push/PR/merge. Current main was observed clean on0def475/origin0def475; no other worktree or root content was changed.

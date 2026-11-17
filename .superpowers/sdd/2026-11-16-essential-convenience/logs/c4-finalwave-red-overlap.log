@@ -1,0 +1,32 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ src/operational/convenience/home-refresh.test.tsx (11 tests | 1 failed) 117ms
+   × repeated automatic checks do not starve an in-flight revalidation failure 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/home-refresh.test.tsx > repeated automatic checks do not starve an in-flight revalidation failure
+AssertionError: expected 3 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 3
+
+ ❯ src/operational/convenience/home-refresh.test.tsx:230:20
+    228|   await trigger("timer");
+    229|   await trigger("visibility");
+    230|   expect(requests).toBe(1);
+       |                    ^
+    231|   await act(async () => fail(new ApiError("validation timed out", 503)…
+    232|   expect(widget(el).textContent).not.toContain("first");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+   Start at  00:24:56
+   Duration  913ms (environment 73%, tests 14%, import 9%, transform 4%)

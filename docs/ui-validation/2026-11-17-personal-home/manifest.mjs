@@ -42,12 +42,13 @@ if (
     for (const [p, h] of Object.entries({
       ...m.production,
       ...m.harness,
+      ...m.regressions,
       ...m.artifacts,
       ...m.logs,
     }))
       if ((await hash(p)) !== h) throw Error("Evidence hash mismatch: " + p);
     console.log(
-      `Verified ${Object.keys(m.production).length} production, ${Object.keys(m.harness).length} harness, ${Object.keys(m.artifacts).length} artifacts, ${Object.keys(m.logs).length} logs`,
+      `Verified ${Object.keys(m.production).length} production, ${Object.keys(m.harness).length} harness, ${Object.keys(m.regressions).length} regression sources, ${Object.keys(m.artifacts).length} artifacts, ${Object.keys(m.logs).length} logs`,
     );
   } else {
     const source = await sourceHashes(),
@@ -64,10 +65,26 @@ if (
         ]),
       ),
     );
+    const regressions = Object.fromEntries(
+      await Promise.all(
+        [
+          "src/operational/convenience/home-refresh.test.tsx",
+          "src/operational/convenience/exact-recovery.test.tsx",
+          "src/operational/convenience/home.test.tsx",
+          "src/operational/convenience/composer.test.tsx",
+          "src/operational/draft-recovery.test.ts",
+          "src/operational/workflows.test.tsx",
+        ].map(async (p) => [p, await hash(p)]),
+      ),
+    );
     const artifacts = Object.fromEntries(
       await Promise.all(
         (await readdir(dir))
-          .filter((p) => p.endsWith(".png") || ["browser-results.json", "cleanup.json"].includes(p))
+          .filter(
+            (p) =>
+              p.endsWith(".png") ||
+              ["browser-results.json", "cleanup.json"].includes(p),
+          )
           .sort()
           .map(async (p) => [dir + "/" + p, await hash(dir + "/" + p)]),
       ),
@@ -91,6 +108,7 @@ if (
           frontendStartedAt: browser.frontendStartedAt,
           ...source,
           harness,
+          regressions,
           artifacts,
           logs,
         },

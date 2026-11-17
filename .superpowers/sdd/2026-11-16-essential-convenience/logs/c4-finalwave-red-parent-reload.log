@@ -1,0 +1,36 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ src/operational/convenience/exact-recovery.test.tsx (13 tests | 1 failed) 159ms
+   × local recovery persists its CAS before any parent reload can unmount the editor 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/exact-recovery.test.tsx > local recovery persists its CAS before any parent reload can unmount the editor
+AssertionError: expected undefined to match object { id: 'resume', …(2) }
+
+- Expected:
+{
+  "content": "UNSENT LOCAL BODY",
+  "expectedRevision": 1,
+  "id": "resume",
+}
+
++ Received:
+undefined
+
+ ❯ src/operational/convenience/exact-recovery.test.tsx:317:22
+    315|   await click(t.el, "권한 재확인 후 입력 복구");
+    316|   await act(async () => vi.advanceTimersByTimeAsync(1000));
+    317|   expect(t.saves[0]).toMatchObject({id: "resume", expectedRevision: 1,…
+       |                      ^
+    318|   expect([...t.el.querySelectorAll("textarea")].some(x => x.value === …
+    319| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 passed (13)
+   Start at  00:22:44
+   Duration  834ms (environment 62%, tests 21%, import 12%, transform 5%)

@@ -1,5 +1,15 @@
 # 실수와 교훈 기록
 
+### 2026-11-18 — C4 최종 리뷰의 현재 페이지 초기화·정확한 초안 복구 누락
+
+- 맥락: PR72 whole-branch final review F1/F2, FIX_BASE f74f408. Home 자동 focus/visibility/30초 refresh가 summary=null로 위젯을 unmount해 page2/초점을 잃었다. exact page-bound draft를 먼저 설정해 기존 recovery effect를 건너뛰고 미전송 cache를 offer하지 않았다. 기존 단위 검사는 반복 탐색/재시작 cache와의 조합을 누락했다.
+- 조치: 위젯별 현재 cursor/identity/sequence와 DOM을 보존하며 현재 canonical page를 재검증한다. 실패는 행을 제거하고 retry/restart를 제공한다. 정확한 cached ID만 기존 online identity/full-lineage/local-copy/CAS 복구로 넘기며 다른 같은-page cache는 saved/flush/unmount/write가 훼손하지 않게 ID를 확인한다.
+- 실제 browser 후속 발견: recovery offer/restore는 보였으나 공통 action의 parent onChanged/load가 dataReady=false로 editor를 해제하여1초 autosave 전에 server r1/cache loss가 발생했다. c4-finalwave-browser-first.log를 제품 실패로 보존했고 부모 reload 회귀1fail/12pass RED 후 local-only restore의 mutation reload를 생략해 수정했다. 최종 browser는 실제 canonical r2 저장과 다음 conflict까지 확인한다.
+- 추가 F1 검증: 반복 background 이벤트가 진행 중 요청을 계속 supersede하면 기존120초 timeout/error도 화면에 반영되지 않을 수 있었다.1fail/10pass RED 뒤 진행 중 background만 합치고 Next는 우선하게 수정했다. 최초 F1/F2 RED14fail/2pass, 최종 focused60과 fullcheck471/48/16/41/251/types/build/smoke 및4조건76PNG exit0. 이전469/470 check는 중간 근거다.
+- Harness 실패: concurrent writer fixture가 draft read DTO의 updatedAt까지 strict save에 보내 실제400 VALIDATION_FAILED를 받았다. canonical 쓰기 필드만 선택했고 서버 스키마/인가를 약화하지 않았다. source read에서 존재하지 않는 recovery/schemas 파일명은 실제 retention/recovery와 service의 계약으로 정정했다. read-only ps/일부tmp 경로 접근은 sandbox가 거부하여 소유 process 진단만 승인된 escalation으로 수행했다.
+- 상태: 같은 최종 wave 내 수정/로컬 검증 완료, 새 source-bound 증거·실패 로그·hash/cleanup을 기록했다. backend 변경이 없어 native50+130은 carry다. 독립 재검토/원격 CI/병합과 기존 운영·접근성·scale·품질 후속은 별도이며 검증 완료로 승격하지 않는다.
+
+
 ### 2026-11-17 — C6 최종 리뷰의 목록 단절·템플릿 fence와 실제 keyboard blur
 
 - F1 실제 probe는 승인/숨은25행 뒤의 유효한 이전 요청이 목록에서 영구 누락됨을 확인했다. F2는 completed workspace receipt 뒤 bare template 본문이 저장·목록에 재노출됨을 확인했다. 기존 exact-resume/erasure 회귀는 누적 목록과 template 쓰기 경계를 포함하지 않았다.

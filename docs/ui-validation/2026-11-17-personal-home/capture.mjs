@@ -75,6 +75,7 @@ try {
         errors: [],
         hold: null,
         held: false,
+        offlineDraftSaves: false,
       };
       await context.route("**/api/**", async (route) => {
         const req = route.request(),
@@ -83,6 +84,14 @@ try {
           path: u.pathname + u.search,
           method: req.method(),
         });
+        if (
+          state.offlineDraftSaves &&
+          u.pathname === "/api/v1/workflows/drafts" &&
+          req.method() === "POST"
+        ) {
+          await route.abort("internetdisconnected");
+          return;
+        }
         try {
           const response = await route.fetch({
             url: `http://127.0.0.1:4394${u.pathname}${u.search}`,
@@ -123,6 +132,25 @@ try {
           (t) => (document.documentElement.dataset.theme = t),
           theme,
         );
+      };
+      const canonical = async (path, body) => {
+        const response = await fetch(`http://127.0.0.1:4394/api/v1${path}`, {
+          method: body === undefined ? "GET" : "POST",
+          headers: {
+            cookie: "synthetic-editor",
+            origin: "http://127.0.0.1:5194",
+            "X-Space-Id": f.spaceId,
+            "X-CSRF-Token": "test-only-csrf",
+            "Content-Type": "application/json",
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        });
+        const data = await response.json();
+        assert.ok(
+          response.ok,
+          `${path}: ${response.status} ${JSON.stringify(data)}`,
+        );
+        return data;
       };
       const shot = async (name) => {
         await page.evaluate(
@@ -303,6 +331,63 @@ try {
         await older.evaluate((el) => el === document.activeElement),
         true,
       );
+      // Revalidate the current continuation, preserving its exact focused node.
+      const currentNode = await older.elementHandle();
+      const cursorRequests = () =>
+        state.requests.filter((x) =>
+          x.path.includes("convenience/home?widget=drafts&cursor="),
+        );
+      for (const event of ["focus", "visibility", "timer"]) {
+        const before = cursorRequests().length;
+        const response = page.waitForResponse(
+          (r) => r.url().includes("convenience/home?widget=drafts&cursor="),
+          { timeout: 35000 },
+        );
+        if (event === "focus")
+          await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        if (event === "visibility")
+          await page.evaluate(() =>
+            document.dispatchEvent(new Event("visibilitychange")),
+          );
+        // The timer case waits for the application's actual 30-second interval.
+        assert.equal((await response).status(), 200);
+        await until(
+          async () =>
+            (await draftsWidget.getAttribute("aria-busy")) === "false",
+        );
+        assert.ok(cursorRequests().length > before);
+        assert.equal(
+          await currentNode.evaluate(
+            (el) => el.isConnected && el === document.activeElement,
+          ),
+          true,
+        );
+        assert.ok((await older.getAttribute("href")).endsWith("&draft=d27"));
+      }
+      await shot("current-page-refresh");
+      // Change the real revision dependency; an old cursor must clear rows.
+      await db.query(
+        "UPDATE workflow_drafts SET updated_at=clock_timestamp() WHERE workspace_id=$1 AND owner_id='editor' AND id='d00'",
+        [f.spaceId],
+      );
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await draftsWidget.getByRole("alert").waitFor();
+      assert.equal(await draftsWidget.locator("li").count(), 0);
+      assert.equal(
+        await page.evaluate(() =>
+          document.activeElement?.hasAttribute("data-home-fallback"),
+        ),
+        true,
+      );
+      await shot("current-page-stale");
+      await draftsWidget
+        .getByRole("button", { name: "처음부터", exact: true })
+        .click();
+      await draftsWidget
+        .getByRole("button", { name: "다음 25개", exact: true })
+        .click();
+      await older.waitFor();
+      await older.focus();
       await page.keyboard.press("Enter");
       await page.waitForURL(/section=compose&draft=d27/, {
         waitUntil: "domcontentloaded",
@@ -314,6 +399,123 @@ try {
       );
       assert.ok(page.url().includes("section=compose&draft=d27"));
       await shot("page-draft-resume");
+      // Produce a real permitted cache through failed autosave, then reload the exact URL.
+      await page
+        .getByText("로컬 복사가 허용된 입력만", { exact: false })
+        .waitFor();
+      const unsent = `C4_UNSENT_${width}_${theme}`;
+      state.offlineDraftSaves = true;
+      await page.getByLabel("Markdown 본문", { exact: false }).fill(unsent);
+      await page.getByRole("status").filter({ hasText: "연결 중단" }).waitFor();
+      assert.ok(
+        (
+          await page.evaluate(() => Object.values(localStorage).join(""))
+        ).includes(unsent),
+      );
+      await go(f.spaceId, "&section=compose&draft=d26");
+      await page.getByLabel("Markdown 본문", { exact: false }).waitFor();
+      assert.equal(
+        await page.getByLabel("Markdown 본문", { exact: false }).inputValue(),
+        "개인 작업 본문 26",
+      );
+      assert.equal(
+        await page
+          .getByRole("dialog", { name: "개인 초안 입력 복구", exact: true })
+          .count(),
+        0,
+      );
+      assert.ok(
+        (
+          await page.evaluate(() => Object.values(localStorage).join(""))
+        ).includes(unsent),
+      );
+      await shot("recovery-other-id");
+      await go(f.spaceId, "&section=compose&draft=d27");
+      const recovery = page.getByRole("dialog", {
+        name: "개인 초안 입력 복구",
+        exact: true,
+      });
+      await recovery.waitFor();
+      assert.equal(
+        await page
+          .locator("textarea")
+          .evaluateAll(
+            (els, value) => els.some((el) => el.value === value),
+            unsent,
+          ),
+        false,
+      );
+      await shot("recovery-offered");
+      state.offlineDraftSaves = false;
+      await recovery
+        .getByRole("button", { name: "권한 재확인 후 입력 복구", exact: true })
+        .click();
+      await until(
+        async () =>
+          (await page
+            .getByLabel("Markdown 본문", { exact: false })
+            .inputValue()) === unsent,
+      );
+      await until(
+        async () =>
+          (await canonical("/workflows/drafts")).items.find(
+            (d) => d.id === "d27",
+          )?.content === unsent,
+      );
+      await shot("recovery-restored");
+      await go(f.spaceId, "&section=compose&draft=d27");
+      await page
+        .getByText("로컬 복사가 허용된 입력만", { exact: false })
+        .waitFor();
+      // A second offline recovery keeps its old CAS when another writer wins.
+      state.offlineDraftSaves = true;
+      const conflictText = unsent + "_CONFLICT";
+      await page
+        .getByLabel("Markdown 본문", { exact: false })
+        .fill(conflictText);
+      await page.getByRole("status").filter({ hasText: "연결 중단" }).waitFor();
+      const latest = (await canonical("/workflows/drafts")).items.find(
+        (d) => d.id === "d27",
+      );
+
+      await canonical("/workflows/drafts", {
+        id: latest.id,
+        title: latest.title,
+        pageId: latest.pageId,
+        baseVersion: latest.baseVersion,
+        sourceIds: latest.sourceIds,
+        dependencyVersions: latest.dependencyVersions,
+        expectedRevision: latest.revision,
+        content: "C4_SERVER_WINNER",
+        mutationId: crypto.randomUUID(),
+      });
+      await go(f.spaceId, "&section=compose&draft=d27");
+      await recovery.waitFor();
+      state.offlineDraftSaves = false;
+      await recovery
+        .getByRole("button", { name: "권한 재확인 후 입력 복구", exact: true })
+        .click();
+      await page
+        .getByRole("dialog", { name: "개인 초안 저장 충돌", exact: true })
+        .waitFor();
+      assert.equal(
+        await page.getByLabel("Markdown 본문", { exact: false }).inputValue(),
+        conflictText,
+      );
+      assert.equal(
+        (await canonical("/workflows/drafts")).items.find((d) => d.id === "d27")
+          ?.content,
+        "C4_SERVER_WINNER",
+      );
+      await shot("recovery-conflict");
+      // Dispose this owned conflict before continuing unrelated navigation captures.
+      await page
+        .getByRole("button", {
+          name: "서버 입력을 명시적으로 선택",
+          exact: true,
+        })
+        .click();
+
       assert.ok(
         (await counts(f.spaceId)) > 0,
         "actual editor document open records visit",
@@ -403,6 +605,11 @@ try {
           "partial-error-real-server",
           "individual-retry",
           "my-tasks",
+          "current-page-focus-visibility-real30s-timer-node-retained",
+          "canonical-stale-cursor-clears-and-explicit-restart",
+          "real-offline-cache-exact-resume-online-offer-and-restore",
+          "other-draft-same-page-cache-preserved",
+          "canonical-concurrent-writer-recovery-CAS-conflict",
           "keyboard-exact-older-page-draft",
           "exact-new-draft",
           "other-owner-denied",

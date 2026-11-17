@@ -1,5 +1,15 @@
 # 에이전트 인계
 
+## 2026-11-18 #49 C4 최종 F1/F2 — 현재 페이지·정확한 로컬 복구 보존
+
+- 동일한 ONE combined final wave의 중단을 이어서 완료했다. FIX_BASE `f74f408c0b056725fc55b26548b0853a48a921d5`; UXC-05 / UX-001/003/004, REV-001/002, SRH-009 및 기존 EDT 복구 계약. North Star/251기준/server/SQL/migration은 변경하지 않았다.
+- `Home.tsx`는 identity-bound 위젯 current cursor를 focus/visibility/30초마다 다시 검증한다. DOM/초점과 현재 페이지를 유지하고 stale/revoked/error는 행을 비운다. Retry/처음부터를 구분하며 양방향 Next 경합·old actor·반복 background pending starvation을 막는다.
+- `workflows.tsx`, `draft-recovery.ts`는 정확한 page-bound ID의 기존 online identity/full-lineage/local-copy/CAS 복구를 editor 초기화 전에 수행한다. 같은 page의 다른 유효 cache를 offer/write/cleanup으로 훼손하지 않는다. 실제 browser에서 발견한 parent reload→autosave unmount는 local-only restore만 재조회하지 않도록 수정했다. 승인 전 cached body0, restore/discard/conflict/철회/만료·실패 failclosed 유지.
+- 최종 focused6파일60, fullcheck471 frontend/48Node/16import/41eval/251/types/build/smoke exit0. 실제4조건76PNG에서 real30s/page2 focus, canonical stale restart, 실제 offline cache·wrong ID·정확한 복구 후 server r2·concurrent writer conflict를 검증했다. native는 backend unchanged이므로 기존50+130을 별도 carry하며 현재180 실행으로 주장하지 않는다.
+- 최종 fingerprint `be63334376c81a8cd2c5e1c88db1ba1a89e8711468ec75a51d3dd6bdada49291`, manifest SHA `62a5afad06255aba6a105d323207d137f980d356f66292d36dc8a6966ee6ec2c`; [현재 실제 증거](ui-validation/2026-11-17-personal-home/README.md). 새 소유 runtime/DB/profile cleanup과 parentPG 생존을 확인했다. 초기 RED와 browser/autosave·strict400 harness 실패는 MISTAKE_LOG/report/log에 보존했다.
+- 기존 SQL digest 비용/personal10k cap/process-local cursor·큰 chunk·editor accessible-name·실제 IdP/운영/OS접근성/모델효과 제약은 그대로다. 정확한 변경은3제품 파일+2회귀 및 증거/문서. 독립 scoped re-review·새 exact-head8CI·PR72 push/merge는 controller 소유이며 여기서 수행하지 않았다.
+
+
 ## 2026-11-17 #49 C4 I1 — default Home route 보존·bare preview 복구
 
 - FIX_BASE `d8dfa94feee7baa904223b724c59f3d2726897ce`, task review0 Critical/1 Important의 I1만 수정했다. implicit Home을 `#home`으로 직렬화해 공간 전환에서 운영 개요로 바꾸던 원인과 preview의 unrendered Home 기본값을 RED로 재현했다.

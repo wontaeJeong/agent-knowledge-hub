@@ -1,8 +1,8 @@
 {
-  "capturedAt": "2026-11-17T12:35:13.112Z",
-  "runtimeStartedAt": "2026-11-17T12:33:37.539Z",
-  "frontendStartedAt": "2026-11-17T12:33:37.737Z",
-  "productionFingerprint": "ec5dfbbab8d29cc2e4bdb90e12960f1da6442451c264440cd116279ff071eb76",
+  "capturedAt": "2026-11-17T15:31:04.321Z",
+  "runtimeStartedAt": "2026-11-17T15:26:08.455Z",
+  "frontendStartedAt": "2026-11-17T15:26:06.919Z",
+  "productionFingerprint": "be63334376c81a8cd2c5e1c88db1ba1a89e8711468ec75a51d3dd6bdada49291",
   "origin": "http://127.0.0.1:5194",
   "backend": "http://127.0.0.1:4394",
   "authentication": "Explicit synthetic loopback actor adapter; production canonical APIs/current ACL; no fabricated DTO",
@@ -10,7 +10,7 @@
     {
       "width": 1440,
       "theme": "light",
-      "space": "f5d0a27a-ea6a-451b-9afc-f5bbc8bac12b",
+      "space": "a937c254-37fe-428b-bbc6-c6a0fed95b40",
       "checks": [
         "bare-preview-supported-overview-no-native-api",
         "actual-default-home-space-change",
@@ -22,6 +22,11 @@
         "partial-error-real-server",
         "individual-retry",
         "my-tasks",
+        "current-page-focus-visibility-real30s-timer-node-retained",
+        "canonical-stale-cursor-clears-and-explicit-restart",
+        "real-offline-cache-exact-resume-online-offer-and-restore",
+        "other-draft-same-page-cache-preserved",
+        "canonical-concurrent-writer-recovery-CAS-conflict",
         "keyboard-exact-older-page-draft",
         "exact-new-draft",
         "other-owner-denied",
@@ -30,13 +35,13 @@
         "nested-list-keyboard25-next-no-trap",
         "account-switch"
       ],
-      "requestCount": 139,
+      "requestCount": 351,
       "errors": []
     },
     {
       "width": 1440,
       "theme": "dark",
-      "space": "aed2461d-00e3-4413-bdf0-e4f0c5451e6a",
+      "space": "5d72a027-2a7d-433e-9daf-592b575095df",
       "checks": [
         "bare-preview-supported-overview-no-native-api",
         "actual-default-home-space-change",
@@ -48,6 +53,11 @@
         "partial-error-real-server",
         "individual-retry",
         "my-tasks",
+        "current-page-focus-visibility-real30s-timer-node-retained",
+        "canonical-stale-cursor-clears-and-explicit-restart",
+        "real-offline-cache-exact-resume-online-offer-and-restore",
+        "other-draft-same-page-cache-preserved",
+        "canonical-concurrent-writer-recovery-CAS-conflict",
         "keyboard-exact-older-page-draft",
         "exact-new-draft",
         "other-owner-denied",
@@ -56,13 +66,13 @@
         "nested-list-keyboard25-next-no-trap",
         "account-switch"
       ],
-      "requestCount": 139,
+      "requestCount": 351,
       "errors": []
     },
     {
       "width": 390,
       "theme": "light",
-      "space": "46bc9e7a-439e-49ae-9e05-b3943a8f93e9",
+      "space": "df1d1913-9c7b-49b7-b3f3-377e4e75dfe6",
       "checks": [
         "bare-preview-supported-overview-no-native-api",
         "actual-default-home-space-change",
@@ -74,6 +84,11 @@
         "partial-error-real-server",
         "individual-retry",
         "my-tasks",
+        "current-page-focus-visibility-real30s-timer-node-retained",
+        "canonical-stale-cursor-clears-and-explicit-restart",
+        "real-offline-cache-exact-resume-online-offer-and-restore",
+        "other-draft-same-page-cache-preserved",
+        "canonical-concurrent-writer-recovery-CAS-conflict",
         "keyboard-exact-older-page-draft",
         "exact-new-draft",
         "other-owner-denied",
@@ -82,13 +97,13 @@
         "nested-list-keyboard25-next-no-trap",
         "account-switch"
       ],
-      "requestCount": 139,
+      "requestCount": 350,
       "errors": []
     },
     {
       "width": 390,
       "theme": "dark",
-      "space": "1a3e3ed4-a092-4735-b6b3-df6a55b385b2",
+      "space": "6ed3b474-97ee-464a-839d-3171720bedf4",
       "checks": [
         "bare-preview-supported-overview-no-native-api",
         "actual-default-home-space-change",
@@ -100,6 +115,11 @@
         "partial-error-real-server",
         "individual-retry",
         "my-tasks",
+        "current-page-focus-visibility-real30s-timer-node-retained",
+        "canonical-stale-cursor-clears-and-explicit-restart",
+        "real-offline-cache-exact-resume-online-offer-and-restore",
+        "other-draft-same-page-cache-preserved",
+        "canonical-concurrent-writer-recovery-CAS-conflict",
         "keyboard-exact-older-page-draft",
         "exact-new-draft",
         "other-owner-denied",
@@ -108,7 +128,7 @@
         "nested-list-keyboard25-next-no-trap",
         "account-switch"
       ],
-      "requestCount": 139,
+      "requestCount": 351,
       "errors": []
     }
   ]

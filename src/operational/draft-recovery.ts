@@ -76,7 +76,8 @@ export interface RecoveredDraft {
 }
 const prefix = "akh:permitted-draft-recovery:v1:";
 const bytes = (value: string) => new TextEncoder().encode(value).length;
-export const recoveryTarget = (binding: RecoveryBinding) => binding.kind === "draft" ? "draft:" + binding.draftId : binding.pageId!;
+export const recoveryTarget = (binding: RecoveryBinding) =>
+  binding.kind === "draft" ? "draft:" + binding.draftId : binding.pageId!;
 const key = (principal: string, space: string, page: string) =>
   prefix + [principal, space, page].map(encodeURIComponent).join(":");
 const validId = (v: unknown): v is string =>
@@ -88,9 +89,11 @@ function cleanDraft(d: Draft): Draft {
     title: d.title,
     content: d.content,
     pageId: d.pageId,
-    ...(d.parentId !== undefined ? {parentId:d.parentId} : {}),
+    ...(d.parentId !== undefined ? { parentId: d.parentId } : {}),
     baseVersion: d.baseVersion,
-    ...(d.templateId ? {templateId:d.templateId,templateRevision:d.templateRevision} : {}),
+    ...(d.templateId
+      ? { templateId: d.templateId, templateRevision: d.templateRevision }
+      : {}),
     ...(d.sourceIds ? { sourceIds: [...d.sourceIds] } : {}),
     ...(d.dependencyVersions
       ? { dependencyVersions: { ...d.dependencyVersions } }
@@ -100,8 +103,8 @@ function cleanDraft(d: Draft): Draft {
 function cleanBinding(b: RecoveryBinding): RecoveryBinding {
   return {
     id: b.id,
-    ...(b.kind ? {kind:b.kind} : {}),
-    ...(b.draftId ? {draftId:b.draftId} : {}),
+    ...(b.kind ? { kind: b.kind } : {}),
+    ...(b.draftId ? { draftId: b.draftId } : {}),
     pageId: b.pageId,
     baseVersion: b.baseVersion,
     expectedRevision: b.expectedRevision,
@@ -126,7 +129,7 @@ function sameInputs(b: RecoveryBinding, d: Draft) {
     );
   return (
     b.id === d.id &&
-    (b.kind !== "draft" || b.draftId === d.id && !d.pageId) &&
+    (b.kind !== "draft" || (b.draftId === d.id && !d.pageId)) &&
     b.pageId === d.pageId &&
     b.baseVersion === d.baseVersion &&
     sorted([...b.sourceIds].sort()) ===
@@ -154,8 +157,22 @@ export class RecoveryCache {
     >,
     readonly clock = Date.now,
   ) {}
-  clear(principal: string, space: string, page: string) {
-    this.storage.removeItem(key(principal, space, page));
+  clear(
+    principal: string,
+    space: string,
+    page: string,
+    expectedDraftId?: string,
+  ) {
+    const k = key(principal, space, page);
+    if (expectedDraftId) {
+      try {
+        const stored = JSON.parse(this.storage.getItem(k) ?? "null");
+        if (stored?.draft?.id && stored.draft.id !== expectedDraftId) return;
+      } catch {
+        /* Invalid entries may be removed. */
+      }
+    }
+    this.storage.removeItem(k);
   }
   clearAll() {
     for (const k of this.keys()) this.storage.removeItem(k);
@@ -178,7 +195,24 @@ export class RecoveryCache {
       !sameInputs(binding, draft)
     )
       return false;
-    const k = key(binding.principalId, binding.workspaceId, recoveryTarget(binding));
+    const k = key(
+      binding.principalId,
+      binding.workspaceId,
+      recoveryTarget(binding),
+    );
+    try {
+      const existing = JSON.parse(this.storage.getItem(k) ?? "null");
+      if (
+        existing?.schema === "private-plaintext-draft-cache-v1" &&
+        existing.draft?.id !== draft.id &&
+        existing.binding?.principalId === binding.principalId &&
+        existing.binding?.workspaceId === binding.workspaceId &&
+        existing.binding?.expiresAt > this.clock()
+      )
+        return false;
+    } catch {
+      /* Replace an invalid cache record. */
+    }
     const safePending = pending
       ? {
           ...cleanDraft({ ...pending, revision: pending.expectedRevision }),
@@ -218,6 +252,7 @@ export class RecoveryCache {
     space: string,
     page: string,
     validate: (binding: RecoveryBinding) => Promise<RecoveryValidation>,
+    expectedDraftId?: string,
   ): Promise<RecoveredDraft | null> {
     const k = key(principal, space, page),
       value = this.storage.getItem(k);
@@ -257,6 +292,7 @@ export class RecoveryCache {
             !Number.isSafeInteger(record.pending.expectedRevision)))
       )
         throw Error("RECOVERY_INVALID");
+      if (expectedDraftId && d.id !== expectedDraftId) return null;
       const validation = await validate(cleanBinding(b)); // No offline fallback, including network failure.
       if (!["ready", "conflict"].includes(validation.status))
         throw Error("RECOVERY_INVALID");
@@ -311,13 +347,13 @@ export class DraftAutosave {
   }
   editParent(parentId: string | null) {
     if (this.disposed) return;
-    this.draft = {...this.draft,parentId};
+    this.draft = { ...this.draft, parentId };
     this.metadataDirty = true;
     this.edit(this.content);
   }
   editTitle(title: string) {
     if (this.disposed) return;
-    this.draft = {...this.draft,title};
+    this.draft = { ...this.draft, title };
     this.metadataDirty = true;
     this.edit(this.content);
   }
@@ -348,7 +384,8 @@ export class DraftAutosave {
   private async perform(): Promise<Draft | null> {
     for (let n = 0; n < 5 && !this.disposed; n++) {
       if (
-        !this.pending && !this.metadataDirty &&
+        !this.pending &&
+        !this.metadataDirty &&
         this.content === this.draft.content &&
         this.draft.revision > 0
       ) {
@@ -362,9 +399,17 @@ export class DraftAutosave {
       try {
         const saved = await this.save(this.pending, this.abort.signal);
         if (this.disposed) return null;
-        const nextTitle = this.draft.title, nextParent = this.draft.parentId;
-        this.metadataDirty = this.pending.title !== nextTitle || this.pending.parentId !== nextParent;
-        this.draft = {...cleanDraft(saved), ...(this.metadataDirty ? {title:nextTitle,parentId:nextParent} : {})};
+        const nextTitle = this.draft.title,
+          nextParent = this.draft.parentId;
+        this.metadataDirty =
+          this.pending.title !== nextTitle ||
+          this.pending.parentId !== nextParent;
+        this.draft = {
+          ...cleanDraft(saved),
+          ...(this.metadataDirty
+            ? { title: nextTitle, parentId: nextParent }
+            : {}),
+        };
         this.pending = undefined;
         if (this.content === saved.content && !this.metadataDirty) {
           this.status = "saved";
