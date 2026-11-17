@@ -1,0 +1,100 @@
+.inbox-bell {
+  position: relative;
+}
+.inbox-bell > button {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.inbox-count {
+  font-size: 0.75rem;
+  border-radius: 1rem;
+  background: var(--color-accent);
+  color: var(--surface);
+  padding: 0.1rem 0.4rem;
+}
+.inbox-preview {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  width: min(380px, calc(100vw - 2rem));
+  max-height: 70vh;
+  overflow: auto;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  box-shadow: 0 6px 22px #0002;
+}
+.inbox-preview h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+.inbox-preview ul,
+.inbox-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.inbox-preview li + li,
+.inbox-list li + li {
+  border-top: 1px solid var(--line);
+}
+.inbox-preview a {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.7rem 0;
+  overflow-wrap: anywhere;
+}
+.inbox-preview a span,
+.inbox-list time {
+  font-size: 0.8rem;
+}
+.inbox-filters,
+.inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.inbox-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+.inbox-list li > div:first-child {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.inbox-list a {
+  overflow-wrap: anywhere;
+}
+.personal-inbox select {
+  max-width: 100%;
+}
+.inbox-actions {
+  margin-top: 0.5rem;
+}
+@media (max-width: 600px) {
+  .inbox-list li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .inbox-preview {
+    position: fixed;
+    top: 4.3rem;
+    right: 1rem;
+  }
+  .inbox-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .inbox-actions .btn {
+    font-size: 0.8rem;
+  }
+}

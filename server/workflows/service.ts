@@ -1106,7 +1106,7 @@ export class WorkflowService {
           ...validMentions,
           ...subscribers.rows.map((r) => r.principal_id),
         ]);
-        for (const who of recipients)
+        for (const who of [...recipients].sort())
           if (who !== ctx.principalId) {
             const prefs = await db.query(
               "SELECT data FROM workflow_preferences WHERE workspace_id=$1 AND principal_id=$2",

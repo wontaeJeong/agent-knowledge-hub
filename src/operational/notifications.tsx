@@ -77,11 +77,13 @@ export function NotificationPanel({
   capabilities,
   onExpired,
   spaceId = "",
+  showInbox = true,
 }: {
   api: OperationalApi;
   capabilities: string[];
   onExpired?: () => void;
   spaceId?: string;
+  showInbox?: boolean;
 }) {
   const generation = useRef(0);
   const canRead = capabilities.includes("knowledge.read"),
@@ -126,9 +128,9 @@ export function NotificationPanel({
     try {
       const [p, n, d, r, s] = await Promise.all([
         api.get<Preferences>("/collaboration/preferences"),
-        api.get<{ items: InAppNotification[] }>(
+        showInbox ? api.get<{ items: InAppNotification[] }>(
           `/collaboration/notifications?offset=${offset}`,
-        ),
+        ) : Promise.resolve({items:[] as InAppNotification[]}),
         api.get<{ items: Delivery[] }>(
           `/collaboration/deliveries?offset=${offset}`,
         ),
@@ -150,7 +152,7 @@ export function NotificationPanel({
     } catch (e) {
       if (current === generation.current) failure(e);
     }
-  }, [api, canRead, offset, all, manage, failure]);
+  }, [api, canRead, offset, all, manage, failure, showInbox]);
   useEffect(() => {
     void refresh();
     return () => {
@@ -427,7 +429,7 @@ export function NotificationPanel({
           </pre>
         </details>
       )}
-      <h3>인앱 알림</h3>
+      {showInbox && <><h3>인앱 알림</h3>
       {!notifications.length && <p>표시할 알림이 없습니다.</p>}
       {notifications.map((item) => (
         <div key={item.pageId}>
@@ -477,6 +479,7 @@ export function NotificationPanel({
           ))}
         </div>
       ))}
+      </>}
       <h3>이메일 전달 이력</h3>
       <p>
         미설정·실패·수신 미확인은 성공으로 표시하지 않습니다. 설정 변경 또는

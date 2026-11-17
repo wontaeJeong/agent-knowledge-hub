@@ -21,6 +21,9 @@ export async function handleGovernanceRoute(
     return true;
   };
   if (method === "GET") {
+    const ownRequest = route.match(/^\/access-requests\/([^/]+)$/);
+    if (ownRequest)
+      return reply(await service.accessRequest(ctx, ownRequest[1]));
     if (route === "/workbench") return reply(await service.workbench(ctx));
     if (route === "/access-inbox") return reply(await service.accessInbox(ctx));
     if (route === "/handoffs") return reply(await service.handoffInbox(ctx));

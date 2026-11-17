@@ -161,6 +161,13 @@ if (process.argv.includes("--migrate")) {
     ...directory,
     ...collaborationDeliveryFromEnvironment(),
     dispatcherId: process.env.AKH_COLLABORATION_DISPATCHER_ID,
+    inboxSigningKey: process.env.AKH_INBOX_SIGNING_KEY,
+    inboxRetentionDays: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(3650)
+      .parse(process.env.AKH_INBOX_RETENTION_DAYS ?? 90),
   });
 
   // Only explicitly provisioned service/credential bindings may run scheduled

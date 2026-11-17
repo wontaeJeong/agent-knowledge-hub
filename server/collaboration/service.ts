@@ -1,3 +1,4 @@
+import { InboxService, type InboxContent } from "./inbox";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -76,6 +77,8 @@ export interface CollaborationOptions {
   maxAttempts?: number;
   identityTimeoutMs?: number;
   maxEvents?: number;
+  inboxRetentionDays?: number;
+  inboxSigningKey?: string;
 }
 function preferences(data: Row): Preferences {
   const p = fields.parse({
@@ -126,6 +129,7 @@ export async function resolveGovernanceResponsibility(
     : { ownerId: null, backupId: null, revision: "unassigned" };
 }
 export class CollaborationService {
+  readonly inbox: InboxService;
   readonly clock: () => Date;
   readonly leaseMs: number;
   readonly maxAttempts: number;
@@ -157,6 +161,18 @@ export class CollaborationService {
       app.pathname !== "/"
     )
       throw Error("APPLICATION_ORIGIN_NOT_APPROVED");
+    z.number()
+      .int()
+      .min(1)
+      .max(3650)
+      .parse(options.inboxRetentionDays ?? 90);
+    this.inbox = new InboxService(
+      pool,
+      hooks,
+      (db, ctx, row) => this.inboxContent(db, ctx, row),
+      options.clock,
+      options.inboxSigningKey,
+    );
     this.origin = app.origin;
     this.clock = options.clock ?? (() => new Date());
     this.leaseMs = options.leaseMs ?? 30000;
@@ -373,6 +389,33 @@ export class CollaborationService {
       return { scope: p.scope, target, enabled: p.enabled };
     });
   }
+  async pruneInbox() {
+    return this.tx(async (db) => {
+      await this.hooks.assertDispatcher(db);
+      const cutoff = new Date(
+        +this.clock() - (this.options.inboxRetentionDays ?? 90) * 86400000,
+      );
+      // Existing erasure gate is held by tx; any legal/content hold conservatively
+      // retains this workspace's metadata. Source/version retention is untouched.
+      const rows = await db.query(
+        `DELETE FROM workflow_notifications n WHERE (n.workspace_id,n.id) IN (
+        SELECT n.workspace_id,n.id FROM workflow_notifications n WHERE n.created_at<$1
+        AND NOT EXISTS(SELECT 1 FROM operations_legal_holds h WHERE h.workspace_id=n.workspace_id AND h.active)
+        AND NOT EXISTS(SELECT 1 FROM content_retention_holds h WHERE h.workspace_id=n.workspace_id)
+        ORDER BY n.workspace_id,n.principal_id,n.sequence LIMIT 500 FOR UPDATE OF n SKIP LOCKED)`,
+        [cutoff],
+      );
+      await db.query(
+        `DELETE FROM collaboration_inbox_mutations m WHERE (m.workspace_id,m.principal_id,m.mutation_id) IN (
+        SELECT m.workspace_id,m.principal_id,m.mutation_id FROM collaboration_inbox_mutations m WHERE m.created_at<$1
+        AND NOT EXISTS(SELECT 1 FROM operations_legal_holds h WHERE h.workspace_id=m.workspace_id AND h.active)
+        AND NOT EXISTS(SELECT 1 FROM content_retention_holds h WHERE h.workspace_id=m.workspace_id)
+        ORDER BY m.created_at LIMIT 500)`,
+        [cutoff],
+      );
+      return rows.rowCount ?? 0;
+    });
+  }
   async scanEvents() {
     return this.tx((db) =>
       scanEventsDb(db, this.hooks, this.origin, this.clock()),
@@ -555,7 +598,16 @@ export class CollaborationService {
     for (const n of events) {
       try {
         if (n.data.eventId) {
-          if (!p.subscriptions && n.kind !== "job-failure") continue;
+          if (
+            !p.subscriptions &&
+            ![
+              "job-failure",
+              "job-success",
+              "change-review-decision",
+              "access-decision",
+            ].includes(n.kind)
+          )
+            continue;
           const event = (
             await db.query(
               "SELECT * FROM collaboration_events WHERE workspace_id=$1 AND id=$2",
@@ -585,8 +637,8 @@ export class CollaborationService {
         }
         if (n.kind.startsWith("review-")) {
           const work = await db.query(
-            "SELECT document_type,page_id FROM collaboration_review_due_work WHERE workspace_id=$1 AND id=$2 AND assigned_id=$3 AND status IN ('needs-review','needs-assignment','acknowledged')",
-            [ctx.workspaceId, n.data.reviewWorkId, ctx.principalId],
+            "SELECT document_type,page_id FROM collaboration_review_due_work WHERE workspace_id=$1 AND id=$2 AND assigned_id=$3 AND page_id=$4 AND page_version=$5 AND id='review_'||due_cycle AND status IN ('needs-review','needs-assignment','acknowledged')",
+            [ctx.workspaceId, n.data.reviewWorkId, ctx.principalId, n.page_id, n.version],
           );
           if (!work.rowCount) continue;
           await this.assertReviewer(
@@ -719,6 +771,95 @@ export class CollaborationService {
       ).rows.map((r) => this.dto(r)),
       nextOffset: offset + 25,
     }));
+  }
+  async inboxContent(
+    db: PoolClient,
+    ctx: Context,
+    row: Row,
+  ): Promise<InboxContent | null> {
+    const p = preferences(
+      (await this.prefRow(db, ctx.workspaceId, ctx.principalId))?.data ?? {},
+    );
+    const eligible = await this.eligible(db, ctx, p, [row]);
+    if (!eligible.items.length) return null;
+    const title = eligible.items[0].title;
+    if (row.kind === "comment") {
+      const comment = (
+        await db.query(
+          "SELECT data FROM workflow_comments WHERE workspace_id=$1 AND id=$2",
+          [ctx.workspaceId, row.data.commentId],
+        )
+      ).rows[0];
+      return {
+          authorizationHash: eligible.inputHash,
+        title,
+        type: comment?.data.mentions?.includes(ctx.principalId)
+          ? "mention"
+          : "document-updated",
+        target: {
+          kind: "comment",
+          pageId: row.page_id,
+          commentId: row.data.commentId,
+        },
+        actionState: "comment",
+      };
+    }
+    if (row.data.eventId) {
+      const event = (
+        await db.query(
+          "SELECT * FROM collaboration_events WHERE workspace_id=$1 AND id=$2",
+          [ctx.workspaceId, row.data.eventId],
+        )
+      ).rows[0];
+      if (!event) return null;
+      if (event.kind === "job-failure" || event.kind === "job-success")
+        return {
+          authorizationHash: eligible.inputHash,
+          title,
+          type: event.kind === "job-failure" ? "job-failed" : "job-succeeded",
+          target: { kind: "job", id: event.resource_id },
+          actionState: event.kind === "job-failure" ? "failed" : "succeeded",
+        };
+      if (
+        event.kind === "change-review-request" ||
+        event.kind === "change-review-decision"
+      )
+        return {
+          authorizationHash: eligible.inputHash,
+          title,
+          type:
+            event.kind === "change-review-request"
+              ? "review-requested"
+              : "review-decided",
+          target: { kind: "review", id: event.resource_id },
+          actionState:
+            event.kind === "change-review-request" ? "pending" : "decided",
+        };
+      if (event.kind === "access-decision")
+        return {
+          authorizationHash: eligible.inputHash,
+          title,
+          type: "access-decided",
+          target: { kind: "access-request", id: event.resource_id },
+          actionState: "decided",
+        };
+    }
+    const dueWork = row.kind.startsWith("review-")
+      ? (await db.query(
+          "SELECT status FROM collaboration_review_due_work WHERE workspace_id=$1 AND id=$2 AND assigned_id=$3 AND page_id=$4 AND page_version=$5 AND id='review_'||due_cycle",
+          [ctx.workspaceId, row.data.reviewWorkId, ctx.principalId, row.page_id, row.version],
+        )).rows[0]
+      : null;
+    return {
+      authorizationHash: eligible.inputHash,
+      title,
+      type:
+        row.kind.startsWith("review-") || row.kind === "expiry"
+          ? "review-due"
+          : "document-updated",
+      target: { kind: "document", pageId: row.page_id },
+      actionState: dueWork?.status ?? (row.kind === "expiry" ? "needs-review" : "published"),
+    };
   }
   async notifications(ctx: Context, offset = 0) {
     return this.request(ctx, "knowledge.read", async (db) => {

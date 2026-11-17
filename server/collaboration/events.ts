@@ -1,8 +1,10 @@
+import { accessRequestDetailDb } from "../workflows/governance/service";
+import { recordInboxEvent } from "./inbox";
 import type { PoolClient } from "pg";
 import type { Context } from "../service";
 import { loadState } from "../repository";
 import { captureEnvelope, visiblePageIds, fingerprint } from "../provenance";
-import { reviewNotificationDb } from "../publication";
+import { reviewNotificationDb, changesetDetailDb } from "../publication";
 import type { CollaborationHooks } from "./types";
 type Row = Record<string, any>;
 export const eventDenied = (e: unknown) =>
@@ -106,15 +108,48 @@ export async function eventContentDb(
   await hooks.authorize(db, ctx, "knowledge.read");
   const state = await loadState(db, ctx.workspaceId),
     base = `${origin}/?app=1&space=${encodeURIComponent(ctx.workspaceId)}`;
-  if (event.kind === "job-failure") {
+  if (event.kind === "access-decision") {
+    const request = await accessRequestDetailDb(db, ctx, event.resource_id);
+    if (
+      String(request.revision) !== event.revision ||
+      request.status === "pending"
+    )
+      return null;
+    return {
+      pageId: `access:${request.id}`,
+      title: "접근 요청 결정",
+      url: `${base}&section=tasks&targetKind=access-request&targetId=${encodeURIComponent(request.id)}`,
+      envelope: { requestId: request.id, revision: request.revision },
+    };
+  }
+  if (event.kind === "change-review-decision") {
+    const batch = await changesetDetailDb(db, ctx, event.resource_id);
+    if (`${batch.hash}:${batch.status}` !== event.revision) return null;
+    return {
+      pageId: `batch:${batch.id}`,
+      title: "변경 검토 결정",
+      url: `${base}&section=tasks&targetKind=review&targetId=${encodeURIComponent(batch.id)}`,
+      envelope: { batchId: batch.id, hash: batch.hash, status: batch.status },
+    };
+  }
+  if (event.kind === "job-failure" || event.kind === "job-success") {
     const job = (
       await db.query(
-        "SELECT j.*,s.sponsor_id FROM durable_jobs j LEFT JOIN access_service_accounts s ON s.principal_id=j.principal_id WHERE j.workspace_id=$1 AND j.id=$2 AND j.status='dead' AND j.attempts::text=$3",
-        [ctx.workspaceId, event.resource_id, event.revision],
+        "SELECT j.*,s.sponsor_id FROM durable_jobs j LEFT JOIN access_service_accounts s ON s.principal_id=j.principal_id WHERE j.workspace_id=$1 AND j.id=$2 AND j.status=$4 AND j.attempts::text=$3",
+        [
+          ctx.workspaceId,
+          event.resource_id,
+          event.revision,
+          event.kind === "job-failure" ? "dead" : "succeeded",
+        ],
       )
     ).rows[0];
     if (!job || ![job.principal_id, job.sponsor_id].includes(ctx.principalId))
       return null;
+    // Same canonical mapping used by runtime jobs.read/jobs.manage.
+    await hooks.authorize(db, ctx, "knowledge.read");
+    if (job.principal_id !== ctx.principalId)
+      await hooks.authorize(db, ctx, "knowledge.protect");
     const pageIds = [
         ...new Set<string>([
           ...(job.input.pageIds ?? []),
@@ -142,8 +177,8 @@ export async function eventContentDb(
     // Failure text is provider-controlled; publish only a fixed label and local link.
     return {
       pageId: `job:${job.id}`,
-      title: "작업 실패",
-      url: `${base}#jobs`,
+      title: event.kind === "job-failure" ? "작업 실패" : "작업 완료",
+      url: `${base}&section=tasks&targetKind=job&targetId=${encodeURIComponent(job.id)}`,
       envelope: { envelope, jobId: job.id, attempts: job.attempts },
     };
   }
@@ -159,7 +194,7 @@ export async function eventContentDb(
     return {
       pageId: `batch:${batch.id}`,
       title: "변경 검토 요청",
-      url: `${base}#review`,
+      url: `${base}&section=tasks&targetKind=review&targetId=${encodeURIComponent(batch.id)}`,
       envelope: { hash: event.revision, batchId: batch.id },
     };
   }
@@ -241,9 +276,11 @@ export async function scanEventsDb(
         `SELECT p.id FROM access_principals p WHERE p.active AND p.kind='human' AND p.id IN (
           SELECT principal_id FROM collaboration_subscriptions WHERE workspace_id=$1
           UNION SELECT principal_id FROM workflow_subscriptions WHERE workspace_id=$1
-          UNION SELECT principal_id FROM durable_jobs WHERE workspace_id=$1 AND id=$2 AND $3='job-failure'
-          UNION SELECT s.sponsor_id FROM durable_jobs j JOIN access_service_accounts s ON s.principal_id=j.principal_id WHERE j.workspace_id=$1 AND j.id=$2 AND $3='job-failure'
-        )`,
+          UNION SELECT principal_id FROM durable_jobs WHERE workspace_id=$1 AND id=$2 AND $3 IN ('job-failure','job-success')
+          UNION SELECT s.sponsor_id FROM durable_jobs j JOIN access_service_accounts s ON s.principal_id=j.principal_id WHERE j.workspace_id=$1 AND j.id=$2 AND $3 IN ('job-failure','job-success')
+          UNION SELECT principal_id FROM access_batch_authors WHERE workspace_id=$1 AND batch_id=$2 AND $3='change-review-decision'
+          UNION SELECT principal_id FROM workflow_access_requests WHERE workspace_id=$1 AND id=$2 AND $3='access-decision'
+        ) ORDER BY p.id`,
         [event.workspace_id, event.resource_id, event.kind],
       )
     ).rows;
@@ -256,10 +293,15 @@ export async function scanEventsDb(
             [ctx.workspaceId, ctx.principalId],
           )
         ).rows[0]?.data ?? {};
-      if (preferences.subscriptions === false && event.kind !== "job-failure")
-        continue;
+      const direct = [
+        "job-failure",
+        "job-success",
+        "change-review-decision",
+        "access-decision",
+      ].includes(event.kind);
+      if (preferences.subscriptions === false && !direct) continue;
       try {
-        if (event.kind !== "job-failure") {
+        if (!direct) {
           let ids = event.page_id ? [event.page_id] : [];
           if (event.kind === "change-review-request")
             ids = (
@@ -289,20 +331,23 @@ export async function scanEventsDb(
           now,
         );
         if (!content) continue;
-        const inserted = await db.query(
-          "INSERT INTO workflow_notifications(workspace_id,id,principal_id,page_id,version,kind,data,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING",
-          [
-            ctx.workspaceId,
-            "event_" + fingerprint([event.id, ctx.principalId]),
-            ctx.principalId,
-            event.page_id,
-            event.version,
-            event.kind,
-            { eventId: event.id },
-            now,
-          ],
+        const noticeId = "event_" + fingerprint([event.id, ctx.principalId]);
+        const before = await db.query(
+          "SELECT 1 FROM workflow_notifications WHERE workspace_id=$1 AND principal_id=$2 AND event_key=$3",
+          [ctx.workspaceId, ctx.principalId, event.id],
         );
-        count += inserted.rowCount ?? 0;
+        await recordInboxEvent(db, {
+          workspaceId: ctx.workspaceId,
+          principalId: ctx.principalId,
+          id: noticeId,
+          eventKey: event.id,
+          pageId: event.page_id,
+          version: event.version,
+          kind: event.kind,
+          data: { eventId: event.id },
+          createdAt: now,
+        });
+        if (!before.rowCount) count++;
       } catch (e) {
         if (!eventDenied(e)) throw e;
       }

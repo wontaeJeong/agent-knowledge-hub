@@ -783,3 +783,14 @@
 - 호스트 Node의 discovery 15시험 중 4개(별도 재실행 3개)가 최근 answer를 집계하지 못했다. 읽기 전용 측정에서 호스트 `16:30:58.176Z`, DB `16:30:58.123Z`, 응답 직후 호스트 `.184Z`로 약61ms 차이가 확인됐다. 서버의 JS answer 시각이 DB report cutoff보다 미래가 되는 환경 경계다. 실패를 성공 처리하거나 제품/시험 assertion을 변경하지 않았다.
 - 동일 소스의 별도 임시 복사본을 Node24.22.0 Alpine 컨테이너에 복사하고 소유한 PG17 테스트 컨테이너의 네트워크/시계에서 실행했다. lockfile npm ci 후 discovery15/auth-lock2/navigation1 전부 통과했다. 호스트와 컨테이너 간 시계 차이를 제거한 검증이며 임의의 다중 호스트 clock skew 대응을 증명하지 않는다. 원격 필수 CI와 실제 운영 시계 동기화 인수는 별도다.
 - 첫 bind mount는 Docker 데몬 호스트에 로컬 경로가 없어 실행 전 거부됐다. 기존 컨테이너를 변경하지 않고 새 소유 컨테이너에 docker cp로 복사했다. 실제 DB 시험은 파일별 UUID 생성/정리 runner를 사용했고 공유 base DB에는 자료를 쓰지 않았다.
+
+
+### 2026-11-17 — C2 개인 알림함 구현·검증 경계
+
+- 환경/준비: 첫 외부 worktree 쓰기가 이유 텍스트 없이 aborted되어 파일이 생성되지 않았다. 이를 승인 거절로 단정하지 않고 작은 authorized 쓰기로 재시도했다. 최초 native 실행의 ECONNREFUSED(32778)는 테스트 RED가 아닌 환경 실패였다. 컨트롤러가 소유 PG 컨테이너만 재시작해 새 포트32769를 확인한 후 파일별 disposable DB runner로 재실행했다. 중단 원인은 확인하지 못했으며 공유 DB/다른 컨테이너를 변경하지 않았다.
+- 테스트 준비 실수: 없는 파일명/잘못된 서버 필터, fixture helper 이름, Vite의 아직 없는 정적 import, WorkflowService 생성자 인자 누락을 실제 계약으로 고쳤다. 준비 오류를 기능 RED 또는 GREEN으로 집계하지 않았다.
+- 관찰한 구현 회귀: hex 토큰 뒤의 비hex 문자를 Buffer가 무시하는 경로, 작업 알림에 존재하지 않는 jobs.read capability를 가정한 경로, INVALID_BOUNDARY의503 응답, 설정 키를 재사용하지 못하는 서비스 재시작, 원본 내용 변화가 커서 해시에 누락되는 경로를 시험으로 재현했다. 엄격한 서명 형식·기존 작업 인가 매핑·400/409 분류·서버 키 주입·전체 입력 계보/정책 해시로 수정했다. 기존 #jobs 문자열 검사는 정확한 C1 targetKind=job/targetId와 현재 인가 검사로 변경했다.
+- 자체 검토에서 실제 acknowledge 후 due-work actionState가 needs-review로 남는 RED를 찾았다. 현재 work ID/수신자/문서/버전/기한 주기에 바인딩해 반환하며 다음 주기는 다시 needs-review다. 실제 withdrawChangeset은 rejected 상태와 batch.withdraw audit를 함께 저장한다. 합성 withdrawn 상태만 검사해 실제 철회가200으로 열리는 native HTTP RED를 발견하여 durable canonical audit로 차단했다. 합법적인 rejected 결과는 전체 현재 계보 ACL 아래 읽기 전용으로 유지한다. audit 원본 테이블은 retention control이며 현재 운영 archive는 별도의 operations_audit_chain만 정리한다. 감사 원본의 임의 수동 삭제는 허용된 서비스 동작이 아니다.
+- UI 검증: 실제 runtime/PG 합성 fixture를 쓰는 캡처 harness 종료에서 중복 signal에 따른 pool.end 재호출 및 진행 중 route.fetch의 context 폐기 오류가 있었다. harness 종료 guard와 unrouteAll(wait)를 추가하고 네 화면 조합을 재실행했다. 제품 오류로 숨기거나 이전 실패 캡처를 최종 성공으로 집계하지 않았다.
+- 포맷 실수/자동 승인 거절: App.tsx에 formatter를 실행해 기능과 무관한 넓은 공백 변경을 만들었다. HEAD를 재구성하여 덮어쓰는 정리 명령은 실행 전에 자동 승인 검토에서 거절됐다. 정확한 이유: “The command reconstructs App.tsx from HEAD and overwrites its current worktree contents, risking irreversible loss of existing uncommitted implementation; that destructive replacement is not specifically authorized.” 해당 명령은 실행되지 않았다. 컨트롤러 지시에 따라 cosmetic 정리를 중단하고 현재 구현을 보존했다. 후속 제품 작업은 최소 문맥 변경으로 계속했다. 이 포맷 차이는 검토 부담으로 남는다.
+- 검증 상태: 위 기능 RED 뒤 GREEN을 확인했다. 최종 소스의 전체/native 결과와 화면은 [C2 인계](AGENT_HANDOFF.md#2026-11-17-c2-개인-알림함-uxc-01) 및 로컬 task-2-report를 따른다. 이전299/136 및 중간301/137 결과는 이후 수정의 최종 증거가 아니다. 기존 Vite500kB chunk 경고는 남아 있으며 독립 리뷰·최종 CI·main 통합·운영 인수는 별도다.

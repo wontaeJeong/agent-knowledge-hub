@@ -1,0 +1,46 @@
+[
+  {
+    "browserVersion": "158.0.8127.18",
+    "width": 1440,
+    "theme": "light",
+    "overflow": false,
+    "previewItems": 5,
+    "escapeFocusReturn": true,
+    "refreshFocusAndScroll": true,
+    "firstHref": "/?app=1&space=84efdc6f-eb2c-40ec-bca4-16667af1230f&section=tasks&targetKind=review&targetId=1442e955-26df-4501-9a06-e2921fb29ea0",
+    "errors": []
+  },
+  {
+    "browserVersion": "158.0.8127.18",
+    "width": 1440,
+    "theme": "dark",
+    "overflow": false,
+    "previewItems": 5,
+    "escapeFocusReturn": true,
+    "refreshFocusAndScroll": true,
+    "firstHref": "/?app=1&space=84efdc6f-eb2c-40ec-bca4-16667af1230f&section=tasks&targetKind=review&targetId=1442e955-26df-4501-9a06-e2921fb29ea0",
+    "errors": []
+  },
+  {
+    "browserVersion": "158.0.8127.18",
+    "width": 390,
+    "theme": "light",
+    "overflow": false,
+    "previewItems": 5,
+    "escapeFocusReturn": true,
+    "refreshFocusAndScroll": true,
+    "firstHref": "/?app=1&space=84efdc6f-eb2c-40ec-bca4-16667af1230f&section=tasks&targetKind=review&targetId=1442e955-26df-4501-9a06-e2921fb29ea0",
+    "errors": []
+  },
+  {
+    "browserVersion": "158.0.8127.18",
+    "width": 390,
+    "theme": "dark",
+    "overflow": false,
+    "previewItems": 5,
+    "escapeFocusReturn": true,
+    "refreshFocusAndScroll": true,
+    "firstHref": "/?app=1&space=84efdc6f-eb2c-40ec-bca4-16667af1230f&section=tasks&targetKind=review&targetId=1442e955-26df-4501-9a06-e2921fb29ea0",
+    "errors": []
+  }
+]

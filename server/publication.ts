@@ -43,6 +43,7 @@ import {
 } from "./repository";
 import {
   assertEnvelope,
+  captureEnvelope,
   inheritedProvenance,
   versionProvenance,
   type InputEnvelope,
@@ -76,6 +77,7 @@ const batchHash = ({
   reviewFeedback?: { reason: string; recordedAt: string; recordedBy: string };
 }) => digest(content);
 type RuntimeBatch = Batch & {
+  reviewFeedback?: { reason: string; recordedBy: string; recordedAt: string };
   producer?: NonNullable<import("../src/domain/types").Version["producer"]>;
   responsibleUserId?: string;
   proposedBy?: string;
@@ -820,6 +822,74 @@ async function reviewQualification(
 
 /** Read-only notification gate shares the exact current review qualification and
  * whole changeset/source/approval checks used by approval. Does not approve. */
+/** Outcome read shares canonical author/reviewer admission and all retained input ACLs.
+ * It grants no approval capability and does not require obsolete base hashes to match. */
+export async function changesetDetailDb(
+  db: PoolClient,
+  ctx: Context,
+  id: string,
+) {
+  await authorizeActionDb(db, ctx, "knowledge.read");
+  const row = (
+    await db.query(
+      "SELECT b.*,a.principal_id AS author_id FROM batches b LEFT JOIN access_batch_authors a ON a.workspace_id=b.workspace_id AND a.batch_id=b.id WHERE b.workspace_id=$1 AND b.id=$2",
+      [ctx.workspaceId, id],
+    )
+  ).rows[0];
+  if (
+    !row ||
+    row.data.requestAuthorizationPending ||
+    row.data.status === "withdrawn"
+  )
+    throw Error("NOT_FOUND");
+  // Canonical withdrawal retains a rejected batch and records batch.withdraw.
+  // That audit is authoritative; a rejected review decision remains readable.
+  if ((await db.query(
+    "SELECT 1 FROM audit WHERE workspace_id=$1 AND resource_id=$2 AND operation='batch.withdraw' LIMIT 1",
+    [ctx.workspaceId, id],
+  )).rowCount) throw Error("NOT_FOUND");
+  const batch = row.data as RuntimeBatch;
+  const own =
+    (row.author_id ?? batch.importAuthorId ?? batch.proposedBy) ===
+    ctx.principalId;
+  if (!own) await reviewQualification(db, ctx, id, true);
+  const state = await loadState(db, ctx.workspaceId);
+  const sourceIds = [
+    ...new Set([
+      ...(batch.snapshots ?? []).map((s) => s.id),
+      ...batch.updates.flatMap((d) => d.sourceIds),
+      ...(batch.inputEnvelope?.sourceIds ?? []),
+    ]),
+  ];
+  const pageIds = [
+    ...new Set([
+      ...(batch.contextDependencyIds ?? []),
+      ...(batch.inputEnvelope?.pageIds ?? []),
+      ...batch.updates.flatMap((d) => [
+        ...(d.baseVersion > 0 ? [d.id] : []),
+        ...d.links.filter(
+          (id) =>
+            !batch.updates.some((u) => u.id === id && u.baseVersion === 0),
+        ),
+      ]),
+    ]),
+  ];
+  const envelope = await captureEnvelope(db, ctx, state, pageIds, sourceIds);
+  for (const id of envelope.pageIds)
+    await authorizeActionDb(db, ctx, "knowledge.read", { kind: "page", id });
+  for (const id of envelope.sourceIds)
+    await authorizeActionDb(db, ctx, "knowledge.read", { kind: "source", id });
+  return {
+    id: row.id,
+    hash: row.hash,
+    status: batch.status,
+    updates: batch.updates,
+    proposedBy: row.author_id ?? batch.proposedBy,
+    readOnly: own || !["pending", "approved"].includes(batch.status),
+    ...(batch.reviewFeedback ? { reviewFeedback: batch.reviewFeedback } : {}),
+  };
+}
+
 export async function reviewNotificationDb(
   db: PoolClient,
   ctx: Context,

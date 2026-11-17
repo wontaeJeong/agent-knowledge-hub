@@ -889,13 +889,25 @@ export function createRuntimeHandler(options: {
           );
         if (path === "/api/v1/discovery") {
           const days = url.searchParams.get("days") || "7";
-          if (!["7", "14", "30", "90"].includes(days)) throw Error("VALIDATION_FAILED");
-          return send(200, await discoveryReport(options.pool, service, ctx, Number(days) as 7 | 14 | 30 | 90));
+          if (!["7", "14", "30", "90"].includes(days))
+            throw Error("VALIDATION_FAILED");
+          return send(
+            200,
+            await discoveryReport(
+              options.pool,
+              service,
+              ctx,
+              Number(days) as 7 | 14 | 30 | 90,
+            ),
+          );
         }
         if (path === "/api/v1/pages")
           return send(200, { items: await service.pages(ctx) });
         if (path === "/api/v1/sources")
           return send(200, { items: await service.sources(ctx) });
+        const exactChangeset = path.match(/^\/api\/v1\/changesets\/([^/]+)$/);
+        if (exactChangeset)
+          return send(200, await service.changeset(ctx, exactChangeset[1]));
         if (path === "/api/v1/changesets")
           return send(200, { items: await service.changesets(ctx) });
         if (path === "/api/v1/jobs")
@@ -1138,6 +1150,9 @@ export function createRuntimeHandler(options: {
         ERASURE_WRITES_FENCED: 409,
         RESTORE_PATH_CONFLICT: 409,
         STALE_CURSOR: 409,
+        INVALID_BOUNDARY: 400,
+        MUTATION_CONFLICT: 409,
+        INBOX_QUERY_LIMIT: 413,
         APPROVAL_STALE: 409,
         IDEMPOTENCY_CONFLICT: 409,
         SOURCE_SCOPE_CONFLICT: 409,

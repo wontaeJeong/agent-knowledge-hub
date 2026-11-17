@@ -153,7 +153,8 @@ test("failed jobs notify only the explicit human owner and gate every input sour
   await f.service.scanEvents();
   const item = (await f.service.notifications(f.editor)).items[0];
   expect(item.events[0].kind).toBe("job-failure");
-  expect(item.url).toContain("jobs");
+  expect(new URL(item.url).searchParams.get("targetKind")).toBe("job");
+  expect(new URL(item.url).searchParams.get("targetId")).toBe("failed-job");
   expect((await f.service.notifications(f.ctx)).items).toEqual([]);
   await f.pool.query(
     "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='editor'",

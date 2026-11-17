@@ -527,10 +527,16 @@ it("review responsibility is not namespace ownership and acknowledging work crea
   );
   await f.service.scanReviews();
   const work = (await f.service.reviewInbox(f.editor)).items[0];
+  expect((await f.service.inbox.list(f.editor, { type: "review-due" })).items[0]).toMatchObject({
+    target: { kind: "document", pageId: "topic" }, actionState: "needs-review",
+  });
   expect(
     (await f.service.acknowledgeReview(f.editor, work.id, work.revision))
       .verificationCreated,
   ).toBe(false);
+  expect((await f.service.inbox.list(f.editor, { type: "review-due" })).items[0]).toMatchObject({
+    target: { kind: "document", pageId: "topic" }, actionState: "acknowledged",
+  });
   await expect(
     f.service.acknowledgeReview(f.editor, work.id, work.revision),
   ).rejects.toThrow("STALE_VERSION");
@@ -542,6 +548,16 @@ it("review responsibility is not namespace ownership and acknowledging work crea
       )
     ).rows[0].data.verifiedAt,
   ).toBeUndefined();
+  const oldNotice = (await f.service.inbox.list(f.editor, { type: "review-due" })).items[0];
+  await f.pool.query(
+    "UPDATE workflow_document_state SET data=jsonb_set(data,'{reviewDue}','\"2020-02-01T00:00:00Z\"') WHERE workspace_id=$1 AND page_id='topic'",
+    [f.workspaceId],
+  );
+  await f.service.scanReviews();
+  const nextCycle = await f.service.inbox.list(f.editor, { type: "review-due" });
+  expect(nextCycle.items).toHaveLength(1);
+  expect(nextCycle.items[0]).toMatchObject({ target: { kind: "document", pageId: "topic" }, actionState: "needs-review" });
+  expect(nextCycle.items[0].id).not.toBe(oldNotice.id);
 });
 it("review scan withdraws a revoked assignment and assigns an eligible backup once", async () => {
   const f = await setup(false);

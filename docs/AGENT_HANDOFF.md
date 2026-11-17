@@ -693,3 +693,15 @@ Final feature validation (2026-11-17): `npm run check` passed after ancestry har
 - 완료된 #45/46/47/48/50/51/52/53/56/60/62와 인증 수정 #54를 PR #59에 통합한다. 별도 편의기능 C1 main `a1dba1f`도 보존했다. C1 충돌은 App의 ReviewRejection 및 convenience imports, workflows의 BulkEditor 및 NavigationProtection imports를 모두 유지했으며 양쪽 인계/실수 기록을 보존했다.
 - C1 통합 후 및 인증 통합 후 Node24.22.2 전체 npm run check가 각각 통과했다. 주간 모델/알림/계보 관련 통합 native도 통과했다. 인증·수집·navigation의 원본 시험은 호스트/DB 시계 차이를 관찰한 뒤 동일 시계 컨테이너에서18건 전부 통과했다. 실패와 환경 제약은 MISTAKE_LOG에 기록했다. 최종 원격8개 필수 검사를 확인한 뒤 main에 머지한다.
 - 남은 Task1c/6/10/11/12/13/14/15/16/17/18/19는 각각 별도 PR로 계속 진행한다. 1노드/App1/DB1 최소 리소스 기준, 전체251요구사항, 현재 ACL·원본 상한·독립 검토/발행 불변식을 유지하며 의미 품질·사내 SSO·운영 인수를 주장하지 않는다.
+
+
+## 2026-11-17 C2 개인 알림함 (UXC-01)
+
+- 기준: 격리 worktree e5a9, `feat/convenience-inbox-20261117`, BASE `6d74a369f004dd4fa40eaceaa9bab0d4c3b41a79`(C1 + canonical #48 이벤트/승인 대기 보완 + #54/#60). baseline npm ci offline 및293 frontend/48 Node. #59 이후 main 통합·PR·독립 리뷰는 컨트롤러가 수행한다.
+- 연결 요구사항: UXC-01, CLB-002/004/005/006/007, JOB-007, ACL-008. 기존251 요구사항·North Star·운영 수용 상태는 변경하지 않았다. 사람이 현재 인가된 검토/작업으로 돌아가는 순환을 개선하는 것이 목표이며 지식 품질 또는 에이전트 성능 개선은 대조 평가하지 않았다.
+- 변경: migration140은 기존 workflow_notifications/outbox를 확장한다. 수신자 잠금/커밋 순번/이벤트 중복 키, 항목 revision CAS, 서명 경계, 현재 계보 ACL 기반 목록·개수·커서, 지연 전달 및 명시적 미읽음 보존, 재시도 영수증, 기본90일 메타데이터 정리와 기존 삭제/보존 fence. 새 독립 이벤트·메일 엔진은 없다.
+- 정확한 대상: 실제 멘션/댓글, 문서 발행, batch 검토 요청/결정, 문서 기한 검토의 현재 work 상태, 페이지 없는 작업 성공/실패, 본인 접근 요청 결정. C1 링크 및 보호된 탐색을 재사용한다. 기존 검토/접근 요청 서비스에 exact detail을 추가해 본인 read-only 결과를 열며 전체 입력 계보 ACL과 기존 관리자 타인 요청 권한은 유지한다. 실제 철회 audit는 unavailable, rejected는 권한이 있을 때 read-only다.
+- 파일: `server/collaboration/{inbox,service,events,http,worker}` 및 native inbox/http/upgrade/기존 collaboration 회귀, `server/migrations/140-user-inbox.sql`, canonical publication/runtime/governance/workflow 연결, operations/erasure와 retention/inventory; UI convenience의 Bell/Inbox/client/css/tests, 기존 App/ConsoleShell/ReviewSelection/governance/notifications. DTO 정수 revision 추가와 API·서명 키·조회 상한은 API_CONTRACT/OPERATIONAL_SETUP 및 승인 설계에 기록했다.
+- UI: bell5/전체25, 상태·유형 필터, 읽음/미읽음·보관/복원·관찰 경계 일괄 읽음, 활성30초/재초점 갱신과 숨김 정지, 계정/공간 전환·늦은 응답 보호. 기존 구독·전달·기한 검토·설정 화면은 유지하고 중복 알림 목록만 숨겼다. [실제1440/390 light/dark10장·키보드 검증](ui-validation/2026-11-17-personal-inbox/README.md).
+- 최종 검사: FINAL2 코드 기준 Node24.22.2, PostgreSQL17.11에서 `npm run check` exit0(frontend301, Node48, imports16, evaluation41, 요구사항251, 서버 typecheck/build/static HTTP smoke). 파일별 disposable PG를 사용하는 native13파일138시험도 exit0. 최종 로컬 로그는 `.superpowers/sdd/2026-11-16-essential-convenience/c2-logs/akh-c2-{check,regression}-final2.log`. 이는 독립 리뷰·CI·main 통합 완료를 뜻하지 않는다.
+- 한계/남은 조건: 조회 후보10,000건 초과는 명시적413; 기본 임시 키는 재시작/교체 시 토큰 무효(선택적32~4096자 서버 키로 유지 가능). 실제 IdP/메일/운영 키 배포/대량 부하 및 의미 품질은 검증하지 않았다. App 기존 파일의 formatter 공백 차이를 보존했으며 자동 승인 거절과 환경 실패는 MISTAKE_LOG에 남겼다. 로컬 구현·검증과 독립 리뷰·최종 CI·main 병합은 구분한다.
