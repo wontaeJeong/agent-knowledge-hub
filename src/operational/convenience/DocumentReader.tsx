@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useId } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useId } from "react";
 import { Markdown, type AttachmentReader } from "../../ui/Markdown";
 import { Button } from "../../ui/primitives";
 import { convenienceHref } from "./route";
@@ -9,6 +9,24 @@ import {
   matchLimit,
   type BlockReference,
 } from "./document-reader";
+/** Only interaction coordinates survive a permission check: never rendered text,
+ * code-copy payloads, URLs or an in-flight clipboard result. Owner clears on denial. */
+export type ReadingSession = {
+  state?: {
+    scope: string;
+    query: string;
+    position: number;
+    shareBlock: string | null;
+    anchor: string;
+    scrollY: number;
+    focus:
+      | { kind: "search"; start: number | null; end: number | null }
+      | { kind: "match" | "heading"; index: number }
+      | { kind: "block"; id: string }
+      | null;
+  };
+  capture?: () => void;
+};
 export type ReaderProps = {
   document: {
     content: string;
@@ -20,6 +38,7 @@ export type ReaderProps = {
   blocks?: BlockReference[];
   targetAnchor?: string;
   readAttachment?: AttachmentReader;
+  readingSession?: ReadingSession;
 };
 const emptyBlocks: BlockReference[] = [];
 export function DocumentReader({
@@ -28,19 +47,33 @@ export function DocumentReader({
   blocks = emptyBlocks,
   targetAnchor,
   readAttachment,
+  readingSession,
 }: ReaderProps) {
   const content = doc.content;
-  const [shareBlock, setShareBlock] = useState<string | null>(null);
+  const scope = JSON.stringify([doc.spaceId, doc.id, version]);
+  const saved =
+    readingSession?.state?.scope === scope ? readingSession.state : undefined;
+  const restore = useRef(saved);
+  const visitedAnchor = useRef(saved?.anchor ?? "");
+  const initialScope = useRef(scope);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const [shareBlock, setShareBlock] = useState<string | null>(
+    saved?.shareBlock ?? null,
+  );
   const [copyResult, setCopyResult] = useState<{
     status: string;
     fallback?: string;
   } | null>(null);
   const [anchorMissing, setAnchorMissing] = useState(false);
+  const [unmapped, setUnmapped] = useState(false);
   const generation = useRef(0);
   const copySequence = useRef(0);
   useEffect(() => {
     generation.current++;
-    setShareBlock(null);
+    if (initialScope.current !== scope) {
+      initialScope.current = scope;
+      setShareBlock(null);
+    }
     setCopyResult(null);
     return () => {
       generation.current++;
@@ -79,9 +112,9 @@ export function DocumentReader({
   const [outline, setOutline] = useState<
     { id: string; title: string; level: number }[]
   >([]);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(saved?.query ?? "");
   const [count, setCount] = useState(0),
-    [position, setPosition] = useState(0);
+    [position, setPosition] = useState(saved?.position ?? 0);
   const jump = (target: HTMLElement) => {
     target.scrollIntoView?.({ block: "center" });
     target.focus({ preventScroll: true });
@@ -90,16 +123,21 @@ export function DocumentReader({
     const element = body.current!;
     for (const old of element.querySelectorAll("[data-reader-control]"))
       old.remove();
+    let unavailable = false;
     for (const wrapper of element.querySelectorAll<HTMLElement>(
       "[data-document-start]",
     )) {
-      wrapper.removeAttribute("data-block-id");
-      wrapper.removeAttribute("tabindex");
       const block = blockForElement(wrapper, blocks);
+      if (!block) unavailable = true;
       if (block) {
         wrapper.dataset.blockId = block.id;
         wrapper.tabIndex = -1;
+      } else {
+        wrapper.removeAttribute("data-block-id");
+        wrapper.removeAttribute("tabindex");
       }
+      // Removing tabindex from an already focused stable target blurs it in
+      // Chromium during effect replay. Keep unchanged target attributes intact.
       if (block && doc.id && doc.spaceId) {
         const button = document.createElement("button");
         button.type = "button";
@@ -114,6 +152,7 @@ export function DocumentReader({
         wrapper.append(button);
       }
     }
+    setUnmapped(unavailable);
     for (const pre of element.querySelectorAll<HTMLElement>("pre")) {
       const value = pre.querySelector("code")?.textContent ?? "";
       const button = document.createElement("button");
@@ -129,7 +168,10 @@ export function DocumentReader({
         ).find((el) => el.dataset.blockId === targetAnchor)
       : undefined;
     setAnchorMissing(!!targetAnchor && !target);
-    if (target) jump(target);
+    if (target && visitedAnchor.current !== `${scope}:${targetAnchor}`) {
+      visitedAnchor.current = `${scope}:${targetAnchor}`;
+      jump(target);
+    }
   }, [content, blocks, doc.id, doc.spaceId, version, targetAnchor]);
   useEffect(() => {
     const element = body.current!;
@@ -179,7 +221,7 @@ export function DocumentReader({
         node.replaceWith(fragment);
       }
     setCount(matches);
-    setPosition(0);
+    setPosition((current) => Math.min(current, Math.max(0, matches - 1)));
   }, [content, query]);
   useEffect(() => {
     body.current
@@ -189,6 +231,79 @@ export function DocumentReader({
         else mark.removeAttribute("aria-current");
       });
   }, [count, position, query]);
+  useLayoutEffect(() => {
+    if (!readingSession) return;
+    const capture = () => {
+      const active = document.activeElement;
+      let focus: NonNullable<ReadingSession["state"]>["focus"] = null;
+      if (active === searchInput.current && searchInput.current)
+        focus = {
+          kind: "search",
+          start: searchInput.current.selectionStart,
+          end: searchInput.current.selectionEnd,
+        };
+      else if (
+        active instanceof HTMLElement &&
+        body.current?.contains(active)
+      ) {
+        if (active.hasAttribute("data-match"))
+          focus = { kind: "match", index: Number(active.dataset.match) };
+        else if (active.hasAttribute("data-block-id"))
+          focus = { kind: "block", id: active.dataset.blockId! };
+        else {
+          const index = [
+            ...body.current.querySelectorAll("h1,h2,h3,h4,h5,h6"),
+          ].indexOf(active);
+          if (index >= 0) focus = { kind: "heading", index };
+        }
+      }
+      readingSession.state = {
+        scope,
+        query,
+        position,
+        shareBlock,
+        anchor: visitedAnchor.current,
+        focus,
+        scrollY: window.scrollY,
+      };
+    };
+    readingSession.capture = capture;
+    return () => {
+      if (readingSession.capture === capture) delete readingSession.capture;
+    };
+  }, [readingSession, scope, query, position, shareBlock]);
+  useEffect(() => {
+    const previous = restore.current;
+    // Effect replay rebuilds match nodes; the same mount must restore them again.
+    if (
+      !previous ||
+      previous.scope !== scope ||
+      document.activeElement !== document.body
+    )
+      return;
+    const focus = previous.focus;
+    let target: HTMLElement | undefined | null;
+    if (focus?.kind === "search") {
+      target = searchInput.current;
+      searchInput.current?.setSelectionRange(focus.start, focus.end);
+    } else if (focus?.kind === "match")
+      target = body.current?.querySelector<HTMLElement>(
+        `[data-match="${focus.index}"]`,
+      );
+    else if (focus?.kind === "heading")
+      target =
+        body.current?.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")[
+          focus.index
+        ];
+    else if (focus?.kind === "block")
+      target = [
+        ...(body.current?.querySelectorAll<HTMLElement>("[data-block-id]") ??
+          []),
+      ].find((node) => node.dataset.blockId === focus.id);
+    target?.focus({ preventScroll: true });
+    if (window.scrollY !== previous.scrollY)
+      window.scrollTo({ top: previous.scrollY });
+  }, [scope]);
   const move = (step: number) => {
     const next = (position + step + count) % count;
     setPosition(next);
@@ -233,10 +348,10 @@ export function DocumentReader({
           위치가 변경되었거나 사라졌습니다. 다른 문단으로 이동하지 않았습니다.
         </p>
       )}
-      {blocks.some((b) => !b.stable) && (
+      {blocks.length > 0 && (unmapped || blocks.some((b) => !b.stable)) && (
         <p>
-          반복되거나 범위가 큰 블록은 위치를 확정할 수 없어 부분 링크를 제공하지
-          않습니다.
+          반복되거나 화면과 범위가 일치하지 않는 블록은 위치를 확정할 수 없어
+          부분 링크를 제공하지 않습니다.
         </p>
       )}
       {shareBlock && (
@@ -301,6 +416,7 @@ export function DocumentReader({
         <label>
           문서 내 검색
           <input
+            ref={searchInput}
             value={query}
             maxLength={200}
             onKeyDown={(e) => {
@@ -309,7 +425,10 @@ export function DocumentReader({
                 move(e.shiftKey ? -1 : 1);
               }
             }}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPosition(0);
+            }}
           />
         </label>
         <span role="status">

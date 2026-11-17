@@ -41,14 +41,25 @@ export function blockForElement(element: Element, blocks: BlockReference[]) {
   if (!wrapper) return null;
   const start = Number(wrapper.dataset.documentStart),
     end = Number(wrapper.dataset.documentEnd);
-  // Legacy coarse blocks can cover several rendered nodes. Only their first
-  // node is a precise destination; never guess a sub-block identity.
-  return (
-    blocks.find(
-      (block) =>
-        block.stable && block.startLine === start && block.endLine >= end,
-    ) ?? null
+  // Only exact, one-to-one rendered ranges are shareable. Custom math may
+  // split a plain Markdown token; old coarse metadata must never be guessed.
+  const candidates = blocks.filter(
+    (block) =>
+      block.stable && block.startLine === start && block.endLine === end,
   );
+  if (candidates.length !== 1) return null;
+  const siblings =
+    wrapper.parentElement?.querySelectorAll<HTMLElement>(
+      "[data-document-start]",
+    ) ?? [];
+  const overlaps = [...siblings].filter(
+    (node) =>
+      Number(node.dataset.documentStart) <= end &&
+      Number(node.dataset.documentEnd) >= start,
+  );
+  return overlaps.length === 1 && overlaps[0] === wrapper
+    ? candidates[0]
+    : null;
 }
 export function buildDocumentOutline(
   markdown: string,

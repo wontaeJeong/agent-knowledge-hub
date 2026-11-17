@@ -1,4 +1,4 @@
-import {DocumentReader} from "./convenience/DocumentReader";
+import {DocumentReader, type ReadingSession} from "./convenience/DocumentReader";
 import type {BlockReference} from "./convenience/document-reader";
 import {LinkAutocomplete} from "./convenience/LinkAutocomplete";
 import { Breadcrumbs } from "./convenience/Breadcrumbs";
@@ -384,7 +384,15 @@ export function WorkflowPanel({
   if (selection.current.api !== api || selection.current.identityScope !== identityScope || selection.current.selected !== selected)
     selection.current = { api, identityScope, selected };
   const selectionNow = selection.current;
+  const reading = useRef({ selection: selectionNow, session: {} as ReadingSession });
+  if (reading.current.selection !== selectionNow) reading.current = { selection: selectionNow, session: {} };
   const readyDocument=useRef<typeof selectionNow|null>(null);
+  const detailSelection=useRef<typeof selectionNow|null>(null);
+  // Every published detail/comments writer shares this authority. Selection
+  // objects fence identity/API changes; the epoch orders reads within it.
+  const documentRead = useRef(0);
+  const isCurrentRead = (token: typeof selectionNow, request: number) =>
+    mounted.current && selection.current === token && documentRead.current === request;
   const heading = useRef<HTMLHeadingElement>(null);
   const [focusRevision, setFocusRevision] = useState(0);
   const focusIntent = useRef<typeof selectionNow | null>(null);
@@ -404,6 +412,7 @@ export function WorkflowPanel({
     document.addEventListener('keydown', cancel);
     return () => {
       mounted.current = false;
+      documentRead.current++;
       focusIntent.current = null;
       document.removeEventListener('focusin', cancel);
       document.removeEventListener('pointerdown', cancel);
@@ -468,6 +477,9 @@ export function WorkflowPanel({
   const fail = useCallback(
     (e: unknown) => {
       if (e instanceof ApiError && [401, 403, 404].includes(e.status)) {
+        documentRead.current++;
+        readyDocument.current = null;
+        reading.current.session.state = undefined;
         recoveryCache.current?.clearAll();
         recoveryGrant.current = null;
         autosave.current?.dispose();
@@ -735,6 +747,8 @@ export function WorkflowPanel({
   useEffect(() => {
     let active = true;
     const admissionAbort = new AbortController();
+    const request = ++documentRead.current;
+    readyDocument.current = null;
     pendingExact.current = null;
     setLocalRecovery(null);
     setDetail(null);
@@ -755,7 +769,7 @@ export function WorkflowPanel({
         initialResume.current ? api.get<{items:PrivateDraft[]}>("/workflows/drafts") : Promise.resolve(null),
       ])
         .then(async ([d, c, saved]) => {
-          if (!active || selection.current !== selectionNow) return;
+          if (!active || !isCurrentRead(selectionNow, request)) return;
           if (initialResume.current) {
             const exact = saved?.items.find(
               (x) => x.id === initialResume.current && x.pageId === selected,
@@ -785,7 +799,7 @@ export function WorkflowPanel({
                 },
                 exact.id,
               );
-            if (!active || selection.current !== selectionNow) return;
+            if (!active || !isCurrentRead(selectionNow, request)) return;
             initialResume.current = undefined;
             if (recovered) {
               pendingExact.current = exact;
@@ -795,7 +809,9 @@ export function WorkflowPanel({
               setContent(exact.content);
             }
           }
+          if (d.page.id !== selected) throw Error("문서가 일치하지 않습니다. 다시 조회하세요.");
           readyDocument.current=selectionNow;
+          detailSelection.current=selectionNow;
           setDetail(d);
           setComments(c.items);
           const commentId = window.location.hash.match(
@@ -816,7 +832,7 @@ export function WorkflowPanel({
           );
         })
         .catch((e) => {
-          if (active && selection.current === selectionNow) { focusIntent.current = null; fail(e); }
+          if (active && isCurrentRead(selectionNow, request)) { focusIntent.current = null; fail(e); }
         });
     return () => {
       active = false;
@@ -835,54 +851,56 @@ export function WorkflowPanel({
     );
     return () => cancelAnimationFrame(frame);
   }, [comments, commentPage]);
-  useEffect(()=>{
-    let active=true,request=0;
-    const refresh=async()=>{
-      const token=selection.current;
-      // Do not cancel an initial exact-draft admission or change the editor's
-      // selection token merely because the published read is being refreshed.
-      if(!selected||readyDocument.current!==token)return;
-      const current=++request;
-      setDetail(null);setComments([]);
-      try{
-        const [d,c]=await Promise.all([api.get<DocumentDetail>(`/workflows/pages/${encodeURIComponent(selected)}?visit=0`),api.get<{items:Comment[]}>(`/workflows/pages/${encodeURIComponent(selected)}/comments`)]);
-        if(active&&current===request&&selection.current===token){setDetail(d);setComments(c.items);}
-      }catch(e){if(active&&current===request&&selection.current===token)fail(e);}
-    };
-    const focus=()=>void refresh();
-    window.addEventListener("focus",focus);const timer=setInterval(focus,60000);
-    return()=>{active=false;request++;window.removeEventListener("focus",focus);clearInterval(timer);};
-  },[api,selected,identityScope,fail]);
-  const refreshDocument = async () => {
-    if (!selected) return;
-    const [d, c] = await Promise.all([
-      api.get<DocumentDetail>(
-        `/workflows/pages/${encodeURIComponent(selected)}`,
-      ),
-      api.get<{ items: Comment[] }>(
-        `/workflows/pages/${encodeURIComponent(selected)}/comments`,
-      ),
-    ]);
-    setDetail(d);
-    setComments(c.items);
+  const refreshDocument = async (background = false) => {
+    const token = selectionNow;
+    if (!selected || selection.current !== token || readyDocument.current !== token || !mounted.current) return;
+    const request = ++documentRead.current;
+    // Remove protected DOM immediately while fresh authorization is pending.
+    reading.current.session.capture?.();
+    setDetail(null);
+    setComments([]);
+    try {
+      const [d, c] = await Promise.all([
+        api.get<DocumentDetail>(`/workflows/pages/${encodeURIComponent(selected)}${background ? "?visit=0" : ""}`),
+        api.get<{items: Comment[]}>(`/workflows/pages/${encodeURIComponent(selected)}/comments`),
+      ]);
+      if (!isCurrentRead(token, request)) return;
+      if (d.page.id !== selected) throw Error("문서가 일치하지 않습니다. 다시 조회하세요.");
+      detailSelection.current = token;
+      setDetail(d);
+      setComments(c.items);
+    } catch (e) {
+      if (isCurrentRead(token, request)) fail(e);
+    }
   };
+  useEffect(() => {
+    const focus = () => void refreshDocument(true);
+    window.addEventListener("focus", focus);
+    const timer = setInterval(focus, 60000);
+    return () => {
+      documentRead.current++;
+      window.removeEventListener("focus", focus);
+      clearInterval(timer);
+    };
+  }, [api, selected, identityScope, fail]);
   const action = async (work: () => Promise<void>, reload = true) => {
     setBusy(true);
     setError("");
     setNotice("");
     try {
       await work();
+      if (!mounted.current || selection.current !== selectionNow) return;
       if (reload) {
         await load();
         await onChanged();
       }
     } catch (e) {
-      fail(e);
+      if (mounted.current && selection.current === selectionNow) fail(e);
     } finally {
-      setBusy(false);
+      if (mounted.current && selection.current === selectionNow) setBusy(false);
     }
   };
-  const latest = detail?.page.versions.at(-1);
+  const latest = detailSelection.current === selectionNow ? detail?.page.versions.at(-1) : undefined;
   const pagePath = `/workflows/pages/${encodeURIComponent(selected)}`;
   const state = async (next: string) => {
     if (!detail || !reason.trim())
@@ -1021,7 +1039,7 @@ export function WorkflowPanel({
           {spaceId && (
             <a href={documentHref(spaceId, detail.page.id)}>문서 고유 링크</a>
           )}
-          {spaceId && <DocumentStructureControls api={api} spaceId={spaceId} principalId={principalId ?? ""} pageId={selected} version={latest.number} revision={detail.settings.revision} capabilities={capabilities} canLeave={()=>!(draft && content!==draft.content) || window.confirm("저장하지 않은 입력을 닫을까요?")} onChanged={async()=>{const next=await api.get<DocumentDetail>(`/workflows/pages/${encodeURIComponent(selected)}`);if(!mounted.current || selection.current!==selectionNow || next.page.id!==selected)return;setDetail(next);await onChanged();}}/>}
+          {spaceId && <DocumentStructureControls api={api} spaceId={spaceId} principalId={principalId ?? ""} pageId={selected} version={latest.number} revision={detail.settings.revision} capabilities={capabilities} canLeave={()=>!(draft && content!==draft.content) || window.confirm("저장하지 않은 입력을 닫을까요?")} onChanged={async()=>{await refreshDocument();if(mounted.current && selection.current===selectionNow && readyDocument.current===selectionNow)await onChanged();}}/>}
           <details open>
             <summary>현재 발행본 본문 · v{latest.number}</summary>
             <DocumentReader
@@ -1029,6 +1047,7 @@ export function WorkflowPanel({
               document={{id:selected,spaceId,content:latest.content,publishedAt:latest.at}}
               version={latest.number}
               blocks={detail.anchors?.anchors}
+              readingSession={reading.current.session}
               readAttachment={readAttachment}
             />
             <details><summary>지원하는 문서 형식</summary><p>{presentationFormats}</p></details>

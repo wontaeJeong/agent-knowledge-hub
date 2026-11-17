@@ -1,0 +1,51 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+ ❯ src/operational/workflows-reader.test.tsx (7 tests | 1 failed) 157ms
+   × manual expiry refresh and newer denial share one authority (manual-first) 12ms
+ ❯ src/operational/convenience/reader-revalidation.test.tsx (10 tests | 2 failed) 153ms
+   × latest periodic read hides protected DOM then restores same-version query, match, selection and focus without replaying anchor 76ms
+   × 2 periodic read hides protected DOM then restores same-version query, match, selection and focus without replaying anchor 14ms
+ ❯ src/operational/convenience/reader.test.tsx (14 tests | 1 failed) 226ms
+   × reader preserves sanitizer, navigates previous/next with keyboard and offers denied code-copy fallback 57ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/workflows-reader.test.tsx > manual expiry refresh and newer denial share one authority (manual-first)
+ReferenceError: finish is not defined
+ ❯ src/operational/workflows-reader.test.tsx:22:120
+
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:890:22
+ ❯ src/operational/workflows-reader.test.tsx:22:107
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/operational/convenience/reader-revalidation.test.tsx > latest periodic read hides protected DOM then restores same-version query, match, selection and focus without replaying anchor
+ FAIL  src/operational/convenience/reader-revalidation.test.tsx > 2 periodic read hides protected DOM then restores same-version query, match, selection and focus without replaying anchor
+AssertionError: expected '문서 내 검색' to contain 'Last Korean'
+
+Expected: "Last Korean"
+Received: "문서 내 검색"
+
+ ❯ src/operational/convenience/reader-revalidation.test.tsx:29:92
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > reader preserves sanitizer, navigates previous/next with keyboard and offers denied code-copy fallback
+AssertionError: expected null not to be null
+ ❯ src/operational/convenience/reader.test.tsx:81:52
+     79|   expect(document.activeElement?.closest("code")).not.toBeNull();
+     80|   await click(host, "이전 일치");
+     81|   expect(document.activeElement?.closest("p")).not.toBeNull();
+       |                                                    ^
+     82|   await click(host, "코드 복사");
+     83|   expect(host.querySelector("textarea")?.value).toContain("const 한글");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  4 failed | 27 passed (31)
+   Start at  06:30:33
+   Duration  635ms (environment 40%, tests 33%, import 18%, transform 9%)

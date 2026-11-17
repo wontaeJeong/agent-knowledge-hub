@@ -1,0 +1,29 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+ ❯ src/operational/convenience/reader-revalidation.test.tsx (15 tests | 1 failed | 14 skipped) 58ms
+   × explicit repeated TOC navigation remains independent of an already visited initial anchor 58ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/reader-revalidation.test.tsx > explicit repeated TOC navigation remains independent of an already visited initial anchor
+AssertionError: expected 'DIV' to be 'H1' // Object.is equality
+
+Expected: "H1"
+Received: "DIV"
+
+ ❯ src/operational/convenience/reader-revalidation.test.tsx:282:81
+    280|  const host=await mount(<DocumentReader document={{id:"doc",spaceId:"s…
+    281|  const buttons=host.querySelectorAll<HTMLButtonElement>('nav[aria-labe…
+    282|  await act(async()=>buttons[1].click());expect(document.activeElement?…
+       |                                                                                 ^
+    283|  await act(async()=>buttons[0].click());expect(document.activeElement?…
+    284| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 skipped (15)
+   Start at  06:41:24
+   Duration  421ms (environment 51%, import 26%, tests 16%, transform 7%)

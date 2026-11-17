@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { AttachmentReader } from "../../ui/Markdown";
 import type { OperationalApi } from "../api";
-import { DocumentReader } from "./DocumentReader";
+import { DocumentReader, type ReadingSession } from "./DocumentReader";
 import type { BlockReference } from "./document-reader";
 import { usePersonalKey } from "./personal-client";
 import { searchFailure } from "./search-client";
@@ -28,7 +28,13 @@ type Snapshot = {
 export function DocumentSnapshot(props: Props) {
   const key = usePersonalKey(
     props.api,
-    `${props.identityKey}:${props.pageId}:${props.version}:${props.targetAnchor ?? ""}`,
+    JSON.stringify([
+      props.identityKey,
+      props.spaceId,
+      props.pageId,
+      props.version,
+      props.targetAnchor,
+    ]),
   );
   return <SnapshotSession key={key} {...props} />;
 }
@@ -42,10 +48,12 @@ function SnapshotSession({
 }: Props) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [error, setError] = useState("");
+  const reading = useRef<ReadingSession>({});
   useEffect(() => {
     let generation = 0;
     const read = async (recordVisit = false) => {
       const request = ++generation;
+      reading.current.capture?.();
       setSnapshot(null);
       setError("");
       try {
@@ -59,7 +67,10 @@ function SnapshotSession({
           throw Error("문서 버전이 일치하지 않습니다. 다시 조회하세요.");
         if (request === generation) setSnapshot(value);
       } catch (e) {
-        if (request === generation) setError(searchFailure(e));
+        if (request === generation) {
+          reading.current.state = undefined;
+          setError(searchFailure(e));
+        }
       }
     };
     const refresh = () => void read();
@@ -108,6 +119,7 @@ function SnapshotSession({
           blocks={snapshot.anchors?.anchors}
           targetAnchor={targetAnchor}
           readAttachment={readAttachment}
+          readingSession={reading.current}
         />
       ) : (
         <p role="status">현재 권한으로 발행 버전을 조회합니다.</p>

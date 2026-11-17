@@ -1,0 +1,75 @@
+initial-anchor-diagnostic {
+  active: '<body>\n' +
+    '    <div id="root"><div class="operational-app console-app"><a class="op-skip" href="#op-main">본문으로 이동</a><aside class="console-sidebar"><a class="console-brand" href="/"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 100 100" fill="none" aria-hidden="true"><path d="M50 15 87 28v49L50 91 13 77V28z" stroke="var(--brand-mark-primary)" stroke-width="8" stroke-linejoin="round"></path><path d="M50 37v40M27 36l14 5v24l-14-5M73 36l-14 5v24l14-5" stroke="var(--brand-mark-secondary)" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"></path></svg><span>agent-knowledge-hub<small>Agent-native knowledge platform</small></span></a><div class="console-space"><span class="console-space-icon"><svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers lucide-layers-3" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg></span><div><strong>현재 지식 공간</strong><small>접근 범위는 서버에서 확인</small></div></div><button class="button secondary console-menu-toggle" aria-expanded="false" aria-controls="console-navigation"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-menu" aria-hidden="true"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg> 메뉴 · 편집 · 협업</button><nav id="console-navigation" class="" aria-label="운영 콘솔"><div class="console-nav-group"><p>지식 공간</p><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f&amp;section=home"><span>홈</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#discovery"><span>지식 탐색 · 트렌드</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#knowledge"><span>발행 지식</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f&amp;section=search"><span>검색</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f&amp;section=tasks"><span>내 작업</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f&amp;section=compose"><span>새 문서</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#imports"><span>자료 넣기 · 자동 정리</span></a></div><div class="console-nav-group"><p>내 문서</p><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f&amp;section=favorites"><span>즐겨찾기</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f&amp;section=recent"><span>최근 방문</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f&amp;section=subscriptions"><span>구독</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f&amp;section=saved-views"><span>저장 보기</span></a></div><div class="console-nav-group"><p>지식 도구</p><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#workflows" aria-current="page"><span>편집 · 협업</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#versions"><span>버전 비교 · 복원</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#notifications"><span>내 알림 · 검토함</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#query"><span>질문 · 재편입</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#boards"><span>공지 · VOC · 내부 검토</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#refinement"><span>정련 · 경험</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#sources"><span>원본 · 편입</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#review"><span>변경 검토</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#lint"><span>지식 건강 점검</span></a></div><div class="console-nav-group"><p>내 도구</p><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#agents"><span>에이전트 · 토큰</span></a><a href="/?app=1&amp;space=d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f#integrations"><span>연동 · 자동화</span></a></div></nav><div class="account-menu"><button type="button" class="account-menu-trigger" aria-expanded="false" aria-label="editor 사용자 메뉴"><span class="account-menu-avatar" aria-hidden="true">E</span><span class="account-menu-identity"><strong>editor</strong><small>Write</small></span><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up" aria-hidden="true"><path d="m18 15-6-6-6 6"></path></svg></button></div></aside><div class="console-workspace"><header class="console-topbar"><div><span>지식 환경</span><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg><strong>편집 · 협업</strong></div><div><div class="global-search"><button type="button" aria-haspopup="dialog" aria-expanded="false">검색 <kbd>⌘/Ctrl K</kbd></button></div><button class="button secondary ">새 문서</button><div class="inbox-bell"><button type="button" class="btn" aria-label="알림 · 읽지 않음 0건" aria-expanded="false" aria-haspopup="dialog"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bell" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg><span>알림</span></button></div><span class="console-environment ">서버 연결 모드</span></div></header><main id="op-main" class="op-main" tabindex="-1"><h1>편집 · 협업</h1><section class="op-panel" aria-label="고정 문서 버전"><h2>운영 지식 · v2</h2><p>현재 발행 기록 · 버전 고정 조회</p><section class="op-document-reader" aria-label="문서 읽기"><div class="op-actions"><button class="button secondary ">최신 문서 링크 복사</button><button class="button secondary ">v2 고정 링크 복사</button></div><dl class="reader-metadata"><div><dt>발행 시점</dt><dd>2026-11-17T21:37:16.491Z</dd></div><div><dt>검토 시점</dt><dd>미확인</dd></div><div><dt>공식 문서 여부</dt><dd>미확인</dd></div></dl><p>반복되거나 화면과 범위가 일치하지 않는 블록은 위치를 확정할 수 없어 부분 링크를 제공하지 않습니다.</p><nav aria-label="문서 목차"><h4>목차</h4><ol><li style="margin-inline-start: 0rem;"><button class="button secondary ">문서 읽기</button></li><li style="margin-inline-start: 0.65rem;"><button class="button secondary ">설치</button></li><li style="margin-inline-start: 0.65rem;"><button class="button secondary ">설치</button></li></ol></nav><div class="op-actions"><label>문서 내 검색<input maxlength="200" value=""></label><span role="status">일치 0건</span><button disabled="" class="button secondary ">이전 일치</button><button disabled="" class="button secondary ">다음 일치</button><button disabled="" class="button secondary ">현재 위치로 이동</button></div><div><div class="op-markdown"><div><div data-document-start="1" data-document-end="1" data-block-id="a-59026489d2a1265ccb7d7f36f73bc5f8" tabindex="-1"><h1 id="_r_0_-document-section-0" tabindex="-1">문서 읽기</h1>\n' +
+    '<button type="button" data-reader-control="true" data-block-share="a-59026489d2a1265ccb7d7f36f73bc5f8" class="reader-block-link">부분 링크</button></div><div data-document-start="3" data-document-end="3"><h2 id="_r_0_-document-section-1" tabindex="-1">설치</h2>\n' +
+    '</div><div data-document-start="5" data-document-end="5" data-block-id="a-d215f793c43dc244d65b691fbb5ee772" tabindex="-1"><p>한글 첫 문단: 설치 절차를 확인합니다.</p>\n' +
+    '<button type="button" data-reader-control="true" data-block-share="a-d215f793c43dc244d65b691fbb5ee772" class="reader-block-link">부분 링크</button></div><div data-document-start="7" data-document-end="7"><h2 id="_r_0_-document-section-2" tabindex="-1">설치</h2>\n' +
+    '</div><div data-document-start="9" data-document-end="9" data-block-id="a-534c30ab23ecdd6bb3dbe4b8a463992e" tabindex="-1"><p>한글 두 번째 문단: 적용 조건을 확인합니다.</p>\n' +
+    '<button type="button" data-reader-control="true" data-block-share="a-534c30ab23ecdd6bb3dbe4b8a463992e" class="reader-block-link">부분 링크</button></div><div data-document-start="11" data-document-end="13" data-block-id="a-d0f903266551b1c29f6875fb5fb59b98" tabindex="-1"><pre><code class="language-ts">const 한글 = "&lt;script&gt;안전한 예제&lt;/script&gt;";\n' +
+    '</code></pre><button type="button" data-reader-control="true">코드 복사</button><button type="button" data-reader-control="true" data-block-share="a-d0f903266551b1c29f6875fb5fb59b98" class="reader-block-link">부분 링크</button></div><div data-document-start="15" data-document-end="17" data-block-id="a-0cf44d770eb28aba892f4f8e606ca093" tabindex="-1"><table>\n' +
+    '<thead>\n' +
+    '<tr>\n' +
+    '<th>항목</th>\n' +
+    '<th>값</th>\n' +
+    '</tr>\n' +
+    '</thead>\n' +
+    '<tbody><tr>\n' +
+    '<td>언어</td>\n' +
+    '<td>한글</td>\n' +
+    '</tr>\n' +
+    '</tbody></table>\n' +
+    '<button type="button" data-reader-control="true" data-block-share="a-0cf44d770eb28aba892f4f8e606ca093" class="reader-block-link">부분 링크</button></div></div></div></div></section></section><div class="op-context"><label>지식 공간<select><option value="0b7a62d5-09a9-426f-a9f5-9b27e075f0e7">@0b7a62d5-09a9-426f-a9f5-9b27e075f0e7/knowledge · write</option><option value="78b6d849-acb8-4dd3-b54e-82993868d5f4">@78b6d849-acb8-4dd3-b54e-82993868d5f4/knowledge · write</option><option value="d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f">@d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f/knowledge · write</option><option value="e60c6215-b3e5-4a88-8432-8e603fa33cea">@e60c6215-b3e5-4a88-8432-8e603fa33cea/knowledge · write</option></select></label></div><div class="op-context"><span>서버 정본 · 5개 접근 가능 발행본</span><span>모델: 미연결</span><label>실행 방식 <select><option value'... 299 more characters,
+  targets: [
+    { id: 'a-59026489d2a1265ccb7d7f36f73bc5f8', text: '문서 읽기\n부분 링크' },
+    {
+      id: 'a-d215f793c43dc244d65b691fbb5ee772',
+      text: '한글 첫 문단: 설치 절차를 확인합니다.\n부분 링크'
+    },
+    {
+      id: 'a-534c30ab23ecdd6bb3dbe4b8a463992e',
+      text: '한글 두 번째 문단: 적용 조건을 확인합니다.\n부분 링크'
+    },
+    {
+      id: 'a-d0f903266551b1c29f6875fb5fb59b98',
+      text: 'const 한글 = "<script>안전한 예제</script>";\n코드 복사부분 링크'
+    },
+    {
+      id: 'a-0cf44d770eb28aba892f4f8e606ca093',
+      text: '\n\n\n항목\n값\n\n\n\n언어\n한글\n\n\n부분 링크'
+    }
+  ],
+  body: '\n' +
+    '    본문으로 이동agent-knowledge-hubAgent-native knowledge platform현재 지식 공간접근 범위는 서버에서 확인 메뉴 · 편집 · 협업지식 공간홈지식 탐색 · 트렌드발행 지식검색내 작업새 문서자료 넣기 · 자동 정리내 문서즐겨찾기최근 방문구독저장 보기지식 도구편집 · 협업버전 비교 · 복원내 알림 · 검토함질문 · 재편입공지 · VOC · 내부 검토정련 · 경험원본 · 편입변경 검토지식 건강 점검내 도구에이전트 · 토큰연동 · 자동화EeditorWrite지식 환경편집 · 협업검색 ⌘/Ctrl K새 문서알림서버 연결 모드편집 · 협업운영 지식 · v2현재 발행 기록 · 버전 고정 조회최신 문서 링크 복사v2 고정 링크 복사발행 시점2026-11-17T21:37:16.491Z검토 시점미확인공식 문서 여부미확인반복되거나 화면과 범위가 일치하지 않는 블록은 위치를 확정할 수 없어 부분 링크를 제공하지 않습니다.목차문서 읽기설치설치문서 내 검색일치 0건이전 일치다음 일치현재 위치로 이동문서 읽기\n' +
+    '부분 링크설치\n' +
+    '한글 첫 문단: 설치 절차를 확인합니다.\n' +
+    '부분 링크설치\n' +
+    '한글 두 번째 문단: 적용 조건을 확인합니다.\n' +
+    '부분 링크const 한글 = "<script>안전한 예제</script>";\n' +
+    '코드 복사부분 링크\n' +
+    '\n' +
+    '\n' +
+    '항목\n' +
+    '값\n' +
+    '\n' +
+    '\n' +
+    '\n' +
+    '언어\n' +
+    '한글\n' +
+    '\n' +
+    '\n' +
+    '부분 링크지식 공간@0b7a62d5-09a9-426f-a9f5-9b27e075f0e7/knowledge · write@78b6d849-acb8-4dd3-b54e-82993868d5f4/knowledge · write@d4fd5a4d-46c9-4b0c-a02f-55cc831ed99f/knowledge · write@e60c6215-b3e5-4a88-8432-8e603fa33cea/knowledge · write서버 정본 · 5개 접근 가능 발행본모델: 미연결실행 방식 실제 모델구조 검사·발췌 (모델 미사용)서버 저장 · 현재 권한 재검사 · 검토 후 발행실제 모델 품질과 운영 인수 결과는 별도 검증 기록을 따릅니다.\n' +
+    '    \n' +
+    '  \n' +
+    '\n'
+}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Timeout 20000ms exceeded.
+    at /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub/docs/ui-validation/2026-11-18-document-reader/capture.mjs:31:15 {
+  log: [],
+  name: 'TimeoutError'
+}
+
+Node.js v24.22.2

@@ -1,0 +1,19 @@
+case 1440 light
+periodic restoration passed 1440 light
+math round trips passed 1440 light
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 20000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: '유효기간 저장', exact: true })[22m
+
+    at /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub/docs/ui-validation/2026-11-18-document-reader/capture.mjs:108:112 {
+  log: [
+    "  - waiting for getByRole('button', { name: '유효기간 저장', exact: true })"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.22.2

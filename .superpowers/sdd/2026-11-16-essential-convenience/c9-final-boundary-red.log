@@ -1,0 +1,51 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+ ❯ src/operational/convenience/reader-revalidation.test.tsx (13 tests | 1 failed) 171ms
+   × space discards retained reading state and pending copy fallback 9ms
+ ❯ src/operational/workflows-reader.test.tsx (11 tests | 1 failed) 217ms
+   × identity change never paints the previously admitted document before passive effects clear it 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/workflows-reader.test.tsx > identity change never paints the previously admitted document before passive effects clear it
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ src/operational/workflows-reader.test.tsx:64:79
+     62|  // Install a persistent owner first, then inspect the committed DOM b…
+     63|  await act(async()=>root.render(<Frame principalId="reader"/>));await …
+     64|  await act(async()=>root.render(<Frame principalId="other"/>));expect(…
+       |                                                                               ^
+     65| });
+     66|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/operational/convenience/reader-revalidation.test.tsx > space discards retained reading state and pending copy fallback
+AssertionError: expected <input maxlength="200" value></input> to be null
+
+- Expected:
+null
+
++ Received:
+<input
+  maxlength="200"
+  value=""
+/>
+
+ ❯ src/operational/convenience/reader-revalidation.test.tsx:43:232
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  2 failed | 22 passed (24)
+   Start at  06:34:00
+   Duration  572ms (tests 38%, environment 38%, import 18%, transform 5%)

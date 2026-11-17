@@ -1,0 +1,3 @@
+old read pending true
+after revocation {"body":false,"denied":true}
+after late success {"body":false,"denied":true,"paths":["/workflows/preferences","/workflows/notifications","/workflows/trash","/workflows/pages/topic","/workflows/pages/topic/comments","/workflows/pages/topic","/workflows/pages/topic/comments","/workflows/pages/topic?visit=0","/workflows/pages/topic/comments","/workflows/notifications","/workflows/trash"]}

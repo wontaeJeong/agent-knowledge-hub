@@ -100,7 +100,7 @@ export function renderMarkdown(text: string) {
         Object.assign([token], { links: tokens.links }),
       );
       return fragment.trim()
-        ? `<div data-document-start="${start}" data-document-end="${line - (token.raw.endsWith("\n") ? 1 : 0)}">${fragment}</div>`
+        ? `<div data-document-start="${start}" data-document-end="${start + (token.raw.replace(/\n+$/, "").match(/\n/g) ?? []).length}">${fragment}</div>`
         : "";
     })
     .join("");

@@ -68,6 +68,8 @@ if (
       await Promise.all(
         [
           "src/operational/convenience/reader.test.tsx",
+          "src/operational/convenience/reader-revalidation.test.tsx",
+          "src/operational/workflows-reader.test.tsx",
           "server/convenience/anchors.test.ts",
           "server/workflows/lineage-closure.test.ts",
           "server/workflows/navigation-http.test.ts",
