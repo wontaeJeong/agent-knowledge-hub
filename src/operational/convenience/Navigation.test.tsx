@@ -690,3 +690,28 @@ test("global search route replaces its pending screen and opens keyboard quick s
  expect(container.querySelector('[role="combobox"]')).not.toBeNull();
  expect(paths).not.toContain("/questions/threads");
 });
+
+async function writeSearchInput(control:HTMLInputElement,value:string){
+ await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(control,value);control.dispatchEvent(new Event("input",{bubbles:true}));});
+}
+test.each(["fresh","already-mounted"])("quick search continues the private term in %s detail without URL/storage",async(mode)=>{
+ vi.spyOn(window,"scrollTo").mockImplementation(()=>{});
+ const container=await mount(`/?app=1&space=team&section=${mode==="fresh"?"saved-views":"search"}`,()=>({items:[],nextCursor:null,revision:0,asof:"2026-11-17T00:00:00Z"}));
+ if(mode!=="fresh"){
+  await writeSearchInput(container.querySelector<HTMLInputElement>('.search-page input')!,"old query");
+  await writeSearchInput(container.querySelectorAll<HTMLInputElement>('.search-page input')[3],"old");
+ }
+ await act(async()=>container.querySelector<HTMLButtonElement>('.global-search > button')!.click());
+ await writeSearchInput(container.querySelector<HTMLInputElement>('.quick-open input')!,"private code");
+ await act(async()=>Array.from(container.querySelectorAll<HTMLButtonElement>('.quick-open button')).find(b=>b.textContent==="상세 검색")!.click());
+ expect(container.querySelector<HTMLInputElement>('.search-page input')?.value).toBe("private code");
+ expect(container.querySelectorAll<HTMLInputElement>('.search-page input')[3].value).toBe("");
+ expect(container.querySelector('.quick-open')).toBeNull();expect(location.search).not.toContain("private");expect(JSON.stringify({...localStorage,...sessionStorage})).not.toContain("private code");
+});
+test("cancelled detail navigation keeps the prior detail query and does not hand off the quick term",async()=>{
+ const container=await mount('/?app=1&space=team&section=search',()=>({items:[],nextCursor:null,revision:0,asof:"2026-11-17T00:00:00Z"}));
+ await writeSearchInput(container.querySelector<HTMLInputElement>('.search-page input')!,"prior query");
+ await act(async()=>container.querySelector<HTMLButtonElement>('.global-search > button')!.click());await writeSearchInput(container.querySelector<HTMLInputElement>('.quick-open input')!,"private code");
+ const cancel=(event:Event)=>event.preventDefault();window.addEventListener("akh:before-navigate",cancel);
+ try{await act(async()=>Array.from(container.querySelectorAll<HTMLButtonElement>('.quick-open button')).find(b=>b.textContent==="상세 검색")!.click());expect(container.querySelector('.quick-open')).not.toBeNull();expect(container.querySelector<HTMLInputElement>('.search-page input')?.value).toBe("prior query");}finally{window.removeEventListener("akh:before-navigate",cancel);}
+});

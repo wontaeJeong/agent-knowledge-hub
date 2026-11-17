@@ -88,6 +88,8 @@ try {
       };
       const searches = () =>
         posts.filter((p) => p.path === "/api/v1/questions/search");
+      const handoffChecks = [],
+        advancedIme = [];
       const equivalentEdits = [];
       const bodyMatches = (body, expected) =>
         body?.query === expected.query &&
@@ -192,6 +194,94 @@ try {
         "DELETE FROM workflow_activity WHERE workspace_id=$1 AND principal_id='reviewer' AND kind='recent'",
         [f.workspaceId],
       );
+      for (const mode of ["fresh", "already-mounted"]) {
+        await go(mode === "fresh" ? "favorites" : "search");
+        let oldQuery;
+        if (mode === "already-mounted") {
+          await rowsReady(".search-results li", 25);
+          oldQuery = page.locator(".search-page input").first();
+          await oldQuery.fill("old_term");
+          await page.locator(".search-page summary").click();
+          await page.getByLabel("문서 유형", { exact: true }).fill("missing");
+          await page.getByLabel("과거 버전 포함 (현재 권고 아님)").check();
+          await page.waitForFunction(() =>
+            document
+              .querySelector(".search-page")
+              .textContent.includes("0건 표시"),
+          );
+        }
+        await page.locator(".global-search > button").click();
+        await page.locator(".quick-open input").fill("코드_retry");
+        const action = page.getByRole("button", {
+          name: "상세 검색",
+          exact: true,
+        });
+        if (mode === "already-mounted") {
+          await page.evaluate(() => {
+            window.__cancelHandoff = (e) => e.preventDefault();
+            window.addEventListener(
+              "akh:before-navigate",
+              window.__cancelHandoff,
+            );
+          });
+          await action.click();
+          assert.equal(await page.locator(".quick-open").count(), 1);
+          assert.equal(await oldQuery.inputValue(), "old_term");
+          await page.evaluate(() => {
+            window.removeEventListener(
+              "akh:before-navigate",
+              window.__cancelHandoff,
+            );
+            delete window.__cancelHandoff;
+          });
+        }
+        const response = page.waitForResponse(
+          (r) =>
+            r.request().method() === "POST" &&
+            new URL(r.url()).pathname === "/api/v1/questions/search" &&
+            r.request().postDataJSON().limit === 25 &&
+            r.request().postDataJSON().query === "코드_retry",
+        );
+        await action.click();
+        await response;
+        await rowsReady(".search-results li", 25);
+        assert.equal(
+          await page.locator(".search-page input").first().inputValue(),
+          "코드_retry",
+        );
+        assert.equal(
+          await page.getByLabel("문서 유형", { exact: true }).inputValue(),
+          "",
+        );
+        assert.equal(
+          await page.getByLabel("과거 버전 포함 (현재 권고 아님)").isChecked(),
+          false,
+        );
+        const body = searches().at(-1).body;
+        assert.equal(body.query, "코드_retry");
+        assert.equal(body.type, undefined);
+        assert.equal(body.cursor, undefined);
+        assert.deepEqual(body.tags, []);
+        assert(!decodeURIComponent(page.url()).includes("코드_retry"));
+        assert(
+          !(await page
+            .evaluate(() =>
+              JSON.stringify({ ...localStorage, ...sessionStorage }),
+            )
+            .then((v) => v.includes("코드_retry"))),
+        );
+        handoffChecks.push({
+          mode,
+          query: "코드_retry",
+          limit: 25,
+          filtersReset: true,
+          cursorReset: true,
+          queryOnlyInMemory: true,
+          ...(mode === "already-mounted"
+            ? { cancelPreservedPriorQuery: true }
+            : {}),
+        });
+      }
       await go("search");
       await page.waitForFunction(
         () => document.querySelectorAll(".search-results li").length === 25,
@@ -460,8 +550,104 @@ try {
       await page.screenshot({
         path: `${output}/filters-${width}-${theme}.png`,
       });
+      const datesCleared = page.waitForResponse((r) => {
+        if (
+          r.request().method() !== "POST" ||
+          new URL(r.url()).pathname !== "/api/v1/questions/search"
+        )
+          return false;
+        const b = r.request().postDataJSON();
+        return b.query === "코드_retry" && !b.periodFrom && !b.periodTo;
+      });
       await page.getByLabel("작성 기간 시작", { exact: true }).fill("");
       await page.getByLabel("작성 기간 끝", { exact: true }).fill("");
+      await datesCleared;
+      await rowsReady(".search-results li", 25);
+      for (const [label, field] of [
+        ["업무 담당자", "businessOwner"],
+        ["태그 (쉼표 구분)", "tags"],
+      ]) {
+        const control = page.getByLabel(label, { exact: true });
+        await control.focus();
+        await control.evaluate((el) => {
+          window.__advancedIme = [];
+          for (const type of [
+            "compositionstart",
+            "compositionupdate",
+            "compositionend",
+            "input",
+          ])
+            el.addEventListener(type, (e) =>
+              window.__advancedIme.push({
+                type: e.type,
+                data: e.data ?? null,
+                trusted: e.isTrusted,
+                composing: e.isComposing ?? null,
+              }),
+            );
+        });
+        const before = searches().length;
+        await cdp.send("Input.imeSetComposition", {
+          text: "한",
+          selectionStart: 1,
+          selectionEnd: 1,
+        });
+        await page.waitForTimeout(260);
+        assert.equal(searches().length, before);
+        await cdp.send("Input.imeSetComposition", {
+          text: "한국",
+          selectionStart: 2,
+          selectionEnd: 2,
+        });
+        await page.waitForTimeout(260);
+        assert.equal(searches().length, before);
+        const response = page.waitForResponse((r) => {
+          if (
+            r.request().method() !== "POST" ||
+            new URL(r.url()).pathname !== "/api/v1/questions/search"
+          )
+            return false;
+          const b = r.request().postDataJSON();
+          return field === "tags"
+            ? JSON.stringify(b.tags) === '["한국"]'
+            : b.businessOwner === "한국";
+        });
+        await cdp.send("Input.insertText", { text: "한국" });
+        await response;
+        await rowsReady(".search-results li", 0);
+        const body = searches().at(-1).body;
+        assert.deepEqual(body[field], field === "tags" ? ["한국"] : "한국");
+        assert.equal(body.cursor, undefined);
+        assert.equal(
+          await page.locator('.search-page [role="alert"]').count(),
+          0,
+        );
+        const events = await page.evaluate(() => window.__advancedIme);
+        assert(events.some((e) => e.type === "compositionstart" && e.trusted));
+        assert(events.some((e) => e.type === "compositionend"));
+        advancedIme.push({
+          field,
+          partialPosts: 0,
+          committed: field === "tags" ? ["한국"] : "한국",
+          events,
+        });
+        const cleared = page.waitForResponse((r) => {
+          if (
+            r.request().method() !== "POST" ||
+            new URL(r.url()).pathname !== "/api/v1/questions/search"
+          )
+            return false;
+          const b = r.request().postDataJSON();
+          return (
+            b.query === "코드_retry" && !b.businessOwner && b.tags.length === 0
+          );
+        });
+        await control.fill("");
+        await cleared;
+        await rowsReady(".search-results li", 25);
+      }
+      assert.equal(advancedIme.length, 2);
+      assert.equal(handoffChecks.length, 2);
       await page.locator(".search-page summary").click();
 
       await q.focus();
@@ -653,6 +839,8 @@ try {
         exactHistoricalOpen: true,
         lateRealResponseBlocked: true,
         equivalentEdits,
+        advancedIme,
+        handoffChecks,
         historicalDefaultExcluded: true,
         searchNonvisit: true,
         snapshotVisitOneRow: true,

@@ -12,7 +12,7 @@ type Props = {
   api: OperationalApi;
   onOpen: (item: SearchItem) => boolean | void;
   onClose: () => void;
-  onSearch?: () => boolean | void;
+  onSearch?: (query: string) => boolean | void;
 };
 export function QuickOpen(props: Props) {
   const key = usePersonalKey(props.api, "");
@@ -164,8 +164,9 @@ function QuickOpenSession({ api, onOpen, onClose, onSearch }: Props) {
           {onSearch && (
             <button
               type="button"
+              disabled={composing}
               onClick={() => {
-                if (onSearch() !== false) onClose();
+                if (onSearch(query.trim()) !== false) onClose();
               }}
             >
               상세 검색
@@ -188,7 +189,7 @@ export function GlobalSearch({
   api: OperationalApi;
   identityKey: string;
   onOpen: Props["onOpen"];
-  onSearch: () => boolean | void;
+  onSearch: (query: string) => boolean | void;
 }) {
   const [opened, setOpened] = useState<number | null>(null),
     trigger = useRef<HTMLButtonElement>(null),
@@ -269,8 +270,8 @@ export function GlobalSearch({
             if (accepted !== false) close(false);
             return false;
           }}
-          onSearch={() => {
-            const accepted = onSearch();
+          onSearch={(query) => {
+            const accepted = onSearch(query);
             if (accepted !== false) close(false);
             return false;
           }}

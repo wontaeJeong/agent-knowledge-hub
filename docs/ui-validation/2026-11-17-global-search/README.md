@@ -1,6 +1,6 @@
 # C5 전역 검색·Quick Open 화면 검증
 
-2026-11-17, 기준 main `d4048bda1c93f1951b26a8e33c6d1e7737a4def7`, 격리 worktree `8ef7`에서 Chromium `158.0.8127.18`의 실제 DOM과 native API로 확인했다. Node24.22.2·PostgreSQL17.11·Vite5195/runtime4395, viewport1440×1000/390×844, light/dark 네 조건이다. 모든 full goto 뒤 실제 `document.documentElement.dataset.theme`를 다시 적용·확인했다. 최종 제품16파일 fingerprint는 `d451c3bd47c7e8c4fdebef7c35ae4bc6a6975002a7b3db33b6f7152cb9497a5c`이며 [전체 변경 제품 소스 manifest](product-source.json)에 경로·개별 해시·harness 해시를 기록했다.
+2026-11-17, 기준 main `d4048bda1c93f1951b26a8e33c6d1e7737a4def7`, 격리 worktree `8ef7`에서 Chromium `158.0.8127.18`의 실제 DOM과 native API로 확인했다. Node24.22.2·PostgreSQL17.11·Vite5195/runtime4395, viewport1440×1000/390×844, light/dark 네 조건이다. 모든 full goto 뒤 실제 `document.documentElement.dataset.theme`를 다시 적용·확인했다. 최종 제품16파일 fingerprint는 `77ac4dd368f2e95a54aa91a25e6e60912cbde83410ed147315db9f778f5ea700`이며 [전체 변경 제품 소스 manifest](product-source.json)에 경로·개별 해시·harness 해시를 기록했다.
 
 [최종 browser 결과](browser-results.json)는 네 조건 모두 errors[]/overflowfalse다. 28PNG는 실제 viewport 캡처이며 긴 결과/필터 전체를 한 이미지로 축소하지 않았다.
 
@@ -37,7 +37,7 @@ AKH_C5_SYNTHETIC_CAPTURE=1 PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node 
 최종 capture 뒤 이 작업의 runtime/Vite만 SIGTERM으로 정리했다. 명시적 소유 DB와 C5 prefix DB가0개이고4395/5195가 닫힌 것을 확인했다. 부모가 소유한 PostgreSQL 컨테이너와 다른 서비스는 건드리지 않았다. raw logs/report는 local `.superpowers/sdd/2026-11-16-essential-convenience/`에 있다. 프로세스 범위 cursor·실제 IdP/사내 자료·3만 사용자 부하·OS IME·전체 스크린리더·의미 품질/지식·에이전트 성과·운영 배포는 미검증이다. 독립 리뷰·원격 CI·PR·병합은 controller의 별도 단계다.
 
 
-## F1 리뷰 보완 — 현재 최종 증거
+## F1 리뷰 보완 — 이전 head 증거
 
 FIX_BASE100fd4c/PR70 draft의 정규화 동등 편집 정지와 실제 실행 중 발견한 ready/selection 경계를 수정했다. raw invalidate revision으로200ms debounce를 다시 시작하고, focus refresh는 기존 즉시 요청을 유지한다. Quick Open 선택 초기화는 useLayoutEffect로 결과가 입력 가능해지는 시점과 동기화한다. backend/API/schema/legacy QuestionsWorkbench는 동일하다.
 
@@ -48,3 +48,14 @@ FIX_BASE100fd4c/PR70 draft의 정규화 동등 편집 정지와 실제 실행 �
 기존 실제 IME/date/timezone/shortcut owner/late response/ACL/empty/error/snapshot/visit/no-storage/no-model 흐름을 모두 유지했다. Quick Open은 결과 준비 직후 추가 sleep/2paint 없이 각 Arrow10개의 aria-active가 현재 DOM의 예상 제목과 연결되는지, wrap 뒤 `코드_retry 안내`가 정확히 열리는지를 단언한다(`readyArrowTitles`). 최초 F1 browser는11-arrow 뒤 search-09로 잘못 이동해 exit1이었다. 이를 단순 harness 문제로 종결하지 않고 deterministic ready-commit RED와 제품 수정으로 해소했다. 중간2paint capture는 중단되어 증거에서 제외한다.
 
 현재 전체 변경 제품16파일 SHA는 **d451c3bd47c7e8c4fdebef7c35ae4bc6a6975002a7b3db33b6f7152cb9497a5c**다. 직전 client-only 단계63919f5d…와 초기100fd의12c71ef…는 과거 bytes이며 현재 manifest와 혼동하지 않는다. 최종 mobile/dark Quick Open을 다시 열어 확인했다. 자기 runtime/Vite를 종료하고 소유 DB0개·4395/5195닫힘을 확인했다. scoped 재리뷰·새 exact CI·병합과 기존 운영/OS IME/의미 품질 한계는 별도다.
+
+
+## ONE FINAL wave — F2/M2 현재 증거
+
+FIX_BASE e462749의 고급 text IME gate와 Quick Open→상세 검색어 전달을 같은 wave에서 수정했다. 폼 전체 text compositionstart가 pending을 무효화하고 compositionend가 해당 필드의 확정 값을200ms 뒤 적용한다. 메모리 handoff는 API/계정·공간/revision에 묶이며 navigate가 허용된 뒤에만 생성한다. 이미 열린 상세도 조건/과거모드/커서를 초기화하고 다른 identity/API 또는 취소된 이동에는 전달하지 않는다. 검색어는 URL/storage에 넣지 않는다.
+
+프로젝트 새 search13사례 RED11fail/2pass와 App 전달2fail/cancel1pass를 보존했다. 관련4파일76 GREEN 후 최종코드 단1회 `c5-final-onecheck.log` exit0: **408/48/16/41/251/servertypes/build/smoke**. 이전392는 F2 증거가 아니다. Backend/API/domain/legacy diff가 없어106 native는 carry하고 반복하지 않았다. 기존 M1 경고는 유지한다.
+
+현재28PNG/JSON은 **`c5-final-browser.log` exit0**에서 재수집했다. 네 조건 각각 advancedIme2(owner/tag)에서 실제 CDP의 `한`/`한국` 조합 중260ms마다 POST0을 단언하고 commit 뒤 실제 body의 한국/태그[한국]을 확인했다. handoffChecks2는 fresh/already-mounted의 실제25건 요청·검색어·조건/커서 reset·URL/storage 미보관을 확인하며 already-mounted에서는 취소 시 옛 query 유지도 확인한다. 기존 equivalent6/readyArrow10·IME/date/shortcut/snapshot/ACL/no-model 경계와 errors[]/overflowfalse를 유지했다. 모든 true 기록은 해당 실제 assertion 뒤에만 쓴다. CDP commit의 isTrusted=false와 OS IME 미인수 한계는 그대로다.
+
+현재16제품 SHA는 **77ac4dd368f2e95a54aa91a25e6e60912cbde83410ed147315db9f778f5ea700**다. 최종 로그의 정확한 local 경로는 `.superpowers/sdd/2026-11-16-essential-convenience/logs/c5-final-browser.log`다. 자기 runtime/Vite/DB 정리 후 소유 DB0개·4395/5195닫힘을 확인했다. 새 head scoped review/exact8CI/merge와 운영/의미 품질 인수는 controller의 별도 단계다.

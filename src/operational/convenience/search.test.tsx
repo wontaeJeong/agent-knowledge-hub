@@ -821,3 +821,284 @@ test("a newly ready result commit cannot erase the first Arrow selection", async
     expect(selectedTitle()).toBe(title);
   }
 });
+
+test.each([
+  ["query", 0],
+  ["type", 1],
+  ["businessOwner", 2],
+  ["tags", 3],
+  ["state", 4],
+  ["project", 5],
+  ["environment", 6],
+] as const)(
+  "all text fields defer %s IME until the committed value and 200ms",
+  async (field, index) => {
+    const { SearchPage } = await import("./SearchPage");
+    vi.useFakeTimers();
+    const requests: Record<string, unknown>[] = [];
+    const api = {
+      post: async (_path: string, body: Record<string, unknown>) => {
+        requests.push(body);
+        return result("current");
+      },
+    } as unknown as OperationalApi;
+    const { element } = await mount(SearchPage, {
+      api,
+      identityKey: "s:p",
+      onOpen: () => {},
+    });
+    await tick();
+    requests.length = 0;
+    const control = element.querySelectorAll("input")[index];
+    await act(async () =>
+      control.dispatchEvent(
+        new CompositionEvent("compositionstart", { bubbles: true }),
+      ),
+    );
+    await input(control, "한");
+    await tick(250);
+    expect(requests).toEqual([]);
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(control, "한국");
+      control.dispatchEvent(
+        new CompositionEvent("compositionend", { bubbles: true, data: "한국" }),
+      );
+    });
+    await tick(199);
+    expect(requests).toEqual([]);
+    await tick(1);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject(
+      field === "tags" ? { tags: ["한국"] } : { [field]: "한국" },
+    );
+    expect(requests[0].cursor).toBeUndefined();
+  },
+);
+test.each([
+  ["businessOwner", 2],
+  ["tags", 3],
+  ["environment", 6],
+] as const)(
+  "advanced %s IME aborts a pending old request and ignores its response",
+  async (field, index) => {
+    const { SearchPage } = await import("./SearchPage");
+    vi.useFakeTimers();
+    let finish: ((value: ReturnType<typeof result>) => void) | undefined;
+    let signal: AbortSignal | undefined;
+    const requests: Record<string, unknown>[] = [];
+    const api = {
+      post: async (
+        _p: string,
+        body: Record<string, unknown>,
+        _k: unknown,
+        s: AbortSignal,
+      ) => {
+        requests.push(body);
+        if (requests.length === 1) {
+          signal = s;
+          return new Promise<ReturnType<typeof result>>(
+            (resolve) => (finish = resolve),
+          );
+        }
+        return result("committed");
+      },
+    } as unknown as OperationalApi;
+    const { element } = await mount(SearchPage, {
+      api,
+      identityKey: "s:p",
+      onOpen: () => {},
+    });
+    await tick();
+    const control = element.querySelectorAll("input")[index];
+    await act(async () =>
+      control.dispatchEvent(
+        new CompositionEvent("compositionstart", { bubbles: true }),
+      ),
+    );
+    expect(signal?.aborted).toBe(true);
+    await input(control, "한");
+    await tick(250);
+    expect(requests).toHaveLength(1);
+    await act(async () => finish!(result("obsolete private")));
+    expect(element.textContent).not.toContain("obsolete private");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(control, "한국");
+      control.dispatchEvent(
+        new CompositionEvent("compositionend", { bubbles: true, data: "한국" }),
+      );
+    });
+    await tick();
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toMatchObject(
+      field === "tags" ? { tags: ["한국"] } : { [field]: "한국" },
+    );
+    expect(element.textContent).toContain("committed");
+  },
+);
+test("advanced composition and an obsolete request cannot carry through an identity switch", async () => {
+  const { SearchPage } = await import("./SearchPage");
+  vi.useFakeTimers();
+  let finish: ((value: ReturnType<typeof result>) => void) | undefined;
+  const old = {
+    post: async () =>
+      new Promise<ReturnType<typeof result>>((r) => (finish = r)),
+  } as unknown as OperationalApi;
+  const bodies: Record<string, unknown>[] = [];
+  const fresh = {
+    post: async (_p: string, b: Record<string, unknown>) => {
+      bodies.push(b);
+      return result("authorized fresh");
+    },
+  } as unknown as OperationalApi;
+  const { element, root } = await mount(SearchPage, {
+    api: old,
+    identityKey: "old:person",
+    onOpen: () => {},
+  });
+  await tick();
+  const owner = element.querySelectorAll("input")[2];
+  await act(async () =>
+    owner.dispatchEvent(
+      new CompositionEvent("compositionstart", { bubbles: true }),
+    ),
+  );
+  await input(owner, "한");
+  await act(async () =>
+    root.render(
+      <SearchPage api={fresh} identityKey="new:person" onOpen={() => {}} />,
+    ),
+  );
+  await tick();
+  await act(async () => finish!(result("obsolete private")));
+  expect(element.querySelectorAll("input")[2].value).toBe("");
+  expect(bodies[0].businessOwner).toBeUndefined();
+  expect(element.textContent).not.toContain("obsolete private");
+});
+test("quick detail action hands off only a committed term and respects cancelled navigation", async () => {
+  const { QuickOpen } = await load();
+  vi.useFakeTimers();
+  const terms: string[] = [];
+  const closed: boolean[] = [];
+  let allowed = false;
+  const api = { post: async () => result("code") } as unknown as OperationalApi;
+  const { element } = await mount(QuickOpen, {
+    api,
+    onOpen: () => {},
+    onClose: () => closed.push(true),
+    onSearch: (term: string) => {
+      terms.push(term);
+      return allowed;
+    },
+  });
+  const q = element.querySelector("input")!;
+  await input(q, " code ");
+  await tick();
+  const detail = Array.from(element.querySelectorAll("button")).find(
+    (b) => b.textContent === "상세 검색",
+  )!;
+  await act(async () => detail.click());
+  expect(terms).toEqual(["code"]);
+  expect(closed).toEqual([]);
+  await act(async () =>
+    q.dispatchEvent(
+      new CompositionEvent("compositionstart", { bubbles: true }),
+    ),
+  );
+  await input(q, "한");
+  await act(async () => detail.click());
+  expect(terms).toEqual(["code"]);
+  await act(async () =>
+    q.dispatchEvent(
+      new CompositionEvent("compositionend", { bubbles: true, data: "한" }),
+    ),
+  );
+  allowed = true;
+  await act(async () => detail.click());
+  expect(terms).toEqual(["code", "한"]);
+  expect(closed).toEqual([true]);
+});
+test("an in-memory handoff replaces an already-mounted detail session and rejects stale identity/API bindings", async () => {
+  const { SearchPage } = await import("./SearchPage");
+  vi.useFakeTimers();
+  const bodies: Record<string, unknown>[] = [];
+  let finish: ((value: ReturnType<typeof result>) => void) | undefined;
+  const api = {
+    post: async (_p: string, b: Record<string, unknown>) => {
+      bodies.push(b);
+      if (b.tags && (b.tags as string[]).includes("old"))
+        return new Promise<ReturnType<typeof result>>((r) => (finish = r));
+      return { ...result("fresh"), nextCursor: "old-cursor" };
+    },
+  } as unknown as OperationalApi;
+  const { element, root } = await mount(SearchPage, {
+    api,
+    identityKey: "s:p",
+    onOpen: () => {},
+  });
+  await tick();
+  await input(element.querySelector("input")!, "old query");
+  await input(element.querySelectorAll("input")[3], "old");
+  await tick();
+  const handoff = {
+    api,
+    identityKey: "s:p",
+    revision: 1,
+    query: "private code",
+  };
+  await act(async () =>
+    root.render(
+      <SearchPage
+        api={api}
+        identityKey="s:p"
+        onOpen={() => {}}
+        handoff={handoff}
+      />,
+    ),
+  );
+  expect(element.querySelector("input")?.value).toBe("private code");
+  expect(element.querySelectorAll("input")[3].value).toBe("");
+  await tick();
+  expect(bodies.at(-1)).toMatchObject({
+    query: "private code",
+    tags: [],
+    historical: false,
+  });
+  expect(bodies.at(-1)?.cursor).toBeUndefined();
+  await act(async () => finish!(result("obsolete private")));
+  expect(element.textContent).not.toContain("obsolete private");
+  await act(async () =>
+    root.render(
+      <SearchPage
+        api={api}
+        identityKey="other:p"
+        onOpen={() => {}}
+        handoff={handoff}
+      />,
+    ),
+  );
+  expect(element.querySelector("input")?.value).toBe("");
+  const otherApi = {
+    post: async () => result("new API"),
+  } as unknown as OperationalApi;
+  await act(async () =>
+    root.render(
+      <SearchPage
+        api={otherApi}
+        identityKey="s:p"
+        onOpen={() => {}}
+        handoff={handoff}
+      />,
+    ),
+  );
+  expect(element.querySelector("input")?.value).toBe("");
+  expect(location.href).not.toContain("private code");
+  expect(JSON.stringify({ ...localStorage, ...sessionStorage })).not.toContain(
+    "private code",
+  );
+});

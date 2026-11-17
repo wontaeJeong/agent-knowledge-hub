@@ -1,6 +1,6 @@
 import { DocumentSnapshot } from "./convenience/DocumentSnapshot";
 import { GlobalSearch } from "./convenience/QuickOpen";
-import { SearchPage } from "./convenience/SearchPage";
+import { SearchPage, type SearchHandoff } from "./convenience/SearchPage";
 import type { SearchItem } from "./convenience/search-client";
 import { PersonalLibrary } from "./convenience/PersonalLibrary";
 import { NotificationBell } from "./convenience/NotificationBell";
@@ -286,6 +286,8 @@ function OperationalWorkspace({
     }[]
   >([]);
   const [identity, setIdentity] = useState<Identity | null>(null);
+  const [searchHandoff, setSearchHandoff] = useState<SearchHandoff | null>(null);
+  const searchHandoffRevision = useRef(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -476,6 +478,7 @@ function OperationalWorkspace({
       setDataReady(false);
       currentScope.current = "";
       setIdentity(null);
+      setSearchHandoff(null);
       const safeLocation: ConvenienceLocation = {
         kind: "console",
         ...(spaceId ? { spaceId } : {}),
@@ -830,7 +833,16 @@ function OperationalWorkspace({
             api={api}
             identityKey={`${identity.workspaceId}:${identity.principalId}`}
             onOpen={openSearchDocument}
-            onSearch={() => navigate("search")}
+            onSearch={(query) => {
+              if (!identity || navigate("search") === false) return false;
+              setSearchHandoff({
+                api,
+                identityKey: `${identity.workspaceId}:${identity.principalId}`,
+                revision: ++searchHandoffRevision.current,
+                query,
+              });
+              return true;
+            }}
           />
         ) : undefined
       }
@@ -958,6 +970,7 @@ function OperationalWorkspace({
               <SearchPage
                 api={api}
                 identityKey={`${identity.workspaceId}:${identity.principalId}`}
+                handoff={searchHandoff ?? undefined}
                 onOpen={openSearchDocument}
               />
             )}

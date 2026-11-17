@@ -22,22 +22,43 @@ const fields = [
   ["reviewDateFrom", "검토 예정일 시작"],
   ["reviewDateTo", "검토 예정일 끝"],
 ] as const;
+export type SearchHandoff = {
+  api: OperationalApi;
+  identityKey: string;
+  revision: number;
+  query: string;
+};
 export function SearchPage(props: {
   api: OperationalApi;
   identityKey: string;
+  handoff?: SearchHandoff;
   onOpen: (item: SearchItem) => boolean | void;
 }) {
   const key = usePersonalKey(props.api, props.identityKey);
-  return <SearchSession key={key} {...props} />;
+  const handoff =
+    props.handoff?.api === props.api &&
+    props.handoff.identityKey === props.identityKey
+      ? props.handoff
+      : undefined;
+  return (
+    <SearchSession
+      key={`${key}:${handoff?.revision ?? "none"}`}
+      api={props.api}
+      onOpen={props.onOpen}
+      initialQuery={handoff?.query ?? ""}
+    />
+  );
 }
 function SearchSession({
   api,
   onOpen,
+  initialQuery,
 }: {
   api: OperationalApi;
   onOpen: (item: SearchItem) => boolean | void;
+  initialQuery: string;
 }) {
-  const [query, setQuery] = useState(""),
+  const [query, setQuery] = useState(initialQuery),
     [composing, setComposing] = useState(false),
     [raw, setRaw] = useState<Record<string, string>>({}),
     [historical, setHistorical] = useState(false),
@@ -102,6 +123,26 @@ function SearchSession({
         저장하지 않습니다.
       </p>
       <form
+        onCompositionStart={(event) => {
+          if (
+            event.target instanceof HTMLInputElement &&
+            event.target.type === "text"
+          )
+            change(() => setComposing(true));
+        }}
+        onCompositionEnd={(event) => {
+          const control = event.target;
+          if (!(control instanceof HTMLInputElement) || control.type !== "text")
+            return;
+          const field = control.dataset.searchField;
+          const value = control.value;
+          change(() => {
+            if (field === "query") setQuery(value);
+            else if (field && fields.some(([key]) => key === field))
+              setRaw((values) => ({ ...values, [field]: value }));
+            setComposing(false);
+          });
+        }}
         onSubmit={(e) => {
           e.preventDefault();
           if (!composing && !validation) void search.run();
@@ -112,13 +153,9 @@ function SearchSession({
           제목·본문 키워드
           <input
             data-search-fallback
+            data-search-field="query"
             maxLength={2000}
             value={query}
-            onCompositionStart={() => change(() => setComposing(true))}
-            onCompositionEnd={(e) => {
-              setQuery(e.currentTarget.value);
-              setComposing(false);
-            }}
             onChange={(e) => change(() => setQuery(e.target.value))}
           />
         </label>
@@ -133,6 +170,7 @@ function SearchSession({
               <label key={key}>
                 {label}
                 <input
+                  data-search-field={key}
                   type={dateKeys.has(key) ? "datetime-local" : "text"}
                   step={dateKeys.has(key) ? "0.001" : undefined}
                   maxLength={key === "tags" ? 4000 : 200}
