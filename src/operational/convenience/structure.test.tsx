@@ -256,3 +256,129 @@ test("existing personal documents and new tree keep distinct React identities wh
   ).toHaveLength(0);
   expect(document.querySelectorAll(".op-personal-documents")).toHaveLength(1);
 });
+
+const detailFor = (id: string) => ({
+  page: {
+    id,
+    title: id,
+    versions: [
+      {
+        number: 1,
+        content: `body ${id}`,
+        sourceIds: [],
+        createdAt: "2026-01-01",
+      },
+    ],
+    tags: [],
+    links: [],
+    sourceIds: [],
+  },
+  settings: { revision: 0, state: "active", parent_id: null, data: {} },
+});
+async function panelFixture(getDocument: (id: string) => Promise<unknown>) {
+  const { WorkflowPanel } = await import("../workflows");
+  const api = {
+    get: async (path: string) => {
+      const m = path.match(/^\/workflows\/pages\/([^/]+)$/);
+      if (m) return getDocument(m[1]);
+      return {
+        items: path.startsWith("/convenience/tree") ? [row("A"), row("B")] : [],
+        revision: "r",
+        nextCursor: null,
+      };
+    },
+    post: async () => ({ id: "A" }),
+  } as unknown as OperationalApi;
+  const props = {
+    api,
+    pages: [
+      { id: "A", title: "A" },
+      { id: "B", title: "B" },
+    ],
+    initialPageId: "A",
+    capabilities: ["knowledge.read", "knowledge.protect"],
+    principalId: "p",
+    spaceId: "s",
+    onChanged: async () => {},
+    onExpired: () => {},
+  };
+  await mount(<WorkflowPanel {...props} />);
+  return { api, props, WorkflowPanel };
+}
+async function selectDocument(id: string) {
+  const select = Array.from(document.querySelectorAll("select")).find((x) =>
+    Array.from(x.options).some((o) => o.value === "A"),
+  )!;
+  await act(async () => {
+    select.value = id;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+test.each(["selection","api","actor","space"] as const)("late post-move A detail cannot replace current %s", async mode => {
+  let count = 0,
+    late!: (x: unknown) => void;
+  let holding=true;
+  const {api,props,WorkflowPanel}=await panelFixture(async id=>{
+    if(id==='A' && ++count>1 && holding)return new Promise(r=>late=r);
+    const result=detailFor(id);if(!holding)result.page.title='current-'+id;return result;
+  });
+  await act(async () => button("문서 이동").click());
+  const input = document.querySelector('input[aria-label="이동 이유"]')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!.call(input, "move");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => button("이동 적용").click());
+  holding=false;
+  if(mode==='selection')await selectDocument("B");
+  else await act(async()=>root.render(<WorkflowPanel {...props} {...(mode==='api'?{api:{...api} as OperationalApi}:mode==='actor'?{principalId:'other'}:{spaceId:'other'})}/>));
+  expect(
+    document.querySelector("[data-document-heading]")?.textContent,
+  ).toContain(mode==='selection'?"current-B":"current-A");
+  await act(async () => late(detailFor("A")));
+  expect(
+    document.querySelector("[data-document-heading]")?.textContent,
+  ).toContain(mode==='selection'?"current-B":"current-A");
+});
+test.each(["ready", "outside", "identity"] as const)(
+  "mobile selected destination focus intent waits for ready and respects %s",
+  async (mode) => {
+    let ready!: (x: unknown) => void;
+    const { props, WorkflowPanel } = await panelFixture(async (id) =>
+      id === "B" ? new Promise((r) => (ready = r)) : detailFor(id),
+    );
+    await act(async () => button("문서 트리 열기").click());
+    const link = document.querySelector(
+      '[role="dialog"] a[href$="document=B"]',
+    ) as HTMLAnchorElement;
+    await act(async () => {
+      link.focus();
+      link.click();
+    });
+    expect(document.querySelector("[data-document-heading]")).toBeNull();
+    let outside: HTMLButtonElement | undefined;
+    if (mode === "outside") {
+      outside = document.createElement("button");
+      outside.textContent = "outside";
+      document.body.append(outside);
+      outside.focus();
+    }
+    if (mode === "identity")
+      await act(async () =>
+        root.render(<WorkflowPanel {...props} principalId="other" />),
+      );
+    await act(async () => ready(detailFor("B")));
+    if (mode === "ready")
+      expect(document.activeElement).toBe(
+        document.querySelector("[data-document-heading]"),
+      );
+    if (mode === "outside") expect(document.activeElement).toBe(outside);
+    if (mode === "identity")
+      expect(document.activeElement).not.toBe(
+        document.querySelector("[data-document-heading]"),
+      );
+  },
+);

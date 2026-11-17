@@ -1,0 +1,50 @@
+[1/1] server/convenience/structure-http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure-http.test.ts (2 tests | 1 failed) 1206ms
+   × authenticated native HTTP uses CSRF/current policy and rejects spoofed or repeated queries 1063ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  02:02:44
+   Duration  1.48s (tests 84%, import 10%, transform 6%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure-http.test.ts > authenticated native HTTP uses CSRF/current policy and rejects spoofed or repeated queries
+AssertionError: expected [ 'knowledge_tree', …(16) ] to deeply equal [ 'knowledge_duplicate' ]
+
+- Expected
++ Received
+
+  [
++   "knowledge_tree",
++   "knowledge_path",
++   "knowledge_move",
+    "knowledge_duplicate",
++   "knowledge_import_selection",
++   "knowledge_import_text",
++   "knowledge_import_preview",
++   "knowledge_import_start",
++   "knowledge_import_status",
++   "knowledge_import_cancel",
++   "knowledge_import_resume",
++   "knowledge_semantic_search",
++   "knowledge_search",
++   "knowledge_query",
++   "knowledge_ingest",
++   "knowledge_lint",
++   "knowledge_jobs",
+  ]
+
+ ❯ server/convenience/structure-http.test.ts:171:64
+    169|       ),
+    170|     );
+    171|     expect((await mcpClient.listTools()).tools.map(t=>t.name)).toEqual…
+       |                                                                ^
+    172|     const mcpCopy = await mcpClient.callTool({
+    173|       name: "knowledge_duplicate",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

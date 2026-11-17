@@ -1,5 +1,8 @@
 // Explicit synthetic loopback actor adapter; canonical HTTP and PostgreSQL only.
 import { sourceHashes } from "./manifest.mjs";
+import * as oidc from "openid-client";
+import { once } from "node:events";
+import { OidcAuth, sessionHash } from "../../../server/runtime/auth";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { createServer } from "node:http";
@@ -79,6 +82,7 @@ try {
         {
           ...versions[0],
           content:
+            `[검토 절차](/?app=1&space=${f.workspaceId}&document=review)\n\n` +
             "## 문서 구조\n\n문서는 안정적인 ID로 연결됩니다. 상위 위치와 표시 순서를 바꿔도 기존 링크를 유지합니다.\n\n## 변경 절차\n\n1. 대상 상위 문서와 배치 위치를 선택합니다.\n2. 이동 이유를 입력합니다.\n3. 현재 권한과 버전을 확인한 뒤 위치를 저장합니다.",
         },
       ]);
@@ -91,6 +95,30 @@ try {
     }
     scenarios.push({ spaceId: f.workspaceId });
   }
+  const provider = createServer((_req, res) => {
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ sub: "reviewer", groups: ["reviewers"] }));
+  }).listen(0, "127.0.0.1");
+  await once(provider, "listening");
+  const issuer = `http://127.0.0.1:${(provider.address() as any).port}`;
+  const config = new oidc.Configuration(
+    { issuer, userinfo_endpoint: issuer + "/userinfo" },
+    "client",
+    "secret",
+  );
+  oidc.allowInsecureRequests(config);
+  const realAuth = new OidcAuth(
+    main.pool,
+    config,
+    "http://127.0.0.1:5197",
+    main.workspaceId,
+    { reviewers: "reviewer" },
+  );
+  const sessionId = sessionHash("c7-synthetic-session");
+  await main.pool.query(
+    "INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,expires_at,subject,access_token) VALUES($1,$2,'reviewer','test-only-csrf',now()+interval '1 hour','reviewer','token')",
+    [sessionId, main.workspaceId],
+  );
   const auth = {
     authenticate: async (req: any) => ({
       workspaceId: req.headers["x-space-id"] ?? main.workspaceId,
@@ -99,10 +127,14 @@ try {
         : "reviewer",
       csrfToken: "test-only-csrf",
     }),
-    requestGuard: () => ({
+    requestGuard: (_req: any, session: any) => ({
+      sessionId,
       revalidate: async () => {},
       assertSession: async () => {},
     }),
+    revalidateInteractiveGrant:
+      realAuth.revalidateInteractiveGrant.bind(realAuth),
+    assertInteractiveGrant: realAuth.assertInteractiveGrant.bind(realAuth),
   };
   const collaboration = new CollaborationService(
     main.pool,
@@ -140,6 +172,8 @@ try {
   const stop = async () => {
     if (stopping) return;
     stopping = true;
+    provider.closeAllConnections();
+    await new Promise<void>((r) => provider.close(() => r()));
     server.closeAllConnections();
     await new Promise<void>((r) => server.close(() => r()));
     await Promise.all(pools.map((p) => p.end()));

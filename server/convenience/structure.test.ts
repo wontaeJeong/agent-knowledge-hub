@@ -512,3 +512,18 @@ test("duplicate mutation IDs belong to actor and space, so another author gets a
   expect(await s.duplicateToDraft(f.editor, input)).toEqual(first);
   expect(await s.duplicateToDraft(f.ctx, input)).toEqual(second);
 });
+
+test("linked duplicate replays exact result after rename and still checks revoked dependencies and input identity", async () => {
+  await node("linked");
+  await f.pool.query("UPDATE versions SET data=jsonb_set(data,'{content}',to_jsonb($2::text)) WHERE workspace_id=$1 AND page_id='topic'",[f.workspaceId,`[linked](/?app=1&space=${f.workspaceId}&document=linked)`]);
+  const input={pageId:"topic",version:1,parentId:null,mutationId:randomUUID()};
+  const first=await s.duplicateToDraft(f.editor,input);
+  expect(first.dependencyVersions).toEqual({topic:1,linked:1});
+  expect(await s.duplicateToDraft(f.editor,input)).toEqual(first);
+  await f.pool.query("UPDATE pages SET data=jsonb_set(data,'{title}',to_jsonb('renamed'::text)) WHERE workspace_id=$1 AND id='topic'",[f.workspaceId]);
+  expect(await s.duplicateToDraft(f.editor,input)).toEqual(first);
+  await expect(s.duplicateToDraft(f.editor,{...input,parentId:"linked"})).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+  await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='linked' AND principal_id='editor'",[f.workspaceId]);
+  await expect(s.duplicateToDraft(f.editor,input)).rejects.toThrow();
+  expect((await f.pool.query("SELECT count(*)::int AS n FROM workflow_drafts WHERE workspace_id=$1",[f.workspaceId])).rows[0].n).toBe(1);
+});

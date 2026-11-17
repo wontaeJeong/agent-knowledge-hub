@@ -336,7 +336,7 @@ export class WorkflowService {
       (db) => this.saveDraftInTransaction(db, ctx, d),
     );
   }
-  private async saveDraftInTransaction(db: PoolClient, ctx: Context, d: z.infer<typeof draftSchema>) {
+  private async saveDraftInTransaction(db: PoolClient, ctx: Context, d: z.infer<typeof draftSchema>, authorizedReplayInputHash?: string) {
         if (d.originSpaceId && d.originSpaceId !== ctx.workspaceId)
           throw Error("SOURCE_SCOPE_CONFLICT");
         await assertProductWritesNotErased(db,ctx.workspaceId,d.pageId ?? "");
@@ -387,7 +387,7 @@ export class WorkflowService {
             [ctx.workspaceId, ctx.principalId, d.mutationId],
           );
           if (previous.rowCount) {
-            if (previous.rows[0].input_hash !== fingerprint(d))
+            if (previous.rows[0].input_hash !== (authorizedReplayInputHash ?? fingerprint(d)))
               throw Error("IDEMPOTENCY_CONFLICT");
             return previous.rows[0].result;
           }
@@ -909,6 +909,21 @@ export class WorkflowService {
       },
     );
   }
+  /** Trusted C7 issuance callback; admission grants no generic delegated capability. */
+  async authorizeStructureGrant<T>(ctx: Context, operation: "move" | "duplicate", input: unknown, issue: (db: PoolClient) => Promise<T>) {
+    const d = operation === "move" ? structureMoveSchema.parse(input) : duplicateSchema.parse(input);
+    const action = operation === "move" ? "knowledge.protect" : "draft.write";
+    return this.run(ctx, action, {kind:"page",id:d.pageId}, async db => {
+      const p = await this.page(db,ctx,d.pageId);
+      await assertProductWritesNotErased(db,ctx.workspaceId,d.pageId);
+      if ("version" in d) await this.requireVersion(db,ctx,p,d.version);
+      if (d.parentId) {
+        await this.page(db,ctx,d.parentId);
+        await this.authorize(db,ctx,action,{kind:"page",id:d.parentId});
+      }
+      return issue(db);
+    });
+  }
   async moveDocument(ctx: Context, input: unknown) {
     const d = structureMoveSchema.parse(input);
     const receiptId = "structure-move-" + fingerprint([ctx.workspaceId,ctx.principalId,d.mutationId]);
@@ -1032,7 +1047,7 @@ export class WorkflowService {
             throw Error("IDEMPOTENCY_CONFLICT");
           const saved = (
             await db.query(
-              "SELECT result FROM workflow_draft_save_mutations WHERE workspace_id=$1 AND owner_id=$2 AND mutation_id=$3 AND draft_id=$4",
+              "SELECT input_hash,result FROM workflow_draft_save_mutations WHERE workspace_id=$1 AND owner_id=$2 AND mutation_id=$3 AND draft_id=$4",
               [
                 ctx.workspaceId,
                 ctx.principalId,
@@ -1051,6 +1066,9 @@ export class WorkflowService {
               expectedRevision: 0,
               mutationId: d.mutationId,
             }),
+            // The outer receipt matched the exact normalized duplicate request.
+            // Enriched lineage is reauthorized above; it is not the original save input.
+            saved.input_hash,
           );
         }
         const provenance = inheritedProvenance({ ...p, versions: [v] });

@@ -1,4 +1,4 @@
-import {DocumentStructureService} from "../convenience/structure";
+import {DocumentStructureService,structureCredentialOperation} from "../convenience/structure";
 import {handleStructureRoute} from "../convenience/http";
 import { HomeService } from "../convenience/home";
 import { handleHomeRoute } from "../convenience/http";
@@ -259,6 +259,8 @@ export function createRuntimeHandler(options: {
               : undefined,
           )
         : undefined;
+      const c7Operation=credential?await structureCredentialOperation(options.pool,credential):null;
+      if(c7Operation && !(req.method==="POST" && ["/mcp",`/api/v1/convenience/pages/${c7Operation}`].includes(path)))throw Error("FORBIDDEN");
       if (credential) {
         if (options.jobs) await options.jobs.revalidateCredential(credential);
         else if (
@@ -580,7 +582,7 @@ export function createRuntimeHandler(options: {
         )
       )
         return;
-      if(await handleStructureRoute({method:req.method??"GET",path,query:url.searchParams,body,ctx,send},new DocumentStructureService(new WorkflowService(options.pool,service,authorizeInTransaction,options.origin))))return;
+      if(await handleStructureRoute({method:req.method??"GET",path,query:url.searchParams,body,ctx,send},new DocumentStructureService(new WorkflowService(options.pool,service,authorizeInTransaction,options.origin),options.auth)))return;
       if (await handleHomeRoute({method:req.method??"GET",path,query:url.searchParams,ctx,send},new HomeService(options.pool,new WorkflowService(options.pool,service,authorizeInTransaction,options.origin),new GovernanceService(options.pool,authorizeInTransaction),options.jobs?.jobs))) return;
       if (
         await handleGovernanceRoute(
@@ -951,6 +953,7 @@ export function createRuntimeHandler(options: {
           ctx,
           options.jobs,
           questions.searcher,
+          options.auth,
         );
       if (req.method === "GET") {
         const storedAnswer = path.match(/^\/api\/v1\/answers\/([^/]+)$/);

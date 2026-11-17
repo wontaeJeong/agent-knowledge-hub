@@ -1,6 +1,6 @@
 # Task 7 — document tree, move and private duplicate
 
-Status: **DONE_WITH_CONCERNS** (local implementation and evidence complete; independent review/integration remain controller-owned).
+Status: **DONE_WITH_CONCERNS**. The original submission below is historical; **Round1 at the end is the current implementation/evidence**. I1–I4 fixes are locally complete; independent re-review/integration remain controller-owned.
 
 Base: `de4e150b7a37003ec23a885fb32205b49d107a7f`. Worktree: `/Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub`. Branch: `feat/convenience-document-structure-20261118`. Feature commit: `5b36d3a4e04d2038a70d9abe3be14624bf515493`. Evidence follow-up: the documentation commit containing the final feature hash. No push, PR, merge or subagent was performed. Root checkout remains main; unrelated peer work/migrations131–139 were preserved. C4 predecessor PR72 is merged at base; controller supplied final `5f4d593`, CI `44115841741`, all8 required checks. Older C4 local evidence in the plan remains historical, not final-head evidence.
 
@@ -122,3 +122,151 @@ Self-review inspected final service extraction/atomicity, opaque token binding/c
 North Star: improves human Query discovery/organization and safe private re-authoring of existing approved knowledge without erasing source/version relationships. It does not replace Ingest→Query→Lint, answer reintegration, review/approval or independent evidence. Invariants: no widened source/ancestor readers; current authorization on mutation/replay; source/version lineage survives copy/body edits; retry does not duplicate; stable links survive structure/title changes; legal hold/erasure apply to derived private material. Evaluation here is boundary/function verification; knowledge/agent effectiveness requires EVALUATION controlled experiments. Existing251 criteria and North Star meaning remain unchanged.
 
 Outstanding concerns are explicit scoped-agent C7 unavailability pending admission design; full-state policy/digest/sibling update scale unmeasured; cursor restart expiration; existing large Vite chunk warning; real enterprise IdP/data/model quality, device/IME/accessibility and production operation unverified. No criterion is waived or reduced by this local completion status.
+
+
+# Task review fix Round1 / 5 — current evidence
+
+FIX_BASE: `9e77efaccb7f6176cb0759418b29553f9ec1f2d0`. Status: **DONE_WITH_CONCERNS**, I1/I2/I3/I4 addressed locally; controller scoped review, CI and integration pending. Fix commit: **PENDING_ROUND1_COMMIT**. No helper/reviewer agent, push, PR mutation or merge performed by implementer. Parent created PR73 after the original submission; this report does not claim its final review/CI status. Original479/check/captures/fingerprint42e9... remain historical in original commits; they are not current Round1 evidence.
+
+## Verbatim task review received
+
+The following is the complete supplied `/private/tmp/akh-c7-task-review.md`, preserved verbatim. Parent additionally promoted its M1 to Important I4 in `progress.md` and directed the explicit opt-in I3 grant implementation; M2 remains deferred.
+
+### Spec Compliance
+
+- ❌ **Issues found.** UXC-06 is substantially implemented, but duplicate replay fails for linked documents (I1), the new move refresh can overwrite a different selected document (I2), and supported machine credentials cannot perform the promised C7 mutations (I3). **0 Critical / 3 Important / 2 Minor.**
+- ✅ The missing cosmetic `App.tsx` hunk is not itself a defect under the controller's ruling: actual integration is present at `src/operational/workflows.tsx:920`, `:945`, `:953`; the existing stable URL is exercised after move and rename by `docs/ui-validation/2026-11-18-document-structure/capture.mjs:195` and `:224`. Migration 143 correctly replaces the provisional number; the diff does not change the 251 requirement definitions or North Star.
+- ⚠️ **Cannot verify from supplied evidence:** mobile focus after *selecting a different document*, as opposed to Escape (M1); real enterprise IdP/data, physical touch/IME/screen reader, production scale and multi-process continuation. The browser proof at `docs/ui-validation/2026-11-18-document-structure/capture.mjs:136` checks Escape with the original heading still mounted. No operational or quality-effect acceptance is inferred from synthetic evidence.
+
+### Strengths
+
+- `server/workflows/service.ts:770`, `:810`, `:873`: tree/path reuse current canonical visibility; result size is capped at 25, raw scan at 100 plus lookahead, hidden scan positions are authenticated-encrypted, and continuation binds identity/space/parent/limit/data/authority. `hasChildren` uses visible children rather than raw counts. Canonical inherited ACLs prevent a hidden ancestor from being bypassed.
+- `server/workflows/service.ts:914`, `:988`, `:1239`, `:1280`: move runs under the canonical transaction/mutation gate, checks current page and destination authority, validates page CAS and neighbor token, writes parent/rank/audit/receipt atomically, and rejects broadening with rollback. The new `rejectBroadening` branch leaves legacy `setDocumentState` clamping intact. Receipt IDs include workspace, actor and operation; replay occurs after current authorization and before stale CAS/token checks.
+- `server/convenience/structure.test.ts:232`, `:432`: real queued ACL/trash/retention/revision and neighbor reorder/trash tests assert rejected mutations leave no partial state. `server/convenience/structure.test.ts:490` verifies actor-isolated duplicate receipts. These are meaningful native tests, not merely adapter mocks.
+- `server/workflows/service.ts:1010`, `:1057`: exact-version duplication creates a private page-less draft through the existing save primitive, preserves origin/source lineage, and does not publish or invent independent evidence. Current source/lineage/parent/erasure checks precede receipt replay; I1 concerns input reconstruction, not a bypass of those checks.
+- `server/migrations/143-document-order.sql:3`, `server/convenience/structure-schema.ts:3`, `server/retention/inventory.ts:60`, `server/operations/erasure.ts:504`: order is page-linked metadata with unique identity, FK cascade, nonnegative rank, 500-row inserts and exact-column fail-closed inventory. `server/convenience/structure-migration.test.ts:6` checks 1002-row backfill, rollback and new-pool restart; actual erasure/hold tests cover source-derived private copies and order rows.
+- `src/operational/convenience/PageTree.tsx:279`, `:437`, `:482`: capability-driven actions, private child creation, a keyboard placement selector and drag placement share the same pending move; identity remounting and placement generation guards address several real stale-response cases. `Breadcrumbs.tsx:10` and tree links preserve stable IDs.
+
+### Issues
+
+#### Critical (Must Fix)
+
+- None found in the reviewed scope.
+
+#### Important (Should Fix)
+
+1. **I1 — A successful duplicate of a linked page cannot be replayed.** `server/workflows/service.ts:1045` reconstructs the private-save input from `saved.result`, while `:1069` initially supplies only `{ [originPage]: originalVersion }`. The canonical save resolves rendered internal links (`:370` / `referenceDependencies` at `:197`), stores the expanded dependency map in the result, but stores the fingerprint of the original unexpanded input (`:431`). The identical duplicate request therefore re-enters save with a different input hash and fails `IDEMPOTENCY_CONFLICT` at `:390`. This breaks recovery after a lost success response for ordinary interlinked knowledge. Persist/replay the exact normalized original save input (separately from enriched result), or authorize and return the existing receipt without treating its enriched output as the original input. Preserve all present current-policy checks. Add a regression with an authorized rendered relative link, and repeat after title change.
+   - **Confirmed with one focused actual PostgreSQL probe:** `/private/tmp/akh-c7-review-copy.mts` used a fresh UUID database, the real fixture and canonical `WorkflowService`. Output: `FIRST_DEPENDENCIES {"topic":1,"linked":1}`, `REPLAY_ERROR IDEMPOTENCY_CONFLICT`, `DRAFT_COUNT 1`. The owned database `akh_c7_review_3d1d135679d24ec59be99896ece3e3f9` was dropped in `finally`. No repository files were changed and no suite was rerun. Initial sandbox attempts failed before connecting; the narrow escalated invocation succeeded.
+
+2. **I2 — A late post-move refresh can replace the newly selected document with the previous document.** `src/operational/workflows.tsx:953` adds `await api.get(...selected); setDetail(next)` without binding the response to the current selection/request generation. After move POST succeeds, the modal closes (`PageTree.tsx:366`) and its refresh remains pending. The user can select B through the tree/select; the normal selection effect loads B, then the older move refresh for A can finish last and set A's detail while `selected` is B. Subsequent controls combine B's ID with A's displayed version/revision. `alive.current` at `PageTree.tsx:363` is checked before invoking the callback and cannot guard the callback's later `setDetail`. Bind this refresh to the current API/identity/document generation and discard stale results; add a delayed A-refresh/B-selection regression. This is a new callback defect even though older refresh helpers have similar architectural debt.
+
+3. **I3 — Agent C7 mutation transport is still unimplemented, not merely untested.** `server/runtime/mcp.ts:52` and `:166` expose the canonical mutation tools for session contexts, but no currently issuable machine credential can satisfy them. This leaves the task's explicit “에이전트 API/MCP도 같은 변경 서비스를 호출한다” contract incomplete; documentation of the limitation is honest but does not waive that requirement.
+   - `akh_sk_` agent keys: `server/runtime/mcp.ts:141` retains the fixed read/write tool allowlist; `server/runtime/http.ts:430` also enforces the agent route allowlist. The new SDK test at `server/convenience/structure-http.test.ts:168` explicitly proves C7 rejection, not permission.
+   - Separate agent MCP: `server/agents/mcp.ts:34` dispatches fixed `wiki_*` tools and has no C7 mutation; the new test at `server/convenience/structure-http.test.ts:179` confirms this absence.
+   - `akh_` action credentials are a **distinct case**: `server/runtime/http.ts:255` authenticates them and binds `ctx.credentialId`; they can issue `knowledge.read` and reach tree/path via HTTP/runtime MCP. However `server/access/index.ts:49` excludes both `knowledge.protect` and `draft.write` from `delegated`. Human credential issuance (`:1901`) and service credential issuance (`:727`) reject these actions. Effective access (`:237` and `:245`) filters them out again even if an action row were inserted manually. Thus neither C7 move nor duplicate has a supported action-credential path. This is source-established unavailability, not a missing issued-key test alone.
+   - Resolve with an explicit, bounded machine-admission contract and permit/deny/revoke evidence using actually issued credentials, or obtain a separate explicit product scope decision leaving this requirement unmet. Do **not** silently expand existing read/write keys, the delegated ceiling, or all `wiki_*` clients. The North Star remains unchanged; the missing agent-native mutation path must remain an actual gap until resolved.
+
+#### Minor (Nice to Have)
+
+1. **M1 — Selection-close focus is tied to a single animation frame, not the destination document becoming ready.** `src/operational/convenience/PageTree.tsx:233` schedules one query for `[data-document-heading]`, and `:255` invokes it immediately after selection. The selection effect at `src/operational/workflows.tsx:691` clears the existing detail while the new document loads, so under a delayed fetch there is no heading when that callback runs and no later focus attempt. The current browser test only exercises Escape. Move the focus intent into the destination-ready lifecycle and add a delayed selection focus check. Escape close/focus is supported by the supplied actual evidence; successful selection focus is not.
+2. **M2 — Existing build warning remains.** `.superpowers/sdd/2026-11-16-essential-convenience/logs/c7-final-check-complete.log:282` reports chunks over 500 kB. This is pre-existing bundle debt, not a C7 blocker or a clean-output claim; retain it as measured follow-up rather than muting the warning.
+
+### Checks and Scope
+
+- Reviewed the supplied two-commit diff in production/schema, regression, UI/harness and evidence passes. No Git regeneration, checkout/index/HEAD mutation, helper agent or broad suite rerun was performed.
+- Focused surrounding checks were limited to named risks: (a) extracted transaction methods were cut off in the diff, so their current bodies plus `run/page/requireVersion`, `database.transaction`, `readers/visiblePageIds` were checked for lock/current-ACL/legacy-clamp regressions; (b) `saveDraftInTransaction` and `references.internalReferenceIds` were checked for receipt input/output normalization (I1); (c) WorkflowPanel selection lifecycle was checked for the new refresh and mobile focus races (I2/M1); (d) runtime authentication, both MCP dispatchers and access-credential issuance/effective ceilings were checked to distinguish actual machine admission from session-only support (I3). The worktree has no `.codegraph/`, so no index was used or created.
+- Inspected final check and native evidence: `c7-final-check-complete.log:20` records frontend 479; Node 48/import 16/evaluation 41/requirements 251/server types/build/static smoke also pass. `c7-final-actor-receipt.log:1` records current HTTP/MCP 2 + structure 19. `c7-green-erasure.log:11` records the carried 106; `c7-native-regression.log:1` supplies the other 104 passing cases and preserves the old erasure failure superseded by the later green run. This is 17 unique files/231 tests across source-compatible runs, **not** one final 231-test run.
+- Inspected harness/capture assertions, browser JSON and the 1440-light/390-dark PNGs. Canonical HTTP forwarding is unchanged by the synthetic actor adapter. The proof covers three levels, hidden title absence, keyboard move, old ID after move/rename, private duplicate, source revoke and Escape focus in four viewport/theme conditions. It does not exercise linked-page duplicate replay, delayed move-refresh selection, or selection-close focus.
+- No performance correctness finding is inferred solely from full-state policy/digest scans, sibling-rank rewrites, or process-local 15-minute cursor keys. These are explicitly disclosed scale/architecture/operational limits requiring separate acceptance, not proof of data leakage or a reason to rerun suites.
+
+### Assessment
+
+**Task quality: Needs fixes.** The canonical authorization, transaction, lineage and erasure reuse is strong, and the evidence distinguishes failures and carried results honestly. The confirmed replay defect and new UI response race prevent trusting retry/navigation behavior; machine mutation admission remains a separate substantive spec gap.
+
+
+## Round1 changes and rulings
+
+**Ruling I1 — preserve original input identity, reauthorize enriched lineage.** Outer duplicate receipt must match the exact normalized user request. It then loads the private mutation's original input hash and enriched result; canonical save rechecks draft history, current source/linked dependency/parent/erasure before comparing the original stored hash. It no longer fingerprints enriched output as though it were original input. The trusted optional hash is private to the canonical save method and never accepted in HTTP/MCP DTOs. Why: rendered relative links add dependencies and rename must not turn the same request into conflict. Cost: a tightly scoped internal replay parameter; no second draft, erased/private body leakage or independent-proof cloning is permitted. Actual DB regression checks link→expanded dependency map, exact replay, rename replay, changed payload reject, linked-page revoke and draft count1.
+
+**Ruling I2 — bind refresh to document/API/actor/space generation.** The move callback captures current selection identity and applies its GET result only if still mounted/current and response page matches requested page. Normal selection loading also checks current generation after async boundaries, including identity changes. Why: a late A result cannot set detail underneath selected B or a new API/account/space. Cost: a small current-selection ref inside the existing workbench, without changing C4/C6 recovery or a broad editor rewrite. UI cases separately cover selection/API/actor/space changes; actual browser holds canonical A response, selects/loads B, then releases A and verifies B and outside selector focus stay intact.
+
+**Ruling I4 — destination-ready mobile focus with cancellation.** Mobile selection registers an intent bound to the intended selection generation. A layout effect focuses that exact current heading after the new authorized detail is committed. Outside focus/pointer/key intent and account/API/space changes cancel it. Dialog trigger restoration is allowed without confusing it with explicit outside intent; same-selection requests trigger the readiness effect as well. Why: one animation frame can occur while destination heading is absent. Cost: scoped intent/ref/listener lifecycle and tests; unchanged Escape return behavior remains. Actual390 Enter-select with delayed canonical response verifies new heading focus, and an independent repetition intentionally focuses the outside selector before response and preserves it.
+
+**Ruling I3 — explicit per-operation machine grant, no general delegation expansion.** Authenticated human session explicitly POSTs `{operation,input,expiresAt}` to `/api/v1/convenience/credentials`. The input is the full strict normalized move/duplicate request, so workspace/actor plus operation hash bind page, parent, exact version/CAS/order token, mutationId and reason. Expiry is at most15minutes and parent session must remain valid. Existing access_credentials stores a dedicated marker, exact input hash and parent-session snapshot with a hashed `akh_` secret. No SQL migration/new authority table, general delegated capability, existing key issuance, `akh_sk_` read/write list or wiki_* tool list changes. Issuance uses current canonical capability/source/version/parent/erasure and current human session. Cost: machine callers require a human-prepared exact operation and a short-lived valid parent session; this is not long-lived service-account delegation or a generic agent elevation.
+
+**Ruling I3 transaction/fences.** The private structure dispatch alone creates the interactive context and immediately invokes the same canonical move/duplicate service; it returns no privileged context or authorization marker. Pre/post OIDC revalidation is supplemented inside the existing workspace transaction by credential row `FOR SHARE`, current expiry/revocation/input match, `assertInteractiveGrant`, session policy and canonical underlying current human capability/source/parent/lifecycle/erasure checks. The workspace mutation lock precedes current membership/principal and credential/session checks; existing revoke also serializes through that workspace transaction. Actual queued credential revoke/session-end/capability-removal tests observe the request waiting on `SELECT id FROM workspaces ... FOR UPDATE`, revoke before unlocking, and assert denial; session/capability cases also assert zero new draft/save receipt. Why: preflight proof alone cannot fence concurrent authority loss. Cost: conservative session snapshot rejection and current IdP lookup; restored roles do not bypass a currently ended session.
+
+**Ruling I3 transport isolation.** C7 grant may enter only its one POST mutation route or POST `/mcp`; MCP advertises and admits only the corresponding knowledge_move or knowledge_duplicate. All other general HTTP/tool operations fail before canonical execution, and exact input is still checked by dispatch. Why: tool listing cannot substitute for authorization and even legacy API paths must gain no reusable rights. Cost: this key cannot read tree/path or prepare a changed operation itself; the issuer prepares the exact authorized input. Existing ordinary action credentials/read-write keys retain their current behavior. Both move and duplicate are proven through actually issued HTTP and SDK MCP paths, not by manually inserted grant rows or synthetic success responses.
+
+**Ruling verification/current versus carried.** After final transport narrowing only those affected transport tests and fullcheck were rerun. Later authority-race and move-MCP test-only additions reran HTTP2 and server typecheck; production source did not change, so final runtime/capture/check stay valid. Why: repeat only newly affected boundaries. Cost: report exact compatible runs instead of calling the aggregate one final run.
+
+## Exact Round1 commands, outcomes and logs
+
+All commands use the same worktree and Node24 PATH as original ledger; native commands inherit the provided loopback synthetic TEST_DATABASE_URL. Every native run uses the script-owned UUID database. New logs are `logs/c7-f1-*.log` beside this report; output is preserved with ANSI/trailing whitespace normalization only. Exact command bodies:
+
+```sh
+# N (copy/core)
+node scripts/test-server.mjs server/convenience/structure.test.ts
+# H (actual issuance, HTTP and SDK MCP)
+node scripts/test-server.mjs server/convenience/structure-http.test.ts
+# U
+npx vitest run src/operational/convenience/structure.test.tsx
+# UN
+npx vitest run src/operational/convenience/structure.test.tsx src/operational/convenience/Navigation.test.tsx
+# UR
+npx vitest run src/operational/convenience/structure.test.tsx src/operational/convenience/Navigation.test.tsx src/operational/convenience/exact-recovery.test.tsx
+# Native7
+node scripts/test-server.mjs server/convenience/structure.test.ts server/convenience/structure-http.test.ts server/access/access.test.ts server/agent-credentials.test.ts server/identity/native-integration.test.ts server/operations/credential-erasure-db.test.ts server/workflows/new-document.test.ts
+# Transport3
+node scripts/test-server.mjs server/convenience/structure-http.test.ts server/runtime/search-mcp.test.ts server/agents/mcp.test.ts
+```
+
+| Command | `c7-f1-*.log` suffix | Result / exit |
+| --- | --- | --- |
+| N | red-copy |19pass/1fail: unsupported `./linked.md` fixture did not resolve linked dependency; not valid behavior RED /1 |
+| N | red-copy2 |19pass/1fail: actual supported relative document URL reproduces IDEMPOTENCY_CONFLICT /1 |
+| N | green-copy |20pass /0 |
+| U | red-ui |10pass/2fail: late A overwrite and missing destination-ready focus /1 |
+| U | green-ui |12pass /0 |
+| H | red-machine |1pass/1fail: issuance endpoint404 /1 |
+| H | machine1 |1pass/1fail after new machine permit/retry passed: existing ordinary credential issuance actually201, fixture expected200 /1 |
+| H | machine2 |2pass including current capability/session/source/trash/erasure checks /0 |
+| H | machine3 |2pass including observed queued credential revocation /0 |
+| npm run check:server | types |pass /0 |
+| UN | ui-navigation |47pass /0 |
+| UR | ui-final |63pass(structure15,Navigation35,exact-recovery13) /0 |
+| Native7 | native |79pass across7 files /0 |
+| npm run check | check |486/48/16/41/251/types/build/smoke pass; intermediate before final transport narrowing /0 |
+| final harness command below | browser1 |four configurations passed; intermediate before final transport narrowing /0 |
+| H | red-admission |1pass/1fail: C7 key advertised generic MCP tools; new isolation expectation RED /1 |
+| Transport3 | admission-final |HTTP2 + existing agentMCP1/searchMCP1 =4pass /0 |
+| npm run check | check-final |**final production**486frontend/48Node/16imports/41evaluation/251requirements/server types/build/static HTTP smoke /0 |
+| H | queued-authority |2pass after adding observed queued session and capability removal; draft/save receipt0 /0 |
+| npm run check:server | final-test-types |pass after test-only additions /0 |
+| H | machine-final |**final HTTP test bytes**2pass, adding actual issued move SDK MCP permit/list/replay alongside duplicate SDK permit /0 |
+| npm run check:server | machine-test-types |pass final test source /0 |
+| final harness command below | browser-final |**final production**four configurations,10 current PNGs,errors[] /0 |
+
+Native7 split: access/access10,agent-credentials3,structure20,structure-http2,identity/native-integration7,operations/credential-erasure-db7,new-document30 =79. Transport3 replaces HTTP2 and adds the two unchanged MCP files' current executions. Thus this round covers9 unique files81 tests across compatible runs (not a single9/81 execution). Final HTTP test-only additions replace its prior2 counts, not extra unique tests. Remaining earlier compatible12files178 are erasure-db28/product-erasure18/retention30 and migration1/bulk7/lineage-closure32/manual-disclosure9/navigation-http1/trash-auth2/publication-integration8/versions6/workflows36. Overall unique21files259 across carried/current evidence, **not one final259 run**. Initial failures remain preserved and are not counted as passing evidence.
+
+## Final browser and manifest binding
+
+Same exact startup/capture commands as original report, now revised harness. Final capture command:
+
+```sh
+AKH_C7_SYNTHETIC_CAPTURE=1 PLAYWRIGHT_MODULE=/Users/wt.jeong/.npm/_npx/9833c18b2d85bc59/node_modules/playwright/index.mjs node docs/ui-validation/2026-11-18-document-structure/capture.mjs
+```
+
+Runtime startup `2026-11-17T17:04:00.626Z`, frontend `2026-11-17T17:04:02.355Z`, captured `2026-11-17T17:05:14.388Z` (KST2026-11-18). Product SHA fingerprint `f7290771005c698cc5d68728057f372aaa2692d2a632f84746994397e4367100`. Node24.22.2/macOS/Chromium headless/Asia-Seoul;1440×1000/390×844×light/dark. Actor selection remains explicit synthetic loopback; added local OIDC provider uses real OidcAuth revalidation/assertion for C7 issued grants. This is not company IdP acceptance.
+
+All four scenarios: original3-level/hidden-title/keyboard move/stable old ID after move/restoreTitle rename/private draft/source revoke plus linked duplicate before rename→same exact key after rename→same saved result/draft count1, actually issued machine key permit and source-revoked rejection, delayed A post-move GET→B ready→A response released without overwrite or outside focus theft.390 cases additionally delay a drawer-selected new page, confirm heading absent while pending, then Enter selection's focus lands on newly ready heading; second repetition intentionally focuses outside selector before release and preserves that focus. Real canonical responses are held/released unchanged, never fabricated. Existing Escape remains checked. Browser pageErrors includes React duplicate key errors and is empty. Ten current PNGs plus old failed PNG retained; representative final normal/dark tree and selection-focus/move-race PNGs visually inspected.
+
+Final cleanup at `2026-11-17T17:06:58.545Z`: own DB/profile/Chromium0,4397/5197 closed,parent PG alive; own local OIDC provider closed with runtime. No unrelated resource stopped. Updated manifest binds328 production sources,3 harness files,4 regression sources,13 artifacts and all historical/new logs. Final production/source fingerprint still matches after test/doc-only additions. The original before-fix image and logs remain labelled historical.
+
+## Self-review, mistakes and outstanding limits
+
+I1/I2/I4 were reproduced with meaningful behavior RED; I3 endpoint absence and overly broad MCP listing had explicit RED. New canonical/transport/current-session locks were reviewed against actual existing functions and queued tests. Issuance/dispatch does not mutate delegated/actionRoles/global scopes. No machine key can mint another C7 grant, enter generic API/tool operations, swap payload/space/resource, continue after credential/session expiry/revoke/current capability or source loss, or bypass canonical trash/erasure fence in the tests. MCP tool listing is additional narrowing; callTool checks and canonical dispatch independently authorize.
+
+Fixture mistakes were unsupported link syntax and a wrong201-status expectation; both failures are preserved and not attributed to production. Initial Round1 fullcheck/capture were superseded when transport narrowing changed source. No final browser failure was hidden; both intermediate and final executions passed their then-current source. MISTAKE_LOG records the initial spec gap and product races as actual defects, not waived limitations.
+
+North Star/251 criteria unchanged. This round supplies the previously missing agent-native exact C7 operation path without weakening source/approval/evidence boundaries. Copy is still private, derived and version-aware; no claim of independent evidence, publication, semantic quality or improved agent outcomes. Remaining concerns: independent security/spec review of new explicit admission; short-lived parent-session-dependent grants (not durable unattended service authority), inherited full-state policy/digest/rank costs and process-local cursors, pre-existing M2 large bundles, real corporate IdP/data/operating retention/load/device/IME/screen reader/model-quality acceptance unverified. Controller owns remaining review/CI/merge; no product acceptance criterion is reduced.

@@ -1,0 +1,29 @@
+[1/1] server/convenience/structure-http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure-http.test.ts (2 tests | 1 failed) 998ms
+   × authenticated native HTTP uses CSRF/current policy and rejects spoofed or repeated queries 838ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  01:54:21
+   Duration  1.37s (tests 76%, import 15%, transform 8%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure-http.test.ts > authenticated native HTTP uses CSRF/current policy and rejects spoofed or repeated queries
+AssertionError: expected 404 to be 201 // Object.is equality
+
+- Expected
++ Received
+
+- 201
++ 404
+
+ ❯ issue server/convenience/structure-http.test.ts:99:31
+
+ ❯ server/convenience/structure-http.test.ts:102:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

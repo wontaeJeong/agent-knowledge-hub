@@ -30,6 +30,7 @@ interface Props {
   pageId?: string;
   refreshKey?: string;
   onSelect?: (id: string) => boolean | void;
+  onMobileSelect?: (id: string) => boolean | void;
   onChoose?: (node: StructureNode) => void;
 }
 function branchPath(parentId: string | null, cursor?: string | null) {
@@ -252,7 +253,7 @@ export function DocumentTreeNavigation(props: Props) {
           <PageTree
             {...props}
             onSelect={(id) => {
-              if (props.onSelect?.(id) !== false) close();
+              if ((props.onMobileSelect ?? props.onSelect)?.(id) !== false) setOpen(false);
             }}
           />
         </StructureDialog>

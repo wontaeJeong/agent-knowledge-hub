@@ -1,0 +1,29 @@
+[1/1] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure.test.ts (20 tests | 1 failed) 3784ms
+   × linked duplicate replays exact result after rename and still checks revoked dependencies and input identity 145ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed (20)
+   Start at  01:51:08
+   Duration  3.95s (tests 97%, import 2%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure.test.ts > linked duplicate replays exact result after rename and still checks revoked dependencies and input identity
+Error: IDEMPOTENCY_CONFLICT
+ ❯ WorkflowService.saveDraftInTransaction server/workflows/service.ts:391:21
+    389|           if (previous.rowCount) {
+    390|             if (previous.rows[0].input_hash !== fingerprint(d))
+    391|               throw Error("IDEMPOTENCY_CONFLICT");
+       |                     ^
+    392|             return previous.rows[0].result;
+    393|           }
+ ❯ transaction server/database.ts:111:20
+ ❯ WorkflowService.run server/workflows/service.ts:127:20
+ ❯ server/convenience/structure.test.ts:522:10
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

@@ -1110,3 +1110,11 @@ Final fresh-runtime four-condition capture passed. Its intentional12 HTTP503 res
 - 상태/후속: 위 실제 결함은 scoped 회귀로 수정 확인. 독립 리뷰/정확 head CI/PR/병합은 controller 소유다. 기존 큰 chunk·전체 ACL/digest scan 비용·scoped-agent C7 미지원·실제 IdP/기기/의미 품질/운영 인수는 남는다.
 
 - C7 cleanup 검증: 첫 확인에서 종료된 브라우저의 소유 profile1개가 남아 있었다(DB0/port닫힘). 정확한 `akh_c7_profile_pUS4Rg`만 지운 뒤 두 번째 확인은 ps 문자열 필터가 자기 shell command를 Chromium으로 오인했다. executable/PID를 먼저 검사하도록 검증 명령을 바로잡아 최종 DB/profile/Chromium0·4397/5197닫힘·부모PG생존을 cleanup.json에 기록했다. 제품 문제가 아닌 정리/검증 가정 실패이며 최초 시도들을 성공으로 표시하지 않는다.
+
+
+### C7 task review Round1 (2026-11-18)
+
+- I1 제품 실패: linked relative document URL의 canonical save가 dependencyVersions를 확장하므로 결과를 원래 입력으로 재구성한 retry가 IDEMPOTENCY_CONFLICT였다. outer duplicate request hash 확인 뒤 저장된 원래 input hash로만 trusted replay하고 현재 확장 계보를 재인가했다. RED19pass/1fail→native20 GREEN. 첫 추가 fixture는 지원하지 않는 `./linked.md`를 써 링크가 해석되지 않았으며 이를 유효 RED로 보지 않는다. 실제 C1 상대 URL로 바꾼 뒤 오류를 재현했다.
+- I2/I4 제품 실패: 이동 뒤 늦은 A detail이 B 선택을 덮고, 모바일 선택의 한 frame focus가 지연 fetch의 새 heading을 놓쳤다. RED10pass/2fail 후 current selection identity/API 세대와 destination-ready focus intent로 수정했다. 외부 의도/identity 취소와 exact recovery를 포함한63 GREEN, 실제 canonical 지연 browser4조건 통과.
+- I3 요구사항 누락: 처음에는 machine C7 미지원 제약을 문서화했지만 명시적인 agent API/MCP 변경 계약은 미충족이었다. controller 승인으로 정확 operation/input·최대15분·부모session에 묶인 opt-in key를 추가했다. 기존키/global delegated ceiling은 변경하지 않았다. 발급RED404 뒤 실제HTTP/MCP permit/deny/회수·만료·현재정책 검증이 통과했다. 일반 credential 발급 테스트의 기존HTTP status를200으로 잘못 기대한 중간실패는 실제201로 정정했고 제품을 변경하지 않았다.
+- 전송 경계 보강: 최초 prototype은 canonical action checks로 generic 권한을 거절했으나 MCP 목록은 모든 도구를 표시했다. 새 list isolation RED 후 bound C7 도구와 해당 HTTP 경로만 admission하도록 제한했다. 첫486check/4config 성공은 이 보강 전 중간근거로 보존하고 새 fullcheck/runtime/capture를 수행했다. queued session/capability 철회는 canonical workspace lock 대기 관찰 후 변경하여 실제 race로 검증했으며 실패하면 draft/save receipt가 모두0이다.

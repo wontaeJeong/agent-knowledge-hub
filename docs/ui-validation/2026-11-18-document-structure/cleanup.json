@@ -1,5 +1,6 @@
 {
-  "verifiedAt": "2026-11-17T16:33:38.875Z",
+  "verifiedAt": "2026-11-17T17:06:58.545Z",
+  "round": 1,
   "ownedDatabaseCount": 0,
   "ownedProfileCount": 0,
   "ownedChromiumCount": 0,
@@ -7,6 +8,5 @@
     "4397": false,
     "5197": false
   },
-  "parentPostgresAlive": true,
-  "cleanupNote": "First check found one leftover C7 profile after browser close (DB count 0, ports closed); removed that exact owned path. A second process check matched its own shell text; corrected to executable-filtered PID inspection and rechecked."
+  "parentPostgresAlive": true
 }

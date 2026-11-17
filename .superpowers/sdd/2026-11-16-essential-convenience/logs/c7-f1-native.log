@@ -1,0 +1,69 @@
+[1/7] server/access/access.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  02:00:38
+   Duration  1.83s (tests 95%, import 3%, transform 2%)
+
+[2/7] server/agent-credentials.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  02:00:40
+   Duration  629ms (tests 91%, import 6%, transform 3%)
+
+[3/7] server/convenience/structure-http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  02:00:41
+   Duration  2.54s (tests 92%, import 5%, transform 3%)
+
+[4/7] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  20 passed (20)
+   Start at  02:00:43
+   Duration  3.92s (tests 97%, import 2%, transform 1%)
+
+[5/7] server/identity/native-integration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  02:00:47
+   Duration  2.19s (tests 96%, import 2%, transform 1%)
+
+[6/7] server/operations/credential-erasure-db.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  02:00:50
+   Duration  962ms (tests 93%, import 4%, transform 3%)
+
+[7/7] server/workflows/new-document.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  30 passed (30)
+   Start at  02:00:51
+   Duration  11.06s (tests 99%, import 1%)

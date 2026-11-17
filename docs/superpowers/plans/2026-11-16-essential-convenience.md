@@ -158,7 +158,9 @@
 
 **Ruling — 계약/비용:** beforeId가 있으면 승인된 opaque `expectedStructureRevision`을 요구한다. 이웃 순서/현재 권한 경합을 같은 잠금에서 막기 위한 확장이며 클라이언트 재조회 비용이 있다. 같은 mutation 재시도는 현재 인가 후 stale 검사보다 먼저 원래 결과를 반환한다. 정본 state/saveDraft transaction primitive를 공유하고 기존 state API의 clamp는 보존한다. C7만 effective reader 확대를 원자적으로 거절한다. migration143의 rollback/backfill/restart 회귀는 구현 후 보강 검증이며 모든 migration 검증이 구현 전 RED였다고 주장하지 않는다.
 
-**Ruling — 남은 MCP 계약:** 쿠키/세션 MCP는 동일 구조 서비스를 호출한다. 기존 read/write machine credential 발급 schema는 개별 C7 permission을 발급할 수 없고 기존 allowlist에도 C7가 없다. 별도 agent MCP의 wiki_* 계약 역시 C7가 없다. 기존 키의 권한을 묵시적으로 넓히지 않기 위해 그대로 거절하며 agent MCP 완료로 표시하지 않는다. 독립 spec review 대상이고 요구사항 면제가 아니다. 전체 ACL/digest 계산·sibling rank 갱신의 대규모 비용과 운영 IdP/접근성/품질 검증은 남는다.
+**Ruling — Round1 MCP 계약 보완:** 초기 범위형 agent 미지원은 review I3의 실제 gap이었다. 인증된 사람이 operation+정확 입력+최대15분 expiry를 명시하여 발급하는 전용 C7 action credential을 구현했다. 기존 access_credentials/session/OIDC 및 canonical structure transaction을 재사용하고 기존 read/write key·delegated ceiling·wiki_*는 확장하지 않는다. 해당 HTTP 변경과 MCP 한 도구만 허용하며 current capability/source/parent/erasure·세션/키 철회는 transaction 안에서 재검사한다. 비용은 짧은 부모세션 의존 grant와 정확 입력 준비다. 장기 무인 위임을 주장하지 않는다.
+
+**Round1 I1/I2/I4 및 최종 근거:** linked duplicate normalized hash replay, post-move selection generation, delayed mobile destination focus/외부의도 취소를 수정했다. focused63, 최종check486/48/16/41/251/types/build/smoke; 최종transport native3파일4 및 최종HTTP2 보강, 이번라운드 source-compatible6파일77+이전12파일178 carry(고유21파일259, 단일현재실행 아님). 새4config/10PNG의 실제 machine+linked retry+지연 race/focus와 cleanup을 확인했다. 이전479/42e9...는 초기 제출 근거이며 controller 재리뷰/CI/merge 대기다.
 
 ## Task 8: 내부 연결·백링크
 

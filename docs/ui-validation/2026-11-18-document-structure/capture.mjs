@@ -1,5 +1,6 @@
 import { sourceHashes } from "./manifest.mjs";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
 import { Pool } from "pg";
 const { chromium } = await import(
@@ -46,6 +47,15 @@ try {
       context.setDefaultTimeout(20000);
       const requests = [],
         errors = [];
+      let held = null;
+      const holdNext = (path) => {
+        let release, observed, finished;
+        const gate = new Promise((r) => (release = r)),
+          seen = new Promise((r) => (observed = r)),
+          done = new Promise((r) => (finished = r));
+        held = { path, gate, observed, finished };
+        return { release, seen, done };
+      };
       await context.route("**/api/**", async (route) => {
         const req = route.request(),
           u = new URL(req.url());
@@ -59,7 +69,15 @@ try {
               origin: "http://127.0.0.1:5197",
             },
           });
+          const delay =
+            held?.path === u.pathname && req.method() === "GET" ? held : null;
+          if (delay) {
+            held = null;
+            delay.observed();
+            await delay.gate;
+          }
           await route.fulfill({ response });
+          delay?.finished();
         } catch (e) {
           if (
             !/Target.*closed|cancel|Request.*closed|disposed/i.test(e.message)
@@ -174,6 +192,57 @@ try {
           fullPage: false,
         });
       }
+      if (width === 390) {
+        for (const outside of [false, true]) {
+          await page
+            .getByRole("button", { name: "문서 트리 열기", exact: true })
+            .click();
+          const drawer = page.getByRole("dialog", {
+            name: "문서 트리",
+            exact: true,
+          });
+          const delay = holdNext("/api/v1/workflows/pages/review");
+          await drawer
+            .getByRole("link", { name: "검토 절차", exact: true })
+            .focus();
+          await page.keyboard.press("Enter");
+          await delay.seen;
+          assert.equal(
+            await page.locator("[data-document-heading]").count(),
+            0,
+          );
+          const select = page.getByRole("combobox", {
+            name: "문서 선택",
+            exact: true,
+          });
+          if (outside) await select.focus();
+          delay.release();
+          await delay.done;
+          await page
+            .locator("[data-document-heading]")
+            .filter({ hasText: "검토 절차" })
+            .waitFor();
+          if (outside)
+            assert.ok(
+              await select.evaluate((el) => el === document.activeElement),
+            );
+          else {
+            assert.ok(
+              await page
+                .locator("[data-document-heading]")
+                .evaluate((el) => el === document.activeElement),
+            );
+            await page.screenshot({
+              path: `${output}/${width}-${theme}-selection-focus.png`,
+            });
+          }
+          await go();
+          await page
+            .locator("[data-document-heading]")
+            .filter({ hasText: "문서 구조" })
+            .waitFor();
+        }
+      }
       // Keyboard only equivalent to drag, current destination revision and canonical mutation.
       await page
         .getByRole("button", { name: "문서 이동", exact: true })
@@ -192,8 +261,64 @@ try {
       await dialog
         .getByRole("button", { name: "이동 적용", exact: true })
         .focus();
+      const refreshDelay = holdNext("/api/v1/workflows/pages/leaf");
       await page.keyboard.press("Enter");
       await dialog.waitFor({ state: "hidden" });
+      await refreshDelay.seen;
+      const documentSelect = page.getByRole("combobox", {
+        name: "문서 선택",
+        exact: true,
+      });
+      await documentSelect.focus();
+      await documentSelect.selectOption("review");
+      await page
+        .locator("[data-document-heading]")
+        .filter({ hasText: "검토 절차" })
+        .waitFor();
+      refreshDelay.release();
+      await refreshDelay.done;
+      await page.evaluate(
+        () =>
+          new Promise((r) =>
+            requestAnimationFrame(() => requestAnimationFrame(r)),
+          ),
+      );
+      assert.match(
+        await page.locator("[data-document-heading]").innerText(),
+        /검토 절차/,
+      );
+      assert.ok(
+        await documentSelect.evaluate((el) => el === document.activeElement),
+      );
+      await page.screenshot({
+        path: `${output}/${width}-${theme}-move-race.png`,
+      });
+      const copyInput = {
+        pageId: "leaf",
+        version: 1,
+        parentId: null,
+        mutationId: randomUUID(),
+      };
+      const issued = await canonical("/convenience/credentials", {
+        operation: "duplicate",
+        input: copyInput,
+        expiresAt: new Date(Date.now() + 600000).toISOString(),
+      });
+      const machine = () =>
+        fetch("http://127.0.0.1:4397/api/v1/convenience/pages/duplicate", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${issued.secret}`,
+            "X-Space-Id": f.spaceId,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(copyInput),
+        });
+      const firstResponse = await machine();
+      assert.equal(firstResponse.status, 200);
+      const firstCopy = await firstResponse.json();
+      assert.equal(firstCopy.dependencyVersions.review, 1);
+      assert.equal(firstCopy.dependencyVersions.leaf, 1);
       const moved = await canonical("/workflows/pages/leaf");
       assert.equal(moved.settings.parent_id, null);
       assert.equal(moved.page.id, "leaf");
@@ -226,6 +351,18 @@ try {
         .locator("[data-document-heading]")
         .filter({ hasText: "문서 구조 변경 기록" })
         .waitFor();
+      const replayResponse = await machine();
+      assert.equal(replayResponse.status, 200);
+      assert.deepEqual(await replayResponse.json(), firstCopy);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM workflow_drafts WHERE workspace_id=$1 AND id=$2",
+            [f.spaceId, firstCopy.id],
+          )
+        ).rows[0].n,
+        1,
+      );
       await page
         .getByRole("button", { name: "개인 초안으로 복제", exact: true })
         .click();
@@ -245,6 +382,7 @@ try {
         "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reviewer'",
         [f.spaceId],
       );
+      assert.notEqual((await machine()).status, 200);
       await go();
       await page.waitForFunction(
         () => !document.querySelector("[data-document-heading]"),
@@ -262,6 +400,13 @@ try {
         mobileFocus: width === 390 ? "verified" : "not-applicable",
         oldLinkAfterMoveAndRename: true,
         privateDuplicate: true,
+        linkedDuplicateRenameReplay: true,
+        issuedMachinePermitAndRevocation: true,
+        delayedMoveRefreshSelection: true,
+        mobileDelayedSelectionFocus:
+          width === 390 ? "verified" : "not-applicable",
+        mobileOutsideFocusPreserved:
+          width === 390 ? "verified" : "not-applicable",
         sourceRevocation: true,
         requests: requests.length,
         pageErrors: errors,

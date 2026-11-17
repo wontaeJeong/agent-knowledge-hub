@@ -1,0 +1,532 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ src/operational/convenience/structure.test.tsx (12 tests | 2 failed) 198ms
+   × late post-move A detail cannot replace newly selected B 43ms
+   × mobile selected destination focus intent waits for ready and respects ready 26ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/structure.test.tsx > late post-move A detail cannot replace newly selected B
+AssertionError: expected 'A · v1' to contain 'B'
+
+Expected: "B"
+Received: "A · v1"
+
+ ❯ src/operational/convenience/structure.test.tsx:278:73
+    276|  expect(document.querySelector('[data-document-heading]')?.textContent…
+    277|  await act(async()=>late(detailFor('A')));
+    278|  expect(document.querySelector('[data-document-heading]')?.textContent…
+       |                                                                         ^
+    279| });
+    280| test.each(['ready','outside','identity'] as const)('mobile selected de…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/operational/convenience/structure.test.tsx > mobile selected destination focus intent waits for ready and respects ready
+AssertionError: expected <body><div>…(1)</div></body> to be <h3 tabindex="-1" …(1)></h3> // Object.is equality
+
+- Expected
++ Received
+
++ <body>
++   <div>
++     <section
++       class="op-panel"
++     >
++       <h2>
++         편집과 협업
++       </h2>
++       <p>
++         개인 초안은 본인에게만 보입니다. 검토·승인 전에는 발행본이 바뀌지 않습니다.
++       </p>
++       <section
++         aria-label="개인 문서 목록"
++       >
++         <h3>
++           내 문서
++         </h3>
++         <div
++           class="op-personal-documents"
++         >
++           <section
++             aria-label="즐겨찾기"
++             class="personal-library"
++           >
++             <h3>
++               즐겨찾기
++             </h3>
++             <span
++               role="status"
++             />
++             <div
++               class="op-actions"
++             >
++               <button
++                 class="button secondary "
++                 data-personal-fallback="true"
++               >
++                 처음부터 새로고침
++               </button>
++             </div>
++             <ul
++               class="personal-library-list"
++             />
++             <p>
++               표시할 문서 없음
++             </p>
++           </section>
++           <section
++             aria-label="최근 문서"
++             class="personal-library"
++           >
++             <h3>
++               최근 문서
++             </h3>
++             <span
++               role="status"
++             />
++             <div
++               class="op-actions"
++             >
++               <button
++                 class="button secondary "
++                 data-personal-fallback="true"
++               >
++                 처음부터 새로고침
++               </button>
++             </div>
++             <ul
++               class="personal-library-list"
++             />
++             <p>
++               표시할 문서 없음
++             </p>
++           </section>
++           <section
++             aria-label="구독 문서"
++             class="personal-library"
++           >
++             <h3>
++               구독 문서
++             </h3>
++             <span
++               role="status"
++             />
++             <div
++               class="op-actions"
++             >
++               <button
++                 class="button secondary "
++                 data-personal-fallback="true"
++               >
++                 처음부터 새로고침
++               </button>
++             </div>
++             <ul
++               class="personal-library-list"
++             />
++             <p>
++               표시할 문서 없음
++             </p>
++           </section>
++         </div>
++       </section>
++       <nav
++         aria-label="문서 트리"
++         class="document-tree-desktop"
++       >
++         <h3>
++           <svg
++             aria-hidden="true"
++             class="lucide lucide-folder-tree"
++             fill="none"
++             height="18"
++             stroke="currentColor"
++             stroke-linecap="round"
++             stroke-linejoin="round"
++             stroke-width="2"
++             viewBox="0 0 24 24"
++             width="18"
++             xmlns="http://www.w3.org/2000/svg"
++           >
++             <path
++               d="M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"
++             />
++             <path
++               d="M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.9a1 1 0 0 1-.88-.55l-.42-.85a1 1 0 0 0-.92-.6H13a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"
++             />
++             <path
++               d="M3 5a2 2 0 0 0 2 2h3"
++             />
++             <path
++               d="M3 3v13a2 2 0 0 0 2 2h3"
++             />
++           </svg>
++            문서 트리
++         </h3>
++         <div
++           aria-busy="false"
++           class="document-tree-branch"
++         >
++           <ul>
++             <li>
++               <div
++                 class="document-tree-row"
++               >
++                 <span
++                   class="document-tree-leaf"
++                 />
++                 <a
++                   href="/?app=1&space=s&document=A"
++                 >
++                   A
++                 </a>
++               </div>
++             </li>
++             <li>
++               <div
++                 class="document-tree-row"
++               >
++                 <span
++                   class="document-tree-leaf"
++                 />
++                 <a
++                   aria-current="page"
++                   href="/?app=1&space=s&document=B"
++                 >
++                   B
++                 </a>
++               </div>
++             </li>
++           </ul>
++         </div>
++       </nav>
++       <button
++         class="button secondary document-tree-toggle"
++       >
++         문서 트리 열기
++       </button>
++       <label>
++         문서 선택
++         <select>
++           <option
++             value=""
++           >
++             문서를 선택하세요
++           </option>
++           <option
++             value="A"
++           >
++             A
++           </option>
++           <option
++             value="B"
++           >
++             B
++           </option>
++         </select>
++       </label>
++       <nav
++         aria-label="문서 경로"
++         class="document-breadcrumbs"
++       >
++         <ol />
++       </nav>
+        <h3
+          data-document-heading="true"
+          tabindex="-1"
+        >
+          B
+           · v
+          1
+        </h3>
++       <a
++         href="/?app=1&space=s&document=B"
++       >
++         문서 고유 링크
++       </a>
++       <section
++         aria-label="문서 구조 작업"
++         class="document-structure-controls"
++       >
++         <div
++           class="op-actions"
++         >
++           <button
++             class="button secondary "
++           >
++             문서 이동
++           </button>
++         </div>
++       </section>
++       <details
++         open=""
++       >
++         <summary>
++           현재 발행본 본문 · v
++           1
++         </summary>
++         <section
++           aria-label="문서 읽기"
++           class="op-document-reader"
++         >
++           <nav
++             aria-label="문서 목차"
++           >
++             <h4>
++               목차
++             </h4>
++             <p>
++               제목 없음
++             </p>
++           </nav>
++           <div
++             class="op-actions"
++           >
++             <label>
++               문서 내 검색
++               <input
++                 maxlength="200"
++                 value=""
++               />
++             </label>
++             <span
++               role="status"
++             >
++               일치 0건
++             </span>
++             <button
++               class="button secondary "
++               disabled=""
++             >
++               이전 일치
++             </button>
++             <button
++               class="button secondary "
++               disabled=""
++             >
++               다음 일치
++             </button>
++             <button
++               class="button secondary "
++               disabled=""
++             >
++               현재 위치로 이동
++             </button>
++           </div>
++           <div>
++             <div
++               class="op-markdown"
++             >
++               <div>
++                 <p>
++                   body B
++                 </p>
++
++
++               </div>
++             </div>
++           </div>
++         </section>
++         <details>
++           <summary>
++             지원하는 문서 형식
++           </summary>
++           <p>
++             Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다.
++           </p>
++         </details>
++       </details>
++       <details>
++         <summary>
++           연결·백링크·관련 문서
++         </summary>
++         <p>
++           선택 문서의 한 단계 연결과 같은 태그를 가진 문서 · 각 최대 20건
++         </p>
++       </details>
++       <section
++         aria-label="첨부 및 가져오기·내보내기"
++         class="panel"
++       >
++         <h2>
++           첨부 및 자료 이동
++         </h2>
++         <p>
++           파일당 최대 5 MiB. 원본은 덮어쓰지 않으며 PDF는 검사 승인 전 내려받을 수 없습니다. PDF 변환은 지원하지 않습니다.
++         </p>
++         <p>
++           Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다.
++            이미지는 최대 400만 화소·한 변 4096px의 정지 이미지만 지원합니다.
++         </p>
++         <p
++           aria-live="polite"
++           role="status"
++         >
++           첨부 목록을 조회하세요.
++         </p>
++         <button>
++           첨부 조회
++         </button>
++       </section>
++       <p>
++         상태:
++
++         활성
++
++         · 보호:
++         설정 안 됨
++       </p>
++       <div
++         class="op-actions"
++       >
++         <div
++           aria-label="개인 문서 설정"
++           class="op-actions"
++         >
++           <button
++             aria-disabled="false"
++             class="button secondary "
++           >
++             즐겨찾기 추가
++           </button>
++           <button
++             aria-disabled="false"
++             class="button secondary "
++           >
++             알림 구독
++           </button>
++         </div>
++       </div>
++       <details>
++         <summary>
++           버전 기록 · 복원은 새 변경 제안
++         </summary>
++         <article>
++           <h4>
++             v
++             1
++              ·
++           </h4>
++           <p />
++           <p>
++             생성 경로:
++
++             기존 기록 · 생성 주체 미구분
++           </p>
++           <p>
++             기존 author 기록
++              · 작성/발행 역할 미구분
++           </p>
++           <pre>
++             body B
++           </pre>
++         </article>
++       </details>
++       <label>
++         작업 이유
++         <input
++           maxlength="2000"
++           placeholder="복원·보호·수명주기 변경 이유"
++           value=""
++         />
++       </label>
++       <details>
++         <summary>
++           문서 구조·속성·보호
++         </summary>
++         <label>
++           상위 문서
++           <select>
++             <option
++               value=""
++             >
++               최상위
++             </option>
++             <option
++               value="A"
++             >
++               A
++             </option>
++           </select>
++         </label>
++         <label>
++           속성 (문자열 값의 JSON 객체)
++           <textarea
++             rows="4"
++           >
++             {}
++           </textarea>
++         </label>
++         <button
++           class="button secondary "
++           disabled=""
++         >
++           구조·속성 저장
++         </button>
++         <button
++           class="button secondary "
++           disabled=""
++         >
++           문서 보호
++         </button>
++       </details>
++       <h3>
++         버전·문단 댓글
++       </h3>
++       <details>
++         <summary>
++           내 알림 (
++           0
++           건 읽지 않음)
++         </summary>
++       </details>
++       <details>
++         <summary>
++           내 알림 수신 설정
++         </summary>
++         <form>
++           <label>
++             <input
++               type="checkbox"
++             />
++             멘션 알림 받기
++           </label>
++           <label>
++             <input
++               type="checkbox"
++             />
++             구독 문서 댓글 알림 받기
++           </label>
++           <label>
++             알림 시각대
++             <input />
++           </label>
++           <button
++             class="button secondary "
++             type="submit"
++           >
++             알림 설정 저장
++           </button>
++         </form>
++       </details>
++     </section>
++   </div>
++ </body>
+
+ ❯ src/operational/convenience/structure.test.tsx:291:51
+    289|  if(mode==='identity')await act(async()=>root.render(<WorkflowPanel {.…
+    290|  await act(async()=>ready(detailFor('B')));
+    291|  if(mode==='ready')expect(document.activeElement).toBe(document.queryS…
+       |                                                   ^
+    292|  if(mode==='outside')expect(document.activeElement).toBe(outside);
+    293|  if(mode==='identity')expect(document.activeElement).not.toBe(document…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 10 passed (12)
+   Start at  01:52:08
+   Duration  761ms (environment 59%, tests 28%, import 9%, transform 4%)

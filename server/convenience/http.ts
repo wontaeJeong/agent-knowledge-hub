@@ -99,6 +99,10 @@ export async function handleStructureRoute(
   service: import("./structure").DocumentStructureService,
 ): Promise<boolean> {
   const { method, path, ctx, send } = input;
+  if (method === "POST" && path === "/api/v1/convenience/credentials") {
+    send(201, await service.issueCredential(ctx,input.body));
+    return true;
+  }
   if (method === "GET" && path === "/api/v1/convenience/tree") {
     const params = input.query ?? new URLSearchParams();
     if ([...params.keys()].some((k) => params.getAll(k).length > 1))
