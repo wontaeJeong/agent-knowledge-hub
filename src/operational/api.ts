@@ -1,3 +1,4 @@
+import { convenienceHref, isLegacyConsoleHash, parseConvenienceLocation } from "./convenience/route";
 export const isDemoRequested = (search: string) =>
   new URLSearchParams(search).get("demo") === "1";
 export const pageItems = <T>(items: T[], page: number): T[] =>
@@ -19,16 +20,14 @@ export function resumeWorkspaceLink(value: string): string | null {
       url.searchParams.has("demo")
     )
       return null;
-    const space = url.searchParams.get("space"),
-      document = url.searchParams.get("document");
-    if (
-      (space && !/^[a-zA-Z0-9_-]{1,100}$/.test(space)) ||
-      (document && !/^[a-zA-Z0-9_-]{1,100}$/.test(document)) ||
-      (url.hash && !/^#(?:comment|share)-[a-zA-Z0-9_-]{1,100}$/.test(url.hash) && !(url.hash === "#workflows" && document))
-    )
-      return null;
-    if ((document || url.hash) && !space) return null;
-    return `/?app=1${space ? `&space=${encodeURIComponent(space)}` : ""}${document ? `&document=${encodeURIComponent(document)}` : ""}${url.hash}`;
+    const location = parseConvenienceLocation(url.search, url.hash);
+    if (location.kind === "invalid") return null;
+    if (url.hash && location.kind === "console" && !isLegacyConsoleHash(url.hash)) return null;
+    if (location.kind === "console" && url.hash && !location.spaceId) return null;
+    if (location.kind === "console" && !url.hash) {
+      return `/?app=1${location.spaceId ? `&space=${encodeURIComponent(location.spaceId)}` : ""}`;
+    }
+    return convenienceHref(location);
   } catch {
     return null;
   }

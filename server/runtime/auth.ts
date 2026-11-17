@@ -1,3 +1,4 @@
+import { acquireSharedMutationGate } from "../operations/gate";
 import { createHash, randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool, PoolClient } from "pg";
@@ -61,6 +62,16 @@ export type Session = Context & {
   canReviewKnowledge?: boolean;
   personalSpace?: boolean;
 };
+function transientDatabaseFailure(error: unknown): boolean {
+  const code = (error as { code?: unknown })?.code;
+  return (
+    typeof code === "string" &&
+    (["40P01", "40001", "55P03", "57014", "57P01", "57P02", "57P03"].includes(
+      code,
+    ) ||
+      /^08[A-Z0-9]{3}$/.test(code))
+  );
+}
 export class OidcAuth {
   readonly sessionPolicy: SessionPolicy;
   private readonly defaultDirectoryProof?: ReturnType<
@@ -84,10 +95,9 @@ export class OidcAuth {
     const issuer = this.config.serverMetadata().issuer;
     // Serialize proof refreshes before either takes shared session locks. Keep
     // this separate from row locks used by final authorization and revocation.
-    await db.query(
-      "SELECT pg_advisory_xact_lock(7203110, hashtext($1))",
-      [binding.sessionId],
-    );
+    await db.query("SELECT pg_advisory_xact_lock(7203110, hashtext($1))", [
+      binding.sessionId,
+    ]);
     const actor = await db.query(
       "SELECT id,issuer,subject FROM access_principals WHERE id=$1 AND active AND kind='human' FOR SHARE",
       [binding.principalId],
@@ -294,7 +304,9 @@ export class OidcAuth {
       )
         throw Error("UNAUTHENTICATED");
       return snapshot;
-    } catch {
+    } catch (error) {
+      if (transientDatabaseFailure(error))
+        throw Error("AUTH_BACKEND_UNAVAILABLE", { cause: error });
       await this.discardSession(binding.sessionId, binding.principalId);
       throw Error("UNAUTHENTICATED");
     }
@@ -530,6 +542,7 @@ export class OidcAuth {
     const db = await this.pool.connect();
     try {
       await db.query("BEGIN");
+      await acquireSharedMutationGate(db);
       await syncIdentity(db, {
         issuer: this.config.serverMetadata().issuer,
         subject: claims.sub,
@@ -617,10 +630,16 @@ export class OidcAuth {
   ): Promise<Session | null> {
     const raw = cookie(req, "akh_session");
     if (!raw) return null;
-    const row = await this.pool.query(
-      "SELECT * FROM runtime_sessions WHERE id=$1 AND expires_at>now()",
-      [sessionHash(raw)],
-    );
+    const row = await this.pool
+      .query(
+        "SELECT * FROM runtime_sessions WHERE id=$1 AND expires_at>now()",
+        [sessionHash(raw)],
+      )
+      .catch((error) => {
+        if (transientDatabaseFailure(error))
+          throw Error("AUTH_BACKEND_UNAVAILABLE", { cause: error });
+        throw error;
+      });
     if (!row.rowCount) return null;
     const s = row.rows[0];
     try {
@@ -717,7 +736,9 @@ export class OidcAuth {
           canReviewKnowledge,
         };
       });
-    } catch {
+    } catch (error) {
+      if (transientDatabaseFailure(error))
+        throw Error("AUTH_BACKEND_UNAVAILABLE", { cause: error });
       await this.discardSession(sessionHash(raw), s.principal_id);
       return null;
     }
@@ -728,14 +749,19 @@ export class OidcAuth {
     const db = await this.pool.connect();
     try {
       await db.query("BEGIN");
+      await acquireSharedMutationGate(db);
       await db.query("SELECT id FROM runtime_sessions WHERE id=$1 FOR UPDATE", [
         sessionHash(cookie(req, "akh_session")!),
       ]);
       await guard.assertSession(db);
-      const a = await effectiveAccess(db, {
-        workspaceId: id,
-        principalId: session.principalId,
-      }, guard.sessionId);
+      const a = await effectiveAccess(
+        db,
+        {
+          workspaceId: id,
+          principalId: session.principalId,
+        },
+        guard.sessionId,
+      );
       if (!a.role) throw Error("NOT_FOUND");
       const csrf = token();
       await touchSession(

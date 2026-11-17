@@ -1,5 +1,22 @@
 # 현재 구현과 남은 연결
 
+## 2026-11-17 C1 최종 호환 검토 보완
+
+기존 access 화면이 생성하는 document 없는 share URL·로그인 복귀·현재 인가된 공유 조회를 복구했다. 비관리자의 개인 API 키/장치 메뉴와 자격 있는 검토자의 평가 메뉴를 canonical capability에 맞춰 복원했으며 관리자 전용 컨트롤은 유지했다. preview 메뉴와 취소된 history 복원의 URL도 preview로 재열린다. 실제 URL 생성 컴포넌트·인증 전후·거절 공유·capability·preview 재마운트 회귀를 포함한 최종 check는 frontend255/Node48/import16/evaluation41 및 251개 요구사항·타입/build/smoke를 통과했다. [화면 증거](pr-assets/convenience-navigation/README.md)는 15장이다. 운영 인수 승격은 아니다.
+
+
+## 2026-11-17 C1 검토 보완
+
+1차 검토에서 공간이 다른 브라우저 history 복귀의 API scope 불일치, 기존 공지/VOC·정련 메뉴 누락, section 없는 업무 target 키의 조용한 삭제를 발견해 수정했다. 새 공간으로 API 소유 workspace를 먼저 재마운트하며, ID 충돌·이전 지연 응답·Back/Forward·미저장 이동 취소를 회귀 검증했다. 최종 check는 frontend240/Node48/import16/evaluation41과 기존 251개 요구사항·타입/build/smoke를 통과했다. 현재 [화면 증거](pr-assets/convenience-navigation/README.md)는 1440/390 light/dark 총12장이다. 실제 운영 인수·동시 main 통합 완료를 뜻하지 않는다.
+
+
+## 2026-11-17 C1 이동 기반 추가 (#49)
+
+`src/operational/convenience`와 운영 앱에 capability 기반 사용자 메뉴, 명시적 새 섹션 경로, 기존 문서/댓글/공유/탭 호환 및 안전한 로그인 복귀를 추가했다. 정확한 검토·작업·접근 요청은 현재 서버가 허용한 대상을 다시 조회해 선택하며 불가 대상을 다른 작업으로 바꾸지 않는다. 계정/공간/세션 변경은 보호된 대상 상태를 비운다. 미저장 문서 입력은 메뉴 이동과 종료 경고로 보존한다.
+
+새 홈·개인 목록·검색·작성·일반 작업함·저장 보기 및 버전/문단 위치의 실제 기능 연결은 각 후속 작업 범위다. C1은 해당 경로를 검증/보존하고 미연결 상태를 표시한다. UXC-01~10 전체 완료나 기존 요구사항의 운영 수용 승격이 아니다. Node24 전체 check 및 합성 1440/390 light/dark·키보드 증거는 [C1 기록](pr-assets/convenience-navigation/README.md)을 따른다. BASE `51129cb` 기준이며 동시 main 통합 이후 재검증이 필요하다.
+
+
 기준일: 2026-11-14. 확인한 소스: `9883fbeb609c99fc4b0247168d496ac65fa0b8e4`. **소스 정적 대조이며 새 운영 인수 결과가 아니다.** 이 문서는 현재 구현을 읽는 진입점이다. 기능 변경 시 해당 행의 소스·연결·남은 조건과 확인 커밋을 함께 갱신한다. 날짜가 있는 과거 인계·시험 기록은 당시 증거로 보존한다.
 
 제품 목표는 [North Star](LLM_WIKI_CORE.md), 수용 기준은 [기준 요구사항](requirements/requirements.json)과 [CORE 추가 기준](requirements/core-requirements.json), 개발 순서는 [요구사항 정비 기준](requirements/MAINTENANCE.md)을 따른다. 251개 중 필수 236개·확장 12개·선택 3개이며, 전체 운영 수용 완료로 판정한 항목은 없다. 이것은 구현이 전혀 없다는 뜻이 아니다.
@@ -85,6 +102,11 @@ EDT-007/010, SRH-009/010의 사람 탐색 경로를 연결했다. 현재 발행�
 ### 2026-11-17 — index/retention integration follow-up
 
 PR #55 integration CI (`1f1f555`, run43891959528/job133385264883) exposed unclassified index metadata tables, causing `RETENTION_GRAPH_UNSUPPORTED` in five files/28 assertions. The retention inventory now freezes the exact two metadata schemas and allowed FK descriptors, keeps metadata outside retained content roots, and rejects future content/schema/FK drift. Actual pruning removes the old version from indexed candidates while keeping the current version and maintenance history. No migration or UI change. Full Node24 check passed (src193); isolated PostgreSQL17 retention jobs, all operations/erasure, inventory, recovery, index and release passed23 files/179 tests. Independent scoped review and final remote CI remain pending. Production operation/acceptance is unverified.
+## 2026-11-17 Task 7 — 주간 지식 유지관리·월간 운영 검토
+
+MGR-003/004와 관련 MGR-005/006의 운영 일정 API/worker/UI를 연결했다. Weekly는 Daily와 분리되어 기존 발행본·명시 주장·적용 조건·예외·시간·연결의 구조 검토 목록 또는 실제 설정 모델의 여러 문서 변경 제안을 만든다. Monthly는 확인된 업무 담당자/미확인 상태, 선택 문서의 보존 분류·정책·법적 보류, 실행 서비스 주체의 해당 공간 두 달 실측 비용 비교를 제안만 한다. 소유권·권한·정책 변경이나 폐기를 수행하지 않는다. 월간 현지 날짜·말일 clamp/skip·윤년·휴일·DST·누락 실행·동일 회차 및 제안 중복 방지를 기존 durable queue에 연결했다. [계약·North Star 판단·검증·한계](implementation/2026-11-16-maintenance-cycles.md). 합성 HTTP 모델 및 PostgreSQL/OIDC 회귀는 실제 의미 품질·운영 인수가 아니다. 혼합 원본 범위는 분리 승인한 일정이 필요하고 비용은 다른 사용자의 사적 사용량을 포함하지 않는다.
+
+- Task7 실제 화면: [1440/390 캡처와 검증 commit/환경](pr-assets/roadmap-maintenance/README.md). 별도 승인 auth 수정이 적용된 native 검증 worktree의 실제 pool6/OIDC/HTTP에서 월간 일정 저장→정본 재조회와 가로 overflow 없음·pageerror 0을 확인했다. 최종 기능 프런트 소스는 동일하며 인증 수정은 별도다.
 ## 2026-11-16 Task1b - configured semantic retrieval
 
 - Requirements: SRH-001/002/003/004/005/007 and CORE-009/010 implementation scope. Actual model selection over the complete authorized filtered corpus (up to100 versions, without lexical prefilter), exact quote checks, canonical historical metadata and current source/dependency checks. Durable budgets, actual telemetry and current result-read authorization remain enforced.
@@ -106,3 +128,4 @@ The index branch resolves integrationa98a542 by retaining trusted `searchDb` com
 ### 2026-11-17 — native candidate Unicode compatibility
 
 SQL lower() is now only a physical candidate proposal. The helper unions conservative keys from the existing authorized snapshot for non-ASCII query/body or measured ASCII locale mismatch; final body/title/summary predicates use JavaScript toLocaleLowerCase().includes(). Native RED exposed two missed and two extra matches with unrelated metadata; corrected targeted64 tests passed. No normalization, truncation, permission widening or migration change. Unicode queries (including Korean) may scan the whole already-loaded authorized snapshot; real selective Korean/code GIN plans do not establish end-to-end performance. Empty-query semantic corpus preparation is unchanged. Final full Node24 check passed (frontend216); combined UUID-native20 files/217 tests passed. Independent fresh review and final PR CI remain pending.
+- 2026-11-17 PR60 검토 A 보완: Weekly도 통합된 일반 ingest와 동일한 후보 스키마/원본 인용 binder를 사용하고 후보·변경 이유를 canonical 검토 해시에 보존한다. 독립 발행에서 새 버전의 미검증 주장·근거로 연결하며 invalid quote/out-of-scope 및 현재 원본 철회는 실패한다. 전체 고정 원본 텍스트가 허용된 모델 문맥에 들어가며 모델이 source version/검증 상태를 정하지 않는다. 무변경 응답과 기존 권한/예산을 유지한다. [수정·검증 기록](implementation/2026-11-16-maintenance-cycles.md).
