@@ -44,4 +44,3 @@ AssertionError: expected true to be false // Object.is equality
     248|  await publish(last+heading+"# 끝",4);const deleted=await v.version(f.r…
 
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
-

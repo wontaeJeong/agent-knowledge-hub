@@ -23,3 +23,5 @@ FIX_BASE `2199d7082ae79bf1e831091b17a9f629840655a6`의 독립 리뷰 I1/I2를 �
 - `*-newline-unavailable.png`: 실제 검토·승인·발행한 CR-only 문단을 mixed CR/LF로 이동하면 정확한 문단으로 이동하고, 변경·삭제하면 최신 링크의 위치 부재를 표시한다. 고정 v4의 원문 위치는 유지된다.
 - 자동 회귀는 CR/LF/CRLF/mixed 네 종류의 발행 capture와 실제 Reader DOM을 함께 검사한다. LF/CRLF 기존 해시와 legacy coarse 기본 모드는 변경하지 않는다. 저장한 문서/버전 metadata를 다시 쓰지 않는다.
 - UI Clipboard는 명시적인 거부·지연 promise fixture다. 실제 OS 클립보드/회사SSO 인수라는 주장이 아니다. 정본 HTTP/PG·승인/발행·현재 ACL·브라우저 keyboard는 실제 실행했다.
+
+Round1 fix/evidence commit는 `02b020b30c2aa52b885380d9e06576b527b16cdf`다. 해당 commit에 raw 실행 로그가 보존돼 있고, 이후 현재 text log는 줄끝/EOF 공백만 정규화했다. 출력 내용·결과는 같으며 manifest는 현재 로그 bytes를 검증한다.

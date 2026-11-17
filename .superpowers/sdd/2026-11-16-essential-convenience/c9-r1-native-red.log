@@ -99,4 +99,3 @@ AssertionError: expected { status: 'unresolved', …(2) } to match object { reso
     246|  expect(resolveAnchor(target,changed.anchors.anchors).resolved).toBe(f…
 
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
-

@@ -127,3 +127,9 @@ These are canonical HTTP/PG paths with synthetic identities and controlled brows
 Owned runtime/frontend commands verified by PID then terminated. `cleanup.json` records round1 own DB/profile0,4399/5199closed,parent knowledge_test alive. Previous16PNG and old source manifest remain immutable in FIX_BASE; top-level current24PNG all match the new source fingerprint. No pending product changes during packaging; scoped review/CI are controller work.
 
 Round1 production fingerprint: `a88bf15d089d600138896abec34ce5d2215744c0901e54702e8b5c9f10a7a07a`; runtime `2026-11-17T21:10:12.347Z`; frontend `2026-11-17T21:10:13.089Z`; capture finished `2026-11-17T21:11:28.840Z`.
+
+Round1 fix/evidence commit: `02b020b30c2aa52b885380d9e06576b527b16cdf` (pushed to the same draft PR75).
+
+Packaging correction: the initial `git diff --cached --check` detected raw test-output trailing whitespace and blank EOF lines, but the shell did not stop before commit. This is a failed packaging check, not a test failure or passed gate. The exact original stdout bytes are preserved in the fix commit above. The following evidence-only commit trims trailing whitespace/blank EOF in `c9-r1-*.log` text views, without removing any test/failure/output line; regenerates their manifest hashes; records this mistake; and uses `set -e` for verification/commit/push. Production, test sources, harness and PNG/JSON artifacts remain unchanged. No browser recapture is necessary for log whitespace normalization.
+
+Round1 final source fingerprint is `a88bf15d089d600138896abec34ce5d2215744c0901e54702e8b5c9f10a7a07a`. Manifest inventory: **336 production/3 harness/4 regressions/26 artifacts (24PNG+2JSON)/38 logs**. Final evidence-only commit and tracked-path/diff gate result are returned to controller for scoped review. Original finding verdict acceptance remains the independent reviewer's responsibility.
