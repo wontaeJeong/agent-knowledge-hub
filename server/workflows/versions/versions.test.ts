@@ -86,3 +86,20 @@ test("trusted pre-create preparation and the existing onCreated fence roll back 
   expect(called).toBe(false);
  }finally{await f.pool.end();}
 });
+
+test("only an actual authorized fixed-version open records the actor's recent visit",async()=>{
+ const f=await setup();try{
+  const read=()=>f.pool.query("SELECT at FROM workflow_activity WHERE workspace_id=$1 AND principal_id='reader' AND page_id='topic' AND kind='recent'",[f.workspaceId]);
+  await f.service.version(f.reader,"topic",1);expect((await read()).rowCount).toBe(0);
+  await f.service.version(f.reader,"topic",1,{recordVisit:true});expect((await read()).rowCount).toBe(1);
+  await f.service.version(f.reader,"topic",1,{recordVisit:true});expect((await read()).rowCount).toBe(1);
+  await f.pool.query("UPDATE workflow_activity SET at='2000-01-01T00:00:00Z' WHERE workspace_id=$1",[f.workspaceId]);
+  await f.service.version(f.reader,"topic",1);expect((await read()).rows[0].at.toISOString()).toBe("2000-01-01T00:00:00.000Z");
+  await expect(f.service.version(f.reader,"topic",999,{recordVisit:true})).rejects.toThrow("NOT_FOUND");
+  await expect(f.service.version({...f.reader,authorization:{revalidate:async()=>{throw Error("UNAUTHENTICATED");},assertSession:async()=>{}}},"topic",1,{recordVisit:true})).rejects.toThrow("UNAUTHENTICATED");
+  await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reader'",[f.workspaceId]);
+  await expect(f.service.version(f.reader,"topic",1,{recordVisit:true})).rejects.toThrow("NOT_FOUND");
+  expect((await read()).rows[0].at.toISOString()).toBe("2000-01-01T00:00:00.000Z");
+  expect((await f.pool.query("SELECT * FROM workflow_activity WHERE workspace_id=$1 AND principal_id<>'reader'",[f.workspaceId])).rowCount).toBe(0);
+ }finally{await f.pool.end();}
+});

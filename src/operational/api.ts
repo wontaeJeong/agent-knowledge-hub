@@ -119,6 +119,7 @@ export class OperationalApi {
     body?: unknown,
     key?: string,
     extraHeaders?: Record<string, string>,
+    signal?: AbortSignal,
   ): Promise<T> {
     const res = await this.fetchResponse(path, {
       method,
@@ -137,7 +138,9 @@ export class OperationalApi {
             : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      signal: AbortSignal.timeout(120_000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(120_000)])
+        : AbortSignal.timeout(120_000),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -244,8 +247,8 @@ export class OperationalApi {
   get<T>(path: string) {
     return this.request<T>(path);
   }
-  post<T>(path: string, body: unknown, key?: string) {
-    return this.request<T>(path, "POST", body, key);
+  post<T>(path: string, body: unknown, key?: string, signal?: AbortSignal) {
+    return this.request<T>(path, "POST", body, key, undefined, signal);
   }
   async transport(path: string, init: RequestInit = {}): Promise<Response> {
     const headers = new Headers(init.headers);

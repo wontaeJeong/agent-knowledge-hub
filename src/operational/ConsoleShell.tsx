@@ -69,8 +69,10 @@ export function ConsoleShell({
   identity,
   active = tab,
   notificationBell,
+  globalSearch,
 }: {
   notificationBell?: ReactNode;
+  globalSearch?: ReactNode;
   identity?: Identity | null;
   active?: ConsoleTab;
   preview: boolean;
@@ -203,7 +205,9 @@ export function ConsoleShell({
           </div>
           <div>
             {identity?.capabilities?.includes("knowledge.read") && (
-              <Button onClick={() => navigate("search")}>검색</Button>
+              globalSearch ?? (
+                <Button onClick={() => navigate("search")}>검색</Button>
+              )
             )}
             {identity?.capabilities?.includes("draft.write") && (
               <Button onClick={() => navigate("compose")}>새 문서</Button>

@@ -107,3 +107,12 @@ migration141은 기존 workflow_activity에 nullable position을 추가한다. �
 C3 최종 리뷰 보완: favorite 항목의 호환 추가 `canMoveUp`/`canMoveDown`은 현재 열람 가능한 전체 즐겨찾기의 경계만 표시한다. 페이지25행 제한은 순서 범위를 나누지 않는다. move는 기존 reorder와 같은 canonical private primitive/사용자·공간 잠금/CAS/해시 영수증을 사용하며 별도 트랜잭션 안에 public 변경 메서드를 중첩 호출하지 않는다. 같은 mutationId를 다른 move/reorder 본문에 재사용하면 MUTATION_CONFLICT다. 현재 인가·목록 존재·전체 의존 envelope를 먼저 확인한 후 replay를 처리하고 실제 전역 끝의 새 이동은 FAVORITE_BOUNDARY(409)다. replay에서도 현재 인가된 snapshot으로 새 context cursor를 발급하며 과거 cursor/보호 DTO를 영수증에 보관하지 않는다. 현재 권한/목록이 바뀌거나 문서가 사라지면 generic stale/not-found 오류다. 기존 reorder의 입력1~50ID와 응답 `{revision}`은 그대로다. migration141은 바꾸지 않았다.
 
 일반 목록 새로고침으로 초점 행이 사라지면 공용 현재 DOM helper가 현재 허용된 이웃의 같은 제어 또는 안정된 refresh/error 제어로 복구한다. 외부 keyboard/pointer 선택은 존중하며 과거 행·제목을 캐시하지 않는다. C2 useInboxFocus 공개 동작/선택자/안내는 compat wrapper로 유지한다.
+
+
+## 전역 키워드 검색과 고정 버전 열기 (2026-11-17, C5)
+
+기존 `POST /api/v1/questions/search`와 `ScopedSearch`를 사용한다. `src/domain/search-filters.ts`의 단일 검증 스키마를 서버·새 UI·기존 QuestionsWorkbench가 공유한다. 기존 필드·`historical=false`·25건·API 최대100건을 유지하고 선택적 `sort:recent|title`을 추가한다(기본 recent). title은 허용된 전체 후보를 정확 제목 → 제목 접두어 → 제목 포함 → 본문/요약 일치로 정렬한 뒤 같은 키로 페이지를 자른다. 빠른 열기10건·상세 검색25건이며 별도 검색 엔진이나 모델 작업을 만들지 않는다. cursor는 주체·credential·공간·필터(sort/limit 포함)·현재 권한/내용 revision에 결합된다. stale cursor는 결과를 비우고 처음부터 다시 검색한다.
+
+기존 `historical`은 과거 포함 **조회 모드**이고 `currentRecommendation=false`는 그 모드의 보수적 값이다. additive `isCurrentVersion`은 해당 결과의 실제 최신 버전 여부다. UI는 세 값을 혼동하지 않으며 구형 DTO의 최신 여부는 unknown으로 표시한다. 과거 속성/제목은 당시 snapshot 또는 unknown이며 현재 메타데이터로 채우지 않는다. UI의 날짜·시각 선택은 기기의 현지 시각이며 전송 시 기존 UTC ISO 계약으로 변환한다. 빈 값은 조건을 제외하고 잘못된 날짜·역전 기간은 오류를 표시한다.
+
+`GET /api/v1/versions/pages/{id}/{number}`는 기존 비방문 조회/DTO를 유지하고 `isCurrentVersion`을 추가한다. 실제 고정 문서 route 전체 열기만 `?visit=1`을 사용한다. visit 값은 정확히 하나의 `1`만 허용하며 잘못된 값/중복은 validation 오류다. VersionService의 동일 트랜잭션에서 현재 page/version/metadata 권한 확인 후 기존 문서 열기와 공유하는 `recordDocumentVisit`으로 인증 주체의 최근 방문을 upsert한다. 목록·미리보기·비교·인용·포커스 refresh는 비방문이다. URL에는 공간/문서/버전만 넣고 검색어·제목·본문은 URL/localStorage에 저장하지 않는다. `anchor` 경로는 C9 후속 범위다.

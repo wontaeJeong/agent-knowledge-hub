@@ -1,3 +1,4 @@
+import { recordDocumentVisit } from "./activity";
 import { PersonalLibraryService } from "../convenience/personal";
 import type { LibraryKind } from "../convenience/types";
 import { bulkPreview, bulkApply } from "./bulk";
@@ -643,10 +644,7 @@ export class WorkflowService {
           "SELECT revision,state,parent_id,data FROM workflow_document_state WHERE workspace_id=$1 AND page_id=$2",
           [ctx.workspaceId, pageId],
         );
-        await db.query(
-          "INSERT INTO workflow_activity VALUES($1,$2,$3,'recent',now()) ON CONFLICT(workspace_id,principal_id,page_id,kind) DO UPDATE SET at=now()",
-          [ctx.workspaceId, ctx.principalId, pageId],
-        );
+        await recordDocumentVisit(db, ctx, pageId);
         return {
           page: p,
           settings: settings.rows[0] ?? {

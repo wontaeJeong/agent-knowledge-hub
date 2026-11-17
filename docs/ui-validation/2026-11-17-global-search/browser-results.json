@@ -1,0 +1,1198 @@
+[
+  {
+    "width": 1440,
+    "theme": "light",
+    "browser": "158.0.8127.18",
+    "themeVerified": "light",
+    "quickCount": 10,
+    "detailCount": 25,
+    "imeNativeCompositionStartUpdate": true,
+    "commitEventTrusted": false,
+    "imeMethod": "Chromium CDP Input.imeSetComposition + Input.insertText; no OS IME",
+    "ime": [
+      {
+        "type": "compositionstart",
+        "data": "",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionend",
+        "data": "코드_retry",
+        "trusted": false,
+        "composing": null
+      }
+    ],
+    "keyboardTrap": true,
+    "escapeFocusReturn": true,
+    "activeResultVisible": true,
+    "readyArrowTitles": [
+      "코드_retry 안내",
+      "합성 검색 문서 01",
+      "합성 검색 문서 02",
+      "합성 검색 문서 03",
+      "합성 검색 문서 04",
+      "합성 검색 문서 05",
+      "합성 검색 문서 06",
+      "합성 검색 문서 07",
+      "합성 검색 문서 08",
+      "합성 검색 문서 09"
+    ],
+    "datetimeLocalToUtc": true,
+    "shortcutOtherOwnerPreserved": true,
+    "historicalRows": {
+      "currentVersion": 2,
+      "oldVersion": 1
+    },
+    "timezone": "Asia/Seoul",
+    "exactCurrentOpen": true,
+    "exactHistoricalOpen": true,
+    "lateRealResponseBlocked": true,
+    "equivalentEdits": [
+      {
+        "surface": "quick-query",
+        "phase": "rendered",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "quick-query",
+        "phase": "pending",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      }
+    ],
+    "advancedIme": [
+      {
+        "field": "businessOwner",
+        "partialPosts": 0,
+        "committed": "한국",
+        "events": [
+          {
+            "type": "compositionstart",
+            "data": "",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionend",
+            "data": "한국",
+            "trusted": false,
+            "composing": null
+          }
+        ]
+      },
+      {
+        "field": "tags",
+        "partialPosts": 0,
+        "committed": [
+          "한국"
+        ],
+        "events": [
+          {
+            "type": "compositionstart",
+            "data": "",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionend",
+            "data": "한국",
+            "trusted": false,
+            "composing": null
+          }
+        ]
+      }
+    ],
+    "handoffChecks": [
+      {
+        "mode": "fresh",
+        "query": "코드_retry",
+        "limit": 25,
+        "filtersReset": true,
+        "cursorReset": true,
+        "queryOnlyInMemory": true
+      },
+      {
+        "mode": "already-mounted",
+        "query": "코드_retry",
+        "limit": 25,
+        "filtersReset": true,
+        "cursorReset": true,
+        "queryOnlyInMemory": true,
+        "cancelPreservedPriorQuery": true
+      }
+    ],
+    "historicalDefaultExcluded": true,
+    "searchNonvisit": true,
+    "snapshotVisitOneRow": true,
+    "focusRefreshNonvisit": true,
+    "staleCursorCleared": true,
+    "sourceAclEmpty": true,
+    "noModelOrQuestionPosts": true,
+    "noExternalRequests": true,
+    "noSensitiveStorage": true,
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "theme": "dark",
+    "browser": "158.0.8127.18",
+    "themeVerified": "dark",
+    "quickCount": 10,
+    "detailCount": 25,
+    "imeNativeCompositionStartUpdate": true,
+    "commitEventTrusted": false,
+    "imeMethod": "Chromium CDP Input.imeSetComposition + Input.insertText; no OS IME",
+    "ime": [
+      {
+        "type": "compositionstart",
+        "data": "",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionend",
+        "data": "코드_retry",
+        "trusted": false,
+        "composing": null
+      }
+    ],
+    "keyboardTrap": true,
+    "escapeFocusReturn": true,
+    "activeResultVisible": true,
+    "readyArrowTitles": [
+      "코드_retry 안내",
+      "합성 검색 문서 01",
+      "합성 검색 문서 02",
+      "합성 검색 문서 03",
+      "합성 검색 문서 04",
+      "합성 검색 문서 05",
+      "합성 검색 문서 06",
+      "합성 검색 문서 07",
+      "합성 검색 문서 08",
+      "합성 검색 문서 09"
+    ],
+    "datetimeLocalToUtc": true,
+    "shortcutOtherOwnerPreserved": true,
+    "historicalRows": {
+      "currentVersion": 2,
+      "oldVersion": 1
+    },
+    "timezone": "Asia/Seoul",
+    "exactCurrentOpen": true,
+    "exactHistoricalOpen": true,
+    "lateRealResponseBlocked": true,
+    "equivalentEdits": [
+      {
+        "surface": "quick-query",
+        "phase": "rendered",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "quick-query",
+        "phase": "pending",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      }
+    ],
+    "advancedIme": [
+      {
+        "field": "businessOwner",
+        "partialPosts": 0,
+        "committed": "한국",
+        "events": [
+          {
+            "type": "compositionstart",
+            "data": "",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionend",
+            "data": "한국",
+            "trusted": false,
+            "composing": null
+          }
+        ]
+      },
+      {
+        "field": "tags",
+        "partialPosts": 0,
+        "committed": [
+          "한국"
+        ],
+        "events": [
+          {
+            "type": "compositionstart",
+            "data": "",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionend",
+            "data": "한국",
+            "trusted": false,
+            "composing": null
+          }
+        ]
+      }
+    ],
+    "handoffChecks": [
+      {
+        "mode": "fresh",
+        "query": "코드_retry",
+        "limit": 25,
+        "filtersReset": true,
+        "cursorReset": true,
+        "queryOnlyInMemory": true
+      },
+      {
+        "mode": "already-mounted",
+        "query": "코드_retry",
+        "limit": 25,
+        "filtersReset": true,
+        "cursorReset": true,
+        "queryOnlyInMemory": true,
+        "cancelPreservedPriorQuery": true
+      }
+    ],
+    "historicalDefaultExcluded": true,
+    "searchNonvisit": true,
+    "snapshotVisitOneRow": true,
+    "focusRefreshNonvisit": true,
+    "staleCursorCleared": true,
+    "sourceAclEmpty": true,
+    "noModelOrQuestionPosts": true,
+    "noExternalRequests": true,
+    "noSensitiveStorage": true,
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "theme": "light",
+    "browser": "158.0.8127.18",
+    "themeVerified": "light",
+    "quickCount": 10,
+    "detailCount": 25,
+    "imeNativeCompositionStartUpdate": true,
+    "commitEventTrusted": false,
+    "imeMethod": "Chromium CDP Input.imeSetComposition + Input.insertText; no OS IME",
+    "ime": [
+      {
+        "type": "compositionstart",
+        "data": "",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionend",
+        "data": "코드_retry",
+        "trusted": false,
+        "composing": null
+      }
+    ],
+    "keyboardTrap": true,
+    "escapeFocusReturn": true,
+    "activeResultVisible": true,
+    "readyArrowTitles": [
+      "코드_retry 안내",
+      "합성 검색 문서 01",
+      "합성 검색 문서 02",
+      "합성 검색 문서 03",
+      "합성 검색 문서 04",
+      "합성 검색 문서 05",
+      "합성 검색 문서 06",
+      "합성 검색 문서 07",
+      "합성 검색 문서 08",
+      "합성 검색 문서 09"
+    ],
+    "datetimeLocalToUtc": true,
+    "shortcutOtherOwnerPreserved": true,
+    "historicalRows": {
+      "currentVersion": 2,
+      "oldVersion": 1
+    },
+    "timezone": "Asia/Seoul",
+    "exactCurrentOpen": true,
+    "exactHistoricalOpen": true,
+    "lateRealResponseBlocked": true,
+    "equivalentEdits": [
+      {
+        "surface": "quick-query",
+        "phase": "rendered",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "quick-query",
+        "phase": "pending",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      }
+    ],
+    "advancedIme": [
+      {
+        "field": "businessOwner",
+        "partialPosts": 0,
+        "committed": "한국",
+        "events": [
+          {
+            "type": "compositionstart",
+            "data": "",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionend",
+            "data": "한국",
+            "trusted": false,
+            "composing": null
+          }
+        ]
+      },
+      {
+        "field": "tags",
+        "partialPosts": 0,
+        "committed": [
+          "한국"
+        ],
+        "events": [
+          {
+            "type": "compositionstart",
+            "data": "",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionend",
+            "data": "한국",
+            "trusted": false,
+            "composing": null
+          }
+        ]
+      }
+    ],
+    "handoffChecks": [
+      {
+        "mode": "fresh",
+        "query": "코드_retry",
+        "limit": 25,
+        "filtersReset": true,
+        "cursorReset": true,
+        "queryOnlyInMemory": true
+      },
+      {
+        "mode": "already-mounted",
+        "query": "코드_retry",
+        "limit": 25,
+        "filtersReset": true,
+        "cursorReset": true,
+        "queryOnlyInMemory": true,
+        "cancelPreservedPriorQuery": true
+      }
+    ],
+    "historicalDefaultExcluded": true,
+    "searchNonvisit": true,
+    "snapshotVisitOneRow": true,
+    "focusRefreshNonvisit": true,
+    "staleCursorCleared": true,
+    "sourceAclEmpty": true,
+    "noModelOrQuestionPosts": true,
+    "noExternalRequests": true,
+    "noSensitiveStorage": true,
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "theme": "dark",
+    "browser": "158.0.8127.18",
+    "themeVerified": "dark",
+    "quickCount": 10,
+    "detailCount": 25,
+    "imeNativeCompositionStartUpdate": true,
+    "commitEventTrusted": false,
+    "imeMethod": "Chromium CDP Input.imeSetComposition + Input.insertText; no OS IME",
+    "ime": [
+      {
+        "type": "compositionstart",
+        "data": "",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionend",
+        "data": "코드_retry",
+        "trusted": false,
+        "composing": null
+      }
+    ],
+    "keyboardTrap": true,
+    "escapeFocusReturn": true,
+    "activeResultVisible": true,
+    "readyArrowTitles": [
+      "코드_retry 안내",
+      "합성 검색 문서 01",
+      "합성 검색 문서 02",
+      "합성 검색 문서 03",
+      "합성 검색 문서 04",
+      "합성 검색 문서 05",
+      "합성 검색 문서 06",
+      "합성 검색 문서 07",
+      "합성 검색 문서 08",
+      "합성 검색 문서 09"
+    ],
+    "datetimeLocalToUtc": true,
+    "shortcutOtherOwnerPreserved": true,
+    "historicalRows": {
+      "currentVersion": 2,
+      "oldVersion": 1
+    },
+    "timezone": "Asia/Seoul",
+    "exactCurrentOpen": true,
+    "exactHistoricalOpen": true,
+    "lateRealResponseBlocked": true,
+    "equivalentEdits": [
+      {
+        "surface": "quick-query",
+        "phase": "rendered",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "quick-query",
+        "phase": "pending",
+        "count": 10,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-query",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "코드_retry",
+          "tags": []
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "rendered",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true
+      },
+      {
+        "surface": "detail-tags",
+        "phase": "pending",
+        "count": 25,
+        "canonical": {
+          "query": "",
+          "tags": [
+            "synthetic"
+          ]
+        },
+        "newCanonicalResponse": true,
+        "oldRealResponseReleased": true
+      }
+    ],
+    "advancedIme": [
+      {
+        "field": "businessOwner",
+        "partialPosts": 0,
+        "committed": "한국",
+        "events": [
+          {
+            "type": "compositionstart",
+            "data": "",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionend",
+            "data": "한국",
+            "trusted": false,
+            "composing": null
+          }
+        ]
+      },
+      {
+        "field": "tags",
+        "partialPosts": 0,
+        "committed": [
+          "한국"
+        ],
+        "events": [
+          {
+            "type": "compositionstart",
+            "data": "",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionupdate",
+            "data": "한국",
+            "trusted": true,
+            "composing": null
+          },
+          {
+            "type": "input",
+            "data": "한국",
+            "trusted": true,
+            "composing": true
+          },
+          {
+            "type": "compositionend",
+            "data": "한국",
+            "trusted": false,
+            "composing": null
+          }
+        ]
+      }
+    ],
+    "handoffChecks": [
+      {
+        "mode": "fresh",
+        "query": "코드_retry",
+        "limit": 25,
+        "filtersReset": true,
+        "cursorReset": true,
+        "queryOnlyInMemory": true
+      },
+      {
+        "mode": "already-mounted",
+        "query": "코드_retry",
+        "limit": 25,
+        "filtersReset": true,
+        "cursorReset": true,
+        "queryOnlyInMemory": true,
+        "cancelPreservedPriorQuery": true
+      }
+    ],
+    "historicalDefaultExcluded": true,
+    "searchNonvisit": true,
+    "snapshotVisitOneRow": true,
+    "focusRefreshNonvisit": true,
+    "staleCursorCleared": true,
+    "sourceAclEmpty": true,
+    "noModelOrQuestionPosts": true,
+    "noExternalRequests": true,
+    "noSensitiveStorage": true,
+    "overflow": false,
+    "errors": []
+  }
+]

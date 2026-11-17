@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { fixture, adoptFixture } from "../test-support";
+import { fixture, adoptFixture, page as seedPage } from "../test-support";
 import { authorizeActionDb } from "../access/index";
 import { RuntimeService } from "../runtime/knowledge";
 import { QuestionsService } from "./service";
@@ -463,7 +463,10 @@ test("historical search reads actual old body, reports unknown metadata and bind
     historical: true,
     currentRecommendation: false,
     metadataStatus: "unknown",
+    isCurrentVersion: false,
   });
+  const latestHistory=await f.service.search(f.reader,{query:"현재 권고 내용",historical:true});
+  expect(latestHistory.items[0]).toMatchObject({version:2,isCurrentVersion:true,historical:true,currentRecommendation:false});
   expect(old.items[0].title).toBeNull();
   const all = await f.service.search(f.reader, { historical: true, limit: 1 });
   expect(all.nextCursor).toBeTruthy();
@@ -905,4 +908,45 @@ test("admission rejects a source that would make its new history page unreadable
   await f.pool.query("UPDATE sources SET data=jsonb_set(data,'{content}',to_jsonb(repeat('x',270000))) WHERE workspace_id=$1 AND id='source-a'",[f.workspaceId]);
   await expect(f.service.acceptTurn(f.reader,thread.id,{expectedRevision:0,nonce:"oversized-source",question:"question",mode:"offline"})).rejects.toThrow("QUESTION_HISTORY_LIMIT");
   expect((await f.pool.query("SELECT count(*)::int AS n FROM question_turns WHERE workspace_id=$1 AND thread_id=$2",[f.workspaceId,thread.id])).rows[0].n).toBe(0);
+});
+
+
+test("title-first search ranks the entire authorized corpus before keyset pagination with no model", async () => {
+  const f = await setup();
+  for (let n = 0; n < 13; n++) {
+    const id = `quick-${n}`, {versions, ...metadata} = {...seedPage, id, title: n === 12 ? "코드_retry" : `본문 문서 ${n}`};
+    await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)", [f.workspaceId,id]);
+    await f.pool.query("INSERT INTO resource_readers VALUES($1,'page',$2,'reader')", [f.workspaceId,id]);
+    await f.pool.query("INSERT INTO pages(workspace_id,id,data) VALUES($1,$2,$3)", [f.workspaceId,id,metadata]);
+    await f.pool.query("INSERT INTO versions VALUES($1,$2,1,$3)", [f.workspaceId,id,{...versions[0],id:`v-${id}`,content:"본문 코드_retry",at:n===12 ? "2026-01-01T00:00:00Z" : "2026-10-29T00:00:00Z"}]);
+  }
+  const input = {query:"코드_retry", sort:"title",limit:10};
+  const first = await f.service.search(f.reader,input);
+  expect(first.items).toHaveLength(10);
+  expect(first.items[0].pageId).toBe("quick-12");
+  const next = await f.service.search(f.reader,{...input,cursor:first.nextCursor});
+  expect(next.items).toHaveLength(3);
+  expect(new Set([...first.items,...next.items].map(i=>i.pageId)).size).toBe(13);
+  await expect(f.service.search(f.reader,{...input,sort:"recent",cursor:first.nextCursor})).rejects.toThrow("STALE_CURSOR");
+  await expect(f.service.search(f.ctx,{...input,cursor:first.nextCursor})).rejects.toThrow("STALE_CURSOR");
+  await expect(f.service.search(f.reader,{...input,limit:25,cursor:first.nextCursor})).rejects.toThrow("STALE_CURSOR");
+  const other=await setup();
+  await expect(f.service.search(other.reader,{...input,cursor:first.nextCursor})).rejects.toThrow("STALE_CURSOR");
+  await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reader'",[f.workspaceId]);
+  await expect(f.service.search(f.reader,{...input,cursor:first.nextCursor})).rejects.toThrow("STALE_CURSOR");
+  expect((await f.service.search(f.reader,input)).items).toEqual([]);
+});
+
+test("title search omits denied current ancestors and does not count rendering as a visit", async () => {
+ const f=await setup();
+ const {versions,...metadata}={...seedPage,id:"search-parent",title:"상위"};
+ await f.pool.query("INSERT INTO resources VALUES($1,'page','search-parent')",[f.workspaceId]);
+ await f.pool.query("INSERT INTO resource_readers VALUES($1,'page','search-parent','reader')",[f.workspaceId]);
+ await f.pool.query("INSERT INTO pages(workspace_id,id,data) VALUES($1,'search-parent',$2)",[f.workspaceId,metadata]);
+ await f.pool.query("INSERT INTO versions VALUES($1,'search-parent',1,$2)",[f.workspaceId,versions[0]]);
+ await f.pool.query("INSERT INTO workflow_document_state(workspace_id,page_id,parent_id) VALUES($1,'topic','search-parent')",[f.workspaceId]);
+ expect((await f.service.search(f.reader,{query:"주제",sort:"title"})).items[0].title).toBe("주제");
+ expect((await f.pool.query("SELECT * FROM workflow_activity WHERE workspace_id=$1",[f.workspaceId])).rows).toEqual([]);
+ await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='search-parent' AND principal_id='reader'",[f.workspaceId]);
+ expect(await f.service.search(f.reader,{query:"주제",sort:"title"})).toMatchObject({items:[],nextCursor:null});
 });
