@@ -170,3 +170,9 @@ node scripts/k8s/verify-restore.mjs /external/private-backups/knowledge-TIMESTAM
 ### 계정 및 선택적 identity 기능
 
 계정 화면은 현재 로그인한 사람의 세션만 조회·철회한다. 전체 로그아웃은 제품 세션과 그 실행 grant를 철회하며 외부 IdP 로그아웃 브리지가 구성되지 않았음을 응답한다. 기본 설정은 긴급 접근과 디렉터리 바인딩 관리가 모두 꺼져 있다. 선택적으로 `AKH_EMERGENCY_APPROVER_IDS`에 명시적으로 지정한 플랫폼 승인자 ID의 JSON 배열을 제공할 수 있다. 공간 Owner나 reviewer를 승인자로 추정하지 않는다. `AKH_IDENTITY_DIRECTORY_BINDINGS`에는 사전 승인된 `{key,issuer,externalGroupId,groupId,label}` 객체의 JSON 배열을 제공한다. 외부 그룹 ID는 공급자가 검증한 값과 정확히 일치해야 하며 브라우저에서 임의로 지정할 수 없다. 긴급 접근에는 최신 검증된 사람 증명과 원본 상한이 여전히 필요하다. 실제 IdP, 운영 정책과 TLS 구성은 별도로 검증해야 한다.
+
+## Native search index maintenance (2026-11-16)
+
+Migration121 installs the trusted PostgreSQL pg_trgm extension and body GIN index. The migration role needs database CREATE permission for the extension; runtime maintenance needs ownership or appropriate PostgreSQL17 MAINTAIN authority on the versions table, plus namespace CREATE authority to recreate a missing index. Keep these as reviewed site database-role decisions; the API does not grant database privileges. Existing app/DB Pods and maintenance workers are reused.
+
+Set AKH_PLATFORM_OPERATOR_IDS to the explicit JSON array of existing human principal IDs. A listed operator also needs the current space Admin role and a verified login session; PAT/service/legacy agent credentials do not replace that session. The jobs console exposes actual status and durable rebuild. SQL lock/statement timeouts bound blocking; large maintenance may fail safely and requires a separately reviewed capacity/availability decision. [Exact operation, authorization and validation](implementation/2026-11-16-search-index.md).

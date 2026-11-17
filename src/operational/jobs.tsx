@@ -1,3 +1,4 @@
+import { SearchIndexPanel } from "./search-index";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "../ui/primitives";
 import { OperationalApi, ApiError } from "./api";
@@ -210,7 +211,9 @@ export function JobsPanel({
     [usage, setUsage] = useState<Usage[]>([]),
     [preview, setPreview] = useState<unknown>(null),
     [stopped, setStopped] = useState(false);
-  const [scheduleKind, setScheduleKind] = useState<"knowledge"|"retention">("knowledge");
+  const [scheduleKind, setScheduleKind] = useState<"knowledge" | "retention">(
+    "knowledge",
+  );
   const [key, setKey] = useState("daily"),
     [cadence, setCadence] = useState<"daily" | "weekly" | "monthly">("daily"),
     [time, setTime] = useState("09:00"),
@@ -305,6 +308,11 @@ export function JobsPanel({
   return (
     <section className="op-panel" aria-labelledby="durable-jobs-title">
       <h2 id="durable-jobs-title">지속 작업·위키 매니저</h2>
+      <SearchIndexPanel
+        api={api}
+        capabilities={capabilities}
+        onExpired={onExpired}
+      />
       <p>
         작업 수락은 실행·발행 완료가 아닙니다. 변경 제안은 사람의 검토·승인 후
         별도로 발행합니다. 원본·문서·권한·규칙이 바뀌면 오래된 결과를 반영하지
@@ -520,7 +528,11 @@ export function JobsPanel({
                   onClick={() => {
                     setEditing({ key: s.schedule_key, revision: s.revision });
                     setKey(s.schedule_key);
-                    setScheduleKind(s.config.job.kind === "retention" ? "retention" : "knowledge");
+                    setScheduleKind(
+                      s.config.job.kind === "retention"
+                        ? "retention"
+                        : "knowledge",
+                    );
                     setCadence(s.config.cadence);
                     setTime(s.config.time);
                     setZone(s.config.timezone);
@@ -613,11 +625,20 @@ export function JobsPanel({
                   );
                   if (!identity)
                     throw Error("서버에서 허용한 실행 자격 증명을 선택하세요.");
-                  const policy = scheduleKind === "retention" ? await api.get<{revision:number;policy:{enabled:boolean}}>("/retention/policy") : undefined;
-                  if (policy && (!policy.policy.enabled || policy.revision < 1)) throw Error("활성 보존 정책을 먼저 승인하세요.");
+                  const policy =
+                    scheduleKind === "retention"
+                      ? await api.get<{
+                          revision: number;
+                          policy: { enabled: boolean };
+                        }>("/retention/policy")
+                      : undefined;
+                  if (policy && (!policy.policy.enabled || policy.revision < 1))
+                    throw Error("활성 보존 정책을 먼저 승인하세요.");
                   if (
-                    !window.confirm(policy ? `현재 보존 정책 버전 ${policy.revision}에 묶인 정리 일정을 승인할까요?` :
-                      "선택한 대상과 한도를 승인하고 일정을 저장할까요? 변경안의 자동 승인·발행은 허용하지 않습니다.",
+                    !window.confirm(
+                      policy
+                        ? `현재 보존 정책 버전 ${policy.revision}에 묶인 정리 일정을 승인할까요?`
+                        : "선택한 대상과 한도를 승인하고 일정을 저장할까요? 변경안의 자동 승인·발행은 허용하지 않습니다.",
                     )
                   )
                     return;
@@ -625,7 +646,9 @@ export function JobsPanel({
                     "/jobs-v2/schedules",
                     scheduleRequest({
                       key,
-                      ...(policy ? {retentionPolicyRevision:policy.revision} : {}),
+                      ...(policy
+                        ? { retentionPolicyRevision: policy.revision }
+                        : {}),
                       cadence,
                       time,
                       timezone: zone,
@@ -660,10 +683,28 @@ export function JobsPanel({
                   onChange={(e) => setKey(e.target.value)}
                 />
               </label>
-              {capabilities.includes("space.admin") && <label>작업 종류
-                <select value={scheduleKind} onChange={(e)=>setScheduleKind(e.target.value as "knowledge"|"retention")}><option value="knowledge">지식 구조 점검</option><option value="retention">승인된 보존 정책 실행</option></select>
-              </label>}
-              {scheduleKind === "retention" && <p>서버에 지정된 서비스 자격 증명만 사용할 수 있습니다. 정책 버전 변경 시 일정을 다시 승인해야 합니다.</p>}
+              {capabilities.includes("space.admin") && (
+                <label>
+                  작업 종류
+                  <select
+                    value={scheduleKind}
+                    onChange={(e) =>
+                      setScheduleKind(
+                        e.target.value as "knowledge" | "retention",
+                      )
+                    }
+                  >
+                    <option value="knowledge">지식 구조 점검</option>
+                    <option value="retention">승인된 보존 정책 실행</option>
+                  </select>
+                </label>
+              )}
+              {scheduleKind === "retention" && (
+                <p>
+                  서버에 지정된 서비스 자격 증명만 사용할 수 있습니다. 정책 버전
+                  변경 시 일정을 다시 승인해야 합니다.
+                </p>
+              )}
               <label>
                 주기
                 <select
@@ -754,21 +795,24 @@ export function JobsPanel({
                   모델 실행 규칙으로 간주하지 않습니다.
                 </p>
               )}
-              {scheduleKind !== "retention" && <><label>
-                승인할 문서 ID (쉼표 구분)
-                <textarea
-                  value={pages}
-                  onChange={(e) => setPages(e.target.value)}
-                />
-              </label>
-              <label>
-                승인할 원본 ID (쉼표 구분)
-                <textarea
-                  value={sources}
-                  onChange={(e) => setSources(e.target.value)}
-                />
-              </label>
-              </>}
+              {scheduleKind !== "retention" && (
+                <>
+                  <label>
+                    승인할 문서 ID (쉼표 구분)
+                    <textarea
+                      value={pages}
+                      onChange={(e) => setPages(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    승인할 원본 ID (쉼표 구분)
+                    <textarea
+                      value={sources}
+                      onChange={(e) => setSources(e.target.value)}
+                    />
+                  </label>
+                </>
+              )}
               <label>
                 실행 자격 증명
                 <select

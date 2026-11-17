@@ -439,6 +439,25 @@ export function createRuntimeHandler(options: {
           return;
         return send(404, { code: "NOT_FOUND", requestId });
       }
+      if (path === "/api/v1/search/index" && req.method === "GET") {
+        if (!options.jobs) throw Error("SEARCH_INDEX_NOT_CONFIGURED");
+        return send(200, await options.jobs.searchIndex.status(ctx));
+      }
+      if (path === "/api/v1/search/index/rebuild" && req.method === "POST") {
+        if (!options.jobs) throw Error("SEARCH_INDEX_NOT_CONFIGURED");
+        const data = z
+          .object({ idempotency_key: z.string().min(1).max(200) })
+          .strict()
+          .parse(body);
+        const receipt = await options.jobs.submitInteractive(
+          ctx,
+          "index",
+          { action: "rebuild-search-index" },
+          data.idempotency_key,
+        );
+        await recordJobTrace(options.pool, ctx, requestId, "index", receipt.id);
+        return send(202, { ...receipt, requestId });
+      }
       if (path === "/api/v1/search/semantic" && req.method === "POST") {
         if (agent) throw Error("FORBIDDEN");
         if (!options.jobs) throw Error("SEMANTIC_SEARCH_NOT_CONFIGURED");
@@ -889,8 +908,17 @@ export function createRuntimeHandler(options: {
           );
         if (path === "/api/v1/discovery") {
           const days = url.searchParams.get("days") || "7";
-          if (!["7", "14", "30", "90"].includes(days)) throw Error("VALIDATION_FAILED");
-          return send(200, await discoveryReport(options.pool, service, ctx, Number(days) as 7 | 14 | 30 | 90));
+          if (!["7", "14", "30", "90"].includes(days))
+            throw Error("VALIDATION_FAILED");
+          return send(
+            200,
+            await discoveryReport(
+              options.pool,
+              service,
+              ctx,
+              Number(days) as 7 | 14 | 30 | 90,
+            ),
+          );
         }
         if (path === "/api/v1/pages")
           return send(200, { items: await service.pages(ctx) });

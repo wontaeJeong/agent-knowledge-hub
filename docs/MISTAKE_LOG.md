@@ -699,6 +699,23 @@
 - 검증: 콜백 교체 단위 회귀와 실제 WorkflowPanel·textarea·OperationalApi·DraftAutosave 통합 회귀 2건의 RED를 확인했다. 지연 응답 중 입력 후 링크를 삽입하고 포커스 이탈 시 합성 저장소에 새 입력과 링크가 함께 보존됨을 확인했다. 수정 후 해당 회귀와 기존 탐색 8시험, Node24 전체 `npm run check`(프런트180), native 인증 HTTP·CSRF·원본 철회 회귀가 통과했다.
 - 상태: 수정·검증됨. 시각 변화는 없어 기존 1440/390 캡처를 유지하며 독립 재리뷰·최종 CI는 별도 확인한다.
 
+### 2026-11-16 - Native index integration and schema qualification
+- Context: Task1c PostgreSQL index maintenance. Initial native RED tests observed no physical index and JOB_KIND_NOT_SUPPORTED. The first worker integration reached FEATURE_DISABLED because index was absent from feature-operation mapping; added the existing query feature mapping.
+- A revocation regression left the shared synthetic editor principal inactive for a later test in the same isolated file DB; explicit fixture setup restores that known synthetic actor. The first HTTP RED attempt failed in fixture setup; after correction, removing the route reproduced404 and restoring it passed actual OIDC/CSRF/worker HTTP checks. No shared base or production schema was modified.
+- Broader release-upgrade regression failed because a private-schema search_path could not resolve gin_trgm_ops already installed in public. Migration now qualifies the actual extension namespace; maintenance resolves/quotes object names from the versions table schema rather than assuming public. The failed upgrade regression then passed with25 tests; native index11, erasure28 and storage graph4 also passed.
+- A prior candidate SQL escape spelling was overcomplicated during implementation; explicit exclamation escape now keeps percent/underscore/backslash behavior literal and is exercised through canonical search.
+- All successful/failed rebuild, checksum/legacy migration, permission and UI outcome claims use actual executed tests. Final full-check/native counts are in handoff/report. Screenshots use labeled synthetic replies, not production data or a performance benchmark.
+### 2026-11-16 - Integration scheduling and native filter correction
+- Started the presentation merge before its final CI inspection, then cancelled only that uncommitted merge to integrate the already-CI-green bulk PR first. No committed or external changes were discarded. The presentation remote was already ff769e8; the initial stale-ref suspicion was incorrect.
+- A Task5 integration runner filter named ingest-lineage.test.ts did not exist and was rejected before tests. Corrected to lineage.test.ts and kept isolated per-file databases.
+
+
+### 2026-11-17 — native index controls omitted from retention inventory
+
+- Context/evidence: PR #55 head1f1f555, CI run43891959528/job133385264883 failed five files/28 assertions. The initial three dead retention jobs expanded to ordinary retention, compatible controls and notification erasure. Isolated reproduction exposed the actual dead-job error `RETENTION_GRAPH_UNSUPPORTED`; both new search-index metadata tables were absent from the inventory's explicit table classes.
+- Cause/impact: the index's original native152-test selection covered release/index/erasure/runtime but omitted positive retention jobs and the fail-closed inventory. The public control tables therefore made ordinary retention unsupported after migration121. No production or real company data was involved; all reproduction and repair tests use per-file UUID databases through scripts/test-server.mjs, never the shared anchor schema.
+- Correction: explicitly classify only these two frozen metadata schemas; freeze their FK targets, columns, update/delete/match rules, validation and deferral too. Product-reference FKs fail even without added columns. Unknown tables and changed schemas still reject; metadata is not retained content lineage. Migration121 remains unchanged;122 unused. Add pruning/index-removal/current-version/observation-history regression and include all retention and operations tests in expanded validation.
+- Verification: native RED reproduced; schema-only classification left two new product-FK regressions failing, exact FK guard made them green. Targeted runtime6 + controls9 and full Node24 npm run check passed. Expanded native retention jobs, all operations/erasure, inventory/service/HTTP/recovery, index and release passed23 files/179 tests, exit0. Independent review and final PR CI follow.
 ### 2026-11-16 - Auth lock-order CI integration finding
 - Full CI found discovery admission now waited on the new shared directory serialization before trying its nonblocking per-space gate, admitting a second same-space report after the first completed. Moved the identifier-only nonblocking discovery gate before the common mutation gate, without taking workspace/session/identity rows first.
 - The previous cross-space test assumed protected transactions ran concurrently. The intentionally shared directory serialization invalidates that performance assumption; its functional assertion now directly probes the waiting workspace row with NOWAIT. Global serialization is documented as a throughput limit, not a performance improvement. Full CI must pass again.
@@ -767,6 +784,27 @@
 - 조치/후속 작업: 권한 확정 전 capture/projection을 지연하고 staged scan→승인 release→재scan에서 정확히1건, 승인 실패에서는0건인 회귀가 필요하다. 내부 링크 계보 수정과 별도이며 이번 변경에 이벤트 수정은 포함하지 않았다.
 - 상태: 미해결. 원격 PR 리뷰에 경로를 기록했으며 통합 main 발행 전 해결·독립 재검증이 필요하다.
 
+
+### 2026-11-17 — index/semantic integration conflict verification
+
+- Context: parent handed off an uncommitted merge of integrationa98a542 into PR #55 after inventory fix2026edf passed independent scoped review. Conflicts overlapped search transaction extraction, index/semantic runtime imports, validation/replay and HTTP endpoints, error maps and historical docs.
+- Correction: preserve the base's `searchDb` transaction signature and all structural/ACL/history/cursor checks, replace only literal body candidate SQL with the native indexed helper, retain both independent202 API branches and both job flows. Existing kind-first + semantic-seal replay guard, model policy/reservation/usage checks and fixed operator/Admin/session index capability remain. No failed resolution was committed and no business data or migration was changed.
+- Environment: unprivileged process inspection returned EPERM while checking long-running native tests; runner output and final exit status are used as evidence instead. Dependency symlink changed only after byte-identical package-lock verification against the approved base dependencies. No product assertion failure observed at this stage; final test results are in handoff/report.
+- Validation: full Node24 npm run check passed (src216); combined UUID-isolated native index/semantic/jobs/retention/MCP/ordinary query/policy/release regressions passed20 files/212 tests, exit0. Independent merge-scope review and remote CI remain separate.
+
+
+### 2026-11-17 — approved navigation test budget extracted into index branch
+
+- Parent requested the reviewed f08058f case-local budget after handing off a98 integration. Its documentation conflicted because PR62 production/migration130 records are absent from the index branch. Preserved only f08058f's added historical test-budget sections and all existing index records, and explicitly kept PR62 production changes separate. No existing record was discarded or represented as merged.
+- Resulting navigation HTTP file is byte-identical to f08058f. Fresh UUID-isolated native1 test passed (file8.28s with concurrent fullcheck); final Node24 npm run check again passed frontend216, Node48, imports16, evaluation41, requirements251, server types/build/static smoke. Existing large-chunk build warning remains. Production and global timeouts are unchanged; no product assertion failure occurred. The earlier20-file/212-test native integration pass and new test-budget validation are separate evidence.
+
+
+### 2026-11-17 — SQL case mapping changed canonical Unicode body search
+
+- Context/evidence: root's real PostgreSQL17 probe before merging PR #55 showed database lower('ΟΣ') and lower('İ') differ from JavaScript's contextual/expanding mappings. The index prefilter had become the accepted body predicate while title/summary still used JavaScript. New native canonical cases use unrelated metadata, and reproduce four actual failures: missed final-sigma/dotted-I body hits and extra dotted-I/plain-i/sigma matches. The earlier Korean/code/wildcard tests did not cover these Unicode case mappings. No production/main index deployment occurred.
+- Correction: retain physical fixed GIN SQL, union conservative keys from the already-loaded authorized snapshot for Unicode query/body and measured ASCII locale mismatch, then verify every body hit with JavaScript substring semantics. Existing source/credential/transitive/history/metadata/cursor gates remain. No query normalization/language restriction, new hard cap/silent truncation or migration121 modification.
+- Limits: conservative fallback can visit the whole authorized snapshot, including for Korean; the current full-state view has no new independent hard work bound. Actual selective Korean/code GIN plans remain proven, but whole-query Unicode pruning/performance is not claimed. Documentation now makes that distinction explicit.
+- Validation: native RED4 at /private/tmp/akh-index-unicode-red.log; targeted GREEN64 (index16/history18/retention30) at /private/tmp/akh-index-unicode-green.log. Final full Node24 check passed (frontend216 and all required stages); combined native20 files/217 tests passed with isolated per-file UUID DBs. Logs /private/tmp/akh-index-unicode-final-check.log and /private/tmp/akh-index-unicode-final-native.log. Independent fresh review/CI remain required. No UI/layout or real model claims added.
 ### 2026-11-16 — 누적 native HTTP 회귀 사례의 기본 시간 초과
 
 - 맥락/사실: 부모가 제공한 PR #56 CI `43890549626` 로그에서 `15:03:25 Error: Test timed out in 5000ms`가 `navigation-http.test.ts:9`에 발생했다. 119파일 PostgreSQL suite의 유일한 실패였고 assertion/product 실패는 없었다. 로컬에서도 이전 파일 시간이 5.20초였다.

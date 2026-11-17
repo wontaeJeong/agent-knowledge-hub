@@ -1,3 +1,4 @@
+import { indexedContentMatches } from "../search/query";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -141,6 +142,7 @@ export class ScopedSearch {
   ) {
     z.number().int().min(0).max(100000).parse(legacyOffset);
     const filters = searchFilters.parse(raw);
+    const foldedQuery = filters.query.toLocaleLowerCase();
     const { cursor, ...query } = filters;
     await membership(db, ctx);
     await ctx.authorization?.assertSession(db);
@@ -193,11 +195,13 @@ export class ScopedSearch {
     // Literal substring search: never execute caller regex, SQL keys or wildcard fragments.
     const matches = new Set(
       (
-        await db.query(
-          "SELECT page_id,number FROM versions WHERE workspace_id=$1 AND (strpos(lower(data->>'content'),lower($2))>0 OR $2='')",
-          [ctx.workspaceId, filters.query],
+        await indexedContentMatches(
+          db,
+          ctx.workspaceId,
+          filters.query,
+          state.pages,
         )
-      ).rows.map((r) => `${r.page_id}:${r.number}`),
+      ).map((r) => `${r.page_id}:${r.number}`),
     );
     for (const page of state.pages) {
       try {
@@ -290,11 +294,12 @@ export class ScopedSearch {
               );
           if (
             filters.query &&
-            !matches.has(`${page.id}:${version.number}`) &&
+            !(
+              matches.has(`${page.id}:${version.number}`) &&
+              version.content.toLocaleLowerCase().includes(foldedQuery)
+            ) &&
             ![metadata?.title, metadata?.summary].some((value) =>
-              value
-                ?.toLocaleLowerCase()
-                .includes(filters.query.toLocaleLowerCase()),
+              value?.toLocaleLowerCase().includes(foldedQuery),
             )
           )
             continue;
