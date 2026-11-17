@@ -119,7 +119,26 @@ try {
         return data;
       };
       await go();
-      await page.locator("[data-document-heading]").waitFor();
+      await page.locator('[data-document-heading]').filter({hasText:'문서 구조'}).waitFor();
+      await page.getByRole('navigation',{name:'문서 경로',exact:true}).getByRole('link',{name:'문서 구조',exact:true}).waitFor();
+      const priorSameCalls=requests.filter(r=>r.path==='/api/v1/workflows/pages/review'&&r.method==='GET').length;
+      const sameSelectionDelay=holdNext('/api/v1/workflows/pages/review');
+      await page.getByRole('combobox',{name:'문서 선택',exact:true}).selectOption('review');
+      await sameSelectionDelay.seen;
+      assert.equal(await page.locator('[data-document-heading]').count(),0);
+      if(width===390)await page.getByRole('button',{name:'문서 트리 열기',exact:true}).click();
+      const sameTree=width===390?page.getByRole('dialog',{name:'문서 트리',exact:true}):page.getByRole('navigation',{name:'문서 트리',exact:true});
+      await sameTree.getByRole('link',{name:'검토 절차',exact:true}).focus();
+      await page.keyboard.press('Enter');
+      assert.equal(requests.filter(r=>r.path==='/api/v1/workflows/pages/review'&&r.method==='GET').length-priorSameCalls,1);
+      sameSelectionDelay.release();await sameSelectionDelay.done;
+      const sameHeading=page.locator('[data-document-heading]').filter({hasText:'검토 절차'});
+      await sameHeading.waitFor();
+      assert.equal(requests.filter(r=>r.path==='/api/v1/workflows/pages/review'&&r.method==='GET').length-priorSameCalls,1);
+      if(width===390)assert.ok(await sameHeading.evaluate(el=>el===document.activeElement));
+      await sameHeading.scrollIntoViewIfNeeded();
+      await page.screenshot({path:`${output}/${width}-${theme}-same-selection.png`});
+      await go();await page.locator('[data-document-heading]').filter({hasText:'문서 구조'}).waitFor();
       await page
         .getByRole("navigation", { name: "문서 경로", exact: true })
         .getByRole("link", { name: "문서 구조", exact: true })
@@ -394,6 +413,8 @@ try {
         width,
         theme,
         spaceId: f.spaceId,
+        pendingSameSelectionSingleFetch: true,
+        sameSelectionMobileFocus: width===390 ? "verified" : "not-applicable",
         threeLevelPath: true,
         hiddenTitleAbsent: true,
         keyboardMove: true,

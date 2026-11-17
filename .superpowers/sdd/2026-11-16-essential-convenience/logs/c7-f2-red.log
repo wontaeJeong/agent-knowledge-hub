@@ -1,0 +1,27 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ src/operational/convenience/structure.test.tsx (17 tests | 2 failed) 223ms
+   × pending same-document desktop tree selection preserves its single authorized load 5ms
+   × pending same-document mobile tree selection preserves its single authorized load 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/structure.test.tsx > pending same-document desktop tree selection preserves its single authorized load
+ FAIL  src/operational/convenience/structure.test.tsx > pending same-document mobile tree selection preserves its single authorized load
+AssertionError: expected null not to be null
+ ❯ src/operational/convenience/structure.test.tsx:396:23
+    394|   await act(async()=>ready(detailFor("A")));
+    395|   const heading=document.querySelector('[data-document-heading]');
+    396|   expect(heading).not.toBeNull();
+       |                       ^
+    397|   expect(heading?.textContent).toContain("A");
+    398|   expect(calls).toBe(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 15 passed (17)
+   Start at  02:19:35
+   Duration  552ms (tests 45%, environment 38%, import 12%, transform 5%)

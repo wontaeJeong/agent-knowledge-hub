@@ -973,3 +973,12 @@ Current affected native6files153 plus unchanged9files99 from the prior249 run gi
 - North Star·251 기준은 유지한다. 명시적 C7 machine 경로가 agent-native 구조 변경 계약의 실제 빈틈을 보완하며 copied evidence의 독립증거화나 검토/발행 우회는 없다. M2 큰 chunk, full-state ACL/digest 비용, 실제회사IdP/접근성/품질/운영 인수는 여전히 미검증/후속이다. 상세 원문 finding·명령·RED/GREEN·실수는 task-7-report Round1을 따른다.
 
 - C7 Round1 fix/evidence commit: `57a08eb3db8e06c05dc957d5d30183b9d845aa9a`. 뒤 문서 commit은 hash/packaging 확인만 기록한다. 모든410 manifest 경로와 ignored report/log를 index에서 확인했고 fail-fast diff gate·manifest 검증을 통과했다.
+
+
+### C7 Round2 N1 — 같은 문서의 진행 조회 보존
+
+- FIX_BASE `78c1974337c67650e58cf9b156ca8292f54896f9`; scoped review가 I1–I4를 addressed로 확인했지만 N1 same-selection loading regression을 추가했다. tree/select handler는 document/API/actor/space가 실제 바뀔 때만 token을 교체한다. 같은 선택의 단일 조회와 mobile focus intent는 현재 token을 유지한다. Ruling: 불필요한 refetch로 숨기지 않고 유효 응답을 보존한다 — 같은 선택은 effect를 재실행하지 않기 때문 — 비용은 두 equality guard이며 다른 identity 응답 차단은 유지한다.
+- RED desktop/mobile2fail/15pass 후 focused structure17+Navigation35+exact-recovery13=65 GREEN, finalcheck488/48/16/41/251/types/build/smoke exit0. Backend/API/schema diff0이므로 native는 새 실행0, prior9files81+12files178(고유21/259, 여러 호환 실행) 전체carry다.
+- 첫 browser는 초기 nested child locator timeout으로 실제 same-item assertion 전에 실패했다; root cause/product defect는 확정하지 않았다. 수정된 harness는 App 초기화 후 root 문서 GET을 지연하고 같은 pending문서를 desktop/mobile tree로 선택하며 새 GET 없이1회 응답/heading·390focus를 확인했다. 초기 mount pendingA는 실제WorkflowPanel회귀가 검증한다. 두 증거범위를 혼동하지 않는다.
+- 최종 네 조건14PNG/current errors[]: 기존 이동/다른문서·외부focus/oldlink/linked-copy/발급machine·source회수도 유지한다. source `feeb4aa18c5fa52721059d3efaa5bbfee268233d6d72299d0d51eaef31868ab6`, runtime `2026-11-17T17:23:40.983Z`, frontend `2026-11-17T17:23:42.778Z`, capture `2026-11-17T17:24:57.070Z`. cleanup DB/profile/Chromium0·두port닫힘·부모PG생존. manifest/report/실수기록에 실제 명령과 실패를 보존했다.
+- 이 수정은 기존 Query 탐색·현재 인가 응답·재시도/identity 불변식을 보존하며 North Star/251 기준을 바꾸지 않는다. M2 chunk/실제IdP·기기·운영·품질 미검증은 유지한다. controller scoped re-review/정확headCI/merge 대기다.

@@ -23,7 +23,7 @@ Node 24.22.2, macOS, PostgreSQL의 별도 `akh_c7_test_ui_<uuid>` DB, Vite 5197�
 
 ## 검증과 한계
 
-- 최종 전체 check: frontend 486, Node 48, imports 16, evaluation 41, 251 requirements, server types/build/static HTTP smoke. 기존 큰 Vite chunk 경고는 남는다.
+- 최종 전체 check: frontend 488, Node 48, imports 16, evaluation 41, 251 requirements, server types/build/static HTTP smoke. 기존 큰 Vite chunk 경고는 남는다.
 - Round1 최종transport native3파일4와 마지막 보강HTTP2(실제발급 양쪽MCP·queued session/capability 철회) 통과. 이번라운드 source-compatible6파일77 및 이전 unchanged12파일178 carry로 고유21파일259다. 단일현재259 실행이 아니다. focused UI/navigation/exact recovery63 통과. 상세 명령·시점은 task-7-report.md 및 보존 로그를 따른다.
 - migration143: 1002행의 500행 batch 백필, rollback 후 미생성, page identity 유일성, 새 pool/migrate 재실행을 검증했다. order row는 page-linked product metadata이고 정확한 3열 schema 변경을 fail closed한다. 승인된 source/page/workspace erasure와 hold를 실제 DB에서 검증했다.
 - HTTP/쿠키세션 MCP 및 새 명시적 C7 action grant는 같은 구조 서비스를 쓴다. 사람 세션이 exact operation/input·최대15분 expiry로 발급한 키만 해당 HTTP와 단일MCP 도구를 호출한다. 현재OIDC/session/credential/current capability/source/parent/erasure는 canonical transaction에서 검사한다. 기존 read/write key·일반 delegated ceiling·별도wiki_*는 바꾸지 않았다. 장기 서비스계정 위임/실제 회사IdP 증거는 아니다.
@@ -37,3 +37,18 @@ Node 24.22.2, macOS, PostgreSQL의 별도 `akh_c7_test_ui_<uuid>` DB, Vite 5197�
 - 네 조건 모두 이동 후 A GET 보류→B 선택/준비→A 응답 반환에도 B와 외부 선택기 focus 유지: [1440 light](1440-light-move-race.png), [1440 dark](1440-dark-move-race.png), [390 light](390-light-move-race.png), [390 dark](390-dark-move-race.png).
 - 390 조건은 drawer의 다른 문서를 키보드 Enter로 선택하고 지연 GET을 해제한 뒤 새 heading focus를 확인: [light](390-light-selection-focus.png), [dark](390-dark-selection-focus.png). 별도 반복은 응답 전 외부 선택기 focus를 두고 이를 보존한다. 기존 Escape도 유지한다.
 - 새 실제 local OIDC provider와 정본 발급 endpoint로 exact duplicate grant를 만들고 HTTP machine 호출·linked dependency·rename 후 동일 결과/초안1개·source회수후거절을 검증한다. 양쪽 mutation의 실제 SDK MCP 발급/permit과 기타권한거절은 native HTTP 회귀가 증명한다. synthetic actor adapter 자체를 회사 IdP 증거로 승격하지 않는다.
+
+## Round2 N1 최종 증거
+
+Round1 캡처/hash는 해당 커밋의 역사적 근거다. Round2의 제품 변경은 동일 선택에서 generation token을 보존하는 UI guard뿐이며 backend는 무수정이다. native9files81+12files178은 전부 이전 호환 실행 carry이고 이번 새 native 실행은0이다. 실제WorkflowPanel initial pendingA desktop/mobile RED2→GREEN, 기존 race/focus/recovery 포함65 및 전체check488/48/16/41/251/types/build/smoke 통과.
+
+초기 browser의 nested child locator timeout은 `c7-f2-browser.log`에 보존했다. 최종 harness는 초기화된 App에서 다른 root 문서 GET을 보류하고, 그 **같은 pending문서**를 tree에서 키보드로 다시 선택해 detail GET1회·정상 heading 표시·390mobile focus를 확인한다. 초기 mount 자체는 WorkflowPanel 테스트 증거이며 browser의 initialized-App 흐름으로 바꿔 부르지 않는다.
+
+| 조건 | 같은 pending문서 선택 후 |
+| --- | --- |
+| 1440 light | [단일 조회 후 문서 표시](1440-light-same-selection.png) |
+| 1440 dark | [단일 조회 후 문서 표시](1440-dark-same-selection.png) |
+| 390 light | [목적지 heading 초점](390-light-same-selection.png) |
+| 390 dark | [목적지 heading 초점](390-dark-same-selection.png) |
+
+최종 fingerprint `feeb4aa18c5fa52721059d3efaa5bbfee268233d6d72299d0d51eaef31868ab6`, runtime `2026-11-17T17:23:40.983Z`, frontend `2026-11-17T17:23:42.778Z`, capture `2026-11-17T17:24:57.070Z`. 네 조건의 기존 path/race/outside-focus/oldlink/linked-copy/issued-key/source-revoke도 모두 통과했다. 현재14PNG와 historical failure1PNG, browser/cleanup JSON 및 source/tests/harness/log SHA가 manifest에 있다. cleanup `2026-11-17T17:26:13.467Z`의 자기 DB/profile/Chromium0·4397/5197닫힘·부모PG생존을 확인했다.

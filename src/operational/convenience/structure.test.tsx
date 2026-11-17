@@ -382,3 +382,19 @@ test.each(["ready", "outside", "identity"] as const)(
       );
   },
 );
+
+test.each(["desktop", "mobile"] as const)("pending same-document %s tree selection preserves its single authorized load", async surface => {
+  let calls=0,ready!:(value:unknown)=>void;
+  await panelFixture(async id=>{expect(id).toBe("A");calls++;return new Promise(resolve=>ready=resolve);});
+  expect(document.querySelector('[data-document-heading]')).toBeNull();
+  if(surface==="mobile")await act(async()=>button("문서 트리 열기").click());
+  const link=document.querySelector(`${surface==='mobile'?'[role="dialog"]':'.document-tree-desktop'} a[href$="document=A"]`) as HTMLAnchorElement;
+  await act(async()=>{link.focus();link.click();});
+  expect(calls).toBe(1);
+  await act(async()=>ready(detailFor("A")));
+  const heading=document.querySelector('[data-document-heading]');
+  expect(heading).not.toBeNull();
+  expect(heading?.textContent).toContain("A");
+  expect(calls).toBe(1);
+  if(surface==="mobile")expect(document.activeElement).toBe(heading);
+});

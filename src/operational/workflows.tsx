@@ -415,7 +415,8 @@ export function WorkflowPanel({
   }, [detail, selected, api, identityScope, focusRevision]);
   const selectFromTree = (id: string, mobile = false) => {
     if (draft && content !== draft.content && !window.confirm("저장하지 않은 입력을 닫을까요?")) return false;
-    selection.current = { api, identityScope, selected: id };
+    if (selection.current.api !== api || selection.current.identityScope !== identityScope || selection.current.selected !== id)
+      selection.current = { api, identityScope, selected: id };
     focusIntent.current = mobile ? selection.current : null;
     setSelected(id);
     if (mobile) setFocusRevision(n => n + 1);
@@ -974,7 +975,8 @@ export function WorkflowPanel({
               !window.confirm("저장하지 않은 입력을 닫을까요?")
             )
               return;
-            selection.current = { api, identityScope, selected: e.target.value };
+            if (selection.current.api !== api || selection.current.identityScope !== identityScope || selection.current.selected !== e.target.value)
+              selection.current = { api, identityScope, selected: e.target.value };
             focusIntent.current = null;
             setSelected(e.target.value);
           }}
