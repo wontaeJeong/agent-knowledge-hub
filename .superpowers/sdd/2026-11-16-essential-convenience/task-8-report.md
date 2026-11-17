@@ -1,3 +1,7 @@
+# Authoritative post-final CI correction: DONE_WITH_CONCERNS
+
+FIX_BASE44d73b97 CI44161579437 failed four physical-storage tests due to C8 generic target-key over-erasure. Actual baseline/head probe isolated source routing hints; the single combined fix scopes canonical targets and preserves historical retention IDs. Final native8files101/fullcheck494/48/16/41/251/types/build/smoke and fresh4config20PNG pass. See appended post-final-review section for exact RED/GREEN/current-vs-carried evidence, root cause, cleanup and pending controller scoped review/fresh CI. Earlier claims are historical and superseded where noted.
+
 # Authoritative round1 final result: DONE_WITH_CONCERNS
 
 I1/I2 and observed final-refresh races fixed locally. Legacy version identities remain unchanged; restore effective relations are disclosed and hash-bound; final preview writes one receipt only. Final fullcheck494/48/16/41/251/types/build/smoke and current native6files50 pass. Preceding8files134 explicitly carried. Final4config20PNG, source/artifact manifest and cleanup verified. Controller rereview/CI/integration pending. Subsequent sections preserve historical attempts and the full task review; later authoritative entries supersede earlier current/implementation descriptions.
@@ -250,3 +254,71 @@ Current c8-r1-single-write-browser.log exit0:1440x1000/390x844 times light/dark,
 Owned processes30999/31044 absent, own akh_c8_ DB/profile0, ports4398/5198 closed; parent knowledge_test alive. Prior owned29826/29860 were also terminated before the final start; no own DB/profile remained in final assertions. Root clean main...origin/main. Product/docs diff --check exit0; preserved raw tool logs retain original tool whitespace. No push/PR/merge performed by this implementer.
 
 Round1 final implementation commit:7742f70fdf365dc570215d13c5f9808cc8a8048b. Manifest verification repeated after commit and passed333/4/8/23/69 hashes. This report-only commit does not alter product sources or execution evidence.
+
+## Post-final-review CI correction — FIX_BASE44d73b97 (authoritative)
+
+Status: **DONE_WITH_CONCERNS**, scoped local implementation/verification complete; controller independent scoped review, fresh exact-head CI and integration pending. This is one combined controller-authorized post-final-review wave. Commit and push are now expressly authorized after verification; no merge/PR or helper/reviewer by this implementer. Earlier “no push” statements describe earlier rounds only.
+
+### CI finding, baseline comparison and causal evidence
+
+CI run44161579437/job134316519258 at44d73b97c4fff639058d967d1eda6658e4ea3923 failed all four existing server/operations/storage-graph.test.ts cases. Three expected removed:0 but observed1/2/1; actual concurrent StorageService CAS upload failed NOT_FOUND at access/index.ts:364. Remaining CI suites completing does not waive these physical-retention/privacy failures. Full unmodified job output: c8-storage-ci-134316519258.log. Retrieval command: `gh api --allow-escape-sequences repos/wontaeJeong/agent-knowledge-hub/actions/jobs/134316519258/logs`; exit0. Initial retrieval without the flag refused terminal escape sequences, so the flag preserved the complete raw log rather than sanitizing away failures.
+
+Exact unchanged reproduction command (Node24 PATH, loopback synthetic TEST_DATABASE_URL):
+```sh
+node scripts/test-server.mjs server/operations/storage-graph.test.ts
+```
+At C8 head44d73b97: c8-storage-head-repro.log,4failed,exit1. At a read-only `git archive 3b8f310` baseline with its own archived source and dependency symlink: c8-storage-base-repro.log,4passed,exit0. Root checkout and original fixture/test assertions stayed untouched. Baseline archive /private/tmp/akh_c8_storage_base_3b8f310 contains server/src/scripts/wiki/docs/requirements plus package/TS/Vite configuration.
+
+The exact three-case actual-PG probe is preserved at docs/ui-validation/2026-11-18-internal-links/storage-scope-probe.mts; command `node --import tsx /private/tmp/akh_c8_storage_scope_probe.mts`, c8-storage-scope-probe.log,exit0. The script creates/drops exact owned akh_c8_storage_probe_UUID databases. Its recorded head path was44d73b97, so rerunning after this fix is not equivalent historical evidence. Results:
+
+- Base: selected source-a and its topic/page-version; tombstones page:topic/source:source-a; independent reader fixture-owner remains.
+- C8 head: additionally selects source:independent because its Source.targetPageId routing hint equals topic; tombstones independent and removes its reader.
+- C8 diagnostic control with only independent.targetPageId omitted: matches base. This control was never applied to product fixtures or assertions.
+
+Root cause is C8's global targetPageId/target_page_id additions to recursive referenceKeys. Existing fixture Source.targetPageId is legitimate intended placement, not evidence ancestry. Erasure follows source-a→topic via version.sourceIds, then the erroneous target-key mapping selects an independent source and its retained storage/import references. Physical purge consequently releases shared bytes; upload later fails because independent resource readers were removed. This was not a baseline defect or timing flake.
+
+### Scoped implementation, contract mapping and ruling
+
+- server/operations/erasure.ts removes both global target keys. publishedLinkRefs recognizes only versions.data.linkReferences[].targetPageId and SQL published_page_links.target_page_id. Its origin page_id continues using the unchanged generic page reference. Closure and legal-hold checks use those exact canonical targets. Existing generic refs and hold handling are preserved; arbitrary Source/intake target metadata confers no authority.
+- Explicit product erasure/recovery scrub retains canonical version target IDs needed for later hold/recovery closure, while removing labels/body. Arbitrary placement metadata is redacted when its own source is legitimately erased. No historic version is rewritten by rebuild, and no approval/answer envelope is repaired or reapproved.
+- server/retention/inventory.ts projects only target IDs from historical version linkReferences inside PostgreSQL, not private labels/body. Missing/empty current disposable index does not hide historical references. This closes a related omission exposed during the RED→GREEN sequence.
+- server/operations/links-erasure.test.ts adds actual PG routing-vs-canonical closure, historical retention projection, held-independent preservation, canonical target hold without index, both index endpoint selection, preserved independent readers/content and explicit erased-link redaction checks. Original four physical storage tests are byte-for-byte unchanged.
+- API contract, handoff, plan, mistake log and browser evidence document the rule; no route shape or new migration. UXC-07/C8 dependency/erasure integration, North Star Ingest→Query→Lint→refile maintenance and original privacy/approval/replay invariants remain.251 requirements, C9 unknown block IDs and C12 operational acceptance are unchanged. EDT-001 full export, KNO-007 precedence and KNO-010 redirects remain cross-feature/unverified.
+
+Ruling/cost: table+canonical-field context is required because identical JSON property names have different product meanings. A generic recursive field-name heuristic cannot safely make routing hints deletion authority. Small canonical target extraction and an ID-only retention SQL projection reuse existing erasure/retention engines; no parallel permission or provenance engine. Per-version projection is extra work, with no production scale benchmark. The historical shared-byte failure is fixed by preserving its real live references, not weakening purge assertions or changing fixtures.
+
+### Exact RED/intermediate/GREEN history
+
+All commands below run in the native isolated C8 worktree with Node24 PATH and synthetic loopback TEST_DATABASE_URL; the runner uses fresh UUID databases and drops only its own databases.
+
+1. `node scripts/test-server.mjs server/operations/links-erasure.test.ts`: c8-links-erasure-red.log,3setup failures,exit1. Initial fixture INSERT omitted explicit source/page columns; corrected in the test only. This is not meaningful RED.
+2. Same command: c8-links-erasure-red2.log,2failed/1passed,exit1. Actual assertions show independent source wrongly selected and retention selecting Source routing hints. This is meaningful RED against unchanged production44d73b97.
+3. `OPERATIONS_TEST_BLOB_ROOT=/private/tmp/akh_c8_postreview_storage_blobs node scripts/test-server.mjs server/operations/links-erasure.test.ts server/operations/storage-graph.test.ts`: c8-links-erasure-green.log (historical filename, **not final green**), new2passed/1failed plus original storage4passed,exit1. The first edit script had asserted on a nonunique retention text pattern after applying erasure, so retention was not yet written. The remaining failure precisely exposes missing historical canonical target IDs in retention projection. Scoped projection then fixed that omission.
+4. Preliminary eight-file command below: c8-postreview-native.log,8files101passed,exit0. Preliminary npm run check: c8-postreview-check.log,exit0. Self-review then limited additional legal-hold recognition to publishedLinkRefs specifically, preserving existing generic hold behavior rather than introducing unrelated lineageRefs hold changes. Therefore these logs are intermediate, not final-byte proof.
+5. Final exact command:
+```sh
+OPERATIONS_TEST_BLOB_ROOT=/private/tmp/akh_c8_postreview_storage_blobs node scripts/test-server.mjs server/operations/links-erasure.test.ts server/operations/storage-graph.test.ts server/convenience/links.test.ts server/convenience/links-migration.test.ts server/convenience/links-http.test.ts server/operations/erasure-db.test.ts server/operations/product-erasure.test.ts server/retention/retention.test.ts
+```
+c8-postreview-final-native.log:8files101passed,exit0. Runner order/counts: links-http1,links-migration4,links13,erasure-db28,links-erasure3,product-erasure18,storage-graph4,retention30. Includes actual upgrade/restart/bounded legacy rebuild/drift; canonical source/target ACL revocation and erase-during-query; legal holds/recovery/retention and shared-blob physical purge/CAS concurrency. No original assertion softened.
+6. `npm run check`: c8-postreview-final-check.log,exit0;494frontend,48Node,16import,41evaluation,251requirement mappings,server types/build/static HTTP smoke. Existing Vite >500kB chunk warning persists. No new product failure.
+
+Current-versus-carried: only the above8files101 are current native execution. Earlier round1 runtime12/discovery15/clock2/restore11/versions6 (46 total) and structure-final10/structure-http2/lineage32 (44 total) are carried, not rerun or aggregated into101. Earlier rebuild4 is freshly included here, not double-counted. Original discovery tests remain unchanged. Earlier round0/r1 larger totals remain historical; failed remote CI remains failed until a new exact-head run.
+
+### Fresh browser, self-review and cleanup
+
+Fresh final-source canonical HTTP/PG runtime and Vite frontend were started, then the unchanged capture harness exercised1440x1000/390x844 × light/dark. c8-postreview-browser.log exits0,20PNG; duplicate-title explicit keyboard selection, composition guard, stable ID/version pin, draft no edges, publication, content-only restore induced relations, independent reviewer disclosure/approval/publication, rename navigation and source revocation all pass. Every configuration has overflow:false/errors:[]. Four representative screenshots visually inspected across all configurations. Synthetic actors/HTTP forwarding use actual response bodies, no fabricated success DTOs; no OS IME/production IdP/model-quality/scale claim.
+
+Commands:
+```sh
+AKH_C8_SYNTHETIC_CAPTURE=1 node --import tsx docs/ui-validation/2026-11-18-internal-links/links-runtime.ts
+node docs/ui-validation/2026-11-18-internal-links/manifest.mjs --frontend-start
+node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5198 --strictPort
+AKH_C8_SYNTHETIC_CAPTURE=1 PLAYWRIGHT_MODULE=/Users/wt.jeong/.npm/_npx/9833c18b2d85bc59/node_modules/playwright/index.mjs node docs/ui-validation/2026-11-18-internal-links/capture.mjs
+```
+Runtime2026-11-17T20:10:00.012Z/frontend20:10:11.245Z/capture complete20:11:10.039Z. Production fingerprint93d89a4896dd4cdd702e08c23db4ff8c202bb3cd1d51ac9b83d2e3b1a68a9de9. Previous20PNG/results/manifest/cleanup/README preserved under round1-before-ci-fix/; earlier logs never overwritten. New manifest includes the exact new regression and unchanged physical storage test plus diagnostic harness. Final manifest hash/verification and commits follow below.
+
+Self-review checked both erasure and recovery scrub call sites, hold calculations, current/historical version semantics, table endpoint recognition and ID-only retention projection. Source arbitrary linkReferences is intentionally tested alongside camel/snake routing hints; source content/reader preservation is asserted after real erasure, not only a projected list. Canonical target hold does not rely on index presence. The generic published reader/permission/source engines and trusted-origin HTTP/MCP semantics are untouched. No new DB table/migration or production acceptance claim.
+
+Cleanup evidence: at2026-11-17T20:11:44.335Z all own akh_c8_ DBs/profiles absent, recorded PIDs40043/40118/40177 absent, ports4398/5198 closed. Removed only /private/tmp/akh_c8_postreview_storage_blobs; parent knowledge_test alive. Historical baseline archive/diagnostic files retained for review. Initial exact baseline/head suite used original mkdtemp behavior; unidentified system temp folders were deliberately not wildcard-deleted. Root checkout remains clean main...origin/main. No cleanup of others' resources.
+
+Final manifest SHA2563ba00881fa78e05ab0fa641ecc7624973842b7842698fcb16098b0f4011a4f3e; `node docs/ui-validation/2026-11-18-internal-links/manifest.mjs --verify` exits0 verifying333production/5harness/10regression/23artifact/83log hashes. Product/docs diff --check exits0. Original storage-graph.test.ts, test-support.ts and discovery.test.ts are byte-for-byte unchanged from44d73b97. Root status remains clean main...origin/main. Exact implementation commit and push outcome are recorded after commit below.

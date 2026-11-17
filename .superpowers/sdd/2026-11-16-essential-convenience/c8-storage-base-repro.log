@@ -1,0 +1,10 @@
+[1/1] server/operations/storage-graph.test.ts
+
+ RUN  v5.0.5 /private/tmp/akh_c8_storage_base_3b8f310
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  05:02:03
+   Duration  1.81s (tests 89%, transform 8%, import 3%)
+

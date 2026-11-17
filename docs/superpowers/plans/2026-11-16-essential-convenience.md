@@ -197,6 +197,8 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 
 **C8 authoritative final:** preview now uses pure initial projection and one final authorized receipt write; changed-data-between-refresh RED1 is GREEN. Current native6files50/fullcheck494 pass; prior8files134 carried. Current single-write browser/manifest supersede intermediate round1 evidence.
 
+**C8 post-final CI correction (authoritative):** CI44161579437/head44d73b97 exposed four real physical-retention failures from generic targetPageId routing-hint authority. Scoped canonical version/index refs replace that mapping; historical retention projects target IDs only. Baseline/head actual-PG differential and meaningful RED retained. Current native8files101/fullcheck494 and fresh4config20PNG pass; prior native counts are historical/carried. Controller scoped review, fresh CI and integration pending; failed CI remains failed.
+
 ## Task 9: 읽기·목차·부분 공유
 
 **Files:** Create `src/operational/convenience/DocumentReader.tsx`, `document-reader.ts`, `reader.test.tsx`, `server/convenience/anchors.ts`, `anchors.test.ts`; Modify `server/workflows/versions/metadata.ts`, `server/publication.ts`, `src/operational/convenience/route.ts`, `src/operational/App.tsx`, `workflows.tsx`, `questions.tsx`, `versions.tsx`, `api.ts`.

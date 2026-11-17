@@ -1,17 +1,32 @@
 {
-  "checkedAt": "2026-11-17T19:40:43.803Z",
-  "ownDatabases": [],
-  "ownBrowserProfiles": [],
-  "ports": {
-    "4398": "closed",
-    "5198": "closed"
-  },
-  "processes": {
-    "30999": "absent",
-    "31044": "absent"
-  },
-  "parent": {
-    "database": "knowledge_test",
-    "alive": 1
-  }
+  "at": "2026-11-17T20:11:44.335Z",
+  "databases": [],
+  "profiles": [],
+  "processes": [
+    {
+      "pid": 40043,
+      "alive": false
+    },
+    {
+      "pid": 40118,
+      "alive": false
+    },
+    {
+      "pid": 40177,
+      "alive": false
+    }
+  ],
+  "ports": [
+    {
+      "port": 4398,
+      "open": false
+    },
+    {
+      "port": 5198,
+      "open": false
+    }
+  ],
+  "parentDatabase": "knowledge_test",
+  "ownedBlobRootRemoved": "/private/tmp/akh_c8_postreview_storage_blobs",
+  "note": "Removed only recorded owned postreview blob root; parent PG and unrelated resources retained. Baseline archive and diagnostic logs retained for review."
 }

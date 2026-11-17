@@ -1,0 +1,80 @@
+[1/8] server/convenience/links-http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  05:08:32
+   Duration  1.02s (tests 73%, import 18%, transform 9%)
+
+[2/8] server/convenience/links-migration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  05:08:33
+   Duration  1.42s (tests 96%, import 3%, transform 1%)
+
+[3/8] server/convenience/links.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  05:08:35
+   Duration  6.29s (tests 98%, import 1%)
+
+[4/8] server/operations/erasure-db.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  28 passed (28)
+   Start at  05:08:41
+   Duration  5.99s (tests 98%, import 1%)
+
+[5/8] server/operations/links-erasure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  05:08:48
+   Duration  908ms (tests 93%, import 5%, transform 2%)
+
+[6/8] server/operations/product-erasure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  05:08:49
+   Duration  3.30s (tests 97%, import 2%, transform 1%)
+
+[7/8] server/operations/storage-graph.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  05:08:52
+   Duration  1.73s (tests 95%, import 3%, transform 1%)
+
+[8/8] server/retention/retention.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  30 passed (30)
+   Start at  05:08:54
+   Duration  10.45s (tests 99%, import 1%)
+

@@ -1,0 +1,3125 @@
+{
+  "startedAt": "2026-11-17T19:38:51.359Z",
+  "finishedAt": "2026-11-17T19:40:07.314Z",
+  "productionFingerprint": "bf630d140e7eb34bd0c6c85d3c6fad82bf5ae58efca7311c4e7e94eff2d61399",
+  "frontendStartedAt": "2026-11-17T19:38:58.940Z",
+  "synthetic": true,
+  "results": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "duplicateChoice": true,
+      "keyboard": true,
+      "syntheticComposition": true,
+      "versionPin": true,
+      "draftNoEdges": true,
+      "publication": true,
+      "contentOnlyRestore": true,
+      "inducedPreview": true,
+      "independentReviewDisclosure": true,
+      "renameNavigation": true,
+      "sourceRevocation": true,
+      "overflow": false,
+      "errors": [],
+      "requests": [
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recovery/permission",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/links/search",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/links/search",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/bundles?offset=0",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/restore/preview",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/versions/restore/propose",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/6a88dcfb-a484-4065-a409-0546c8d3f777/approve",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/6a88dcfb-a484-4065-a409-0546c8d3f777/publish",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/navigation",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/navigation",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "duplicateChoice": true,
+      "keyboard": true,
+      "syntheticComposition": true,
+      "versionPin": true,
+      "draftNoEdges": true,
+      "publication": true,
+      "contentOnlyRestore": true,
+      "inducedPreview": true,
+      "independentReviewDisclosure": true,
+      "renameNavigation": true,
+      "sourceRevocation": true,
+      "overflow": false,
+      "errors": [],
+      "requests": [
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recovery/permission",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/links/search",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/links/search",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/bundles?offset=0",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/restore/preview",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/versions/restore/propose",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/97eec096-1467-46fa-b3c5-8a5a6c15c5e1/approve",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/97eec096-1467-46fa-b3c5-8a5a6c15c5e1/publish",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/navigation",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/navigation",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "duplicateChoice": true,
+      "keyboard": true,
+      "syntheticComposition": true,
+      "versionPin": true,
+      "draftNoEdges": true,
+      "publication": true,
+      "contentOnlyRestore": true,
+      "inducedPreview": true,
+      "independentReviewDisclosure": true,
+      "renameNavigation": true,
+      "sourceRevocation": true,
+      "overflow": false,
+      "errors": [],
+      "requests": [
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recovery/permission",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/links/search",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/links/search",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/bundles?offset=0",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/restore/preview",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/versions/restore/propose",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/f7e4e753-5b2e-4c31-81de-84ab7c0692cc/approve",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/f7e4e753-5b2e-4c31-81de-84ab7c0692cc/publish",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/navigation",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/navigation",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "duplicateChoice": true,
+      "keyboard": true,
+      "syntheticComposition": true,
+      "versionPin": true,
+      "draftNoEdges": true,
+      "publication": true,
+      "contentOnlyRestore": true,
+      "inducedPreview": true,
+      "independentReviewDisclosure": true,
+      "renameNavigation": true,
+      "sourceRevocation": true,
+      "overflow": false,
+      "errors": [],
+      "requests": [
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recovery/permission",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/links/search",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/links/search",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/bundles?offset=0",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/restore/preview",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/versions/restore/propose",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/aca1fe99-0109-4a3a-af5b-81b3c5d2c148/approve",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/aca1fe99-0109-4a3a-af5b-81b3c5d2c148/publish",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/topic/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/topic/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/preferences",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/drafts",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/notifications",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/templates",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/comments",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/tree?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/path",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/navigation",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/favorites?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/recent?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/subscriptions?limit=25",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/personal-state",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/workflows/pages/leaf/navigation",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/convenience/pages/leaf/backlinks",
+          "method": "GET"
+        }
+      ]
+    }
+  ]
+}

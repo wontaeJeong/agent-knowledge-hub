@@ -1,5 +1,13 @@
 # 에이전트 인계
 
+## C8 post-final CI fix: scoped erasure dependencies (authoritative)
+
+CI44161579437/job134316519258 at44d73b97 failed all four physical storage-graph tests. This was a C8 regression: globally treating targetPageId as provenance followed a Source routing hint into an independent source, erased its readers/import references and released retained shared bytes. Clean3b8f310 passed4/4; C8 failed4/4; an actual-PG differential probe isolated the hint. Prior local green did not cover this suite and is not CI acceptance.
+
+The combined fix removes global target-key authority. Exact published version linkReferences and published_page_links endpoints remain erasure/hold dependencies; generic existing references remain unchanged. Canonical target IDs survive scrub while labels are removed. Retention now projects historical canonical IDs without private labels/body, even when no current index edge exists. No existing storage assertion or fixture was weakened. UXC-07 and privacy/retention invariants remain;251/North Star/C9/C12 and cross-feature acceptance unchanged.
+
+Current final native8files101 pass: links HTTP1/migration4/links13/erasureDB28/new scoped-link3/product-erasure18/storage-graph4/retention30. Fullcheck494/48/16/41/251/types/build/smoke passes. Earlier runtime/discovery/clock/restore/versions and C7/lineage suites are explicitly carried, not added to101. Fresh canonical4config20PNG uses production fingerprint 93d89a4896dd4cdd702e08c23db4ff8c202bb3cd1d51ac9b83d2e3b1a68a9de9; owned ports/processes/DB/profile/blob root cleaned, parent PG kept. Full CI log, baseline/head reproductions, RED/intermediate/final logs and historical captures are preserved in task-8-report/evidence. Controller owns independent scoped review, fresh exact-head CI and merge. Existing bundle warning and synthetic/local operational limits remain.
+
 ## C8 round1 authoritative final preview persistence
 
 Controller-requested changed-data PG RED found two intermediate preview receipts. Final VersionService.run remains unchanged: a pure projection crosses identity refresh, then one final current authorized projection writes one returned receipt. Exact reviewer detail reprojects read-only. Current fullcheck494/48/16/41/251/types/build/smoke and native6files50 pass; preceding8files134 explicitly carried. Earlier replay/upsert wording is superseded; no business mutation replays. Current single-write browser/evidence and full report are authoritative; controller rereview/CI/integration pending.

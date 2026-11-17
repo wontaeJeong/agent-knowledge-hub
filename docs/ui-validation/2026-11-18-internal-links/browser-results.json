@@ -1,8 +1,8 @@
 {
-  "startedAt": "2026-11-17T19:38:51.359Z",
-  "finishedAt": "2026-11-17T19:40:07.314Z",
-  "productionFingerprint": "bf630d140e7eb34bd0c6c85d3c6fad82bf5ae58efca7311c4e7e94eff2d61399",
-  "frontendStartedAt": "2026-11-17T19:38:58.940Z",
+  "startedAt": "2026-11-17T20:10:00.012Z",
+  "finishedAt": "2026-11-17T20:11:10.039Z",
+  "productionFingerprint": "93d89a4896dd4cdd702e08c23db4ff8c202bb3cd1d51ac9b83d2e3b1a68a9de9",
+  "frontendStartedAt": "2026-11-17T20:10:11.245Z",
   "synthetic": true,
   "results": [
     {
@@ -327,7 +327,7 @@
           "method": "GET"
         },
         {
-          "path": "/api/v1/changesets/6a88dcfb-a484-4065-a409-0546c8d3f777/approve",
+          "path": "/api/v1/changesets/2c2eb4ae-e9e2-4953-b602-8c2af4d79439/approve",
           "method": "POST"
         },
         {
@@ -367,7 +367,7 @@
           "method": "GET"
         },
         {
-          "path": "/api/v1/changesets/6a88dcfb-a484-4065-a409-0546c8d3f777/publish",
+          "path": "/api/v1/changesets/2c2eb4ae-e9e2-4953-b602-8c2af4d79439/publish",
           "method": "POST"
         },
         {
@@ -396,6 +396,14 @@
         },
         {
           "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
           "method": "GET"
         },
         {
@@ -1106,7 +1114,7 @@
           "method": "GET"
         },
         {
-          "path": "/api/v1/changesets/97eec096-1467-46fa-b3c5-8a5a6c15c5e1/approve",
+          "path": "/api/v1/changesets/d7266707-b75f-438d-965c-43dbc524205f/approve",
           "method": "POST"
         },
         {
@@ -1146,7 +1154,7 @@
           "method": "GET"
         },
         {
-          "path": "/api/v1/changesets/97eec096-1467-46fa-b3c5-8a5a6c15c5e1/publish",
+          "path": "/api/v1/changesets/d7266707-b75f-438d-965c-43dbc524205f/publish",
           "method": "POST"
         },
         {
@@ -1885,7 +1893,7 @@
           "method": "GET"
         },
         {
-          "path": "/api/v1/changesets/f7e4e753-5b2e-4c31-81de-84ab7c0692cc/approve",
+          "path": "/api/v1/changesets/80017e56-aadc-41f0-8792-9acd392d8e6e/approve",
           "method": "POST"
         },
         {
@@ -1925,7 +1933,7 @@
           "method": "GET"
         },
         {
-          "path": "/api/v1/changesets/f7e4e753-5b2e-4c31-81de-84ab7c0692cc/publish",
+          "path": "/api/v1/changesets/80017e56-aadc-41f0-8792-9acd392d8e6e/publish",
           "method": "POST"
         },
         {
@@ -2664,7 +2672,7 @@
           "method": "GET"
         },
         {
-          "path": "/api/v1/changesets/aca1fe99-0109-4a3a-af5b-81b3c5d2c148/approve",
+          "path": "/api/v1/changesets/c403d9f9-cf57-4aec-b140-cda29954bf27/approve",
           "method": "POST"
         },
         {
@@ -2704,7 +2712,7 @@
           "method": "GET"
         },
         {
-          "path": "/api/v1/changesets/aca1fe99-0109-4a3a-af5b-81b3c5d2c148/publish",
+          "path": "/api/v1/changesets/c403d9f9-cf57-4aec-b140-cda29954bf27/publish",
           "method": "POST"
         },
         {

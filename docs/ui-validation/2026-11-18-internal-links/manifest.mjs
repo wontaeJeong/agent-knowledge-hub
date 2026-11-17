@@ -59,7 +59,7 @@ if (
       throw Error("Browser/source fingerprint mismatch");
     const harness = Object.fromEntries(
       await Promise.all(
-        ["links-runtime.ts", "capture.mjs", "manifest.mjs", "discovery-clock-probe.mts"].map(
+        ["links-runtime.ts", "capture.mjs", "manifest.mjs", "discovery-clock-probe.mts", "storage-scope-probe.mts"].map(
           async (p) => [dir + "/" + p, await hash(dir + "/" + p)],
         ),
       ),
@@ -69,6 +69,8 @@ if (
         [
           "src/operational/convenience/links.test.tsx",
           "server/convenience/links.test.ts",
+          "server/operations/links-erasure.test.ts",
+          "server/operations/storage-graph.test.ts",
           "server/convenience/links-migration.test.ts",
           "server/convenience/links-http.test.ts",
           "server/runtime/discovery-clock.test.ts",
@@ -105,7 +107,7 @@ if (
         {
           generatedAt: new Date().toISOString(),
           base: "3b8f310c4ecc2b8966471c3fe99e3ef8bd461e15",
-          fixBase: "add8b4a3eadb9a506200c612d5beade1f93e4868",
+          fixBase: "44d73b97c4fff639058d967d1eda6658e4ea3923",
           runtimeStartedAt: browser.startedAt,
           frontendStartedAt: browser.frontendStartedAt,
           ...source,
