@@ -137,7 +137,7 @@ try {
         ),
         "대상 위치",
       );
-      const title = `합성 새 문서 ${width} ${theme} ${crypto.randomUUID().slice(0,8)}`;
+      const title = `합성 새 문서 ${width} ${theme} ${crypto.randomUUID().slice(0, 8)}`;
       await page.getByLabel("문서 제목", { exact: true }).fill(title);
       await page
         .getByLabel("Markdown 본문", { exact: true })
@@ -176,7 +176,8 @@ try {
       await page
         .getByRole("heading", { name: "수동 작성", exact: true })
         .waitFor();
-      await page.screenshot({fullPage:true,
+      await page.screenshot({
+        fullPage: true,
         path: `${output}/preview-${width}-${theme}.png`,
       });
       await page
@@ -220,7 +221,8 @@ try {
           await page.evaluate(() => Object.values(localStorage).join(""))
         ).includes(unsent.replaceAll("\n", "\\n")),
       );
-      await page.screenshot({fullPage:true,
+      await page.screenshot({
+        fullPage: true,
         path: `${output}/offline-${width}-${theme}.png`,
       });
       await ui.context.close();
@@ -312,7 +314,8 @@ try {
           .isEnabled(),
         true,
       );
-      await page.screenshot({fullPage:true,
+      await page.screenshot({
+        fullPage: true,
         path: `${output}/conflict-${width}-${theme}.png`,
       });
       await page
@@ -327,6 +330,9 @@ try {
         .getByLabel("독립 공개 검토자", { exact: true })
         .selectOption("reviewer");
       await page
+        .getByLabel("추가 대상 독자 ID", { exact: true })
+        .fill("reader");
+      await page
         .getByLabel("요청 사유", { exact: true })
         .fill("합성 업무 절차 검토");
       await page
@@ -339,27 +345,183 @@ try {
         .getByRole("status")
         .filter({ hasText: "원본 공개 검토 대기" })
         .waitFor();
-      await page.screenshot({fullPage:true,
+      await page.screenshot({
+        fullPage: true,
         path: `${output}/disclosure-${width}-${theme}.png`,
       });
       const reviewerProfile = await mkdtemp("/private/tmp/akh_c6_profile_");
       profiles.push(reviewerProfile);
       const reviewer = await make(width, theme, "reviewer", reviewerProfile);
       await reviewer.go(fixture.workspaceId);
-      const reviewArticle = reviewer.page
-        .getByRole("article")
-        .filter({
-          has: reviewer.page.getByRole("heading", { name: new RegExp(title) }),
-        });
+      const reviewArticle = reviewer.page.getByRole("article").filter({
+        has: reviewer.page.getByRole("heading", { name: new RegExp(title) }),
+      });
+      const rejectionReason = "롤백 담당자와 확인 절차를 보완해 주세요";
+      await reviewArticle
+        .getByLabel("검토 사유 " + title, { exact: true })
+        .fill(rejectionReason);
+      await reviewArticle
+        .getByRole("button", { name: "반려", exact: true })
+        .click();
+      await reviewArticle.waitFor({ state: "hidden" });
+      await page
+        .getByRole("button", { name: "검토 상태 새로고침", exact: true })
+        .click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "원본 공개 반려" })
+        .waitFor();
+      assert(
+        (
+          await page.getByLabel("고정 공개 대상", { exact: true }).innerText()
+        ).includes(rejectionReason),
+      );
+      const rejected = (
+        await ui.api("/workflows/draft-disclosures")
+      ).body.items.find((d) => d.draftId === draftId);
+      assert.equal(rejected.decision.reason, rejectionReason);
+      assert.equal(rejected.requestReason, "합성 업무 절차 검토");
+      await page.screenshot({
+        fullPage: true,
+        path: `${output}/rejection-${width}-${theme}.png`,
+      });
+      await page
+        .getByRole("button", {
+          name: "고정 본문과 독자로 공개 검토 요청",
+          exact: true,
+        })
+        .click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "원본 공개 검토 대기" })
+        .waitFor();
+      await reviewer.page
+        .getByRole("button", { name: "검토 상태 새로고침", exact: true })
+        .click();
+      await reviewArticle
+        .getByLabel("검토 사유 " + title, { exact: true })
+        .fill("담당자와 검증 절차를 확인했습니다");
       await reviewArticle
         .getByRole("button", { name: "원본 공개 승인", exact: true })
         .click();
+      await reviewArticle.waitFor({ state: "hidden" });
       assert.equal(
         (await reviewer.api("/workflows/drafts")).body.items.some(
           (d) => d.id === draftId,
         ),
         false,
       );
+      // Reload the exact draft: its controls and the immutable disclosure must agree.
+      await ui.go(fixture.workspaceId, draftId);
+      assert.equal(
+        await page.getByLabel("독립 공개 검토자", { exact: true }).inputValue(),
+        "reviewer",
+      );
+      assert.equal(
+        await page
+          .getByLabel("추가 대상 독자 ID", { exact: true })
+          .inputValue(),
+        "reader",
+      );
+      assert(
+        (
+          await page.getByLabel("고정 공개 대상", { exact: true }).innerText()
+        ).includes("editor, reader, reviewer"),
+      );
+      assert.equal(
+        await page
+          .getByRole("button", { name: "지식 검토 요청", exact: true })
+          .isEnabled(),
+        true,
+      );
+      await page.screenshot({
+        fullPage: true,
+        path: `${output}/approved-resume-${width}-${theme}.png`,
+      });
+      await page
+        .getByLabel("독립 공개 검토자", { exact: true })
+        .selectOption("");
+      assert.equal(
+        await page
+          .getByRole("button", { name: "지식 검토 요청", exact: true })
+          .count(),
+        0,
+      );
+      await page
+        .getByLabel("독립 공개 검토자", { exact: true })
+        .selectOption("reviewer");
+      await page.getByLabel("추가 대상 독자 ID", { exact: true }).fill("");
+      await page
+        .getByRole("button", { name: "검토 상태 새로고침", exact: true })
+        .click();
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll("button")].some(
+          (b) => b.textContent === "검토 상태 새로고침" && !b.disabled,
+        ),
+      );
+      assert.equal(
+        await page
+          .getByRole("button", { name: "지식 검토 요청", exact: true })
+          .count(),
+        0,
+      );
+      assert(
+        (
+          await page.getByLabel("고정 공개 대상", { exact: true }).innerText()
+        ).includes("editor, reader, reviewer"),
+      );
+      await page.screenshot({
+        fullPage: true,
+        path: `${output}/audience-edited-${width}-${theme}.png`,
+      });
+      // Real dependency outage in the owned synthetic DB, never a fabricated DTO.
+      await db.query(
+        "ALTER TABLE governance_type_policies RENAME TO akh_c6_unavailable_policies",
+      );
+      try {
+        assert.equal(
+          (await ui.api("/workflows/draft-disclosures")).status,
+          503,
+        );
+        const failed = page.waitForResponse(
+          (r) =>
+            r.url().endsWith("/workflows/draft-disclosures") &&
+            r.status() === 503,
+        );
+        await page
+          .getByRole("button", { name: "검토 상태 새로고침", exact: true })
+          .click();
+        await failed;
+        await page.getByRole("alert").waitFor();
+        await page.screenshot({
+          fullPage: true,
+          path: `${output}/disclosure-error-${width}-${theme}.png`,
+        });
+      } finally {
+        await db.query(
+          "ALTER TABLE akh_c6_unavailable_policies RENAME TO governance_type_policies",
+        );
+      }
+      await page
+        .getByRole("button", {
+          name: "고정 본문과 독자로 공개 검토 요청",
+          exact: true,
+        })
+        .click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "원본 공개 검토 대기" })
+        .waitFor();
+      await reviewer.page
+        .getByRole("button", { name: "검토 상태 새로고침", exact: true })
+        .click();
+      await reviewArticle
+        .getByLabel("검토 사유 " + title, { exact: true })
+        .fill("수정된 독자 범위와 본문을 확인했습니다");
+      await reviewArticle
+        .getByRole("button", { name: "원본 공개 승인", exact: true })
+        .click();
+      await reviewArticle.waitFor({ state: "hidden" });
       await page
         .getByRole("button", { name: "검토 상태 새로고침", exact: true })
         .click();
@@ -416,13 +578,20 @@ try {
         .getByRole("button", { name: "본인 전용 원본 확인 요청", exact: true })
         .click();
       await personal.page
+        .getByLabel(`검토 사유 개인 합성 ${width} ${theme}`, { exact: true })
+        .fill("본인만 읽는 고정 본문과 범위를 확인했습니다");
+      await personal.page
         .getByRole("button", {
           name: "본인 전용 원본 명시적 확인",
           exact: true,
         })
         .click();
-      await personal.page.getByRole("status").filter({hasText:"원본 공개 승인됨"}).waitFor();
-      await personal.page.screenshot({fullPage:true,
+      await personal.page
+        .getByRole("status")
+        .filter({ hasText: "원본 공개 승인됨" })
+        .waitFor();
+      await personal.page.screenshot({
+        fullPage: true,
         path: `${output}/personal-${width}-${theme}.png`,
       });
       await personal.page
@@ -521,7 +690,8 @@ try {
         (t) => (document.documentElement.dataset.theme = t),
         theme,
       );
-      await page.screenshot({fullPage:true,
+      await page.screenshot({
+        fullPage: true,
         path: `${output}/revoked-${width}-${theme}.png`,
       });
       await db.query(
@@ -532,6 +702,10 @@ try {
         width,
         theme,
         exactDraftId: draftId,
+        approvedResumeAudienceExact: true,
+        readerReviewerEditInvalidatesApproval: true,
+        rejectionRationaleReadback: true,
+        actualDependencyFailureVisible: true,
         globalEntryKeyboard: true,
         privateSearchAndBacklinksAbsent: true,
         revokedRestartCacheCleared: true,

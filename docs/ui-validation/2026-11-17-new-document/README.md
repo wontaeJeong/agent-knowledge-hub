@@ -2,7 +2,7 @@
 
 2026-11-17, Node24.22.2, cached Playwright Chromium, 1440×1000 / 390×844, light/dark. 스크린샷은 전체 페이지 높이다. 실제 React/Vite → 실제 runtime HTTP → disposable PostgreSQL17을 실행했다. `composer-runtime.ts`의 명시적 `AKH_C6_SYNTHETIC_CAPTURE=1` loopback 인증 어댑터와 합성 업무 자료를 사용했으며 DTO/모델 성공을 위조하지 않았다. 운영 OIDC/회사 자료/품질 인수는 아니다.
 
-최종 backend runtime는 **17:28:24 KST** 시작한 PID20576이며 마지막 backend 변경 뒤 재시작했다. Vite PID8995는 최종 frontend 파일을 실제 모듈 요청으로 제공했다. 최종 제품 소스는 [source-manifest.json](source-manifest.json)의 17개 변경 production 파일이다. 해당 manifest를 포함하는 커밋이 검증 소스 커밋이다. [browser-results.json](browser-results.json)의 결과는 harness의 실제 assertion을 통과한 후에만 기록했다. 초기 성공/실패 실행과 최종 결과를 구분한다.
+최종 backend runtime는 **18:06:37 KST** 시작한 PID32929이며 마지막 backend 변경 뒤 재시작했다. Vite PID32943는 최종 frontend 파일을 실제 모듈 요청으로 제공했다. 최종 제품 소스는 [source-manifest.json](source-manifest.json)의 17개 변경 production 파일이다. 해당 manifest를 포함하는 커밋이 검증 소스 커밋이다. [browser-results.json](browser-results.json)의 결과는 harness의 실제 assertion을 통과한 후에만 기록했다. 초기 성공/실패 실행과 최종 결과를 구분한다.
 
 네 조건 모두 확인:
 
@@ -25,6 +25,15 @@
 | 개인 원본 승인 | [화면](personal-1440-light.png) | [화면](personal-1440-dark.png) | [화면](personal-390-light.png) | [화면](personal-390-dark.png) |
 | 철회 후 재시작 | [화면](revoked-1440-light.png) | [화면](revoked-1440-dark.png) | [화면](revoked-390-light.png) | [화면](revoked-390-dark.png) |
 
+리뷰 수정1차(I1–I4)는 동일 네 조건에서 추가 검증했다. 고정 승인 독자/검토자의 정확한 resume와 form 초기화, reader/reviewer 편집 후 이전 승인 버튼 없음 및 fresh request, 직접 입력한 반려 사유의 author readback을 확인했다. 실제 소유 DB의 governance_type_policies를 일시 rename하여 canonical API503과 UI 오류를 단언하고 즉시 복원했다. 오류 DTO를 위조하지 않았다. 최종 결과 파일은 모든 assertion 뒤에 기록했다.
+
+| 리뷰 경계 | 1440 light | 1440 dark | 390 light | 390 dark |
+| --- | --- | --- | --- | --- |
+| 승인 후 exact resume | [화면](approved-resume-1440-light.png) | [화면](approved-resume-1440-dark.png) | [화면](approved-resume-390-light.png) | [화면](approved-resume-390-dark.png) |
+| 독자 변경·이전 승인 차단 | [화면](audience-edited-1440-light.png) | [화면](audience-edited-1440-dark.png) | [화면](audience-edited-390-light.png) | [화면](audience-edited-390-dark.png) |
+| 반려 사유 readback | [화면](rejection-1440-light.png) | [화면](rejection-1440-dark.png) | [화면](rejection-390-light.png) | [화면](rejection-390-dark.png) |
+| 실제 의존성 오류 | [화면](disclosure-error-1440-light.png) | [화면](disclosure-error-1440-dark.png) | [화면](disclosure-error-390-light.png) | [화면](disclosure-error-390-dark.png) |
+
 검증 명령(별도 터미널; 제품 소스 변경 후 runtime 재시작 필요):
 
 ```sh
@@ -36,6 +45,8 @@ AKH_C6_SYNTHETIC_CAPTURE=1 PLAYWRIGHT_MODULE=/Users/wt.jeong/.npm/_npx/9833c18b2
 node docs/ui-validation/2026-11-17-new-document/manifest.mjs --verify
 ```
 
-최종 `npm run check` exit0: frontend415/65파일, Node48, imports16, evaluation41, requirements251, server types/build/static HTTP smoke. Native14파일224 exit0. Vite 기존500kB chunk 경고를 유지했다. 최종 로그 원문은 작업 디렉터리 `.superpowers/sdd/2026-11-16-essential-convenience/logs/c6-final-check-revocation.log`, `c6-final-native-corrected.log`, `c6-browser-final-capture.log`에 보존한다. 최초 네이티브 RED7/기존4통과, 클라이언트 RED3/기존5통과와 후속 실패/수정은 작업 report 및 MISTAKE_LOG에 기록했다.
+최종 `npm run check` exit0: frontend421/65파일, Node48, imports16, evaluation41, requirements251, server types/build/static HTTP smoke. Native15파일230 exit0. Vite 기존500kB chunk 경고를 유지했다. 최종 로그 원문은 작업 디렉터리 `.superpowers/sdd/2026-11-16-essential-convenience/logs/c6-r1-final-check.log`, `c6-r1-final-native.log`, `c6-r1-browser-final.log`에 보존한다. 최초 네이티브 RED7/기존4통과, 클라이언트 RED3/기존5통과와 후속 실패/수정은 작업 report 및 MISTAKE_LOG에 기록했다.
 
-완료 후 commandline으로 소유권을 확인한 PID20576/8995만 SIGTERM했다. owned `akh_c6_ui_*` DB 0, `akh_c6_profile_*` 0, 4396/5196 closed를 별도 검증했다. 부모 PG17 컨테이너는 계속 유지했다. 독립 리뷰·원격8CI·PR/병합은 controller가 수행한다.
+완료 후 commandline으로 소유권을 확인한 PID32929/32943만 SIGTERM했다. owned `akh_c6_ui_*` DB 0, `akh_c6_profile_*` 0, 4396/5196 closed를 별도 검증했다. 부모 PG17 컨테이너는 계속 유지했다. 독립 리뷰·원격8CI·PR/병합은 controller가 수행한다.
+
+최종 round1 manifest 검증:17 production +3 harness +41 artifacts(40화면/resultsJSON). `c6-r1-cleanup.log` exit0은 own DB/profile0 및4396/5196 closed를 별도로 확인한다. 이전 capture는 초기 커밋의 이력이며 이 파일과 source manifest는 round1 최종 코드의 새 실행을 가리킨다.

@@ -1,5 +1,14 @@
 # 에이전트 인계
 
+## 2026-11-17 #49 C6 — 리뷰 수정 1차 (I1–I4)
+
+- 같은 UXC-04 / EDT-001~003/006, REV-001~009, UX-002 범위. 정확한 승인 재개는 고정 독자/지정 검토자와 선택 폼을 일치시키고, 이후 선택 변경은 새 공개 요청 전까지 기존 승인 제출을 차단한다. 지연 응답/계정 전환 및 입력 중 쉼표 보존도 회귀로 검사했다.
+- 기존 erasure 그래프에 owner-scoped template token과 초안 이력의 templateId 연결을 추가했다. 등록 전 생성된 명시적 템플릿 사본의 초안/이력/mutation/recovery를 실제 원본 삭제로 지우며, 원래 초안 삭제 후에도 동작한다. 다른 owner의 같은 template/draft ID 및 계보 없는 같은 본문은 보존한다. retention projection도 이 ID를 보존한다.
+- 기존 보호 disclosure.snapshot.requestReason과 decisions의 reason/principalId를 저장하고 author/지정 reviewer 목록에서 읽는다. 요청·결정 idempotency는 사유 변경을 충돌로 처리한다. reviewer가 직접 입력한 사유로 승인/반려하며 원본 삭제·private draft 삭제는 이 사유도 지운다. 이전 버전에 이미 버려진 사유는 복원할 수 없으므로 없음으로 표시한다.
+- disclosure 목록은 명시적 NOT_FOUND/FORBIDDEN/stale/scope/erasure-fence만 제외하고 예상 밖 정책/SQL/프로그램 오류는 전파한다. 실제 합성 DB의 정책 테이블을 잠시 이용 불가하게 한 브라우저 검증에서503과 UI 오류를 확인한다.
+- 최종 검증: focused client18, fullcheck frontend421/Node48/import16/eval41/requirements251/types/build/smoke exit0; affected native15파일230 exit0. source/evidence는 같은 [검증 폴더](ui-validation/2026-11-17-new-document/README.md)에 갱신한다. 운영/품질·OS IME 한계는 유지한다.
+- M3는 controller 승인으로 ImportWorkbench의 예정 Modify 항목을 제거한 명시적 무수정 예외다(공통 helper/API/기존 import17회귀 유지). M1 큰 Composer 책임 분리는 최종 broad triage로 보류, M2 기존 Vite629/1499kB chunk 경고는 숨기지 않는다. 독립 재검토·PR71 최종 CI·병합은 controller 소유다.
+
 ## 2026-11-17 #49 C6 — 신규 문서·수동 원본 공개·정확한 초안 복구
 
 - 요구사항: UXC-04 작업 매핑 EDT-001~003/006, REV-001~009, UX-002. 원본 접근·승인/발행·복구 불변식의 ACL/CORE 회귀를 포함했으며 기존 251 기준/North Star는 변경하지 않았다.

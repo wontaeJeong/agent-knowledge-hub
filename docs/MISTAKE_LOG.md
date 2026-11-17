@@ -1,5 +1,13 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — C6 task review의 승인 표시·명시 사본 삭제·사유·오류 누락
+
+- 리뷰 I1–I4를 실제 코드와 native probe로 확인했다. 고정 승인 audience/reviewer를 폼 선택과 비교하지 않아 재개 시 owner만 보이거나 reader 제거 후에도 과거 넓은 승인을 제출할 수 있었다. 등록 전 수동 초안→템플릿→사본은 sourceIds가 비어 있어 명시 templateId 이력을 기존 삭제 그래프가 따라가지 못했다. 사유는 hash에만 남았고 목록 catch-all은 예기치 않은 실패를200/빈 목록으로 바꿨다.
+- 원인/조치: 승인 대상의 immutable 표시·초기 선택 복원·선택 편집 시 fresh request, 기존 owner-scoped graph의 template/history token, 보호 snapshot/decision 사유 readback, 열거한 예상 denial만 제외하도록 수정했다. 새 삭제/댓글 엔진이나 권한 예외는 만들지 않았다. 첫 controlled 추가 독자 입력은 쉼표를 즉시 정규화하여 지우는 RED가 발생해 raw 입력 문자열과 정규화한 선택을 분리했다.
+- 증거: backend RED4/기존16통과 후 focused20 GREEN. UI RED4/기존4통과, delimiter RED1/9통과 후 composer10/recovery8 GREEN. 최종 fullcheck421/48/16/41/251/types/build/smoke와 native15파일230 exit0. 실제 네 화면 조건에서 승인된 exact resume·독자/검토자 변경의 이전 승인 차단·typed 반려 사유 readback·실제 DB dependency503 UI 오류를 기존 발행/복구와 함께 검사한다. 중간 로그는 c6-r1-*로 보존하며 이전 성공을 최종 코드로 재사용하지 않는다.
+- 범위: M3 ImportWorkbench 무수정은 controller가 승인한 파일 목록 예외로 명시했다. M1 책임 분리와 M2 기존 chunk 경고는 승인된 후속 triage 항목이며 숨기거나 해결로 올리지 않았다. 운영 인수·원격 CI/재검토 완료 주장은 하지 않는다.
+
+
 ### 2026-11-17 — C6 정확한 초안·계보·검증 상태의 경계 누락
 
 - 초기 RED는 page-less recovery schema, 수동 공개/최초 제안 endpoint, Composer 및 title autosave 부재였다. 템플릿 계보를 일괄 완화한 초기 구현은 기존 strict template 2회귀를 실패시켰다. 서버 소유 `retainLineage`의 명시적 확장만 허용하고 기존 두 검사의 의미를 유지하여 lineage30 GREEN으로 복구했다. 원본 readers 누락도 실제 raw source 목록 RED 뒤 기존 provenance 교집합에 연결했다.

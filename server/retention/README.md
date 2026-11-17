@@ -52,3 +52,5 @@
 `workflow_draft_disclosures`와 source의 `manualProvenance`는 현재 inventory/법정 삭제 그래프에 포함된다. snapshot/decisions/submission/audience는 inventory에 본문으로 반환하지 않는다. 서버 등록 관계만 owner+draft 삭제 edge가 되며 다른 owner의 동명 초안은 보존한다. private draft 삭제 후에도 등록 관계는 남고 snapshot/decisions는 지운다. 원계보 source 삭제와 manual source 자체 삭제의 실제 DB redaction, 완료된 workspace erasure 뒤 새 저장/공개 요청 차단을 검증했다. 기존 hold/restore/replay와 물리 purge의 한계는 그대로다.
 
 C6 Chromium 실제 브라우저 프로세스 재시작·오프라인·두 탭 충돌·1440/390 light/dark 증거는 [검증 기록](../../docs/ui-validation/2026-11-17-new-document/README.md)에 있다. 합성 PG17/loopback 인증 어댑터를 사용하며 운영 IdP/OS IME/품질 인수로 승격하지 않는다. 템플릿 본문은 정본 계보 저장 성공 후 편집기/복구 캐시에 들어오고, 정확한 요청 초안이 현재 ACL에서 사라지면 캐시를 비운다.
+
+C6 리뷰 수정 1차에서는 등록 전 생성한 명시 templateId 사본까지 owner-scoped template token과 초안 이력을 통해 같은 삭제 walk에 포함한다. 현재 metadata에서 templateId를 제거해도 과거 이력이 사본의 owner/draft token을 연결한다. 실제 erasure로 본문·save mutation·이력 및 recovery grant 무효화를 검사하며 원초안 삭제 후와 다른 owner의 동일 template/draft ID 보존을 모두 확인했다. inventory는 template/sourceDraft ID를 보존하되 본문과 새 공개 요청/결정 사유는 해시 projection 뒤에 둔다.

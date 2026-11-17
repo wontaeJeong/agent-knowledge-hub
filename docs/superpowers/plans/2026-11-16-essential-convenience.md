@@ -116,7 +116,7 @@
 
 ## Task 6: 신규 문서와 작성기
 
-**Files:** Create `server/migrations/142-new-document-disclosure.sql`, `server/workflows/new-document.ts`, `new-document.test.ts`, `server/workflows/manual-disclosure.ts`, `manual-disclosure.test.ts`, `server/imports/disclosure-policy.ts`, `src/operational/convenience/DocumentComposer.tsx`, `composer.test.tsx`; Modify `server/workflows/service.ts`, `http.ts`, `server/imports/service.ts`, `src/operational/ImportWorkbench.tsx`, `server/retention/recovery.ts`, `server/retention/recovery.test.ts`, `src/operational/draft-recovery.ts`, `draft-recovery.test.ts`, `workflows.tsx`, `App.tsx`.
+**Files:** Create `server/migrations/142-new-document-disclosure.sql`, `server/workflows/new-document.ts`, `new-document.test.ts`, `server/workflows/manual-disclosure.ts`, `manual-disclosure.test.ts`, `server/imports/disclosure-policy.ts`, `src/operational/convenience/DocumentComposer.tsx`, `composer.test.tsx`; Modify `server/workflows/service.ts`, `http.ts`, `server/imports/service.ts`, `server/retention/recovery.ts`, `server/retention/recovery.test.ts`, `src/operational/draft-recovery.ts`, `draft-recovery.test.ts`, `workflows.tsx`, `App.tsx`.
 
 **Interfaces:** Consumes Task 1/5, existing `saveDraft`, `propose`/`approve`/`publish`, template and recovery services. Produces `submitNewDraft(ctx,draftId,{expectedRevision,title,parentId,reason,disclosureId,disclosureHash,mutationId}):Promise<{status:'knowledge-review-pending',sourceId:string,batchId:string,hash:string}>` and recovery binding union `{kind:'page',pageId,...}|{kind:'draft',draftId,...}` authorized server-side. Also produces `ManualDraftDisclosureService.request(ctx,draftId,{expectedRevision,title,parentId,readers,reviewerId,reason,mutationId})` and `decide(ctx,id,{hash,decision,reason,mutationId})`, the three disclosure endpoints and persisted state fixed in UXC-04. Extract reviewer/policy helpers from ImportService without faking import_runs. It must remove the *functional gap* of `SOURCE_REGISTRATION_REQUIRED` for this deliberate endpoint without loosening the existing endpoint.
 
@@ -126,7 +126,9 @@
 - [x] Connect global new-document entry, title/parent/template/form/preview, new draft resume and explicit publication states. Run workflow/publication/retention regressions and browser disconnect/IME/dual-tab conflict flows.
 - [x] Commit `feat: add reviewed creation of new wiki documents`.
 
-**로컬 증거:** Node24 fullcheck frontend415/Node48/import16/evaluation41/requirements251/types/build/smoke, UUID-isolated native14파일224시험. 실제 Chromium 1440/390 light/dark의 재시작·오프라인·IME(CDP)·충돌·개인/팀 발행·철회 결과와 소스 hash는 [C6 증거](../../ui-validation/2026-11-17-new-document/README.md)에 있다. 모델 품질/운영 IdP/OS IME/독립 리뷰·원격 CI·병합 인수는 포함하지 않는다. ImportWorkbench는 수정 없이 기존 import API와 공통 helper를 재사용했다.
+**로컬 증거:** Node24 fullcheck frontend415/Node48/import16/evaluation41/requirements251/types/build/smoke, UUID-isolated native14파일224시험. 실제 Chromium 1440/390 light/dark의 재시작·오프라인·IME(CDP)·충돌·개인/팀 발행·철회 결과와 소스 hash는 [C6 증거](../../ui-validation/2026-11-17-new-document/README.md)에 있다. 모델 품질/운영 IdP/OS IME/독립 리뷰·원격 CI·병합 인수는 포함하지 않는다. **승인된 파일 목록 예외(M3):** controller가 ImportWorkbench 무수정을 수용하여 Modify 목록에서 제거했다. 기존 화면의 누락 동작은 발견되지 않았고 공통 helper/API 호환 및 native import 회귀를 재사용한다. 화면 diff를 만들기 위한 수정은 하지 않는다.
+
+**리뷰 수정 1차:** I1 승인 독자/검토자 표시·선택 변경 무효화, I2 등록 전 템플릿 파생 초안의 owner-scoped 삭제 계보, I3 공개 요청/결정 사유 저장·readback, I4 예상 denial만 목록에서 제외하도록 수정했다. 최종 fullcheck frontend421/native15파일230 및 새 런타임4조건 증거를 갱신했다. M1 Composer 책임 분리는 최종 broad triage로, M2 기존 chunk debt는 별도 측정 개선으로 보류한다.
 
 ## Task 7: 문서 트리·이동·복제
 

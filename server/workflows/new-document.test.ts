@@ -554,3 +554,163 @@ test("completed workspace erasure fences private manual writes and disclosure sn
   ).rejects.toThrow("ERASURE_PRODUCT_WRITES_FENCED");
   await expect(request()).rejects.toThrow("ERASURE_PRODUCT_WRITES_FENCED");
 });
+test.each([false, true])(
+  "manual source erasure follows owner-scoped template copies before registration (origin deleted=%s)",
+  async (removeOrigin) => {
+    const secret = "C6_EXPLICIT_TEMPLATE_DESCENDANT";
+    await s.saveDraft(f.editor, {
+      id: "new-private",
+      expectedRevision: 0,
+      title: "새 문서",
+      content: secret,
+    });
+    await s.saveTemplate(f.editor, {
+      id: "before-registration",
+      expectedRevision: 0,
+      title: "복사 기준",
+      content: secret,
+      retainLineage: true,
+      sourceDraftId: "new-private",
+      sourceDraftRevision: 1,
+    });
+    const copy = await s.saveDraft(f.editor, {
+      id: "derived",
+      expectedRevision: 0,
+      title: "연결된 사본",
+      content: secret,
+      templateId: "before-registration",
+      templateRevision: 1,
+      mutationId: randomUUID(),
+    });
+    const { DraftRecoveryService } = await import("../retention/recovery");
+    const recovery = new DraftRecoveryService(f.pool);
+    const grant = await recovery.permission(f.editor, {
+      kind: "draft",
+      id: copy.id,
+      draftId: copy.id,
+      expectedRevision: copy.revision,
+      sourceIds: [],
+      dependencyVersions: {},
+    });
+    // The current row drops the template label; the immutable prior revision remains authoritative.
+    await s.saveDraft(f.editor, {
+      id: copy.id,
+      expectedRevision: 1,
+      title: copy.title,
+      content: secret,
+      mutationId: randomUUID(),
+    });
+    await s.saveDraft(f.ctx, {
+      id: "other-origin",
+      expectedRevision: 0,
+      title: "별도 원본",
+      content: secret,
+    });
+    await s.saveTemplate(f.ctx, {
+      id: "before-registration",
+      expectedRevision: 0,
+      title: "별도 기준",
+      content: secret,
+      retainLineage: true,
+      sourceDraftId: "other-origin",
+      sourceDraftRevision: 1,
+    });
+    await s.saveDraft(f.ctx, {
+      id: "derived",
+      expectedRevision: 0,
+      title: "다른 소유자",
+      content: secret,
+      templateId: "before-registration",
+      templateRevision: 1,
+    });
+    await s.saveDraft(f.editor, {
+      id: "unrelated",
+      expectedRevision: 0,
+      title: "연결 없는 같은 글",
+      content: secret,
+    });
+    const d = await request(f.editor, { reason: secret + " 요청 사유" });
+    await post(f.ctx, `/draft-disclosures/${d.id}/decision`, {
+      hash: d.hash,
+      decision: "approve",
+      reason: secret + " 승인 사유",
+      mutationId: randomUUID(),
+    });
+    const created = await post(
+      f.editor,
+      "/drafts/new-private/submit-new",
+      submitInput(d),
+    );
+    if (removeOrigin) await s.deleteDraft(f.editor, "new-private", 1);
+    await f.pool.query(
+      "INSERT INTO resource_readers SELECT workspace_id,kind,id,'fixture-owner' FROM resources WHERE workspace_id=$1 ON CONFLICT DO NOTHING",
+      [f.workspaceId],
+    );
+    const { OperationsService } = await import("../operations/service"),
+      { previewErasure, executeErasure } =
+        await import("../operations/erasure");
+    const ops = new OperationsService(f.pool, authorizeInTransaction),
+      admin = { workspaceId: f.workspaceId, principalId: "fixture-owner" },
+      input = {
+        scope: "resource",
+        resource: { kind: "source", id: created.sourceId },
+      };
+    const preview = await previewErasure(ops, admin, input);
+    await executeErasure(ops, admin, {
+      ...input,
+      previewHash: preview.previewHash,
+      confirm: "ERASE_PREVIEWED_RESOURCE_LINEAGE",
+    });
+    for (const table of [
+      "workflow_drafts",
+      "workflow_draft_revision_history",
+      "workflow_draft_save_mutations",
+      "workflow_draft_recovery_grants",
+    ]) {
+      const rows = (
+        await f.pool.query(
+          `SELECT to_jsonb(t) AS value FROM ${table} t WHERE workspace_id=$1 AND owner_id='editor'`,
+          [f.workspaceId],
+        )
+      ).rows.filter((r) => {
+        const v = r.value;
+        return (
+          v.id === "derived" ||
+          v.draft_id === "derived" ||
+          v.binding?.id === "derived"
+        );
+      });
+      expect(rows.length, table).toBeGreaterThan(0);
+      expect(JSON.stringify(rows), table).not.toContain(secret);
+    }
+    await expect(
+      recovery.validate(f.editor, { binding: grant }),
+    ).rejects.toThrow();
+    expect(
+      JSON.stringify(
+        (
+          await f.pool.query(
+            "SELECT snapshot,decisions FROM workflow_draft_disclosures WHERE workspace_id=$1",
+            [f.workspaceId],
+          )
+        ).rows,
+      ),
+    ).not.toContain(secret);
+    expect(
+      (
+        await f.pool.query(
+          "SELECT data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id='reviewer' AND id='derived'",
+          [f.workspaceId],
+        )
+      ).rows[0].data.content,
+    ).toBe(secret);
+    expect(
+      (
+        await f.pool.query(
+          "SELECT data FROM workflow_drafts WHERE workspace_id=$1 AND owner_id='editor' AND id='unrelated'",
+          [f.workspaceId],
+        )
+      ).rows[0].data.content,
+    ).toBe(secret);
+  },
+);

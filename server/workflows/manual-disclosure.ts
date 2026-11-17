@@ -38,6 +38,7 @@ export interface DisclosureRow {
   content_hash: string;
   snapshot: {
     title: string;
+    requestReason?: string;
     content: string;
     sourceIds: string[];
     dependencyVersions: Record<string, number>;
@@ -53,7 +54,18 @@ export interface DisclosureRow {
   hash: string;
   request_mutation_id: string;
   request_hash: string;
-  decisions: Record<string, { hash: string; result: unknown }>;
+  decisions: Record<
+    string,
+    {
+      hash: string;
+      result: unknown;
+      decision?: {
+        decision: "approve" | "reject";
+        reason: string;
+        principalId: string;
+      };
+    }
+  >;
   source_id: string | null;
   batch_id: string | null;
   submission: {
@@ -286,6 +298,7 @@ export class ManualDraftDisclosureService {
         ...policy,
         audience,
         reviewer,
+        requestReason: body.reason,
       });
       await db.query(
         "INSERT INTO workflow_draft_disclosures(workspace_id,id,owner_id,draft_id,draft_revision,content_hash,snapshot,dependency_envelope,parent_id,policy_hash,audience,reviewer_id,policy_mode,status,hash,request_mutation_id,request_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)",
@@ -296,7 +309,7 @@ export class ManualDraftDisclosureService {
           draftId,
           body.expectedRevision,
           fresh.contentHash,
-          fresh.snapshot,
+          { ...fresh.snapshot, requestReason: body.reason },
           fresh.envelope,
           body.parentId,
           policy.policyHash,
@@ -343,9 +356,24 @@ export class ManualDraftDisclosureService {
             parentId: row.parent_id,
             ...row.snapshot,
             submission: row.submission?.result,
+            decision: Object.values(row.decisions).find((d) => d.decision)
+              ?.decision,
           });
-        } catch {
-          /* Changed policy/lineage removes snapshot visibility. */
+        } catch (error) {
+          // Only a known inaccessible/stale/retired snapshot is an omitted item.
+          // Policy dependencies, SQL and programming failures remain errors.
+          if (
+            !(error instanceof Error) ||
+            ![
+              "NOT_FOUND",
+              "FORBIDDEN",
+              "APPROVAL_STALE",
+              "STALE_VERSION",
+              "SOURCE_SCOPE_CONFLICT",
+              "ERASURE_PRODUCT_WRITES_FENCED",
+            ].includes(error.message)
+          )
+            throw error;
         }
       }
       return { items };
@@ -403,7 +431,15 @@ export class ManualDraftDisclosureService {
           result.status,
           {
             ...row.decisions,
-            [body.mutationId]: { hash: fingerprint(body), result },
+            [body.mutationId]: {
+              hash: fingerprint(body),
+              result,
+              decision: {
+                decision: body.decision,
+                reason: body.reason,
+                principalId: ctx.principalId,
+              },
+            },
           },
         ],
       );

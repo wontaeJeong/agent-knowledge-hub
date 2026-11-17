@@ -43,6 +43,12 @@ type Disclosure = {
   status: string;
   hash: string;
   audience: string[];
+  requestReason?: string;
+  decision?: {
+    decision: "approve" | "reject";
+    reason: string;
+    principalId: string;
+  };
   parentId: string | null;
   submission?: { batchId: string; hash: string };
 };
@@ -100,6 +106,10 @@ function NewDocument({
     [content, setContent] = useState(""),
     [parent, setParent] = useState(""),
     [reason, setReason] = useState(""),
+    [disclosureEdited, setDisclosureEdited] = useState(false),
+    [decisionReasons, setDecisionReasons] = useState<Record<string, string>>(
+      {},
+    ),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [status, setStatus] = useState<SaveStatus>("saved"),
@@ -107,6 +117,7 @@ function NewDocument({
     [personal, setPersonal] = useState<boolean | null>(null),
     [reviewers, setReviewers] = useState<string[]>([]),
     [reviewer, setReviewer] = useState(""),
+    [additionalReaders, setAdditionalReaders] = useState(""),
     [audience, setAudience] = useState<string[]>(
       principalId ? [principalId] : [],
     ),
@@ -123,6 +134,7 @@ function NewDocument({
     cache = useRef<RecoveryCache | null>(null),
     binding = useRef<RecoveryBinding | null>(null),
     generation = useRef(0),
+    selectionRevision = useRef(0),
     composing = useRef(false);
   const write = capabilities.includes("draft.write"),
     propose = capabilities.includes("changeset.propose"),
@@ -149,10 +161,11 @@ function NewDocument({
     }
   };
   const refresh = async () => {
+    const epoch = generation.current;
     const result = await api.get<{ items: Disclosure[] }>(
       "/workflows/draft-disclosures",
     );
-    setDisclosures(result.items);
+    if (epoch === generation.current) setDisclosures(result.items);
   };
   const permission = async (instance: DraftAutosave, epoch: number) => {
     if (!instance.draft.revision) return;
@@ -299,7 +312,38 @@ function NewDocument({
         const d = initialDraftId
           ? saved.items.find((x) => x.id === initialDraftId && !x.pageId)
           : { id: crypto.randomUUID(), revision: 0, title: "", content: "" };
-        if (!d) throw new ApiError("요청한 초안이 없거나 현재 접근할 수 없습니다.",404,"NOT_FOUND");
+        if (!d)
+          throw new ApiError(
+            "요청한 초안이 없거나 현재 접근할 수 없습니다.",
+            404,
+            "NOT_FOUND",
+          );
+        const resumed = requests.items.find(
+          (x) =>
+            x.draftId === d.id &&
+            x.ownerId === principalId &&
+            x.draftRevision === d.revision &&
+            x.title === d.title &&
+            x.content === d.content &&
+            x.parentId === (d.parentId ?? null),
+        );
+        if (resumed) {
+          setAudience(resumed.audience);
+          setAdditionalReaders(
+            resumed.audience
+              .filter(
+                (id) =>
+                  id !== principalId &&
+                  id !== resumed.reviewerId &&
+                  !members.some((m) => m.principalId === id),
+              )
+              .join(", "),
+          );
+          setReviewer(
+            resumed.policyMode === "personal-owner" ? "" : resumed.reviewerId,
+          );
+          setReason(resumed.requestReason ?? "");
+        }
         initialized = true;
         start(d);
         if (initialDraftId && cache.current) {
@@ -382,6 +426,18 @@ function NewDocument({
       d.content === content &&
       d.parentId === (parent || null),
   );
+  const selectionChanged = () => {
+    selectionRevision.current++;
+    setDisclosureEdited(true);
+  };
+  const approvalMatchesSelection =
+    !!current &&
+    !disclosureEdited &&
+    [...new Set(audience)].sort().join("\0") ===
+      [...current.audience].sort().join("\0") &&
+    (current.policyMode === "personal-owner"
+      ? !reviewer
+      : current.reviewerId === reviewer);
   const selectTemplate = (value: string) => {
     const instance = coordinator.current;
     if (!value || !instance) return;
@@ -646,7 +702,7 @@ function NewDocument({
               지정 검토자에게 보입니다.
             </p>
             <p>
-              발행 대상 독자:{" "}
+              선택한 대상 독자:{" "}
               {personal ? principalId : audience.join(", ") || "선택 안 함"}
             </p>
             {!personal && (
@@ -658,14 +714,19 @@ function NewDocument({
                       <input
                         type="checkbox"
                         checked={audience.includes(m.principalId)}
-                        disabled={m.principalId === principalId}
-                        onChange={(e) =>
+                        disabled={
+                          busy ||
+                          !!current?.submission ||
+                          m.principalId === principalId
+                        }
+                        onChange={(e) => {
+                          selectionChanged();
                           setAudience((a) =>
                             e.target.checked
                               ? [...new Set([...a, m.principalId])]
                               : a.filter((x) => x !== m.principalId),
-                          )
-                        }
+                          );
+                        }}
                       />
                       {m.principalId}
                     </label>
@@ -676,18 +737,26 @@ function NewDocument({
                   <input
                     aria-label="추가 대상 독자 ID"
                     placeholder="ID를 쉼표로 구분"
-                    onChange={(e) =>
+                    disabled={busy || !!current?.submission}
+                    value={additionalReaders}
+                    onChange={(e) => {
+                      selectionChanged();
+                      setAdditionalReaders(e.target.value);
                       setAudience([
                         ...new Set([
-                          principalId!,
-                          ...(reviewer ? [reviewer] : []),
+                          ...audience.filter(
+                            (id) =>
+                              id === principalId ||
+                              id === reviewer ||
+                              members.some((m) => m.principalId === id),
+                          ),
                           ...e.target.value
                             .split(",")
-                            .map((x) => x.trim())
+                            .map((id) => id.trim())
                             .filter(Boolean),
                         ]),
-                      ])
-                    }
+                      ]);
+                    }}
                   />
                 </label>
                 <label>
@@ -695,7 +764,9 @@ function NewDocument({
                   <select
                     aria-label="독립 공개 검토자"
                     value={reviewer}
+                    disabled={busy || !!current?.submission}
                     onChange={(e) => {
+                      selectionChanged();
                       setReviewer(e.target.value);
                       if (e.target.value)
                         setAudience((a) => [
@@ -734,6 +805,7 @@ function NewDocument({
               onClick={() =>
                 void action(async () => {
                   const d = await flush();
+                  const requestedSelection = selectionRevision.current;
                   await api.post(`/workflows/drafts/${d.id}/disclosure`, {
                     expectedRevision: d.revision,
                     title: d.title,
@@ -744,6 +816,8 @@ function NewDocument({
                     mutationId: crypto.randomUUID(),
                   });
                   await refresh();
+                  if (requestedSelection === selectionRevision.current)
+                    setDisclosureEdited(false);
                 })
               }
             >
@@ -754,6 +828,33 @@ function NewDocument({
             <Button disabled={busy} onClick={() => void action(refresh)}>
               검토 상태 새로고침
             </Button>
+            {current && (
+              <div aria-label="고정 공개 대상">
+                <p>요청에 고정된 독자: {current.audience.join(", ")}</p>
+                <p>
+                  {current.policyMode === "personal-owner"
+                    ? "확인자"
+                    : "지정 검토자"}
+                  : {current.reviewerId}
+                </p>
+                <p>
+                  기록된 요청 사유:{" "}
+                  {current.requestReason ?? "이전 요청에 사유 기록 없음"}
+                </p>
+                {current.decision && (
+                  <p>
+                    검토 사유 ({current.decision.principalId}):{" "}
+                    {current.decision.reason}
+                  </p>
+                )}
+                {!approvalMatchesSelection && !current.submission && (
+                  <p>
+                    독자 또는 검토자 선택이 변경됐습니다. 새 공개 검토를
+                    요청하세요.
+                  </p>
+                )}
+              </div>
+            )}
             {current && (
               <p role="status">
                 {
@@ -768,29 +869,31 @@ function NewDocument({
                 }
               </p>
             )}
-            {current?.status === "approved" && !current.submission && (
-              <Button
-                disabled={busy || !propose || !reason.trim()}
-                onClick={() =>
-                  void action(async () => {
-                    const d = await flush();
-                    await api.post(`/workflows/drafts/${d.id}/submit-new`, {
-                      expectedRevision: d.revision,
-                      title: d.title,
-                      parentId: parent || null,
-                      reason,
-                      disclosureId: current.id,
-                      disclosureHash: current.hash,
-                      mutationId: crypto.randomUUID(),
-                    });
-                    await refresh();
-                    await onChanged();
-                  })
-                }
-              >
-                지식 검토 요청
-              </Button>
-            )}
+            {current?.status === "approved" &&
+              approvalMatchesSelection &&
+              !current.submission && (
+                <Button
+                  disabled={busy || !propose || !reason.trim()}
+                  onClick={() =>
+                    void action(async () => {
+                      const d = await flush();
+                      await api.post(`/workflows/drafts/${d.id}/submit-new`, {
+                        expectedRevision: d.revision,
+                        title: d.title,
+                        parentId: parent || null,
+                        reason,
+                        disclosureId: current.id,
+                        disclosureHash: current.hash,
+                        mutationId: crypto.randomUUID(),
+                      });
+                      await refresh();
+                      await onChanged();
+                    })
+                  }
+                >
+                  지식 검토 요청
+                </Button>
+              )}
             {current?.submission && (
               <p>
                 지식 검토 요청됨 · 발행 상태는{" "}
@@ -829,12 +932,30 @@ function NewDocument({
                   : "지정된 독립 검토"}{" "}
                 · 독자 {d.audience.join(", ")}
               </p>
+              <p>
+                요청 사유: {d.requestReason ?? "이전 요청에 사유 기록 없음"}
+              </p>
               <DocumentBody
                 content={d.content}
                 readAttachment={readAttachment}
               />
+              <label>
+                검토 사유
+                <textarea
+                  aria-label={"검토 사유 " + d.title}
+                  maxLength={2000}
+                  value={decisionReasons[d.id] ?? ""}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setDecisionReasons((value) => ({
+                      ...value,
+                      [d.id]: e.target.value,
+                    }))
+                  }
+                />
+              </label>
               <Button
-                disabled={busy}
+                disabled={busy || !decisionReasons[d.id]?.trim()}
                 onClick={() =>
                   void action(async () => {
                     await api.post(
@@ -842,7 +963,7 @@ function NewDocument({
                       {
                         hash: d.hash,
                         decision: "approve",
-                        reason: "고정 본문 및 대상 독자 확인",
+                        reason: decisionReasons[d.id].trim(),
                         mutationId: crypto.randomUUID(),
                       },
                     );
@@ -855,7 +976,7 @@ function NewDocument({
                   : "원본 공개 승인"}
               </Button>
               <Button
-                disabled={busy}
+                disabled={busy || !decisionReasons[d.id]?.trim()}
                 onClick={() =>
                   void action(async () => {
                     await api.post(
@@ -863,7 +984,7 @@ function NewDocument({
                       {
                         hash: d.hash,
                         decision: "reject",
-                        reason: "원본 공개 반려",
+                        reason: decisionReasons[d.id].trim(),
                         mutationId: crypto.randomUUID(),
                       },
                     );

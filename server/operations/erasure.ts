@@ -212,8 +212,10 @@ function own(row: ProductRow) {
   if (typeof d.owner_id === "string") {
     if (t === "workflow_drafts" && typeof id === "string")
       return new Set(["owned-draft:" + JSON.stringify([d.owner_id,id])]);
-    if (t === "workflow_draft_disclosures" && typeof d.draft_id === "string")
+    if (["workflow_draft_disclosures","workflow_draft_revision_history"].includes(t) && typeof d.draft_id === "string")
       return new Set(["owned-draft:" + JSON.stringify([d.owner_id,d.draft_id])]);
+    if (t === "workflow_templates" && typeof id === "string")
+      return new Set(["owned-template:" + JSON.stringify([d.owner_id,id])]);
   }
   let kind: string | undefined;
   if (t === "collaboration_events") kind = "collaboration-event";
@@ -263,6 +265,12 @@ function lineageRefs(row: ProductRow) {
     const binding = row.data.binding as {id?:unknown}|undefined;
     const draftId = row.data.draft_id ?? (row.table === "workflow_draft_recovery_grants" ? binding?.id : data?.sourceDraftId);
     if (typeof draftId === "string") result.add("owned-draft:" + JSON.stringify([row.data.owner_id,draftId]));
+    // templateId is authoritative only on owner-scoped, server-validated saved
+    // drafts/history. An arbitrary Source JSON field confers no deletion edge.
+    if (["workflow_drafts","workflow_draft_revision_history"].includes(row.table)) {
+      const templateId = (row.data.data as {templateId?:unknown}|undefined)?.templateId;
+      if (typeof templateId === "string") result.add("owned-template:" + JSON.stringify([row.data.owner_id,templateId]));
+    }
   }
   return result;
 }
