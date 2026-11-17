@@ -785,6 +785,7 @@ export class WorkflowService {
         ctx,
         ["workflow_document_order"],
         "none",
+        "structure",
       ),
     });
   }

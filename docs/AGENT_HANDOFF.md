@@ -984,3 +984,12 @@ Current affected native6files153 plus unchanged9files99 from the prior249 run gi
 - 이 수정은 기존 Query 탐색·현재 인가 응답·재시도/identity 불변식을 보존하며 North Star/251 기준을 바꾸지 않는다. M2 chunk/실제IdP·기기·운영·품질 미검증은 유지한다. controller scoped re-review/정확headCI/merge 대기다.
 
 - C7 Round2 fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`. 모든421 manifest경로/report의 index 추적·fail-fast diff·backend 무변경 gate 통과. 후속 문서는 hash만 기록한다.
+
+
+### C7 final combined wave — F1/F2
+
+- FIX_BASE `595358f469c86d33ad1ac9326414c4b8fc0662d8`; full review의 실제 두 서버 연계 결함을 함께 수정했다. Ruling F1: structure digest만 정확한5항목 C7-only grant를 제외하고 일반/혼합/미지/잘못된/null 행은 계속 포함한다. 이유는 발급이 자체 exact placement token을 무효화했기 때문이며 비용은 서버 발급 형식과의 좁은 결합이다. actor/session/parent/현재 order·ACL/source/erasure 및 실행 key expiry/revoke 잠금 검사는 유지한다. C6/Home 기본 digest는 무수정이다.
+- Ruling F2: runtime MCP WorkflowService에 HTTP와 같은 신뢰 `options.origin`을 전달한다. 이유는 absolute same-origin stable link의 dependency/current replay policy 일치이며 비용은 내부 선택 인자1개다. 요청 Host/Origin으로 신뢰를 만들지 않고 external URL은 제외한다. 기존 key/일반 delegated ceiling/UI/schema를 바꾸지 않았다.
+- Clean RED3fail/7pass 후 actual-issued HTTP/MCP before-neighbor+replay, queued neighbor/ACL/key revoke·ordinary/mixed/null binding·relative/absolute/external lineage+source/link revoke·C6/Home cursor를 포함한 final native9files95, 별도 기존MCP2files2 통과. 현재11files97이며 과거13files183 carry와 합친 고유24files280은 단일 현재 실행이 아니다. 최종 check488/48/16/41/251/types/build/smoke exit0. session UUID/negative rank fixture 및 잘못된 test path 실패는 보존했다.
+- fresh4configs/14PNG: 발급 전 tree token 그대로 machine before-neighbor 이동/동일키 재시도, absolute-link copy pins와 기존 same-item/race/390focus/outsidefocus/oldlink/rename/source revoke 모두 통과,errors[]. HTTP/SDK transport parity와 server race는 native 증거다. source `cf4d6daf5b633d4273adbf688a137024c08e943be7ffcc6577b1695707b0331e`, runtime `2026-11-17T17:48:01.059Z`, frontend `2026-11-17T17:48:12.311Z`, capture `2026-11-17T17:49:25.724Z`. 자기 DB/profile/Chromium0·4397/5197닫힘·부모PG생존 확인.
+- 전체 리뷰 원문·정확 명령·실패/현재vs이월·판단비용은 task-7-report finalwave, SHA/cleanup는 UI evidence를 따른다. North Star/251 불변식을 유지하며 실제IdP·운영/품질·대규모성능 및 기존chunk 한계는 남는다. controller의 단1회 scoped final re-review/정확headCI/merge 대기다.

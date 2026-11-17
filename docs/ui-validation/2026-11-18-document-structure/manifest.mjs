@@ -70,6 +70,7 @@ if (
           "src/operational/convenience/structure.test.tsx",
           "server/convenience/structure.test.ts",
           "server/convenience/structure-http.test.ts",
+          "server/convenience/structure-final.test.ts",
           "server/convenience/structure-migration.test.ts",
         ].map(async (p) => [p, await hash(p)]),
       ),

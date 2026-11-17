@@ -954,6 +954,7 @@ export function createRuntimeHandler(options: {
           options.jobs,
           questions.searcher,
           options.auth,
+          options.origin,
         );
       if (req.method === "GET") {
         const storedAnswer = path.match(/^\/api\/v1\/answers\/([^/]+)$/);

@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, React 19.3.1, Vite 8.3.5, Node `^22.12.0 || ^24.0.0`, npm `>=10`, PostgreSQL, existing marked/DOMPurify/Vitest. 기존 package-lock을 유지하고 의존성을 추가하기 전에 필요성을 확인한다.
 
-**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 [PR #69](https://github.com/wontaeJeong/agent-knowledge-hub/pull/69), main `d4048bd`에 병합됐고 최종 소스 `d4bb97f`의 CI `44019161055` 필수 8개 검사와 독립 리뷰를 통과했다. C5 / Task 5는 [PR #70](https://github.com/wontaeJeong/agent-knowledge-hub/pull/70), main `83b00f4`에 병합됐고 최종 소스 `629c9c6`의 CI `44036706074` 필수 8개 검사와 독립 리뷰를 통과했다. C6 / Task 6은 [PR #71](https://github.com/wontaeJeong/agent-knowledge-hub/pull/71), main `0def475457b54d50b38c2b61655e1987234da8f3`에 병합됐고 최종 소스 `1bd418a580fa1edac1098291afd8b76490f033f0`의 CI `44068230799` 필수8개 검사와 controller 독립 리뷰를 통과했다. C4 / Task 4는 [PR #72](https://github.com/wontaeJeong/agent-knowledge-hub/pull/72), main `de4e150b7a37003ec23a885fb32205b49d107a7f`에 병합됐고 최종 소스 `5f4d593`의 CI `44115841741` 필수8개 검사와 controller 독립 리뷰를 통과했다. C7 / Task 7은 그 병합 뒤 로컬 구현·검증을 완료했으며 아래 명시한 scoped-agent MCP 제약을 독립 검토에 인계한다. C7 리뷰·원격 CI·PR·병합 및 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
+**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 [PR #69](https://github.com/wontaeJeong/agent-knowledge-hub/pull/69), main `d4048bd`에 병합됐고 최종 소스 `d4bb97f`의 CI `44019161055` 필수 8개 검사와 독립 리뷰를 통과했다. C5 / Task 5는 [PR #70](https://github.com/wontaeJeong/agent-knowledge-hub/pull/70), main `83b00f4`에 병합됐고 최종 소스 `629c9c6`의 CI `44036706074` 필수 8개 검사와 독립 리뷰를 통과했다. C6 / Task 6은 [PR #71](https://github.com/wontaeJeong/agent-knowledge-hub/pull/71), main `0def475457b54d50b38c2b61655e1987234da8f3`에 병합됐고 최종 소스 `1bd418a580fa1edac1098291afd8b76490f033f0`의 CI `44068230799` 필수8개 검사와 controller 독립 리뷰를 통과했다. C4 / Task 4는 [PR #72](https://github.com/wontaeJeong/agent-knowledge-hub/pull/72), main `de4e150b7a37003ec23a885fb32205b49d107a7f`에 병합됐고 최종 소스 `5f4d593`의 CI `44115841741` 필수8개 검사와 controller 독립 리뷰를 통과했다. C7 / Task 7은 그 병합 뒤 로컬 구현·검증과 PR73 최종 리뷰 F1/F2 수정을 완료했다. 명시적 exact C7 grant의 HTTP/MCP를 구현했고 기존 read/write key 권한은 유지한다. C7 단1회 scoped final re-review·정확head CI·병합 및 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
 
 ## Global Constraints
 
@@ -46,7 +46,7 @@
 | C11 / 11 | C3,C5 | 개인 저장 보기 | UXC-10 |
 | C12 / 12 | C1~C11 | 모든 동선의 통합·권한·회귀 인수 기록 | 전체 |
 
-현재 실행 순서는 **C1 → C2 → C3 → C5 → C6 → C4 → C7 → C8 → C9 → C10 → C11 → C12**다. C4 홈의 compose·draft 정확한 이어가기는 C6 Composer와 pageId 없는 새 초안 복구가 필요하다. C6가 실제 page-less 재개를 연결한 뒤 C4를 시작했다. C4의 로컬 확장은 own exact ID를 판별하고 page-bound 초안도 `compose&draft`에서 기존 WorkflowPanel(initialDraftId) editor에 위임한다. C4의 독립 리뷰·CI·병합은 대기다. 요구사항·251개 기준·North Star·작업 범위는 바꾸지 않는다.
+현재 실행 순서는 **C1 → C2 → C3 → C5 → C6 → C4 → C7 → C8 → C9 → C10 → C11 → C12**다. C4 홈의 compose·draft 정확한 이어가기는 C6 Composer와 pageId 없는 새 초안 복구가 필요하다. C6가 실제 page-less 재개를 연결한 뒤 C4를 시작했다. C4의 로컬 확장은 own exact ID를 판별하고 page-bound 초안도 `compose&draft`에서 기존 WorkflowPanel(initialDraftId) editor에 위임한다. C4의 독립 리뷰·필수8CI·PR72 병합은 완료다. 요구사항·251개 기준·North Star·작업 범위는 바꾸지 않는다.
 
 독립 단위의 진행 순서는 조정할 수 있지만 같은 파일을 동시 수정하지 않는다. 각 PR 종료 시 해당 요구사항·변경 파일·검증·남은 조건을 인계 문서에 기록한다. 이 문서는 병렬 실행을 자동 승인하거나 이미 실행했다고 선언하지 않는다.
 
@@ -167,6 +167,15 @@ Round1 local fix/evidence commit: `57a08eb3db8e06c05dc957d5d30183b9d845aa9a`. �
 **Round2 N1:** 같은 document/API/actor/space 재선택은 현재 token을 보존해 진행 조회1회가 정상 표시되게 했다. desktop/mobile RED2→focused65/fullcheck488 통과. fresh4config/14PNG는 초기화된 App의 pending same-item 단일GET/390focus와 기존 전체 C7 흐름을 확인한다. 첫 nested-locator 실패는 보존하며 initial-load 직접 증거는 WorkflowPanel 회귀다. backend 무수정/native81+178 전체carry, scoped 재리뷰·CI·merge는 대기다.
 
 Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; scoped 재리뷰/CI/merge 대기.
+
+**Final combined wave — F1/F2**
+
+- FIX_BASE `595358f469c86d33ad1ac9326414c4b8fc0662d8`; full review의 실제 두 서버 연계 결함을 함께 수정했다. Ruling F1: structure digest만 정확한5항목 C7-only grant를 제외하고 일반/혼합/미지/잘못된/null 행은 계속 포함한다. 이유는 발급이 자체 exact placement token을 무효화했기 때문이며 비용은 서버 발급 형식과의 좁은 결합이다. actor/session/parent/현재 order·ACL/source/erasure 및 실행 key expiry/revoke 잠금 검사는 유지한다. C6/Home 기본 digest는 무수정이다.
+- Ruling F2: runtime MCP WorkflowService에 HTTP와 같은 신뢰 `options.origin`을 전달한다. 이유는 absolute same-origin stable link의 dependency/current replay policy 일치이며 비용은 내부 선택 인자1개다. 요청 Host/Origin으로 신뢰를 만들지 않고 external URL은 제외한다. 기존 key/일반 delegated ceiling/UI/schema를 바꾸지 않았다.
+- Clean RED3fail/7pass 후 actual-issued HTTP/MCP before-neighbor+replay, queued neighbor/ACL/key revoke·ordinary/mixed/null binding·relative/absolute/external lineage+source/link revoke·C6/Home cursor를 포함한 final native9files95, 별도 기존MCP2files2 통과. 현재11files97이며 과거13files183 carry와 합친 고유24files280은 단일 현재 실행이 아니다. 최종 check488/48/16/41/251/types/build/smoke exit0. session UUID/negative rank fixture 및 잘못된 test path 실패는 보존했다.
+- fresh4configs/14PNG: 발급 전 tree token 그대로 machine before-neighbor 이동/동일키 재시도, absolute-link copy pins와 기존 same-item/race/390focus/outsidefocus/oldlink/rename/source revoke 모두 통과,errors[]. HTTP/SDK transport parity와 server race는 native 증거다. source `cf4d6daf5b633d4273adbf688a137024c08e943be7ffcc6577b1695707b0331e`, runtime `2026-11-17T17:48:01.059Z`, frontend `2026-11-17T17:48:12.311Z`, capture `2026-11-17T17:49:25.724Z`. 자기 DB/profile/Chromium0·4397/5197닫힘·부모PG생존 확인.
+- 전체 리뷰 원문·정확 명령·실패/현재vs이월·판단비용은 task-7-report finalwave, SHA/cleanup는 UI evidence를 따른다. North Star/251 불변식을 유지하며 실제IdP·운영/품질·대규모성능 및 기존chunk 한계는 남는다. controller의 단1회 scoped final re-review/정확headCI/merge 대기다.
+
 
 ## Task 8: 내부 연결·백링크
 

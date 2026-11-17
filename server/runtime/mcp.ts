@@ -40,13 +40,14 @@ export async function handleMcp(
   jobs?: RuntimeJobsBridge,
   scopedSearch?: ScopedSearch,
   structureIdentity?: import("./auth").OidcAuth,
+  structureOrigin?: string,
 ) {
   const server = new Server(
     { name: "agent-knowledge-hub", version: "1.0.0" },
     { capabilities: { tools: {} } },
   );
   const pathSchema=z.object({pageId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict();
-  const structure=new DocumentStructureService(new WorkflowService(service.pool,service,authorizeInTransaction),structureIdentity);
+  const structure=new DocumentStructureService(new WorkflowService(service.pool,service,authorizeInTransaction,structureOrigin),structureIdentity);
   const schemas = {
     knowledge_tree:z.toJSONSchema(structureQuery,{io:"input"}),
     knowledge_path:z.toJSONSchema(pathSchema,{io:"input"}),

@@ -312,6 +312,24 @@ try {
       await page.screenshot({
         path: `${output}/${width}-${theme}-move-race.png`,
       });
+      // Human placement snapshot must survive issuance of its exact machine grant.
+      const destination = await canonical("/convenience/tree");
+      const review = await canonical("/workflows/pages/review");
+      const placement = { pageId: "review", parentId: null, beforeId: "leaf",
+        expectedRevision: review.settings.revision, expectedStructureRevision: destination.revision,
+        reason: "합성 명시 발급 키 배치", mutationId: randomUUID() };
+      const placementGrant = await canonical("/convenience/credentials", {
+        operation: "move", input: placement, expiresAt: new Date(Date.now()+600000).toISOString(),
+      });
+      const reorder = () => fetch("http://127.0.0.1:4397/api/v1/convenience/pages/move", {
+        method: "POST", headers: {Authorization: `Bearer ${placementGrant.secret}`,
+          "X-Space-Id": f.spaceId, "Content-Type": "application/json"}, body: JSON.stringify(placement),
+      });
+      const ordered = await reorder(); assert.equal(ordered.status,200);
+      const placed = await ordered.json(); const orderedRetry = await reorder();
+      assert.equal(orderedRetry.status,200); assert.deepEqual(await orderedRetry.json(),placed);
+      const rootIds=(await canonical("/convenience/tree")).items.map(x=>x.id);
+      assert.ok(rootIds.indexOf("review") < rootIds.indexOf("leaf"));
       const copyInput = {
         pageId: "leaf",
         version: 1,
@@ -423,6 +441,8 @@ try {
         privateDuplicate: true,
         linkedDuplicateRenameReplay: true,
         issuedMachinePermitAndRevocation: true,
+        issuedBeforeNeighborExactTokenAndReplay: true,
+        absoluteSameOriginDuplicateLineage: true,
         delayedMoveRefreshSelection: true,
         mobileDelayedSelectionFocus:
           width === 390 ? "verified" : "not-applicable",

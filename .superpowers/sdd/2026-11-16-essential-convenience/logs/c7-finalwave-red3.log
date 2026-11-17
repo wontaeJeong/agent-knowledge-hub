@@ -1,0 +1,75 @@
+[1/1] server/convenience/structure-final.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure-final.test.ts (10 tests | 3 failed) 6615ms
+   × actual issued HTTP before-neighbor token executes and replays unchanged 596ms
+   × actual issued MCP before-neighbor token executes and replays unchanged 311ms
+   × absolute rendered-link lineage and replay have actual HTTP/MCP parity 474ms
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 7 passed (10)
+   Start at  02:45:47
+   Duration  6.87s (tests 97%, import 2%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure-final.test.ts > actual issued HTTP before-neighbor token executes and replays unchanged
+AssertionError: expected 409 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 409
+
+ ❯ server/convenience/structure-final.test.ts:57:86
+     55| test.each(['HTTP','MCP'])('actual issued %s before-neighbor token exec…
+     56|  const input=await placement(),grant=await issue('move',input);
+     57|  const first=await machine(transport,'move',input,grant.secret);expect…
+       |                                                                                      ^
+     58|  expect(first.body).toMatchObject({id:'topic',revision:1,parentId:null…
+     59|  expect(await machine(transport,'move',input,grant.secret)).toEqual(fi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  server/convenience/structure-final.test.ts > actual issued MCP before-neighbor token executes and replays unchanged
+AssertionError: expected 403 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 403
+
+ ❯ server/convenience/structure-final.test.ts:57:86
+     55| test.each(['HTTP','MCP'])('actual issued %s before-neighbor token exec…
+     56|  const input=await placement(),grant=await issue('move',input);
+     57|  const first=await machine(transport,'move',input,grant.secret);expect…
+       |                                                                                      ^
+     58|  expect(first.body).toMatchObject({id:'topic',revision:1,parentId:null…
+     59|  expect(await machine(transport,'move',input,grant.secret)).toEqual(fi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  server/convenience/structure-final.test.ts > absolute rendered-link lineage and replay have actual HTTP/MCP parity
+AssertionError: expected { topic: 1 } to deeply equal { topic: 1, linked: 1 }
+
+- Expected
++ Received
+
+  {
+-   "linked": 1,
+    "topic": 1,
+  }
+
+ ❯ server/convenience/structure-final.test.ts:97:41
+     95|   const input={pageId:'topic',version:1,parentId:null,mutationId:rando…
+     96|   const first=await machine(transport,'duplicate',input,grant.secret);…
+     97|   expect(first.body.dependencyVersions).toEqual(kind==='external'?{top…
+       |                                         ^
+     98|   expect(await machine(transport,'duplicate',input,grant.secret)).toEq…
+     99|  }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯

@@ -82,7 +82,7 @@ try {
         {
           ...versions[0],
           content:
-            `[검토 절차](/?app=1&space=${f.workspaceId}&document=review)\n\n` +
+            `[검토 절차](http://127.0.0.1:5197/?app=1&space=${f.workspaceId}&document=review)\n\n` +
             "## 문서 구조\n\n문서는 안정적인 ID로 연결됩니다. 상위 위치와 표시 순서를 바꿔도 기존 링크를 유지합니다.\n\n## 변경 절차\n\n1. 대상 상위 문서와 배치 위치를 선택합니다.\n2. 이동 이유를 입력합니다.\n3. 현재 권한과 버전을 확인한 뒤 위치를 저장합니다.",
         },
       ]);

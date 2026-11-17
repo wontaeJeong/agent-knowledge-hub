@@ -1,0 +1,106 @@
+[1/1] server/convenience/structure-final.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure-final.test.ts (10 tests | 4 failed) 6456ms
+   × actual issued HTTP before-neighbor token executes and replays unchanged 603ms
+   × actual issued MCP before-neighbor token executes and replays unchanged 324ms
+   × issued placement rejects queued neighbor changes without partial move 203ms
+   × absolute rendered-link lineage and replay have actual HTTP/MCP parity 492ms
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 6 passed (10)
+     Errors  1 error
+   Start at  02:45:29
+   Duration  6.71s (tests 97%, import 2%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure-final.test.ts > actual issued HTTP before-neighbor token executes and replays unchanged
+AssertionError: expected 409 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 409
+
+ ❯ server/convenience/structure-final.test.ts:57:86
+     55| test.each(['HTTP','MCP'])('actual issued %s before-neighbor token exec…
+     56|  const input=await placement(),grant=await issue('move',input);
+     57|  const first=await machine(transport,'move',input,grant.secret);expect…
+       |                                                                                      ^
+     58|  expect(first.body).toMatchObject({id:'topic',revision:1,parentId:null…
+     59|  expect(await machine(transport,'move',input,grant.secret)).toEqual(fi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  server/convenience/structure-final.test.ts > actual issued MCP before-neighbor token executes and replays unchanged
+AssertionError: expected 403 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 403
+
+ ❯ server/convenience/structure-final.test.ts:57:86
+     55| test.each(['HTTP','MCP'])('actual issued %s before-neighbor token exec…
+     56|  const input=await placement(),grant=await issue('move',input);
+     57|  const first=await machine(transport,'move',input,grant.secret);expect…
+       |                                                                                      ^
+     58|  expect(first.body).toMatchObject({id:'topic',revision:1,parentId:null…
+     59|  expect(await machine(transport,'move',input,grant.secret)).toEqual(fi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  server/convenience/structure-final.test.ts > issued placement rejects queued neighbor changes without partial move
+error: new row for relation "workflow_document_order" violates check constraint "workflow_document_order_position_check"
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ server/convenience/structure-final.test.ts:72:26
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  server/convenience/structure-final.test.ts > absolute rendered-link lineage and replay have actual HTTP/MCP parity
+AssertionError: expected { topic: 1 } to deeply equal { topic: 1, linked: 1 }
+
+- Expected
++ Received
+
+  {
+-   "linked": 1,
+    "topic": 1,
+  }
+
+ ❯ server/convenience/structure-final.test.ts:97:41
+     95|   const input={pageId:'topic',version:1,parentId:null,mutationId:rando…
+     96|   const first=await machine(transport,'duplicate',input,grant.secret);…
+     97|   expect(first.body.dependencyVersions).toEqual(kind==='external'?{top…
+       |                                         ^
+     98|   expect(await machine(transport,'duplicate',input,grant.secret)).toEq…
+     99|  }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: fetch failed
+This error originated in "server/convenience/structure-final.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The last test to run before this error was "issued placement rejects queued neighbor changes without partial move". This means either:
+- the error was thrown while Vitest was running this test, or
+- the error was thrown after the test completed, and this was the most recent test at that point.
+Caused by: SocketError: other side closed
+ ❯ Socket.onHttpSocketEnd node:internal/deps/undici/undici:7878:26
+ ❯ Socket.emit node:events:526:24
+ ❯ endReadableNT node:internal/streams/readable:1783:12
+ ❯ process.processTicksAndRejections node:internal/process/task_queues:90:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'UND_ERR_SOCKET', socket: { localAddress: '127.0.0.1', localPort: 62698, remoteAddress: '127.0.0.1', remotePort: 62697, remoteFamily: 'IPv4', timeout: undefined, bytesWritten: 1111, bytesRead: 771 } }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯

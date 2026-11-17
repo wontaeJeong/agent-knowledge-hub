@@ -1,0 +1,19 @@
+[1/2] server/agents/mcp.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  02:49:11
+   Duration  606ms (tests 74%, import 20%, transform 6%)
+
+[2/2] server/runtime/search-mcp.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  02:49:11
+   Duration  934ms (tests 81%, import 14%, transform 4%)
