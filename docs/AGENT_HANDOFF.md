@@ -1056,3 +1056,5 @@ Final combined F1/F2 fix/evidence commit: `4a9e24c286fea3d1654bf904a7ebe4cbb03ca
 - Chromium158 1440×1000/390×844 light/dark 네 조건에서 실제 HTTP/PG 경로·키보드·검색4건·거부된 Clipboard·최신삭제/고정위치·현재와 고정 원본 ACL 철회·가로넘침 없음·pageerrors[]를 확인했다. [UI 근거](ui-validation/2026-11-18-document-reader/README.md) PNG16개와 source manifest 참조. 자기 DB/profile0,4399/5199닫힘,부모PG생존.
 - North Star 연결: 권한 내 Query/검토/버전 고정 소비·근거 위치 재사용을 보강한다. 기존 지식을 자동 수정/발행하거나 의미 품질을 주장하지 않는다. 자료의 위치 안정성과 현재 ACL/삭제 안전을 합성 회귀로 반증했다. 실제회사IdP/운영·실기기/전체접근성·모델 의미 품질/업무 성과는 미검증, 기존 번들 크기 경고 유지. 검토 시점/공식성의 독립 데이터가 없으면 미확인이다. 독립 task/whole-branch review와 정확headCI는 controller 후속이며 병합하지 않았다.
 - 상세 명령·판단·실패·보고서는 `.superpowers/sdd/2026-11-16-essential-convenience/task-9-report.md`, 변경 파일/해시는 UI source manifest를 따른다.
+
+- C9 implementation/evidence commit `4c67586d11738a40ecbe23ddb6c008a9abe95011`, [draft PR #75](https://github.com/wontaeJeong/agent-knowledge-hub/pull/75). Final source fingerprint `41b26860c702219d80d27ef603b884e579d546dfdedd1a43323149aab826dce6`; manifest336production/3harness/4regression/18artifacts(16PNG+2JSON)/26logs 검증. 이 후속 변경은 commit/PR 기록만 추가하며 제품·테스트·캡처 바이트는 동일하다. 독립 리뷰/정확headCI 대기, 병합하지 않음.

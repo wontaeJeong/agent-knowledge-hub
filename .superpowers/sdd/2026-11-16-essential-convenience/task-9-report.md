@@ -75,3 +75,10 @@ Cleanup: only own processes on4399/5199 were verified and terminated; runtime dr
 ## Packaging
 
 Manifest verification before commit: **336 production / 3 harness / 4 regression / 18 artifacts (16 PNG + 2 JSON)** hashes verified. Execution logs are included; final count updated during packaging. Final commit/PR metadata follows. No production code will change during packaging; source manifest binds exact final production bytes to runtime/frontend starts and browser results.
+
+Implementation/evidence commit: `4c67586d11738a40ecbe23ddb6c008a9abe95011`.
+Draft PR: https://github.com/wontaeJeong/agent-knowledge-hub/pull/75 (open, draft, unmerged; base remains79a90cc).
+Final source fingerprint: `41b26860c702219d80d27ef603b884e579d546dfdedd1a43323149aab826dce6`.
+Runtime started `2026-11-17T20:51:47.188Z`; frontend started `2026-11-17T20:51:40.386Z`.
+Final manifest: **336 production / 3 harness / 4 regression / 18 artifacts / 26 logs**, all SHA-256 verified. Artifact count is16 PNG plus browser/cleanup JSON; the earlier progress count20 was a summation error corrected in MISTAKE_LOG and controller messages.
+This metadata-only follow-up records commit/PR evidence; production, tests, harness, logs and artifacts are unchanged. Root checked clean on main. Independent reviews and final-head CI remain controller work; do not treat draft creation as review acceptance.
