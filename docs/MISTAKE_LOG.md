@@ -1,5 +1,23 @@
 # 실수와 교훈 기록
 
+### C8 round1 controller correction: preview receipt is a write
+
+The intermediate final-refresh fix repeated an idempotent preview INSERT. Changed-summary-between-refresh actual-PG RED1/10passed demonstrated two receipts. No authorization bypass was shown because proposal recomputed the plan, but intermediate persistence was unnecessary. Final code keeps generic run unchanged, performs a pure first projection, then one current canonical projection/receipt insert. GREEN11 restore tests prove exactly one fresh receipt and actual approve/publish, with existing revocation assertions. Final affected6files50 and fullcheck494/48/16/41/251/types/build/smoke pass; current single-write capture supersedes intermediate runs. No business mutation replay.
+
+
+
+### 2026-11-18 C8 round1 final-release boundary
+
+- Final self-review reproduced async identity-refresh revocation returning stale induced-ID metadata in restore preview and exact review detail, each RED2. Only idempotent preview and read-only exact-detail projections now repeat under current canonical authorization after refresh; business mutations are never replayed. Six affected native files49 and final fullcheck494/48/16/41/251/types/build/smoke pass. The preceding eight files134 are carried separately, not claimed as one current183 run. Fresh final four-config capture supersedes earlier round1 screenshots/source hashes; original intermediate evidence remains preserved.
+
+### 2026-11-18 C8 task review round1: published identity and restore-plan preservation
+
+- I1 review identified a real defect: writing linkReferences into existing versions.data changes domain baseSnapshots and input-envelope fingerprints. The initial report understated this as rereview cost; already approved work can conflict irreparably and prior answers disappear from discovery/refiling. Actual PG RED2 reproduced changed JSON/hash and empty citation rank. Rebuild now changes only derived index entries; GREEN4 proves byte/hash and approval identity preservation, successful pending publication and prior answer refiling/discovery, alongside migration/restart/drift checks.
+- I2 review identified content-only restore mismatch: historical linked body normalizes relations to target while plan.next kept current empty relations. Actual PG relative/trusted-absolute RED2 reproduced the incorrect preview. Shared normalization now occurs before preview/dependency/plan hashes; selected fields stay unchanged and induced links are explicit. Original8 metadata/selection tests plus2 linked restore tests pass, including revoked target before preview/propose and after approval before publish.
+- A reviewer DTO regression exposed an additional omission: the initial disclosure was stored in the batch but list/exact response projections omitted it. RED2; the first attempted fix covered list only, so the exact-detail assertion still failed (c8-r1-review-dto-green.log is FAILED, not GREEN). Safe induced-ID projections now reach both authorized endpoints; green2 passes10. UI display RED1/2passed ->3passed. No equality guard weakened and no hidden IDs/titles synthesized.
+- Final c8-r1-final-check and c8-r1-final-native exit0:494/48/16/41/251/types/build/smoke and14files183. Four fresh browser configurations pass20PNG with actual canonical HTTP/PG restore preview/reviewer approval/publication and existing C8 flows. Earlier logs remain historical and are not counted as current. Production/OS IME/quality acceptance and existing chunk warning remain; controller rereview pending.
+
+
 
 ### 2026-11-18: C8 references, final authorization and answer clock
 

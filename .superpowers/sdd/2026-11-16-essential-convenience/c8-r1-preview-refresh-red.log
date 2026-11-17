@@ -1,0 +1,188 @@
+[1/1] server/workflows/versions/publication-integration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/workflows/versions/publication-integration.test.ts (10 tests | 2 failed) 4507ms
+   × content-only linked restore keeps preview, dependency and approved plan equal: relative 599ms
+   × content-only linked restore keeps preview, dependency and approved plan equal: trusted-absolute 646ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 8 passed (10)
+   Start at  04:34:02
+   Duration  4.72s (tests 97%, import 2%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/workflows/versions/publication-integration.test.ts > content-only linked restore keeps preview, dependency and approved plan equal: relative
+AssertionError: promise resolved "{ …(5) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "conflicts": [],
++   "expiresInSeconds": 900,
++   "items": [
++     {
++       "content": "[Target](/?app=1&space=d569ca24-13dd-4e35-8dfc-b018eefc7b1b&document=target)",
++       "currentVersion": 3,
++       "fields": [
++         "content",
++       ],
++       "metadata": {
++         "attribution": {
++           "at": "2026-11-17T19:34:06.062Z",
++           "author": "reviewer",
++           "batchId": "bf96cc11-9698-459e-ae91-c01bdc9b0c6c",
++           "producer": {
++             "kind": "user-submission",
++             "principalId": "editor",
++           },
++           "proposedBy": "editor",
++           "publishedBy": "reviewer",
++           "responsibleUserId": "editor",
++         },
++         "bodyHash": "65ad95202d342cb681384de231c34fafdae0e78418b5cd09c61591c0eea07ca0",
++         "category": "기술 설계",
++         "environment": null,
++         "lifecycle": "active",
++         "number": 3,
++         "pageId": "topic",
++         "parentId": null,
++         "properties": {},
++         "relations": [
++           "target",
++         ],
++         "settingsRevision": 0,
++         "sources": [
++           {
++             "hash": "7e66222d432639c6bc7fe5e8cfa0a95fff3358857a6c68d757ab8da6062e4e2d",
++             "id": "source-a",
++             "revision": 0,
++           },
++         ],
++         "summary": "시험 주제",
++         "tags": [],
++         "title": "주제",
++         "versions": {
++           "target": 1,
++         },
++         "workflowData": {},
++       },
++       "pageId": "topic",
++       "relationChanges": {
++         "before": [],
++         "effective": [
++           "target",
++         ],
++         "induced": [
++           "target",
++         ],
++         "selected": [],
++       },
++       "targetVersion": 2,
++     },
++   ],
++   "previewHash": "2dcf6cdd32b97716a9bd4ae7c8ba5af3498493623928b5cc2c452da2071d4f95",
++   "requiresIndependentReview": true,
+  }
+
+ ❯ server/workflows/versions/publication-integration.test.ts:142:132
+    140|    if(++refreshes===2)await f.pool.query("DELETE FROM resource_readers…
+    141|   }}};
+    142|   await expect(service.previewRestore(refreshing,{batchId:linked.id,pa…
+       |                                                                                                                                    ^
+    143|   await f.pool.query("INSERT INTO resource_readers VALUES($1,'page','t…
+    144|   await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  server/workflows/versions/publication-integration.test.ts > content-only linked restore keeps preview, dependency and approved plan equal: trusted-absolute
+AssertionError: promise resolved "{ …(5) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "conflicts": [],
++   "expiresInSeconds": 900,
++   "items": [
++     {
++       "content": "[Target](https://wiki.example/?app=1&space=ea5bb7bf-9d80-48fa-8223-cab74ee9fcc3&document=target)",
++       "currentVersion": 3,
++       "fields": [
++         "content",
++       ],
++       "metadata": {
++         "attribution": {
++           "at": "2026-11-17T19:34:06.687Z",
++           "author": "reviewer",
++           "batchId": "a6ff194f-bff7-484d-9fe3-a31958e57b8d",
++           "producer": {
++             "kind": "user-submission",
++             "principalId": "editor",
++           },
++           "proposedBy": "editor",
++           "publishedBy": "reviewer",
++           "responsibleUserId": "editor",
++         },
++         "bodyHash": "65ad95202d342cb681384de231c34fafdae0e78418b5cd09c61591c0eea07ca0",
++         "category": "기술 설계",
++         "environment": null,
++         "lifecycle": "active",
++         "number": 3,
++         "pageId": "topic",
++         "parentId": null,
++         "properties": {},
++         "relations": [
++           "target",
++         ],
++         "settingsRevision": 0,
++         "sources": [
++           {
++             "hash": "7e66222d432639c6bc7fe5e8cfa0a95fff3358857a6c68d757ab8da6062e4e2d",
++             "id": "source-a",
++             "revision": 0,
++           },
++         ],
++         "summary": "시험 주제",
++         "tags": [],
++         "title": "주제",
++         "versions": {
++           "target": 1,
++         },
++         "workflowData": {},
++       },
++       "pageId": "topic",
++       "relationChanges": {
++         "before": [],
++         "effective": [
++           "target",
++         ],
++         "induced": [
++           "target",
++         ],
++         "selected": [],
++       },
++       "targetVersion": 2,
++     },
++   ],
++   "previewHash": "cd8ba5612164e964346ee753013df48082d8c48ef2c6aca09c28b858ed2d44af",
++   "requiresIndependentReview": true,
+  }
+
+ ❯ server/workflows/versions/publication-integration.test.ts:142:132
+    140|    if(++refreshes===2)await f.pool.query("DELETE FROM resource_readers…
+    141|   }}};
+    142|   await expect(service.previewRestore(refreshing,{batchId:linked.id,pa…
+       |                                                                                                                                    ^
+    143|   await f.pool.query("INSERT INTO resource_readers VALUES($1,'page','t…
+    144|   await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

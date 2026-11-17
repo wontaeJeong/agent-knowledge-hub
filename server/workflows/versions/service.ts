@@ -1,3 +1,4 @@
+import {effectiveReferenceIds,referenceOrigin} from "../references";
 import {recordDocumentVisit} from "../activity";
 import {randomUUID} from "node:crypto";
 import type {Pool,PoolClient} from "pg";
@@ -38,7 +39,8 @@ function closure(batch:RuntimeBatch,selected:Set<string>,state:Awaited<ReturnTyp
 }
 
 export class VersionService {
- constructor(readonly pool:Pool,readonly authorize:VersionAuthorizer){}
+ readonly origin?:string;
+ constructor(readonly pool:Pool,readonly authorize:VersionAuthorizer,origin?:string){this.origin=referenceOrigin(origin);}
  private async permitted(db:PoolClient,ctx:Context,action:Action,resource?:{kind:"page"|"source";id:string}){await ctx.authorization?.assertSession(db);await authorizeActionDb(db,ctx,action,resource);await this.authorize(db,ctx,action,resource);}
  private async run<T>(ctx:Context,action:Action,work:(db:PoolClient)=>Promise<T>){await ctx.authorization?.revalidate();const result=await transaction(this.pool,ctx.workspaceId,async db=>{await this.permitted(db,ctx,action);return work(db);});await ctx.authorization?.revalidate();return result;}
  private async human(db:PoolClient,ctx:Context){if(ctx.credentialId||!(await db.query("SELECT 1 FROM access_principals WHERE id=$1 AND active AND kind='human'",[ctx.principalId])).rowCount)throw Error("FORBIDDEN");}
@@ -116,7 +118,7 @@ export class VersionService {
    await db.query("INSERT INTO versions_decisions(id,workspace_id,original_batch_id,original_hash,actor_id,decision,selected_page_ids,reasons,attribution,derived_batch_id,derived_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",[decisionId,ctx.workspaceId,d.batchId,d.expectedHash,ctx.principalId,d.decision,d.pageIds,parsed.reasons,ready.attribution,created?.id??null,derivedHash]);
    await db.query("UPDATE batches SET data=jsonb_set(data,'{status}','\"rejected\"') WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,d.batchId]);await db.query("DELETE FROM approvals WHERE workspace_id=$1 AND batch_id=$2",[ctx.workspaceId,d.batchId]);await audit(db,ctx,"versions.partial-decision",decisionId);result={batchId:created?.id??null,hash:derivedHash,decisionId};
   };
-  if(!ready.updates.length)await transaction(this.pool,ctx.workspaceId,db=>write(db));else {const options:TrustedProposalOptions={mode:ready.batch.mode,versionMetadataPlans:ready.plans,dependencyIds:ready.batch.contextDependencyIds,inputEnvelope:ready.batch.inputEnvelope,producer:ready.attribution.producer as Producer,onBeforeCreate:retire,onCreated:write};await propose(this.pool,ctx,ready.updates,ready.batch.snapshots.map(s=>s.id),options);}
+  if(!ready.updates.length)await transaction(this.pool,ctx.workspaceId,db=>write(db));else {const options:TrustedProposalOptions={referenceOrigin:this.origin,mode:ready.batch.mode,versionMetadataPlans:ready.plans,dependencyIds:ready.batch.contextDependencyIds,inputEnvelope:ready.batch.inputEnvelope,producer:ready.attribution.producer as Producer,onBeforeCreate:retire,onCreated:write};await propose(this.pool,ctx,ready.updates,ready.batch.snapshots.map(s=>s.id),options);}
   return {...result!,status:result?.batchId?"pending":"rejected",originalStatus:"rejected",requiresIndependentReview:!!result?.batchId};
  }
 
@@ -131,17 +133,28 @@ export class VersionService {
    for(const field of fields.filter(f=>!["content","sources"].includes(f))){const k=field as Exclude<Field,"content"|"sources">,override=merged[k as keyof typeof merged];if(override!==undefined)(next as unknown as Record<string,unknown>)[k]=override;else if(old.metadata.known)(next as unknown as Record<string,unknown>)[k]=old.metadata.snapshot[k as keyof MetadataSnapshot];else conflicts.push({pageId:p.id,field,code:"METADATA_UNKNOWN"});}
    const sourceIds=[...new Set([...current(p).sourceIds,...(old.metadata.known?old.metadata.snapshot.sources.map(s=>s.id):[]),...(p.versions.find(v=>v.number===target)!.sourceIds),...versionProvenance(current(p)).sourceIds])];for(const sourceId of sourceIds)await requireRead(db,ctx,"source",sourceId);
    const content=fields.includes("content")?(merged.content??old.content):current(p).content;
+   const selectedRelations=[...next.relations];
+   next.relations=effectiveReferenceIds(content,ctx.workspaceId,selectedRelations,this.origin);
+   const induced=next.relations.filter(id=>!selectedRelations.includes(id));
+   // Never return an induced target (or accept its copied body) without current canonical access.
+   for(const targetId of next.relations){const targetPage=await this.page(db,ctx,targetId);next.versions[targetId]=current(targetPage).number;}
+   const relationChanges={before:base.relations,selected:selectedRelations,effective:next.relations,induced};
    const policy=(await db.query("SELECT policy_version FROM access_spaces WHERE workspace_id=$1",[ctx.workspaceId])).rows[0];
-   const plan:RestorePlan={pageId:p.id,targetVersion:target,baseVersion:current(p).number,settingsRevision:base.settingsRevision,policyVersion:policy.policy_version,fields,next,currentHash:fingerprint(base),content,sourceIds,dependencies:[...new Set([...Object.keys(base.versions),...next.relations,...versionProvenance(current(p)).pageIds])].filter(id=>id!==p.id)};
+   const plan:RestorePlan={pageId:p.id,targetVersion:target,baseVersion:current(p).number,settingsRevision:base.settingsRevision,policyVersion:policy.policy_version,fields,next,relationChanges,currentHash:fingerprint(base),content,sourceIds,dependencies:[...new Set([...Object.keys(base.versions),...next.relations,...versionProvenance(current(p)).pageIds])].filter(id=>id!==p.id)};
    await validatePlannedMetadata(db,ctx,plan);plans.push(plan);
   }
   if(new Set(plans.map(p=>p.pageId)).size!==plans.length)throw Error("VALIDATION_FAILED");
   return {batchId:input.batchId,selection:input,plans,conflicts,scope:"current-permissions"};
  }
- async previewRestore(ctx:Context,input:unknown){const d=restoreInput.parse(input);return this.run(ctx,"changeset.propose",async db=>{
+ async previewRestore(ctx:Context,input:unknown){const d=restoreInput.parse(input);
+  // First authorize/project without persistence across the external identity refresh.
+  await this.run(ctx,"changeset.propose",db=>this.restorePlan(db,ctx,d));
+  // One final current projection and one receipt write share the canonical gate.
+  return transaction(this.pool,ctx.workspaceId,async db=>{
+  await this.permitted(db,ctx,"changeset.propose");
   const payload=await this.restorePlan(db,ctx,d),previewHash=fingerprint({principalId:ctx.principalId,...payload});
   await db.query("INSERT INTO version_restore_previews(workspace_id,principal_id,hash,payload,expires_at) VALUES($1,$2,$3,$4,clock_timestamp()+interval '15 minutes') ON CONFLICT DO NOTHING",[ctx.workspaceId,ctx.principalId,previewHash,payload]);
-  return {previewHash,conflicts:payload.conflicts,items:payload.plans.map(p=>({pageId:p.pageId,targetVersion:p.targetVersion,currentVersion:p.baseVersion,fields:p.fields,metadata:p.next,content:p.content})),requiresIndependentReview:true,expiresInSeconds:900};
+  return {previewHash,conflicts:payload.conflicts,items:payload.plans.map(p=>({pageId:p.pageId,targetVersion:p.targetVersion,currentVersion:p.baseVersion,fields:p.fields,metadata:p.next,content:p.content,relationChanges:p.relationChanges})),requiresIndependentReview:true,expiresInSeconds:900};
  });}
  async proposeRestoreSelection(ctx:Context,input:unknown){const d=z.object({previewHash:hash,reason:why}).strict().parse(input);
   const prepared=await this.run(ctx,"changeset.propose",async db=>{
@@ -152,7 +165,7 @@ export class VersionService {
    return {payload:current,updates,sourceIds,dependencies,envelope:await captureEnvelope(db,ctx,state,[...new Set([...current.plans.map(p=>p.pageId),...dependencies])],sourceIds),stateHash:fingerprint(state)};
   });
   let result:{batchId:string;hash:string}|undefined;
-  const options:TrustedProposalOptions={expectedStateHash:prepared.stateHash,dependencyIds:prepared.dependencies,inputEnvelope:prepared.envelope,producer:{kind:"structural"},versionMetadataPlans:prepared.payload.plans,onCreated:async(db,created)=>{
+  const options:TrustedProposalOptions={referenceOrigin:this.origin,expectedStateHash:prepared.stateHash,dependencyIds:prepared.dependencies,inputEnvelope:prepared.envelope,producer:{kind:"structural"},versionMetadataPlans:prepared.payload.plans,onCreated:async(db,created)=>{
    for(const plan of prepared.payload.plans)await validatePlannedMetadata(db,ctx,plan);
    const r=(await db.query("SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,created.id])).rows[0];
    const data={...r.data,title:d.reason};

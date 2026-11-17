@@ -1,0 +1,122 @@
+[1/1] server/workflows/versions/publication-integration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/workflows/versions/publication-integration.test.ts (10 tests | 2 failed) 5731ms
+   × content-only linked restore keeps preview, dependency and approved plan equal: relative 903ms
+   × content-only linked restore keeps preview, dependency and approved plan equal: trusted-absolute 926ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 8 passed (10)
+   Start at  04:34:40
+   Duration  5.92s (tests 98%, import 1%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/workflows/versions/publication-integration.test.ts > content-only linked restore keeps preview, dependency and approved plan equal: relative
+AssertionError: promise resolved "{ …(7) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "hash": "65763b515a0da4763f1cf19331d7c7653e1d6fe9e441a6be1cf401088f594552",
++   "id": "6b14824e-0f8a-45b1-a373-b66a0347951b",
++   "proposedBy": "editor",
++   "readOnly": false,
++   "restoreRelationChanges": [
++     {
++       "pageId": "topic",
++       "relationChanges": {
++         "induced": [
++           "target",
++         ],
++       },
++     },
++   ],
++   "status": "pending",
++   "updates": [
++     {
++       "baseVersion": 3,
++       "content": "[Target](/?app=1&space=8cd5dadb-8787-45c4-84c7-507b13b481a8&document=target)",
++       "facts": [],
++       "id": "topic",
++       "links": [
++         "target",
++       ],
++       "scope": "team",
++       "sourceIds": [
++         "source-a",
++       ],
++       "summary": "시험 주제",
++       "title": "주제",
++     },
++   ],
+  }
+
+ ❯ server/workflows/versions/publication-integration.test.ts:157:73
+    155|    if(++reviewerRefreshes===2)await f.pool.query("DELETE FROM resource…
+    156|   }}};
+    157|   await expect(f.runtime.changeset(refreshingReviewer,restored.batchId…
+       |                                                                         ^
+    158|   await f.pool.query("INSERT INTO resource_readers VALUES($1,'page','t…
+    159|   await f.runtime.core.approve(f.ctx,restored.batchId,restored.hash);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  server/workflows/versions/publication-integration.test.ts > content-only linked restore keeps preview, dependency and approved plan equal: trusted-absolute
+AssertionError: promise resolved "{ …(7) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "hash": "4139fac9329f04192eaa90e66afbe3b95e538be35e23a914bef22cda75b8eb14",
++   "id": "634afa62-b263-46a0-bc90-c141128a1f47",
++   "proposedBy": "editor",
++   "readOnly": false,
++   "restoreRelationChanges": [
++     {
++       "pageId": "topic",
++       "relationChanges": {
++         "induced": [
++           "target",
++         ],
++       },
++     },
++   ],
++   "status": "pending",
++   "updates": [
++     {
++       "baseVersion": 3,
++       "content": "[Target](https://wiki.example/?app=1&space=4e2c8627-2c0e-4475-a40f-f03263de106d&document=target)",
++       "facts": [],
++       "id": "topic",
++       "links": [
++         "target",
++       ],
++       "scope": "team",
++       "sourceIds": [
++         "source-a",
++       ],
++       "summary": "시험 주제",
++       "title": "주제",
++     },
++   ],
+  }
+
+ ❯ server/workflows/versions/publication-integration.test.ts:157:73
+    155|    if(++reviewerRefreshes===2)await f.pool.query("DELETE FROM resource…
+    156|   }}};
+    157|   await expect(f.runtime.changeset(refreshingReviewer,restored.batchId…
+       |                                                                         ^
+    158|   await f.pool.query("INSERT INTO resource_readers VALUES($1,'page','t…
+    159|   await f.runtime.core.approve(f.ctx,restored.batchId,restored.hash);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

@@ -1,5 +1,24 @@
 # 에이전트 인계
 
+## C8 round1 authoritative final preview persistence
+
+Controller-requested changed-data PG RED found two intermediate preview receipts. Final VersionService.run remains unchanged: a pure projection crosses identity refresh, then one final current authorized projection writes one returned receipt. Exact reviewer detail reprojects read-only. Current fullcheck494/48/16/41/251/types/build/smoke and native6files50 pass; preceding8files134 explicitly carried. Earlier replay/upsert wording is superseded; no business mutation replays. Current single-write browser/evidence and full report are authoritative; controller rereview/CI/integration pending.
+
+
+
+## C8 round1 final-release follow-up
+
+Final self-review closed actual-PG async identity-refresh races in restore preview and exact reviewer detail. Only idempotent preview/read DTOs repeat under current authorization; no publication mutation replay. Final fullcheck494/48/16/41/251/types/build/smoke and current native6files49 pass. Preceding8files134 are carried separately. Current final browser/manifest supersedes intermediate round1; report records both. Controller rereview/CI/integration pending.
+
+## 2026-11-18 C8 round1: preserve published identity and reviewed restore relations
+
+- FIX_BASE add8b4a3eadb9a506200c612d5beade1f93e4868; task review found0Critical/2Important/1pre-existing Minor. I1/I2 corrected locally; controller rereview/CI/integration pending.
+- I1: legacy rebuild writes only disposable version-keyed published_page_links. It no longer enriches existing versions.data. Existing version bytes/hash, approved proposals, answer envelopes/discovery/refiling remain valid; new versions still store structured refs at publication. Current-version/refs equality, shared transaction/erasure gates, ACL/source checks remain. The earlier statement that backfill merely needs rereview is withdrawn.
+- I2: selected body and selected relation metadata use shared effectiveReferenceIds before dependency capture/hash. Restore plan preserves selected fields and records before/selected/effective/induced sets. Current target/source/ancestor access is checked before returning the preview; target versions and envelope dependencies are captured. Exact plan/draft/hash guards remain. Authorized requester preview and reviewer list/exact detail show induced IDs; publication rechecks access. Trusted configured origin propagates into VersionService; Host remains untrusted.
+- Current fullcheck494frontend/48Node/16import/41evaluation/251criteria/types/build/smoke and native14files183 all exit0. Fresh four-config browser20PNG includes actual content-only restore preview, independent reviewer disclosure and UI approval/publication plus prior C8 link/rename/revoke flow. Earlier302 native is prior-head evidence, not this run's count. See C8 evidence and task-8-report round1 appendix.
+- EDT-001 whole export roundtrip, KNO-007 authority precedence and KNO-010 merged-document redirects/reason are cross-feature/unverified by C8; their criteria and C12 operational acceptance tracking remain unchanged. No OS IME/production IdP/load/model-quality claim. Existing bundle warning and scan/double-read cost remain.
+
+
 
 ## 2026-11-18 #49 C8: internal links and published backlinks
 

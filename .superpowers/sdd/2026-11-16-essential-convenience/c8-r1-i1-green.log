@@ -1,0 +1,10 @@
+[1/1] server/convenience/links-migration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  04:21:30
+   Duration  1.43s (tests 95%, import 3%, transform 2%)
+

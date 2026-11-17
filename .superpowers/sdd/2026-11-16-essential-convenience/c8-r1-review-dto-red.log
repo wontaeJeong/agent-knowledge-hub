@@ -1,0 +1,45 @@
+[1/1] server/workflows/versions/publication-integration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/workflows/versions/publication-integration.test.ts (10 tests | 2 failed) 4592ms
+   × content-only linked restore keeps preview, dependency and approved plan equal: relative 635ms
+   × content-only linked restore keeps preview, dependency and approved plan equal: trusted-absolute 617ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 8 passed (10)
+   Start at  04:25:06
+   Duration  4.76s (tests 98%, import 2%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/workflows/versions/publication-integration.test.ts > content-only linked restore keeps preview, dependency and approved plan equal: relative
+ FAIL  server/workflows/versions/publication-integration.test.ts > content-only linked restore keeps preview, dependency and approved plan equal: trusted-absolute
+AssertionError: expected undefined to deeply equal [ { pageId: 'topic', …(1) } ]
+
+- Expected:
+[
+  {
+    "pageId": "topic",
+    "relationChanges": {
+      "induced": [
+        "target",
+      ],
+    },
+  },
+]
+
++ Received:
+undefined
+
+ ❯ server/workflows/versions/publication-integration.test.ts:142:86
+    140|   expect(proposed.updates[0].links).toEqual(['target']);expect(propose…
+    141|   expect(proposed.versionMetadataChanges[0].relationChanges.induced).t…
+    142|   expect((await f.runtime.changeset(f.ctx,restored.batchId)).restoreRe…
+       |                                                                                      ^
+    143|   await f.runtime.core.approve(f.ctx,restored.batchId,restored.hash);a…
+    144|   const final=await service.version(f.reader,'topic',4);expect(final.c…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+

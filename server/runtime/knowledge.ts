@@ -283,12 +283,14 @@ export class RuntimeService {
   async changeset(ctx: Context, id: string) {
     if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) throw Error("NOT_FOUND");
     await ctx.authorization?.revalidate();
-    const result = await transaction(this.pool, ctx.workspaceId, async (db) => {
+    const read = () => transaction(this.pool, ctx.workspaceId, async (db) => {
       await ctx.authorization?.assertSession(db);
       return changesetDetailDb(db, ctx, id);
     });
+    await read();
     await ctx.authorization?.revalidate();
-    return result;
+    // The final asynchronous identity refresh must not release an older ACL projection.
+    return read();
   }
   async changesets(ctx: Context) {
     return transaction(this.pool, ctx.workspaceId, (db) =>
@@ -329,6 +331,11 @@ export class RuntimeService {
         hash: r.hash,
         status: r.data.status,
         updates: r.data.updates,
+        ...(Array.isArray(r.data.versionMetadataChanges) ? {
+          restoreRelationChanges: r.data.versionMetadataChanges
+            .filter((p:{relationChanges?:{induced:string[]}}) => p.relationChanges?.induced.length)
+            .map((p:{pageId:string;relationChanges:{induced:string[]}}) => ({pageId:p.pageId,relationChanges:{induced:p.relationChanges.induced}})),
+        } : {}),
         triage: r.triage ?? "untriaged",
         proposedBy: r.data.importAuthorId ?? r.data.proposedBy,
         ...(r.data.reviewFeedback

@@ -114,3 +114,71 @@ test('trusted projection cannot substitute an unrelated draft and claimed missin
   await expect(f.runtime.core.approve(f.ctx,b.id,b.hash)).rejects.toThrow('APPROVAL_STALE');
  }finally{await f.pool.end();}
 });
+
+
+test.each(["relative","trusted-absolute"])("content-only linked restore keeps preview, dependency and approved plan equal: %s",async kind=>{
+ const f=await setup();try{
+  const {versions,...metadata}=page;
+  await f.pool.query("INSERT INTO resources VALUES($1,'page','target')",[f.workspaceId]);
+  await f.pool.query("INSERT INTO pages(workspace_id,id,data) VALUES($1,'target',$2)",[f.workspaceId,{...metadata,id:'target',title:'Target'}]);
+  await f.pool.query("INSERT INTO versions VALUES($1,'target',1,$2)",[f.workspaceId,versions[0]]);
+  await f.pool.query("INSERT INTO resource_readers SELECT workspace_id,kind,'target',principal_id FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='topic'",[f.workspaceId]);
+  const origin='https://wiki.example',wf=new WorkflowService(f.pool,f.runtime,authorizeInTransaction,origin);
+  const content=`[Target](${kind==='relative'?'':origin}/?app=1&space=${f.workspaceId}&document=target)`;
+  const linked=await wf.proposeEdit(f.editor,'topic',{baseVersion:1,content,reason:'linked version'});
+  await f.runtime.core.approve(f.ctx,linked.id,linked.hash);await f.runtime.core.publish(f.ctx,linked.id,linked.hash,'linked');
+  const removed=await wf.proposeEdit(f.editor,'topic',{baseVersion:2,content:'link removed',reason:'remove link'});
+  await f.runtime.core.approve(f.ctx,removed.id,removed.hash);await f.runtime.core.publish(f.ctx,removed.id,removed.hash,'removed');
+  const service=new VersionService(f.pool,authorizeInTransaction,origin);
+  const preview=await service.previewRestore(f.editor,{batchId:linked.id,pages:[{pageId:'topic',fields:['content'],merged:{content}}]});
+  expect(preview.conflicts).toEqual([]);
+  expect(preview.items[0].fields).toEqual(['content']);
+  expect(preview.items[0].metadata.relations).toEqual(['target']);
+  expect(preview.items[0]).toMatchObject({relationChanges:{before:[],selected:[],effective:['target'],induced:['target']}});
+  let refreshes=0;
+  const refreshing={...f.editor,authorization:{sessionId:'restore-final-refresh',assertSession:async()=>{},revalidate:async()=>{
+   if(++refreshes===2)await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='target' AND principal_id='editor'",[f.workspaceId]);
+  }}};
+  await expect(service.previewRestore(refreshing,{batchId:linked.id,pages:[{pageId:'topic',fields:['content'],merged:{content}}]})).rejects.toThrow();
+  await f.pool.query("INSERT INTO resource_readers VALUES($1,'page','target','editor')",[f.workspaceId]);
+  await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='target' AND principal_id='editor'",[f.workspaceId]);
+  await expect(service.previewRestore(f.editor,{batchId:linked.id,pages:[{pageId:'topic',fields:['content'],merged:{content}}]})).rejects.toThrow();
+  await expect(service.proposeRestoreSelection(f.editor,{previewHash:preview.previewHash,reason:'revoked target'})).rejects.toThrow();
+  await f.pool.query("INSERT INTO resource_readers VALUES($1,'page','target','editor')",[f.workspaceId]);
+  const restored=await service.proposeRestoreSelection(f.editor,{previewHash:preview.previewHash,reason:'review linked body only'});
+  const proposed=(await f.pool.query("SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",[f.workspaceId,restored.batchId])).rows[0].data;
+  expect(proposed.updates[0].links).toEqual(['target']);expect(proposed.inputEnvelope.pageIds).toContain('target');
+  expect(proposed.versionMetadataChanges[0].relationChanges.induced).toEqual(['target']);
+  expect((await f.runtime.changeset(f.ctx,restored.batchId)).restoreRelationChanges).toEqual([{pageId:'topic',relationChanges:{induced:['target']}}]);
+  let reviewerRefreshes=0;
+  const refreshingReviewer={...f.ctx,authorization:{sessionId:'restore-review-refresh',assertSession:async()=>{},revalidate:async()=>{
+   if(++reviewerRefreshes===2)await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='target' AND principal_id='reviewer'",[f.workspaceId]);
+  }}};
+  await expect(f.runtime.changeset(refreshingReviewer,restored.batchId)).rejects.toThrow();
+  await f.pool.query("INSERT INTO resource_readers VALUES($1,'page','target','reviewer')",[f.workspaceId]);
+  await f.runtime.core.approve(f.ctx,restored.batchId,restored.hash);
+  await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='target' AND principal_id='editor'",[f.workspaceId]);
+  await expect(f.runtime.core.publish(f.ctx,restored.batchId,restored.hash,'restored-revoked')).rejects.toThrow();
+  await f.pool.query("INSERT INTO resource_readers VALUES($1,'page','target','editor')",[f.workspaceId]);
+  await f.runtime.core.publish(f.ctx,restored.batchId,restored.hash,'restored');
+  const final=await service.version(f.reader,'topic',4);expect(final.content).toBe(content);expect(final.metadata.snapshot?.relations).toEqual(['target']);
+  expect((await wf.backlinks(f.reader,'target')).items.map(p=>p.id)).toEqual(['topic']);
+ }finally{await f.pool.end();}
+});
+
+
+test('restore preview writes only its final authorized receipt when data changes during identity refresh',async()=>{
+ const f=await setup();try{
+  await oldPublication(f);let refreshes=0;
+  const ctx={...f.editor,authorization:{sessionId:'preview-changed-data',assertSession:async()=>{},revalidate:async()=>{
+   if(++refreshes===2)await f.pool.query("UPDATE pages SET data=jsonb_set(data,'{summary}',to_jsonb('updated during refresh'::text)) WHERE workspace_id=$1 AND id='topic'",[f.workspaceId]);
+  }}};
+  const preview=await f.versions.previewRestore(ctx,{batchId:'historical',pages:[{pageId:'topic',fields:['properties']}]});
+  expect(preview.items[0].metadata.summary).toBe('updated during refresh');
+  const receipts=(await f.pool.query("SELECT hash,payload FROM version_restore_previews WHERE workspace_id=$1",[f.workspaceId])).rows;
+  expect(receipts).toHaveLength(1);expect(receipts[0].hash).toBe(preview.previewHash);
+  expect(receipts[0].payload.plans[0].next.summary).toBe('updated during refresh');
+  const proposal=await f.versions.proposeRestoreSelection(f.editor,{previewHash:preview.previewHash,reason:'fresh authorized preview'});
+  await f.runtime.core.approve(f.ctx,proposal.batchId,proposal.hash);await f.runtime.core.publish(f.ctx,proposal.batchId,proposal.hash,'fresh-preview');
+ }finally{await f.pool.end();}
+});

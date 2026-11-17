@@ -191,6 +191,12 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 
 **Local C8 evidence:** native20files302 and fullcheck493/48/16/41/251/types/build/smoke exit0; four fresh browser configs/12PNG and owned cleanup verified. [Evidence](../../ui-validation/2026-11-18-internal-links/README.md), task-8-report. Controller owns independent review/CI/integration. The existing product-erasure write gate is reused; its table graph/schema integration lives in operations/erasure.ts and retention/inventory.ts.
 
+**C8 round1 correction:** legacy rebuild no longer changes published JSON/hash identity. Content-only restore computes and discloses required body-derived relations before preview/plan/approval; selected fields and exact equality guards remain. Current fullcheck494/48/16/41/251 and native14files183, fresh4config20PNG pass. Prior302 is historical, not current aggregate. EDT-001 full export, KNO-007 authority, KNO-010 redirects and C12 operational acceptance remain unverified cross-feature criteria. Controller rereview/CI/integration pending.
+
+**C8 final-release follow-up:** actual async-refresh revocation REDs in preview/exact review detail are fixed. Final fullcheck494 and current native6files49 pass; prior8files134 carried separately. No current183 aggregate claim. Final evidence supersedes intermediate round1.
+
+**C8 authoritative final:** preview now uses pure initial projection and one final authorized receipt write; changed-data-between-refresh RED1 is GREEN. Current native6files50/fullcheck494 pass; prior8files134 carried. Current single-write browser/manifest supersede intermediate round1 evidence.
+
 ## Task 9: 읽기·목차·부분 공유
 
 **Files:** Create `src/operational/convenience/DocumentReader.tsx`, `document-reader.ts`, `reader.test.tsx`, `server/convenience/anchors.ts`, `anchors.test.ts`; Modify `server/workflows/versions/metadata.ts`, `server/publication.ts`, `src/operational/convenience/route.ts`, `src/operational/App.tsx`, `workflows.tsx`, `questions.tsx`, `versions.tsx`, `api.ts`.

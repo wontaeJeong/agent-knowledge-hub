@@ -73,6 +73,8 @@ if (
           "server/convenience/links-http.test.ts",
           "server/runtime/discovery-clock.test.ts",
           "src/operational/document-navigation.test.tsx",
+          "src/operational/versions.test.tsx",
+          "server/workflows/versions/publication-integration.test.ts",
         ].map(async (p) => [p, await hash(p)]),
       ),
     );
@@ -103,6 +105,7 @@ if (
         {
           generatedAt: new Date().toISOString(),
           base: "3b8f310c4ecc2b8966471c3fe99e3ef8bd461e15",
+          fixBase: "add8b4a3eadb9a506200c612d5beade1f93e4868",
           runtimeStartedAt: browser.startedAt,
           frontendStartedAt: browser.frontendStartedAt,
           ...source,

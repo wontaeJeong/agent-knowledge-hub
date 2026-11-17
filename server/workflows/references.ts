@@ -102,3 +102,8 @@ function nodeText(node: DefaultTreeAdapterTypes.Node): string {
 export function internalReferenceIds(content:string,workspaceId:string,trustedOrigin?:string){
  return new Set(internalReferences(content,workspaceId,trustedOrigin).map(r=>r.targetPageId));
 }
+
+/** Canonical proposal relation set, shared with reviewable restore projections. */
+export function effectiveReferenceIds(content:string,workspaceId:string,relations:string[],origin?:string) {
+  return [...new Set([...relations,...internalReferenceIds(content,workspaceId,origin)])];
+}

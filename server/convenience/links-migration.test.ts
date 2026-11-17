@@ -130,3 +130,36 @@ test("retention inventory recognizes both endpoints and rejects unknown index co
     await f.pool.end();
   }
 });
+
+
+test("legacy rebuild preserves exact version bytes and already approved proposal identity", async () => {
+  const f=await fixture();
+  try {
+    const {RuntimeService}=await import("../runtime/knowledge");
+    const {loadState}=await import("../repository");
+    const {draftOf}=await import("../../src/domain/wiki");
+    const runtime=new RuntimeService(f.pool);
+    const state=await transaction(f.pool,f.workspaceId,db=>loadState(db,f.workspaceId));
+    const batch=await runtime.core.propose(f.editor,[{...draftOf(state.pages[0]),content:"approved pending content"}],["source-a"]);
+    await runtime.core.approve(f.ctx,batch.id,batch.hash);
+    const before=(await f.pool.query("SELECT data::text AS bytes,md5(data::text) AS hash FROM versions WHERE workspace_id=$1 ORDER BY page_id,number",[f.workspaceId])).rows;
+    const approved=(await f.pool.query("SELECT data,hash FROM batches WHERE workspace_id=$1 AND id=$2",[f.workspaceId,batch.id])).rows[0];
+    await rebuildPublishedLinks(f.pool,f.workspaceId);
+    expect((await f.pool.query("SELECT data::text AS bytes,md5(data::text) AS hash FROM versions WHERE workspace_id=$1 ORDER BY page_id,number",[f.workspaceId])).rows).toEqual(before);
+    expect((await f.pool.query("SELECT data,hash FROM batches WHERE workspace_id=$1 AND id=$2",[f.workspaceId,batch.id])).rows[0]).toEqual(approved);
+    expect(await runtime.core.publish(f.ctx,batch.id,batch.hash,"approved-after-rebuild")).toMatchObject({versions:{topic:2}});
+  } finally {await f.pool.end();}
+});
+test("legacy rebuild leaves prior answer envelope current for discovery and actual refiling", async () => {
+  const f=await fixture();
+  try {
+    const {RuntimeService}=await import("../runtime/knowledge");
+    const {discoveryReport}=await import("../discovery");
+    const runtime=new RuntimeService(f.pool),answer=await runtime.query(f.editor,"기존","offline");
+    const before=(await f.pool.query("SELECT data::text AS bytes FROM runtime_answers WHERE workspace_id=$1 AND id=$2",[f.workspaceId,answer.id])).rows[0];
+    await rebuildPublishedLinks(f.pool,f.workspaceId);
+    expect((await discoveryReport(f.pool,runtime,f.editor,7)).mostCited.map(p=>[p.id,p.citations])).toEqual([["topic",1]]);
+    expect((await f.pool.query("SELECT data::text AS bytes FROM runtime_answers WHERE workspace_id=$1 AND id=$2",[f.workspaceId,answer.id])).rows[0]).toEqual(before);
+    expect(await runtime.file(f.editor,answer.id)).toHaveProperty("id");
+  } finally {await f.pool.end();}
+});

@@ -2,7 +2,7 @@
 
 All results are synthetic local acceptance, not production IdP, scale, semantic quality or OS accessibility acceptance. Existing251 requirements and North Star are unchanged.
 
-Final run: **1440x1000 and390x844, each light/dark**, real headless Chromium and canonical RuntimeService/WorkflowService HTTP with PostgreSQL. Runtime started2026-11-17T19:06:39.302Z; frontend19:06:49.999Z; completed19:07:37.590Z. Production fingerprint **c42ec27c1a0794ad068379d7eaf9bdddbae43a875b0af7f3bb5d95c50bd72891**.
+Final run: **1440x1000 and390x844, each light/dark**, real Chromium/canonical HTTP/PostgreSQL,20PNG. Runtime 2026-11-17T19:38:51.359Z; frontend 2026-11-17T19:38:58.940Z; complete 2026-11-17T19:40:07.314Z. Production fingerprint **bf630d140e7eb34bd0c6c85d3c6fad82bf5ae58efca7311c4e7e94eff2d61399**. Current log: c8-r1-single-write-browser.log (exit0).
 
 The explicit synthetic actor adapter supplies editor/reviewer identities; it is not real production OIDC. Browser route forwarding returns actual canonical HTTP responses without fabricated successful DTOs. Rename/revocation are controlled canonical DB fixture mutations, while suggestion selection, autosave, approval/publication and subsequent navigation/backlink reads use real services. Korean composition is browser-dispatched composition events, not a physical OS IME.
 
@@ -15,9 +15,9 @@ Each configuration selects leaf from two same-title choices using ArrowDown/Ente
 |390 light|[image](390-light-suggestions.png)|[image](390-light-backlinks.png)|[image](390-light-revoked.png)|
 |390 dark|[image](390-dark-suggestions.png)|[image](390-dark-backlinks.png)|[image](390-dark-revoked.png)|
 
-[Actual assertions/request paths](browser-results.json), [cleanup](cleanup.json), [source/harness/regression/artifact/log SHA manifest](source-manifest.json). Own DBs/profiles are absent, ports4398/5198 closed, owned process21422/21491 absent; parent knowledge_test PostgreSQL remains alive. No cleanup of other agents' resources.
+[Actual assertions/request paths](browser-results.json), [cleanup](cleanup.json), [source/harness/regression/artifact/log SHA manifest](source-manifest.json). Own DBs/profiles are absent, ports4398/5198 closed, owned process30999/31044 absent; parent knowledge_test PostgreSQL remains alive. No cleanup of other agents' resources.
 
-Current verification: fullcheck493frontend +48Node +16import +41evaluation +251criteria +server types/build/static smoke; native20files302tests, all exit0. Earlier logs are historical RED/intermediate evidence, not extra current tests. Browser1 failed on an incorrect autosave-label harness assertion; browser2 passed before later backend fixes; only final-browser is current. Native1 discovery failures were a real baseline clock defect; the withdrawn fixture-normalization proposal is retained, not applied.
+Current verification: fullcheck494frontend +48Node +16import +41evaluation +251criteria +server types/build/static smoke; current native6files50tests; preceding8files134 explicitly carried (not current or aggregated), all exit0. Earlier logs are historical RED/intermediate evidence, not extra current tests. Browser1 failed on an incorrect autosave-label harness assertion; browser2 passed before later backend fixes; c8-r1-single-write-browser is current. Native1 discovery failures were a real baseline clock defect; the withdrawn fixture-normalization proposal is retained, not applied.
 
 Reproduce from repository root with Node24 and a localhost synthetic TEST_DATABASE_URL:
 ```sh
@@ -32,4 +32,21 @@ node docs/ui-validation/2026-11-18-internal-links/manifest.mjs --verify
 
 The historical discovery probe is preserved verbatim in discovery-clock-probe.mts: baseline is a read-only git archive at /private/tmp/akh_c8_baseline_probe from3b8f310, with node_modules symlink to this isolated worktree. It creates/drops exact own PG databases. Its recorded C8 source predates the clock fix; rerunning now is not the same historical result. No original checkout modification was used.
 
-Rulings/costs: canonical version metadata plus disposable ID index preserves portability and current authorization; latest-version backfill enriches metadata only but can invalidate old approval fingerprints/cursors. Batches100 are resumable; read candidate bound10000 fails explicitly, and full-state/digest work plus final authorization projection repeats have unmeasured scale cost. Unknown sourceBlockId stays null for future C9. Existing relation/citation privacy engines are reused. Large Vite chunk warning remains. Model calls in clock tests use an actual local HTTP synthetic provider and make no quality claim.
+Rulings/costs: canonical version metadata plus disposable ID index preserves portability and current authorization; legacy rebuild now changes only the derived version-keyed index, preserving every existing version byte/hash, approved work and answer envelope. The earlier enrichment/invalidation ruling was incorrect and is superseded by round1. Batches100 are resumable; read candidate bound10000 fails explicitly, and full-state/digest work plus final authorization projection repeats have unmeasured scale cost. Unknown sourceBlockId stays null for future C9. Existing relation/citation privacy engines are reused. Large Vite chunk warning remains. Model calls in clock tests use an actual local HTTP synthetic provider and make no quality claim.
+
+
+Round1 current capture adds actual content-only restore after link removal. The author selects only content and explicitly supplies the reviewed historical body; preview shows the induced leaf relation. The independent reviewer sees that same disclosed ID and uses actual UI approve/publish, producing v4. All four configurations pass;20PNG total. Earlier source-manifest/browser-results/cleanup are preserved under round0/ and are historical, not current-byte verification.
+
+| Configuration | Restore preview | Independent reviewer |
+| --- | --- | --- |
+|1440 light|[image](1440-light-restore-preview.png)|[image](1440-light-restore-review.png)|
+|1440 dark|[image](1440-dark-restore-preview.png)|[image](1440-dark-restore-review.png)|
+|390 light|[image](390-light-restore-preview.png)|[image](390-light-restore-review.png)|
+|390 dark|[image](390-dark-restore-preview.png)|[image](390-dark-restore-review.png)|
+
+EDT-001 full export roundtrips, KNO-007 precedence and KNO-010 merged-document redirects/reasons remain cross-feature acceptance, not proved by C8. C12 operational acceptance tracking remains unchanged. The preceding round1 fourteen-file183 run included migration/approved-work/prior-answer preservation, restore, discovery/refile, retention/legal-hold/erasure and C7 HTTP/MCP origin guards. The earlier20files302 is prior-head evidence, not added to current counts.
+
+
+Authoritative final preview persistence: the first restore projection is pure across external identity refresh; only the final current canonical projection writes its returned receipt. Generic VersionService.run is unchanged; no preview or business mutation is replayed. Exact reviewer detail is re-read after refresh. Actual PG changed-data test proves one fresh receipt and successful approve/publish; final ACL-refresh tests reject stale preview/detail disclosure.
+
+Final native log c8-r1-single-write-native.log:6files50 current passes (rebuild4, discovery15, clock2, runtime12, restore11, versions6). The prior eight security/retention/C7 files134 are carried separately. Final fullcheck c8-r1-single-write-check.log494/48/16/41/251/types/build/smoke exit0; existing chunk warning. Intermediate c8-r1-browser and c8-r1-final-browser captures do not claim final-byte verification. Current20PNG and source-manifest are authoritative.

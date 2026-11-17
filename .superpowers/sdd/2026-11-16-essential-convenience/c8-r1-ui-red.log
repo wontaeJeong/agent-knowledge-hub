@@ -1,0 +1,32 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ src/operational/versions.test.tsx (3 tests | 1 failed) 7ms
+   × restore preview and independent review expose body-induced relations without changing selected fields 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/versions.test.tsx > restore preview and independent review expose body-induced relations without changing selected fields
+AssertionError: expected '' to contain 'topic'
+
+- Expected
++ Received
+
+- topic
+
+ ❯ src/operational/versions.test.tsx:17:15
+     15| test("restore preview and independent review expose body-induced relat…
+     16|  const html=renderToStaticMarkup(<RestoreRelationChanges items={[{page…
+     17|  expect(html).toContain("topic");expect(html).toContain("target");expe…
+       |               ^
+     18| });
+     19|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  04:23:32
+   Duration  146ms (import 62%, transform 29%, tests 8%, worker 1%)
+

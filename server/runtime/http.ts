@@ -120,7 +120,7 @@ export function createRuntimeHandler(options: {
       )
     : undefined;
   const legacyAccess = new LegacyAccessService(options.pool);
-  const versions = new VersionService(options.pool, authorizeInTransaction);
+  const versions = new VersionService(options.pool, authorizeInTransaction, options.origin);
   const questions =
     options.questions ??
     new QuestionsService(options.pool, {

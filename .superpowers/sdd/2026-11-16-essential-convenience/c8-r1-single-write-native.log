@@ -1,0 +1,60 @@
+[1/6] server/convenience/links-migration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  04:38:32
+   Duration  1.43s (tests 96%, import 3%, transform 1%)
+
+[2/6] server/discovery.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  04:38:33
+   Duration  7.66s (tests 99%, import 1%)
+
+[3/6] server/runtime/discovery-clock.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  04:38:41
+   Duration  1.52s (tests 93%, import 5%, transform 2%)
+
+[4/6] server/runtime/runtime.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  04:38:43
+   Duration  2.73s (tests 89%, import 6%, transform 5%)
+
+[5/6] server/workflows/versions/publication-integration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  04:38:46
+   Duration  7.42s (tests 99%, import 1%)
+
+[6/6] server/workflows/versions/versions.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  04:38:54
+   Duration  1.86s (tests 95%, import 4%, transform 1%)
+

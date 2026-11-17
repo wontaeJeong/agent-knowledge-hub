@@ -36,20 +36,21 @@ export async function replacePublishedLinks(
     pageId: string;
     version: number;
     refs: PublishedReference[];
+    origin?: string;
   },
 ) {
   const { workspaceId, pageId, version, refs } = input;
   await assertProductWritesNotErased(db, workspaceId, pageId);
   const current = (
     await db.query(
-      "SELECT number,data FROM versions WHERE workspace_id=$1 AND page_id=$2 ORDER BY number DESC LIMIT 1",
+      "SELECT v.number,v.data,p.data AS page FROM versions v JOIN pages p ON p.workspace_id=v.workspace_id AND p.id=v.page_id WHERE v.workspace_id=$1 AND v.page_id=$2 ORDER BY v.number DESC LIMIT 1",
       [workspaceId, pageId],
     )
   ).rows[0];
   if (
     !current ||
     current.number !== version ||
-    !isDeepStrictEqual(current.data.linkReferences, refs)
+    !isDeepStrictEqual(current.data.linkReferences ?? publishedReferences(current.data.content ?? "", workspaceId, current.page.links ?? [], referenceOrigin(input.origin)), refs)
   )
     throw Error("STALE_VERSION");
   await db.query(
@@ -110,16 +111,14 @@ export async function rebuildPublishedLinks(
           row.data.links ?? [],
           origin,
         );
-      if (!row.version.linkReferences)
-        await db.query(
-          "UPDATE versions SET data=jsonb_set(data,'{linkReferences}',$4) WHERE workspace_id=$1 AND page_id=$2 AND number=$3",
-          [workspaceId, row.id, row.number, JSON.stringify(refs)],
-        );
+      // Legacy version bytes are immutable inputs to approvals and answer envelopes.
+      // Repair only the derived, version-keyed endpoint index.
       await replacePublishedLinks(db, {
         workspaceId,
         pageId: row.id,
         version: row.number,
         refs,
+        origin,
       });
     }
     return {

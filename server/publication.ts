@@ -1,5 +1,5 @@
 import { publishedReferences, replacePublishedLinks } from "./convenience/links";
-import { internalReferenceIds, referenceOrigin } from "./workflows/references";
+import { effectiveReferenceIds, referenceOrigin } from "./workflows/references";
 import { createHash } from "node:crypto";
 import { applyPublishedImportAttachments } from "./storage/roundtrip";
 import type { Pool, PoolClient } from "pg";
@@ -81,6 +81,7 @@ const batchHash = ({
 }) => digest(content);
 type RuntimeBatch = Batch & {
   referenceOrigin?: string;
+  versionMetadataChanges?: {pageId:string;relationChanges?:{induced:string[]}}[];
   reviewFeedback?: { reason: string; recordedBy: string; recordedAt: string };
   producer?: NonNullable<import("../src/domain/types").Version["producer"]>;
   responsibleUserId?: string;
@@ -305,7 +306,7 @@ export async function propose(
   },
 ) {
   const trustedOrigin = referenceOrigin(options?.referenceOrigin);
-  updates = updates.map(d => ({...d, links:[...new Set([...d.links,...internalReferenceIds(d.content,ctx.workspaceId,trustedOrigin)])]}));
+  updates = updates.map(d => ({...d, links:effectiveReferenceIds(d.content,ctx.workspaceId,d.links,trustedOrigin)}));
   return transaction(
     pool,
     ctx.workspaceId,
@@ -456,6 +457,7 @@ export async function propose(
               targetVersion: p.targetVersion,
               fields: p.fields,
               next: p.next,
+              ...(p.relationChanges ? {relationChanges:p.relationChanges} : {}),
             })),
           });
         enqueueBatch(state, batch);
@@ -903,6 +905,9 @@ export async function authorizedChangesetDetailDb(
       hash: row.hash,
       status: batch.status,
       updates: batch.updates,
+      ...(batch.versionMetadataChanges ? {restoreRelationChanges:batch.versionMetadataChanges
+        .filter(p=>p.relationChanges?.induced.length)
+        .map(p=>({pageId:p.pageId,relationChanges:{induced:p.relationChanges!.induced}}))} : {}),
       proposedBy: row.author_id ?? batch.proposedBy,
       readOnly: own || !["pending", "approved"].includes(batch.status),
       ...(batch.reviewFeedback ? { reviewFeedback: batch.reviewFeedback } : {}),

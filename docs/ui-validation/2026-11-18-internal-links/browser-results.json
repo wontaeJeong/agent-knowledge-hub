@@ -1,8 +1,8 @@
 {
-  "startedAt": "2026-11-17T19:06:39.302Z",
-  "finishedAt": "2026-11-17T19:07:37.590Z",
-  "productionFingerprint": "c42ec27c1a0794ad068379d7eaf9bdddbae43a875b0af7f3bb5d95c50bd72891",
-  "frontendStartedAt": "2026-11-17T19:06:49.999Z",
+  "startedAt": "2026-11-17T19:38:51.359Z",
+  "finishedAt": "2026-11-17T19:40:07.314Z",
+  "productionFingerprint": "bf630d140e7eb34bd0c6c85d3c6fad82bf5ae58efca7311c4e7e94eff2d61399",
+  "frontendStartedAt": "2026-11-17T19:38:58.940Z",
   "synthetic": true,
   "results": [
     {
@@ -14,6 +14,9 @@
       "versionPin": true,
       "draftNoEdges": true,
       "publication": true,
+      "contentOnlyRestore": true,
+      "inducedPreview": true,
+      "independentReviewDisclosure": true,
       "renameNavigation": true,
       "sourceRevocation": true,
       "overflow": false,
@@ -210,6 +213,190 @@
         {
           "path": "/api/v1/workflows/drafts",
           "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/bundles?offset=0",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/restore/preview",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/versions/restore/propose",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/6a88dcfb-a484-4065-a409-0546c8d3f777/approve",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/6a88dcfb-a484-4065-a409-0546c8d3f777/publish",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
         },
         {
           "path": "/api/v1/me",
@@ -606,6 +793,9 @@
       "versionPin": true,
       "draftNoEdges": true,
       "publication": true,
+      "contentOnlyRestore": true,
+      "inducedPreview": true,
+      "independentReviewDisclosure": true,
       "renameNavigation": true,
       "sourceRevocation": true,
       "overflow": false,
@@ -802,6 +992,190 @@
         {
           "path": "/api/v1/workflows/drafts",
           "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/bundles?offset=0",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/restore/preview",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/versions/restore/propose",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/97eec096-1467-46fa-b3c5-8a5a6c15c5e1/approve",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/97eec096-1467-46fa-b3c5-8a5a6c15c5e1/publish",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
         },
         {
           "path": "/api/v1/me",
@@ -1198,6 +1572,9 @@
       "versionPin": true,
       "draftNoEdges": true,
       "publication": true,
+      "contentOnlyRestore": true,
+      "inducedPreview": true,
+      "independentReviewDisclosure": true,
       "renameNavigation": true,
       "sourceRevocation": true,
       "overflow": false,
@@ -1394,6 +1771,190 @@
         {
           "path": "/api/v1/workflows/drafts",
           "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/bundles?offset=0",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/restore/preview",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/versions/restore/propose",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/f7e4e753-5b2e-4c31-81de-84ab7c0692cc/approve",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/f7e4e753-5b2e-4c31-81de-84ab7c0692cc/publish",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
         },
         {
           "path": "/api/v1/me",
@@ -1790,6 +2351,9 @@
       "versionPin": true,
       "draftNoEdges": true,
       "publication": true,
+      "contentOnlyRestore": true,
+      "inducedPreview": true,
+      "independentReviewDisclosure": true,
       "renameNavigation": true,
       "sourceRevocation": true,
       "overflow": false,
@@ -1986,6 +2550,190 @@
         {
           "path": "/api/v1/workflows/drafts",
           "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/bundles?offset=0",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/versions/restore/preview",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/versions/restore/propose",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/collaboration/inbox?state=all&limit=5",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/aca1fe99-0109-4a3a-af5b-81b3c5d2c148/approve",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets/aca1fe99-0109-4a3a-af5b-81b3c5d2c148/publish",
+          "method": "POST"
+        },
+        {
+          "path": "/api/v1/me",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/pages",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/sources",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/changesets",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/jobs",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/model",
+          "method": "GET"
+        },
+        {
+          "path": "/api/v1/spaces",
+          "method": "GET"
         },
         {
           "path": "/api/v1/me",
