@@ -807,3 +807,32 @@ main537ba7a를 true base6366597로 병합한 체크포인트a2a76e2에서 #55ind
 최종 리뷰의 전체25건 목록 focus→BODY를12실패로 재현한 뒤 현재 DOM의 이웃 행·동일 제어 또는 상태 필터로 복구했다. Bell과 작은 helper를 공유하며 접근 불가 행을 보존하지 않고, 사용자가 밖으로 이동했으면 초점을 가져오지 않는다. UI31시험 통과. 최종 한 번 npm run check exit0(frontend330/Node48/import16/evaluation41/251요구사항/types/build/smoke), 파일별 disposable PG의21파일215시험 exit0. C2기존13파일에 예약 발행 service/realOIDC HTTP, roundtrip, version publication, search index, question scope core/HTTP, native navigation을 더해 실제 main 공유 경계를 검증했다.
 
 [실제26장과 전체25건 도착/보관/철회 focus·scroll 결과](ui-validation/2026-11-17-personal-inbox/README.md). 원시 로그는 local task report의 `c2-logs/akh-c2-final-wave-*`. 기존8c1be04 remote run44004491997 all8 성공은 과거 HEAD 증거이며, 최종 통합+focus HEAD의 독립 재리뷰/필수CI/병합은 별도다. 기능 범위는 C2로 유지하며 다음 C 작업이나 운영·지식품질 인수를 완료로 올리지 않는다.
+
+## 2026-11-17 C3 개인 문서 목록 (UXC-02)
+
+- 기준: C1/C2 병합 main `d4c52824df823c57681c128c930287c68574c69e`, 격리 worktree931e의 `feat/convenience-personal-library-20261117`. 기본 체크아웃과 다른 작업 트리는 변경하지 않았다. 독립 리뷰·원격 필수 CI·PR·main 병합은 컨트롤러 후속 단계로 남는다.
+- 요구사항: UXC-02, SRH-009, CLB-004, ACL-008, UX-005/006. 사람이 현재 허용된 지식을 재방문하고 변경 알림을 구독하는 동선을 개선한다. Ingest → Query → Lint → 재편입/검토·발행 코어와 원본 접근 상한을 유지하며, 지식 품질·후속 에이전트 성능 개선은 평가 계약의 대조 실험 전까지 목표다. 기존251 기준/North Star는 변경하지 않았다.
+- 서버: `server/convenience/{personal,http,types}.ts`, `server/workflows/{service,http}.ts`, `server/runtime/{http,errors}.ts`. 기존 activity/favorite/subscribe와 canonical 비방문 page 검사를 재사용하고 25개 cursor 목록·구독·문서 현재 상태·즐겨찾기 revision CAS/해시 replay를 연결했다. cursor/replay는 현재 의존 내용·reader 집합을 확인하고 숨긴 제목/ID/개수를 반환하지 않는다. 실제 문서 GET만 최근 방문 upsert한다.
+- 저장소: migration141 nullable activity.position과 내용/자원 ID 없는 actor/space revision·replay 제어 표를 추가한다. 기존5값 INSERT·구독을 보존했고 `server/retention/inventory.ts`의 exact-schema 제어 분류/삭제 fence를 유지했다. 적용된140 이하 migration과 CI20은 수정하지 않았다.
+- UI: `PersonalLibrary.tsx`, `personal-client.ts`, `personal.css`; 기존 `document-navigation.tsx`의 PersonalDocuments가 같은 컴포넌트를 위임한다. App의 favorites/recent/subscriptions 실제 경로와 workflows의 현재 상태 버튼을 연결했다. 페이지 이동·모바일/키보드 위아래·끝 이동 시 활성 버튼 초점·계정/공간/API 세대 격리·늦은 mutation·재초점 경합을 검증했다. 숨긴 탭에서 주기 조회를 멈추며 실패는 빈 성공으로 표시하지 않는다.
+- 검증: 최종 `npm run check` exit0(frontend340, Node48, imports16, evaluation41, 251요구사항, 서버types/build/smoke). 첫 check의 C1 미연결 favorites 단언은 미래 saved-views guard로 유지하고 새3목록 경로 시험을 추가했다. native21파일 중20파일234시험 통과했고, 나머지 navigation exact DTO 단언을 새 `{items:[],nextCursor:null,revision:1}`로 보강해 관련3파일10시험을 다시 통과했다(고유21파일235시험). 첫 실패를 전체 통과로 기록하지 않는다. raw logs는 local `.superpowers/sdd/2026-11-16-essential-convenience/logs/c3-*`와 task-3-report.md에 있다.
+- [실제 Chromium 1440/390·light/dark 24장](ui-validation/2026-11-17-personal-library/README.md): 최종 제품 소스의 새 runtime/새 합성 DB에서 25→3 pagination, 구독3, sidebar 모바일 이동·키보드 reorder/끝 초점, 현재 toggle, 목록 non-visit, 실제 원본 reader 철회 후 제목 제거 및 브라우저 저장소 미보관을 확인했다. DB/서버는 증거 수집 전용이며 실제 회사 IdP/자료·모델 호출은 사용하지 않았다.
+- 한계: 프로세스 범위 cursor 키(재시작/인스턴스 전환 시 새 조회), 후보10,000개 명시적 오류, 첫 페이지 재조회 방식의 reorder, 대규모 부하/다중 인스턴스/실제 사내 인증 및 운영 인수 미검증. 기존 Vite >500kB chunk 경고는 deferred. C4 홈/C5 전역 검색/C6 신규 초안과 #44 작업은 구현하지 않았다.
+
+### C3 리뷰 Round1 — 문서 제어와 재정렬의 키보드 초점
+
+- 독립 task review의 Important I1/I2를 전문 확인하고 지연 readback/refresh에서 버튼이 제거되는 문제와 외부로 이동한 초점을 재정렬 완료가 가져오는 문제를 프로젝트 RED7로 재현했다. 기존 초기 구현의 즉시 Promise 시험/캡처는 이 지연 경계를 보장하지 않았다.
+- PersonalLibrary.tsx만 제품 수정: 같은 scope 문서 상태 조회 중 기존 제어를 유지하고 aria-disabled+기존 mutation guard를 사용한다. 오류/권한 철회는 현재 상태를 비우며 API/계정/공간 격리는 유지한다. 재정렬은 시작 제어의 keyboard/pointer departure를 감시해 계속 같은 interaction일 때만 활성 방향 fallback으로 초점을 복구하고, 실패/정리 때 의도를 버린다.
+- 검증: 관련 personal/document-navigation/Navigation3파일49시험 pass, 최종 한 번 npmruncheck exit0(frontend347/Node48/import16/evaluation41/251요구사항/서버types/build/smoke). server/schema/authority diff가 없어 기존 고유21파일235 native 증거를 유지하고 재실행하지 않았다. 기존 chunk 경고 M1은 deferred다.
+- 실제 API 응답을 route.fetch한 뒤 전달만 지연시켜 네 Chromium조건24PNG를 다시 수집했다. 두 toggle의 양방향 지연 readback/재초점에서 DOM·초점 유지, 실제 reorder commit 뒤 외부 keyboard/pointer 선택 no-steal, 기존 경계 fallback/mobile/현재 ACL/theme/nonvisit/no-storage 모두 pass. 현재 제품16파일 fingerprint는 `2c5571bdef21713848605543526dc4629388abead85218708fc067cd3e090705`; [최신 결과/캡처](ui-validation/2026-11-17-personal-library/README.md). scoped 재리뷰·최종 branch 리뷰·새 HEAD 원격 CI/PR 병합은 컨트롤러의 미완료 단계다. North Star/251 기준과 운영·품질/효과 미검증 한계는 그대로다.
+
+컨트롤러 확인: 이전 b9090bd HEAD의 CI44013758359 필수8jobs(전체 PostgreSQL 포함)는 성공했다. 이 이력은 backend가 동일하다는 근거와 구분해 보존하며, 현재 Round1 수정 HEAD의 새8CI를 대신하지 않는다.
+
+### C3 ONE 최종 수정 — 전역 인접 순서와 일반 목록 초점 (F1/F2)
+
+- 독립 최종 리뷰 F1/F2를 전문 확인했다.25행 view bound를 순서 제한으로 취급해26번째 항목이 첫 페이지로 갈 수 없던 공백과, 일반 refresh로 focused row가 사라질 때 BODY로 초점이 빠지는 공백을 native1/UI6 RED로 재현했다. 이전 page-local 제약 기록은 승인된 수용 기준 예외가 아니었으며 이번 수정으로 해소한다.
+- `favorites/move`는 `{pageId,direction,expectedRevision,mutationId}`를 받아 기존 reorder와 단일 private ordering primitive/기존 사용자·공간 트랜잭션/CAS/해시 영수증을 공유한다. 현재 열람 가능한 이웃만 교환하고 현재25행 target context의 fresh cursor를 반환한다. replay도 현재 읽기/목록 존재/의존 envelope 확인 뒤 cursor를 새로 만들며 receipt에 이전 cursor나 보호 DTO를 저장하지 않는다. canMoveUp/Down은 현재 허용된 전역 경계만 표시한다. 기존 reorder1~50ID/응답과 applied141을 보존하고 숨긴 행·다른 actor의 position을 유지한다.
+- F2는 C2의 현재 DOM focus 로직을 `list-focus.ts`로 추출하고 기존 `inbox-focus.ts`는 동일 API/선택자/안내의 compat wrapper로 유지한다. 개인 세 목록은 일반 제거/빈 결과/오류 때 현재 인가된 이웃/안정 refresh로 복구하되 외부 keyboard/pointer 이동을 존중한다. pending move 동안 일반 복구를 멈춰 이동 context/이전I1/I2와 경합하지 않으며 과거 보호 행 캐시는 없다.
+- 최종 한 번 `npm run check` exit0(frontend363/Node48/import16/evaluation41/251요구사항/서버types/build/smoke). 집중5UI파일100시험(C2inbox31 포함), 영향 native13파일162시험 모두 exit0. native는 move/currentACL/CAS/replay/edge/other-actor/26→25→26 persisted context/nativeHTTP, workflow/navigation/lineage/trash/retention/erasure/C2를 검증했다. 이전47da108 CI44015714337의8green은 과거 이력이며 현재 수정 HEAD의 새 CI를 대신하지 않는다.
+- 실제 네 Chromium조건24PNG에서26개즐겨찾기의 page2 단독항목 up활성/25↔26 persistence·focus, 세 목록의 실제 page/source ACL 철회 뒤 ordinary neighbor/empty focus, 실제 capacity409 error focus, outside keyboard/pointer no-steal과 기존 지연 toggle·이동·테마·nonvisit/no-storage를 확인했다.18개 전체 변경 product파일(새 list-focus/C2wrapper 포함)의 fingerprint는 `3edf1bff927ce44e5953650fd18dc2b7913c8284f71b778ae956ab8037547846`. [최신 증거](ui-validation/2026-11-17-personal-library/README.md). owned runtime/DB/Vite를 정리했다.
+- 현재 운영 한계/10k명시적capacity/프로세스범위cursor/실제IdP·부하·의미품질 미검증, baseline chunk M1은 유지한다. NorthStar/251기준을 바꾸지 않았고 효용/성능 개선은 대조 평가 전까지 목표다. controller ONE scoped 재리뷰/새exact8CI/병합은 아직 별도 대기다. C4+와 #44 소유 범위는 변경하지 않았다.

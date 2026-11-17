@@ -945,3 +945,38 @@
 - 먼저 main537ba7a(#68)의 실제 검색 index/질문 scope/collector/roundtrip/예약 발행 변경을 true base6366597로 병합했다. docs양쪽 기록, retention의 inbox 및 index 제어, App의 C2와 질문/예약 UI를 모두 보존했다. App의 포맷 차이로 어긋난 JSX conflict는 기능 위치에 문맥 수정하고 읽기 전용 정규화 비교로 main 기능이 전부 남았음을 확인했다. CIserver20/마이그레이션140은 유지한다. 첫 Badge anchor assertion은 App 쓰기 전에 실패했고, 충돌 상태에서 정규화하려다 큰 parser 로그를 출력했다. 실제 공백에 맞는 문맥을 사용하고 오류 출력을 제한해 다시 검증했다. 커밋된 기존 작업 폐기/재구성·미관 정리는 하지 않았다.
 - 조치: 미리보기와 전체 목록에 공통 focus helper를 적용해 제거된 제어만 현재 인가된 이웃 행의 같은 제어 또는 안정된 상태 필터로 옮긴다. 사용자 focus/pointer가 밖으로 이동하면 복구하지 않는다. preventScroll 및 현재 범위 안의 조상/viewport scroll을 유지하며 보호된 과거 행을 캐시하지 않는다.
 - 검증: UI RED12→GREEN31; 통합 최종 한 번 npm run check(frontend330/Node48/import16/evaluation41/251요구사항/서버types/build/smoke) exit0, C2 및 새 main의 공유 발행·가져오기·검색·질문·탐색 경계21native파일 모두 통과(상세 수는 인계/task report). 실제1440/390 light/dark26장과 실제 도착·보관·철회·scroll/focus assertion을 재검증했다. 이전8c1be04의 remote run44004491997 필수8jobs 성공은 컨트롤러가 확인했지만, 이 새로운 통합/focus HEAD의 CI를 대신하지 않는다. 기존 chunk 경고 및 실제 운영 인수 한계는 유지한다.
+
+### 2026-11-17 — C3 개발 환경·탐색·fixture와 검증 계약 갱신
+
+- 맥락: C1/C2 병합 뒤 개인 문서 목록 C3의 격리 worktree931e. 초기 Docker port 조회와 후속 owned-runtime PID 조회의 sandbox 거절은 인가된 읽기 전용 escalation으로 재시도했고 다른 컨테이너/작업을 변경하지 않았다. 부모의 존재하지 않는 workflows/access.ts 탐색과 구현자의 미존재 convenience/inbox·이전 migration 경로/ConsoleShell 위치 가정도 읽기 전용 탐색 실패로 묶는다. 실제 imports·rg --files로 경로를 확인했다. 이는 행동 RED가 아니다.
+- fixture: 추가 pages를 implicit INSERT해 data 컬럼 위치를 잘못 가정한 준비 오류로3시험이 실패했다. 기존 fixture의 명시적 `(workspace_id,id,data)` 패턴으로 수정했고 같은 focused suite4시험이 통과했다. 이후141 upgrade/restart에서 legacy5값 workflow_activity INSERT 호환을 별도로 실행했다.
+- 개발 도구: Prettier에 SQL을 포함해 parser 부재 exit2가 났다(다른 신규 TS/CSS는 포맷됨, SQL은 미변경). 삽입부 포맷용 JS helper에 Python 삼중 따옴표를 잘못 써 SyntaxError가 났고 source 쓰기 전에 종료됐다. JS 문법을 고친 문맥 포맷으로 재실행했다. 읽기/해시 집계 호출에 JSON 쓰기를 잘못 섞어 workspace sandbox가 해당 쓰기를 거절한 시도도 있었으며, 인가된 escalation에서만 같은 증거 파일을 생성했다. 어느 시도도 기존 작업 폐기/전체 파일 복구에 사용하지 않았다.
+- 검증 계약: 첫 전체 check는 C1의 'favorites 미연결' 기대1개와 실제 C3 연결이 충돌했다(336pass/1fail). 미구현 saved-views에서 같은 경고/활성 메뉴 guard를 유지하고 개인3경로 시험을 추가했다. 최종 check340/48/16/41/251+types/build/smoke exit0. native21 중 navigation의 이전 exact `{items:[]}` 기대만 additive nextCursor/revision과 충돌했다. 현재권한·공간·정확 이동 단언을 유지하고 exact `{items:[],nextCursor:null,revision:1}`로 명시해 관련3파일10시험을 재검증했다. 다른20파일234시험 성공은 그대로이며 최초21파일 실행의 exit1을 전체 성공으로 바꾸지 않는다.
+- 상태: 위 실패들은 수정·재검증됨. 기존 Vite chunk 경고는 별도 미해결/범위 밖이다. raw 로그는 task-3-report.md에 연결하며 독립 리뷰·원격 CI·병합은 아직 대기다.
+
+### 2026-11-17 — C3 자체 점검의 cursor·비동기 변경·키보드 경계
+
+- 실제 재현: 현재 사용자는 계속 읽을 수 있지만 의존 원본의 다른 reader가 바뀌면 cursor가 그대로 수락됐다(RED1). focus refresh가 pending favorite/reorder보다 먼저 완료되면 현재 mutation의 readback을 이전 request sequence가 버려 잘못된 상태를 남겼다(RED2). 첫 항목으로 이동한 뒤 비활성 위로 버튼을 다시 초점 대상으로 잡았다(RED1).
+- 조치: cursor/replay에 canonical captureEnvelope의 내용/reader hash를 바인딩했다. pending mutation 중 자동 refresh를 직렬화하고 현재 성공에만 재인가 readback/변경 신호를 적용한다. scope/API 교체 시 session key를 바꾸어 이전 read/mutation을 무효화한다. reorder 뒤 현재 인가된 행의 활성 방향 버튼으로 초점을 복구하며 old title을 복구 캐시에 저장하지 않는다. 첫 focus 수정의 busy 타이밍 문제는 활성화 이후 복구로 바로잡았다.
+- 검증: native6와 UI14 focused pass. 최종 native/전체check와 실제4브라우저조건24PNG에서 끝 이동·모바일·철회/no-storage까지 확인했다. 합성 증거가 운영 부하/실제 SSO 또는 지식 품질 효과를 증명하지는 않는다.
+
+### 2026-11-17 — C3 문서 상태 다크 캡처의 테마 초기화
+
+- 첫 로컬 feature commit28b2fcb의 artifact 점검에서 document-state dark/light 파일이 각 viewport에서 같은 바이트임을 발견했다. 목록 캡처는 화면 로드 뒤 테마를 적용했지만 문서 goto 뒤에는 앱의 기본 테마 초기화를 다시 처리하지 않았다. 영향은 document-state4PNG의 theme 검증 공백이며 실제 잘못된 표시는 dark2장이다. 다른 목록·철회 캡처와 제품 기능/테스트 결과를 이 실패로 바꾸지 않되, 기존 네 조건 성공 주장이 이 문서 다크 표시까지 증명하지 않았음을 명시한다.
+- 조치: 실제 문서 제어 로드/toggle 뒤, PNG 직전에 요청 테마를 적용하고 DOM dataset과 일치하는지 assert한다. 새 owned runtime/합성 DB로 전체24장을 다시 수집하고 결과에 documentThemeVerified를 기록했다. source16파일 fingerprint가 기존 ffc48255와 같아 제품 검사는 반복하지 않았다.
+- 검증: c3-browser-final3.log exit0,4조건 pageerrors[]/overflowfalse 및 기존 키보드/모바일/ACL/no-storage assertion 통과.1440/390 dark/light 문서 PNG의 SHA256이 각각 다르고 실제 mobile/dark 이미지를 열어 다크 제어를 확인했다. owned runtime/DB/Vite를 다시 정리했다. 최종 evidence-only commit과 독립 리뷰/원격 CI는 별도다.
+
+### 2026-11-17 — C3 리뷰 Round1 지연 응답의 초점 손실과 초점 되가져오기
+
+- 독립 리뷰 I1/I2는 지연 personal-state GET에서 setState(null)이 focused 버튼을 제거해 BODY로 초점이 남고, 지연 reorder 중 사용자가 외부로 옮긴 초점을 완료 effect가 되가져오는 문제를 실제 임시2RED로 재현했다. 리뷰 준비의 절대 config/JSX 해석 실패는 시험 실행 전 임시 harness 오류였고 제품 RED가 아니다. 리뷰의 즉시 응답 I1 시도는 지연 경계를 재현하지 못했다.
+- 원인: 상태 읽기 때 same-scope 제어를 불필요하게 unmount했고, reorder 완료 시 initiating interaction의 현재 의도를 추적하지 않았다. 초기 즉시 응답·성공 위치 시험만으로 키보드 연속성을 확인했다고 범위를 넓힌 것이 검증 공백이었다.
+- 조치: 프로젝트에서 delayed favorite/subscribe2·focus refresh2·외부 keyboard/pointer departure2·POST 이후 readback departure1, 총7RED를 확인했다. readback 동안 기존 제어를 유지하고 aria-disabled와 기존 mutation guard로 변경을 막으며 오류/권한 철회 시 상태를 비운다. reorder는 시작 제어에서 다른 곳으로의 focusin/pointerdown을 기록해 같은 interaction일 때만 활성 방향 초점을 복구한다. readback 실패/cleanup 시 남은 의도를 지운다.
+- 검증: c3-r1-red.log7fail/7pass exit1 → c3-r1-green-final.log 관련3파일49pass exit0. 최종 한 번 c3-r1-check-final.log347/48/16/41/251+types/build/smoke exit0. 실제 native 응답 전달만 지연한 c3-r1-browser-final.log4조건24PNG의 양 toggle readback/refresh와 외부 keyboard/pointer no-steal 및 기존조건 pass. server/schema/authority 무변경이라 native package 재반복은 하지 않았다. 실제 사내 SSO·부하·모델/지식 효과 검증이 아니며 기존 chunk M1·독립 재리뷰/원격CI/병합은 별도다.
+
+### 2026-11-17 — C3 최종 리뷰의 페이지 경계 순서와 일반 refresh 초점 공백
+
+- 독립 final review F1은26번째 즐겨찾기가 page2 단독 행이면 두 방향이 막혀 첫25행으로 올릴 수 없고25번째도 아래로 못 움직이는 공백을 확인했다. F2는 일반 refresh로 focused row를 지우면 세 목록 모두 BODY로 초점이 남는3RED를 독립 실행했다. 앞선 immediate/same-page 성공 또는 page-local 제약 문서는 이 수용 기준을 완료/면제하지 않았다.
+- 원인: UI가 현재25개 배열만 reorder하고 배열 경계를 전역 경계로 판단했으며, focus 복구를 pending reorder intent에만 적용했다. 부모는25행은 view bound라고 확정했고 native1/UI6 RED로 프로젝트에 재현했다. 테스트 후 검증 범위를 늘리는 것만으로 결함을 숨기지 않았다.
+- 조치: canonical move와 기존 reorder를 한 private primitive로 모으고 현재 authorized 인접 이웃/CAS/receipt와 fresh target cursor를 연결했다. 현재 전역 방향 flags만 노출하고 보호 이웃ID/옛cursor는 저장하지 않는다. C2 현재 DOM focus helper를 공용화/compat wrapper로 보존해 ordinary 제거·empty/error·outside intent와 이전 지연I1/I2를 함께 처리한다.141은 미변경이다.
+- 준비 실패: 확장 capture helper에서 기존 const down과 새 cross-page down을 같은 scope에 선언해 node --check SyntaxError가1회 났다. 제품/browser 시험 전 helper의 local 이름만 crossDown으로 바꾸어 syntax check를 통과했다. 행동 RED나 제품 실패로 바꾸지 않았다.
+- 검증: 집중5UI파일100pass(C2inbox31), 최종 onecheck363/48/16/41/251+types/build/smoke exit0, 영향native13파일162pass exit0. 실제4config24PNG에서26→25→26 persisted/focus, 실제ACL제거/empty/실제capacity409 error·외부intent, 기존지연/theme/nonvisit/no-storage 모두 pass.18-file manifest가 전체 변경 product 집합과 일치함을 비교했다. 현재 소스의 새로운 원격CI·ONE scoped 재리뷰·병합은 별도 미완료이며 이전47da8green을 대신 사용하지 않는다.

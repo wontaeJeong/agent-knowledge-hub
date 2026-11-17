@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, React 19.3.1, Vite 8.3.5, Node `^22.12.0 || ^24.0.0`, npm `>=10`, PostgreSQL, existing marked/DOMPurify/Vitest. 기존 package-lock을 유지하고 의존성을 추가하기 전에 필요성을 확인한다.
 
-**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 로컬 구현·검증 결과를 기록했으며 독립 리뷰·최종 CI·main 통합 전이므로 완료 체크를 보류한다. 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
+**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 로컬 구현·검증과 실제 화면 증거를 기록했으나 독립 리뷰·원격 CI·PR·main 병합은 대기다. 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
 
 ## Global Constraints
 
@@ -70,11 +70,11 @@
 
 **Interfaces:** Consumes current event/worker/preference and authorized target services, including PR #48 scoped subscriptions and durable outbox. Extend those existing events instead of creating a parallel event/worker engine. Produces `InboxService.list(ctx:Context,input:InboxQuery):Promise<InboxPage>`, `setState(ctx,id,input):Promise<InboxItem>`, `readAll(ctx,{boundary,mutationId}):Promise<{updated:number}>`, `recordInboxEvent(db:PoolClient,event:InboxEvent):Promise<void>`. DTOs, targets, limits and endpoint paths are fixed in UXC-01.
 
-- [ ] Add database failures for duplicate source events, pending creator transaction vs read-all boundary, delayed outbox delivery, mark-unread after read-all, archive/restore, target ACL/session revocation, job-without-page, legacy row backfill and actor/workspace separation. Add UI failures for 5-item preview, filtering, focus-preserving refresh and multiple-tab stale responses.
-- [ ] Run `node scripts/test-server.mjs server/collaboration/inbox.test.ts` with a disposable `TEST_DATABASE_URL`, and `npx vitest run src/operational/convenience/inbox.test.tsx`; verify the intended red state.
-- [ ] Implement recipient-row-locked committed sequence, event-key uniqueness, signed boundary, target authorization and schema/backfill. Integrate the existing outbox/worker rather than sending during UI reads. Connect review/request/decision/publication/job/access events and 90-day configurable inbox pruning through existing erasure/retention controls.
-- [ ] Add routes and bell/inbox UI; keep old notification routes and preferences working. Run focused tests, existing collaboration/notification interaction tests and migration upgrade/restart checks. Verify 1440/390 and light/dark screenshots, keyboard preview/close/focus return.
-- [ ] Record actual evidence and commit `feat: complete personal notification inbox`.
+- [x] Add database failures for duplicate source events, pending creator transaction vs read-all boundary, delayed outbox delivery, mark-unread after read-all, archive/restore, target ACL/session revocation, job-without-page, legacy row backfill and actor/workspace separation. Add UI failures for 5-item preview, filtering, focus-preserving refresh and multiple-tab stale responses.
+- [x] Run `node scripts/test-server.mjs server/collaboration/inbox.test.ts` with a disposable `TEST_DATABASE_URL`, and `npx vitest run src/operational/convenience/inbox.test.tsx`; verify the intended red state.
+- [x] Implement recipient-row-locked committed sequence, event-key uniqueness, signed boundary, target authorization and schema/backfill. Integrate the existing outbox/worker rather than sending during UI reads. Connect review/request/decision/publication/job/access events and 90-day configurable inbox pruning through existing erasure/retention controls.
+- [x] Add routes and bell/inbox UI; keep old notification routes and preferences working. Run focused tests, existing collaboration/notification interaction tests and migration upgrade/restart checks. Verify 1440/390 and light/dark screenshots, keyboard preview/close/focus return.
+- [x] Record actual evidence and commit `feat: complete personal notification inbox`.
 
 ## Task 3: 즐겨찾기·최근·구독
 

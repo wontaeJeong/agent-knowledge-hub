@@ -1,3 +1,5 @@
+import { PersonalLibraryService } from "../convenience/personal";
+import type { LibraryKind } from "../convenience/types";
 import { bulkPreview, bulkApply } from "./bulk";
 import { RefinementService } from "../refinement/service";
 import {
@@ -14,7 +16,7 @@ import {
   referenceOrigin,
 } from "./references";
 import type { Context } from "../service";
-import type { Page } from "../../src/domain/types";
+import type { Page, State } from "../../src/domain/types";
 import { current, draftOf } from "../../src/domain/wiki";
 import { transaction } from "../database";
 import {
@@ -126,10 +128,11 @@ export class WorkflowService {
     ctx: Context,
     pageId: string,
     allowTrash = false,
+    access?: { state: State; visible: Set<string> },
   ): Promise<Page> {
     id.parse(pageId);
-    const state = await loadState(db, ctx.workspaceId);
-    if (!(await visiblePageIds(db, ctx, state)).has(pageId))
+    const state = access?.state ?? (await loadState(db, ctx.workspaceId));
+    if (!(access?.visible ?? await visiblePageIds(db, ctx, state)).has(pageId))
       throw Error("NOT_FOUND");
     const p = state.pages.find((p) => p.id === pageId);
     if (!p) throw Error("NOT_FOUND");
@@ -1293,7 +1296,7 @@ export class WorkflowService {
         await this.page(db, ctx, pageId);
         if (enabled)
           await db.query(
-            "INSERT INTO workflow_activity VALUES($1,$2,$3,'favorite',now()) ON CONFLICT DO NOTHING",
+            "INSERT INTO workflow_activity(workspace_id,principal_id,page_id,kind,at) VALUES($1,$2,$3,'favorite',now()) ON CONFLICT DO NOTHING",
             [ctx.workspaceId, ctx.principalId, pageId],
           );
         else
@@ -1301,32 +1304,212 @@ export class WorkflowService {
             "DELETE FROM workflow_activity WHERE workspace_id=$1 AND principal_id=$2 AND page_id=$3 AND kind='favorite'",
             [ctx.workspaceId, ctx.principalId, pageId],
           );
+        await db.query(
+          "INSERT INTO workflow_personal_library_state(workspace_id,principal_id,revision) VALUES($1,$2,1) ON CONFLICT(workspace_id,principal_id) DO UPDATE SET revision=workflow_personal_library_state.revision+1",
+          [ctx.workspaceId, ctx.principalId],
+        );
+        await audit(db, ctx, "favorite.state", pageId);
         return { pageId, enabled };
       },
     );
   }
-  async activity(ctx: Context, kind: "favorite" | "recent") {
-    return this.run(ctx, "knowledge.read", undefined, async (db) => {
-      const rows = await db.query(
-        "SELECT page_id,at FROM workflow_activity WHERE workspace_id=$1 AND principal_id=$2 AND kind=$3 ORDER BY at DESC LIMIT 100",
-        [ctx.workspaceId, ctx.principalId, kind],
-      );
-      const items = [];
-      for (const r of rows.rows) {
-        try {
-          const p = await this.page(db, ctx, r.page_id);
-          items.push({
-            id: p.id,
-            title: p.title,
-            version: current(p).number,
-            at: r.at,
-          });
-        } catch (e) {
-          if (!(e instanceof Error && e.message === "NOT_FOUND")) throw e;
-        }
-      }
-      return { items };
+  async activity(
+    ctx: Context,
+    kind: "favorite" | "recent",
+    input: { cursor?: string | null; limit?: number } = {},
+  ) {
+    return new PersonalLibraryService(this).list(ctx, {
+      kind: kind === "favorite" ? "favorites" : "recent",
+      ...input,
     });
+  }
+  /** Canonical non-visit boundary; stored preferences never grant read access. */
+  async personalDocumentState(ctx: Context, pageId: string) {
+    return this.run(
+      ctx,
+      "knowledge.read",
+      { kind: "page", id: pageId },
+      async (db) => {
+        await this.page(db, ctx, pageId);
+        const favorite = await db.query(
+          "SELECT 1 FROM workflow_activity WHERE workspace_id=$1 AND principal_id=$2 AND page_id=$3 AND kind='favorite'",
+          [ctx.workspaceId, ctx.principalId, pageId],
+        );
+        const subscribed = await db.query(
+          "SELECT 1 FROM workflow_subscriptions WHERE workspace_id=$1 AND principal_id=$2 AND page_id=$3",
+          [ctx.workspaceId, ctx.principalId, pageId],
+        );
+        return {
+          favorite: !!favorite.rowCount,
+          subscribed: !!subscribed.rowCount,
+        };
+      },
+    );
+  }
+  private async personalRows(db: PoolClient, ctx: Context, kind: LibraryKind) {
+    const rows =
+      kind === "subscriptions"
+        ? await db.query(
+            "SELECT page_id,NULL::timestamptz AS at FROM workflow_subscriptions WHERE workspace_id=$1 AND principal_id=$2 ORDER BY page_id LIMIT 10001",
+            [ctx.workspaceId, ctx.principalId],
+          )
+        : await db.query(
+            "SELECT page_id,at FROM workflow_activity WHERE workspace_id=$1 AND principal_id=$2 AND kind=$3 ORDER BY CASE WHEN kind='favorite' THEN position END NULLS LAST,at DESC,page_id LIMIT 10001",
+            [
+              ctx.workspaceId,
+              ctx.principalId,
+              kind === "favorites" ? "favorite" : "recent",
+            ],
+          );
+    if (rows.rows.length > 10000) throw Error("PERSONAL_LIBRARY_CAPACITY");
+    const state = await loadState(db, ctx.workspaceId);
+    const access = { state, visible: await visiblePageIds(db, ctx, state) };
+    const items = [];
+    for (const row of rows.rows) {
+      try {
+        // Reuse document/source/lineage/ancestor/trash checks without a recent write.
+        const p = await this.page(db, ctx, row.page_id, false, access);
+        items.push({
+          id: p.id,
+          title: p.title,
+          version: current(p).number,
+          at: row.at ? new Date(row.at).toISOString() : null,
+        });
+      } catch (e) {
+        if (!(e instanceof Error && e.message === "NOT_FOUND")) throw e;
+      }
+    }
+    return items;
+  }
+  async personalSnapshot(ctx: Context, kind: LibraryKind) {
+    return this.run(ctx, "knowledge.read", undefined, async (db) => {
+      const items = await this.personalRows(db, ctx, kind);
+      const revision =
+        (
+          await db.query(
+            "SELECT revision FROM workflow_personal_library_state WHERE workspace_id=$1 AND principal_id=$2",
+            [ctx.workspaceId, ctx.principalId],
+          )
+        ).rows[0]?.revision ?? 0;
+      const authorizationHash = fingerprint(
+        await captureEnvelope(
+          db,
+          ctx,
+          await loadState(db, ctx.workspaceId),
+          items.map((item) => item.id),
+        ),
+      );
+      return { items, revision: Number(revision), authorizationHash };
+    });
+  }
+  async reorderPersonalFavorites(
+    ctx: Context,
+    input: { pageIds: string[]; expectedRevision: number; mutationId: string },
+  ) {
+    return this.run(ctx, "knowledge.read", undefined, (db) =>
+      this.updatePersonalFavorites(db, ctx, input),
+    );
+  }
+  async movePersonalFavorite(
+    ctx: Context,
+    input: {
+      pageId: string;
+      direction: "up" | "down";
+      expectedRevision: number;
+      mutationId: string;
+    },
+  ) {
+    return this.run(ctx, "knowledge.read", undefined, (db) =>
+      this.updatePersonalFavorites(db, ctx, input),
+    );
+  }
+  private async updatePersonalFavorites(
+    db: PoolClient,
+    ctx: Context,
+    input:
+      | { pageIds: string[]; expectedRevision: number; mutationId: string }
+      | {
+          pageId: string;
+          direction: "up" | "down";
+          expectedRevision: number;
+          mutationId: string;
+        },
+  ) {
+    const items = await this.personalRows(db, ctx, "favorites");
+    const requested = "pageIds" in input ? input.pageIds : [input.pageId];
+    if (requested.some((id) => !items.some((item) => item.id === id)))
+      throw Error("NOT_FOUND");
+    const visibilityHash = fingerprint(
+      await captureEnvelope(
+        db,
+        ctx,
+        await loadState(db, ctx.workspaceId),
+        items.map((item) => item.id).sort(),
+      ),
+    );
+    const payloadHash = fingerprint(
+      "pageIds" in input ? input : { operation: "move", ...input },
+    );
+    const old = (
+      await db.query(
+        "SELECT payload_hash,visibility_hash,revision FROM workflow_personal_library_mutations WHERE workspace_id=$1 AND principal_id=$2 AND mutation_id=$3",
+        [ctx.workspaceId, ctx.principalId, input.mutationId],
+      )
+    ).rows[0];
+    if (old) {
+      if (old.payload_hash !== payloadHash) throw Error("MUTATION_CONFLICT");
+      if (old.visibility_hash !== visibilityHash) throw Error("STALE_VERSION");
+      return { revision: Number(old.revision) };
+    }
+    await db.query(
+      "INSERT INTO workflow_personal_library_state(workspace_id,principal_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
+      [ctx.workspaceId, ctx.principalId],
+    );
+    const row = (
+      await db.query(
+        "SELECT revision FROM workflow_personal_library_state WHERE workspace_id=$1 AND principal_id=$2 FOR UPDATE",
+        [ctx.workspaceId, ctx.principalId],
+      )
+    ).rows[0];
+    if (Number(row.revision) !== input.expectedRevision)
+      throw Error("STALE_VERSION");
+    let order: string[];
+    if ("pageIds" in input) {
+      const selected = new Set(input.pageIds);
+      let offset = 0;
+      order = items.map((item) =>
+        selected.has(item.id) ? input.pageIds[offset++] : item.id,
+      );
+    } else {
+      order = items.map((item) => item.id);
+      const index = order.indexOf(input.pageId),
+        next = index + (input.direction === "up" ? -1 : 1);
+      if (next < 0 || next >= order.length) throw Error("FAVORITE_BOUNDARY");
+      [order[index], order[next]] = [order[next], order[index]];
+    }
+    for (const [position, pageId] of order.entries())
+      await db.query(
+        "UPDATE workflow_activity SET position=$4 WHERE workspace_id=$1 AND principal_id=$2 AND page_id=$3 AND kind='favorite'",
+        [ctx.workspaceId, ctx.principalId, pageId, position],
+      );
+    const revision = input.expectedRevision + 1;
+    await db.query(
+      "UPDATE workflow_personal_library_state SET revision=$3 WHERE workspace_id=$1 AND principal_id=$2",
+      [ctx.workspaceId, ctx.principalId, revision],
+    );
+    await db.query(
+      "INSERT INTO workflow_personal_library_mutations(workspace_id,principal_id,mutation_id,payload_hash,visibility_hash,revision) VALUES($1,$2,$3,$4,$5,$6)",
+      [
+        ctx.workspaceId,
+        ctx.principalId,
+        input.mutationId,
+        payloadHash,
+        visibilityHash,
+        revision,
+      ],
+    );
+    await audit(db, ctx, "favorite.reorder", ctx.principalId);
+    return { revision };
   }
   /** Templates currently carry one origin only. Additional draft lineage must
    * stay in a private draft until templates have a reviewed multi-root contract. */

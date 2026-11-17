@@ -84,3 +84,26 @@ InboxItem은 `{id,sequence,revision,type,createdAt,readAt,archivedAt,target,titl
 
 
 C2 리뷰 보완(2026-11-17): immutable approved 결정 이벤트는 동일 batch/hash의 canonical published 전이 뒤에도 검토 결정 알림으로 남는다. 이것은 현재 승인 권한을 부여하지 않으며 현재 철회·작성자/reviewer·전체 계보 ACL 검사를 계속 적용한다. 결정 이벤트 커서의 내부 인가 fingerprint에 현재 전체 페이지/원본 내용과 reader 집합을 포함하고, 공개 exact-detail/InboxItem DTO에는 해당 fingerprint 또는 계보 envelope를 넣지 않는다.
+
+## 개인 문서 목록 (C3 / UXC-02, 2026-11-17)
+
+기존 인증·선택 공간·CSRF와 WorkflowService의 문서/원본/계보/상위 위치 검사를 사용한다. 즐겨찾기 저장은 열람 권한이나 원본 복제가 아니다. 기존 favorite/subscribe 변경 URL과 `{pageId,enabled}` 응답은 유지한다.
+
+| `/api/v1` 뒤 경로 | 계약 |
+| --- | --- |
+| GET `/workflows/favorites`, `/workflows/recent`, `/workflows/subscriptions` | `limit` 1~25(기본25), 선택적 `cursor`. `{items,nextCursor,revision}`. 각 항목은 `{id,title,version,at}`이고 구독의 at은 null이다. 기존 items에 페이지 정보와 개인 정렬 revision을 추가한다 |
+| GET `/workflows/pages/:id/personal-state` | 현재 열람 가능한 문서의 `{favorite,subscribed}`. 방문을 기록하지 않는다 |
+| POST `/workflows/favorites/reorder` | `{pageIds,expectedRevision,mutationId}` → `{revision}`. 중복 없는 현재 즐겨찾기 1~50개를 지정 순서로 해당 항목들의 기존 슬롯에 배치한다. 다른 현재 열람 가능한 항목의 상대 순서를 보존하며 숨긴 항목을 반환하지 않는다 |
+| POST `/workflows/favorites/move` | `{pageId,direction:'up'|'down',expectedRevision,mutationId}` → `{revision,cursor}`. 서버가 현재 인가된 전체 즐겨찾기에서 바로 이웃과 교환하고 이동한 문서를 포함하는 현재25행 페이지의 새 서명 cursor를 반환한다(first page는 null). 클라이언트에 전체 목록/숨긴 이웃 ID를 보내지 않는다 |
+
+즐겨찾기 변경과 재정렬은 같은 사용자·공간의 잠금/revision을 사용한다. 오래된 기준은 STALE_VERSION(409), 같은 mutationId의 다른 본문은 MUTATION_CONFLICT(409)다. 재시도에도 현재 문서/원본/상위/계보 인가와 입력을 재검사하며 저장된 문서 ID·제목을 재생하지 않는다. 재정렬 영수증은 해시·revision만 가진다.
+
+커서는 사용자·공간·목록 종류·limit·현재 인가된 결과와 전체 의존 내용/reader 해시에 바인딩한다. 바뀐 기준 또는 변조된 커서는 STALE_CURSOR(409)다. 문서 ID·제목을 토큰에 넣지 않는다. 현재 구현의 서명 키는 프로세스 범위이며 재시작이나 다른 인스턴스에서는 처음부터 현재 인가된 목록을 다시 조회해야 한다. 개인 목록 후보가 10,000개를 넘으면 PERSONAL_LIBRARY_CAPACITY(409)를 반환하며 0건이나 잘린 성공으로 표시하지 않는다. 대규모 부하/다중 인스턴스 운용 인수는 미검증이다.
+
+최근 방문은 기존 `/workflows/pages/:id`의 성공한 현재 인가 조회에서만 upsert하며 같은 문서는 한 항목이다. 개인 목록·상태 조회·키워드 링크 검색은 이 방문 기록 경로를 호출하지 않는다. 화면은 활성 상태에서 30초/재초점 때 재검사하고 숨긴 탭의 주기 갱신을 멈춘다. 이동 뒤 오래된 커서를 버리고 서버가 반환한 현재25행 context cursor로 다시 읽어 대상 문서와 키보드 초점을 유지한다. 이전 계정·공간·API 인스턴스의 늦은 응답은 현재 화면에 반영하지 않으며 제목/목록을 URL이나 브라우저 저장소에 복사하지 않는다.
+
+migration141은 기존 workflow_activity에 nullable position을 추가한다. 기존 5개 값 INSERT와 기존 구독 저장소를 유지한다. 새 state/mutation 테이블은 내용이나 자원 ID를 갖지 않는 제어 메타데이터로 분류하고 보존/삭제 inventory의 정확한 스키마 검사에 등록했다. 상세 실행 증거와 한계는 [화면 검증](ui-validation/2026-11-17-personal-library/README.md)을 따른다.
+
+C3 최종 리뷰 보완: favorite 항목의 호환 추가 `canMoveUp`/`canMoveDown`은 현재 열람 가능한 전체 즐겨찾기의 경계만 표시한다. 페이지25행 제한은 순서 범위를 나누지 않는다. move는 기존 reorder와 같은 canonical private primitive/사용자·공간 잠금/CAS/해시 영수증을 사용하며 별도 트랜잭션 안에 public 변경 메서드를 중첩 호출하지 않는다. 같은 mutationId를 다른 move/reorder 본문에 재사용하면 MUTATION_CONFLICT다. 현재 인가·목록 존재·전체 의존 envelope를 먼저 확인한 후 replay를 처리하고 실제 전역 끝의 새 이동은 FAVORITE_BOUNDARY(409)다. replay에서도 현재 인가된 snapshot으로 새 context cursor를 발급하며 과거 cursor/보호 DTO를 영수증에 보관하지 않는다. 현재 권한/목록이 바뀌거나 문서가 사라지면 generic stale/not-found 오류다. 기존 reorder의 입력1~50ID와 응답 `{revision}`은 그대로다. migration141은 바꾸지 않았다.
+
+일반 목록 새로고침으로 초점 행이 사라지면 공용 현재 DOM helper가 현재 허용된 이웃의 같은 제어 또는 안정된 refresh/error 제어로 복구한다. 외부 keyboard/pointer 선택은 존중하며 과거 행·제목을 캐시하지 않는다. C2 useInboxFocus 공개 동작/선택자/안내는 compat wrapper로 유지한다.

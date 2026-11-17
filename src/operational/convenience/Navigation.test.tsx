@@ -208,13 +208,23 @@ test("access-request destination selects the exact authorized request beyond 25 
   expect(container.textContent).not.toContain("접근 이유 0");
 });
 test("a new destination cannot silently present a future feature as connected", async () => {
-  const container = await mount("/?app=1&space=team&section=favorites", () => ({
+  const container = await mount("/?app=1&space=team&section=saved-views", () => ({
     items: [],
   }));
   expect(container.textContent).toContain("아직 연결되지 않았습니다");
   expect(
     container.querySelector('a[aria-current="page"]')?.textContent,
-  ).toContain("즐겨찾기");
+  ).toContain("저장 보기");
+});
+test.each(["favorites", "recent", "subscriptions"])("personal %s destination renders its current authorized server list", async section => {
+  const paths: string[] = [];
+  const container = await mount(`/?app=1&space=team&section=${section}`, path => {
+    paths.push(path);
+    return path.startsWith(`/workflows/${section}?`) ? {items:[{id:"library-one",title:"현재 문서",version:1,at:null}],nextCursor:null,revision:0} : {items:[]};
+  });
+  expect(paths).toContain(`/workflows/${section}?limit=25`);
+  expect(container.querySelector('a[href="/?app=1&space=team&document=library-one"]')?.textContent).toBe("현재 문서");
+  expect(container.textContent).not.toContain("아직 연결되지 않았습니다");
 });
 test("invalid locations show an explicit error and do not select a document", async () => {
   const container = await mount(

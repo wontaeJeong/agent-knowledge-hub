@@ -70,6 +70,8 @@ export async function inventory(
   // configuration/index-maintenance metadata, never product content or resource lineage. Freeze
   // the exact SQL-visible schema: a future content column must fail closed.
   const compatibleControls: Record<string, string[]> = {
+    workflow_personal_library_state:["workspace_id:text:NO","principal_id:text:NO","revision:bigint:NO"],
+    workflow_personal_library_mutations:["workspace_id:text:NO","principal_id:text:NO","mutation_id:text:NO","payload_hash:text:NO","visibility_hash:text:NO","revision:bigint:NO","created_at:timestamp with time zone:NO"],
     collaboration_inbox_state:["workspace_id:text:NO","principal_id:text:NO","next_sequence:bigint:NO","revision:bigint:NO"],
     collaboration_inbox_mutations:["workspace_id:text:NO","principal_id:text:NO","mutation_id:text:NO","payload_hash:text:NO","visibility_hash:text:YES","updated:integer:NO","created_at:timestamp with time zone:NO"],
     legacy_compat_memberships: ["workspace_id:text:NO","principal_id:text:NO","role:text:NO","subject:text:NO","revoked:boolean:NO","captured_at:timestamp with time zone:NO"],
@@ -121,6 +123,8 @@ export async function inventory(
   const controls = new Set(["access_audit","access_batch_authors","access_credentials","access_grants","access_review_rules","access_reviewers","access_shares","access_source_policy","access_spaces","access_triage","audit","content_retention_holds","content_retention_policies","content_retention_receipts","durable_budget_days","durable_budget_limits","feature_policies","legacy_v1_access_grants","legacy_v1_access_invitations","legacy_v1_access_reviewers","legacy_v1_access_spaces","legacy_v1_access_triage","memberships","operations_audit_archives","operations_audit_chain","operations_erased_artifacts","operations_erasure_receipts","operations_legal_holds","operations_policy","operations_recovery_acl","operations_tombstones","resource_readers","resources","runtime_sessions","storage_tickets","usage_events"]);
   controls.add("legacy_compat_memberships");
   controls.add("storage_collector_connections");
+  controls.add("workflow_personal_library_state");
+  controls.add("workflow_personal_library_mutations");
   controls.add("collaboration_inbox_state");
   controls.add("collaboration_inbox_mutations");
   controls.add("search_index_workspace_state");

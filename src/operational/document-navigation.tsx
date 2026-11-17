@@ -1,3 +1,4 @@
+import { PersonalLibrary } from "./convenience/PersonalLibrary";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Markdown, type AttachmentReader } from "../ui/Markdown";
 import { Button } from "../ui/primitives";
@@ -166,65 +167,33 @@ function Documents({ items, spaceId }: { items: Item[]; spaceId: string }) {
 export function PersonalDocuments({
   api,
   spaceId,
+  principalId = "",
   refreshKey,
   onError,
 }: {
   api: OperationalApi;
   spaceId: string;
+  principalId?: string;
   refreshKey: string;
   onError: (error: unknown) => void;
 }) {
-  const [lists, setLists] = useState<{
-    favorites: Item[];
-    recent: Item[];
-  } | null>(null);
-  const sequence = useRef(0);
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      const request = ++sequence.current;
-      setLists(null);
-      try {
-        const [favorites, recent] = await Promise.all([
-          api.get<{ items: Item[] }>("/workflows/favorites"),
-          api.get<{ items: Item[] }>("/workflows/recent"),
-        ]);
-        if (active && request === sequence.current)
-          setLists({ favorites: favorites.items, recent: recent.items });
-      } catch (error) {
-        if (active && request === sequence.current) {
-          setLists(null);
-          onError(error);
-        }
-      }
-    };
-    void load();
-    window.addEventListener("focus", load);
-    const timer = setInterval(load, 60000);
-    return () => {
-      active = false;
-      sequence.current++;
-      clearInterval(timer);
-      window.removeEventListener("focus", load);
-    };
-  }, [api, spaceId, refreshKey, onError]);
   return (
     <section aria-label="개인 문서 목록">
-      <h3>즐겨찾기 · 최근 문서</h3>
-      {lists ? (
-        <div className="op-personal-documents">
-          <section>
-            <h4>즐겨찾기</h4>
-            <Documents items={lists.favorites} spaceId={spaceId} />
-          </section>
-          <section>
-            <h4>최근 문서</h4>
-            <Documents items={lists.recent} spaceId={spaceId} />
-          </section>
-        </div>
-      ) : (
-        <p role="status">현재 접근 권한을 확인하는 중입니다.</p>
-      )}
+      <h3>내 문서</h3>
+      <div className="op-personal-documents">
+        {(["favorites", "recent", "subscriptions"] as const).map((kind) => (
+          <PersonalLibrary
+            key={kind}
+            kind={kind}
+            api={api}
+            spaceId={spaceId}
+            principalId={principalId}
+            refreshKey={refreshKey}
+            onError={onError}
+            compact
+          />
+        ))}
+      </div>
     </section>
   );
 }

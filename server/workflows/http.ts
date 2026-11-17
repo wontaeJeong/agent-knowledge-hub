@@ -1,3 +1,5 @@
+import { handlePersonalRoute } from "../convenience/http";
+import { PersonalLibraryService } from "../convenience/personal";
 import { z } from "zod";
 import type { Context } from "../service";
 import type { WorkflowService } from "./service";
@@ -7,6 +9,7 @@ export async function handleWorkflowRoute(
   input: {
     method: string;
     path: string;
+    query?: URLSearchParams;
     body: unknown;
     ctx: Context;
     send: (status: number, data: unknown) => void;
@@ -15,6 +18,7 @@ export async function handleWorkflowRoute(
 ): Promise<boolean> {
   const { method, path, body, ctx, send } = input;
   if (!path.startsWith("/api/v1/workflows/")) return false;
+  if (await handlePersonalRoute(input,new PersonalLibraryService(service))) return true;
   const route = path.slice("/api/v1/workflows".length);
   const reply = (value: unknown, status = 200) => {
     send(status, value);
@@ -26,10 +30,6 @@ export async function handleWorkflowRoute(
     if (route === "/templates") return reply(await service.templates(ctx));
     if (route === "/notifications")
       return reply(await service.notifications(ctx));
-    if (route === "/favorites")
-      return reply(await service.activity(ctx, "favorite"));
-    if (route === "/recent")
-      return reply(await service.activity(ctx, "recent"));
     if (route === "/trash") return reply(await service.trash(ctx));
     if (route === "/preferences") return reply(await service.preferences(ctx));
     const page = route.match(/^\/pages\/([^/]+)(?:\/(comments|navigation))?$/);

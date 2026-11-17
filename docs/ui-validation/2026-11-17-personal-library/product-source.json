@@ -1,0 +1,24 @@
+{
+  "sha256": "3edf1bff927ce44e5953650fd18dc2b7913c8284f71b778ae956ab8037547846",
+  "algorithm": "SHA256 of sorted relative path + NUL + bytes + NUL",
+  "files": [
+    "server/convenience/http.ts",
+    "server/convenience/personal.ts",
+    "server/convenience/types.ts",
+    "server/migrations/141-personal-library.sql",
+    "server/retention/inventory.ts",
+    "server/runtime/errors.ts",
+    "server/runtime/http.ts",
+    "server/workflows/http.ts",
+    "server/workflows/service.ts",
+    "src/operational/App.tsx",
+    "src/operational/api.ts",
+    "src/operational/convenience/PersonalLibrary.tsx",
+    "src/operational/convenience/inbox-focus.ts",
+    "src/operational/convenience/list-focus.ts",
+    "src/operational/convenience/personal-client.ts",
+    "src/operational/convenience/personal.css",
+    "src/operational/document-navigation.tsx",
+    "src/operational/workflows.tsx"
+  ]
+}
