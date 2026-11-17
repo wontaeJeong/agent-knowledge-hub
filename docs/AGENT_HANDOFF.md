@@ -705,3 +705,22 @@ Final feature validation (2026-11-17): `npm run check` passed after ancestry har
 - 완료된 #45/46/47/48/50/51/52/53/56/60/62와 인증 수정 #54를 PR #59에 통합한다. 별도 편의기능 C1 main `a1dba1f`도 보존했다. C1 충돌은 App의 ReviewRejection 및 convenience imports, workflows의 BulkEditor 및 NavigationProtection imports를 모두 유지했으며 양쪽 인계/실수 기록을 보존했다.
 - C1 통합 후 및 인증 통합 후 Node24.22.2 전체 npm run check가 각각 통과했다. 주간 모델/알림/계보 관련 통합 native도 통과했다. 인증·수집·navigation의 원본 시험은 호스트/DB 시계 차이를 관찰한 뒤 동일 시계 컨테이너에서18건 전부 통과했다. 실패와 환경 제약은 MISTAKE_LOG에 기록했다. 최종 원격8개 필수 검사를 확인한 뒤 main에 머지한다.
 - 남은 Task1c/6/10/11/12/13/14/15/16/17/18/19는 각각 별도 PR로 계속 진행한다. 1노드/App1/DB1 최소 리소스 기준, 전체251요구사항, 현재 ACL·원본 상한·독립 검토/발행 불변식을 유지하며 의미 품질·사내 SSO·운영 인수를 주장하지 않는다.
+
+### 2026-11-16 — PR #56 native HTTP 통합 시험 시간 예산
+
+- 부모 작업이 전달한 원격 CI `43890549626`의 PostgreSQL 119파일 실행에서 `navigation-http.test.ts` 단일 사례만 기본 5000ms를 초과했다. assertion/product 오류는 보고되지 않았으며 다른 CI 작업은 통과했다. 해당 사례는 fixture migration/bootstrap과 OIDC/current-ACL 검증을 포함한 native HTTP 요청 34건을 순차 실행한다. 이전 로컬 파일 시간도 5.20초로 기본 제한에 근접했다.
+- 제품·전역 테스트·CI 설정을 변경하지 않고 해당 통합 사례에만 20초 상한을 명시했다. `server/questions/runtime-http.test.ts`의 20초/30초 native HTTP 예산을 따르며 auth/CSRF·상대/절대/network 링크·Host·원본 철회 검사를 그대로 유지했다. sleep/retry는 추가하지 않았다.
+- 전용 native PostgreSQL의 해당 파일 1시험 통과(파일 5.46초), `npm run check:server` 통과. 테스트만 수정한 작은 변경이므로 전체 광역 suite는 반복하지 않았다. 정확한 명령/출력은 기존 task report에 추가했다. 최종 원격 CI 확인은 부모 작업에서 수행한다.
+### 2026-11-16 — 렌더링 변경과 링크 계보 수정의 최종 통합
+
+문서 표시 PR #53이 반영된 통합175ed7a를 보존해 링크 계보 수정과 합쳤다. source 충돌은 없었고 HANDOFF·라이선스 고지의 양쪽 항목을 함께 보존했다. 새 KaTeX/Mermaid 의존성은 이 작업 트리의 독립 node_modules에 `npm ci --ignore-scripts`로 설치했다. Node24 `npm run check` 통과(프런트56파일213시험·251요구사항·서버 타입·빌드·HTTP smoke), 전용 native PostgreSQL17의 기존154회귀와 storage presentation HTTP를 포함한13파일155시험 통과. 이전38fa809의 원격124파일 CI도 모두 통과했으나 이 통합 커밋의 최종 CI는 별도 확인해야 한다. 번들 크기 경고와 npm http-proxy 경고는 빌드 실패가 아니다. 알림 승인 대기 이벤트 유실은 앞선 미해결 기록대로 별도다.
+
+### Task3/Task2 integration safety
+- Resolved overlapping published-body UI by using the shared safe Markdown renderer inside DocumentBody navigation. Outline/find decorate existing DOM without replacing authenticated attachment handlers. Math/SVG/control/status nodes are excluded from text marking. An integration regression failed on an external img before the change; safe image/math/find/preview and existing navigation/draft tests16 now pass. Fullcheck passed; actual integrated screenshots and scoped independent review follow.
+
+- Task3/Task2 final base integration: Node24 npmruncheck passed, native presentation-http/navigation-http/bulk3files passed, actual Chromium1440/390 safe-renderer navigation fixture passed outline4/find1/math/diagram/preview with external0/errors0/overflowfalse. Synthetic component input/reader is explicit in capture README; original actualOIDC/runtime/DB flow remains separately evidenced.
+
+## 2026-11-17 main PR #59 최종 native 시험 예산 보완
+
+- PR #56의 이후 최종9e209d2를 병합했다. 실제 source 차이는 없고 양쪽 HANDOFF/MISTAKE_LOG29줄을 보존했다. 원격9e209d2의 취소된 macOS job을 정상 재실행해 최신8개 검사가 전부 통과했다.
+- 유지관리 기본5초 native 예산 실패를 실제 단계 비용으로 진단하고 해당 파일의 async PG/정책/모델/worker 기본 사례14선언/그룹에만20초 예산을 명시했다. 원본 본문·assertion·제품 timeout·기존15초·순수 달력은 유지했다. Node24 전체 check(프런트293/Node48/import16/evaluation41/251요구사항/types/build/smoke) 및 native21시험 통과. 독립 검토와 최종main CI 후 머지한다. 나머지 기능/첫 배포1노드App1DB1 최소리소스 기준은 계속 유지한다.
