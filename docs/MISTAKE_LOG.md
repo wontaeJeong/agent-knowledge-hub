@@ -1,5 +1,15 @@
 # 실수와 교훈 기록
 
+### 2026-11-18 — C4 최종 리뷰의 현재 페이지 초기화·정확한 초안 복구 누락
+
+- 맥락: PR72 whole-branch final review F1/F2, FIX_BASE f74f408. Home 자동 focus/visibility/30초 refresh가 summary=null로 위젯을 unmount해 page2/초점을 잃었다. exact page-bound draft를 먼저 설정해 기존 recovery effect를 건너뛰고 미전송 cache를 offer하지 않았다. 기존 단위 검사는 반복 탐색/재시작 cache와의 조합을 누락했다.
+- 조치: 위젯별 현재 cursor/identity/sequence와 DOM을 보존하며 현재 canonical page를 재검증한다. 실패는 행을 제거하고 retry/restart를 제공한다. 정확한 cached ID만 기존 online identity/full-lineage/local-copy/CAS 복구로 넘기며 다른 같은-page cache는 saved/flush/unmount/write가 훼손하지 않게 ID를 확인한다.
+- 실제 browser 후속 발견: recovery offer/restore는 보였으나 공통 action의 parent onChanged/load가 dataReady=false로 editor를 해제하여1초 autosave 전에 server r1/cache loss가 발생했다. c4-finalwave-browser-first.log를 제품 실패로 보존했고 부모 reload 회귀1fail/12pass RED 후 local-only restore의 mutation reload를 생략해 수정했다. 최종 browser는 실제 canonical r2 저장과 다음 conflict까지 확인한다.
+- 추가 F1 검증: 반복 background 이벤트가 진행 중 요청을 계속 supersede하면 기존120초 timeout/error도 화면에 반영되지 않을 수 있었다.1fail/10pass RED 뒤 진행 중 background만 합치고 Next는 우선하게 수정했다. 최초 F1/F2 RED14fail/2pass, 최종 focused60과 fullcheck471/48/16/41/251/types/build/smoke 및4조건76PNG exit0. 이전469/470 check는 중간 근거다.
+- Harness 실패: concurrent writer fixture가 draft read DTO의 updatedAt까지 strict save에 보내 실제400 VALIDATION_FAILED를 받았다. canonical 쓰기 필드만 선택했고 서버 스키마/인가를 약화하지 않았다. source read에서 존재하지 않는 recovery/schemas 파일명은 실제 retention/recovery와 service의 계약으로 정정했다. read-only ps/일부tmp 경로 접근은 sandbox가 거부하여 소유 process 진단만 승인된 escalation으로 수행했다.
+- 상태: 같은 최종 wave 내 수정/로컬 검증 완료, 새 source-bound 증거·실패 로그·hash/cleanup을 기록했다. backend 변경이 없어 native50+130은 carry다. 독립 재검토/원격 CI/병합과 기존 운영·접근성·scale·품질 후속은 별도이며 검증 완료로 승격하지 않는다.
+
+
 ### 2026-11-17 — C6 최종 리뷰의 목록 단절·템플릿 fence와 실제 keyboard blur
 
 - F1 실제 probe는 승인/숨은25행 뒤의 유효한 이전 요청이 목록에서 영구 누락됨을 확인했다. F2는 completed workspace receipt 뒤 bare template 본문이 저장·목록에 재노출됨을 확인했다. 기존 exact-resume/erasure 회귀는 누적 목록과 template 쓰기 경계를 포함하지 않았다.
@@ -1063,3 +1073,28 @@
 The new page-fence binding initially reused opaque template/draft IDs as page IDs. Actual RED3 reproduced unrelated same-name page tombstones blocking bare template, saveDraft and manual snapshot writes. Only the three C6-added calls were corrected to actual pageId/originPageId or empty no-page binding; workspace/physically-blocked fences remain. Final affected6files153 and fullcheck429 exited0, with unchanged9files99 retained from prior249 evidence (unique252, not one252 run).
 
 Final fresh-runtime four-condition capture passed. Its intentional12 HTTP503 responses match12 PG42P01 errors from the explicit policy-table rename fixture. An earlier unexpected390 initialization503 remains unexplained; a later901ms canonical parallel diagnostic,16 real27/81-distinct-draft initializations and2 real54approved/27pending distribution initializations passed but do not establish the original cause. Logs preserve both failure and success. The normal27-distinct-draft behavior was not removed from validation when the paging fixture was reduced to2 producers/27 requests. No hidden retries, fake successful DTOs or production load acceptance claims.
+
+
+### 2026-11-17 — C4 개인 홈의 연계 회귀와 검증 도구 오류
+- 맥락/관련 PR: #49 UXC-05 개인 홈·내 작업, C6 PR71 병합 뒤의 격리 브랜치 작업. 새 PR/원격 CI/병합은 controller 소유다.
+- 사실과 영향: 기본 초안 응답에 `nextAfter:null`을 무조건 추가하여 기존 엄격 DTO 회귀 1개가 실패했다. 새 exact resolver가 기존 404 복구 캐시 정리를 가로채 C6 client 회귀 1개가 실패했고, invalid URL이 Home을 렌더링하며 잘못된 응답 형태에 접근했다. 비활성 새로고침 버튼을 focus fallback으로 삼아 항목 철회 때 초점이 body로 빠졌다. 마지막 self-review에서는 공통 cursor digest에 모든 feed 테이블을 넣어 own-access 테이블 장애가 전체 Home까지 실패하는 문제를 실제 PostgreSQL rename/42P01로 재현했다.
+- 원인: 선택적 paging 계약을 기존 exhaustive DTO까지 확장했고, 재사용 경계의 cache/focus 책임과 공통 authority·개별 feed 데이터 의존성을 충분히 분리하지 않았다. 대시보드 공통 grid의 stretch는 25행 초안 때문에 다른 카드에 긴 빈 영역을 만들었다.
+- 조치 및 재발 방지: continuation 필드는 명시적 paging일 때만 반환한다. 기존 scoped RecoveryCache 정리를 exact resolver에도 유지하고 잘못된 위치는 Home에서 제외한다. 현재 DOM 기반 helper의 지속 heading fallback을 사용한다. C6 cursor helper의 기본값/암호화/공통 ACL·원본·삭제 fence는 그대로 두고 서버가 고정한 feed별 테이블 선택만 추가했다. Home 전용 CSS로 카드 시작 정렬과 native 세로 목록 스크롤을 적용하며 25개 DOM 항목과 실제 cursor는 보존한다.
+- 검증: `c4-final-native-corrected.log`의 Home8/governance14/workflows36은 exit0. 이후 실제 own-access/disclosure 테이블 outage·공통 authority outage·현재 변경 cursor 무효화를 포함한 `c4-final-isolation-native.log`는 Home10/HTTP1/C6 manual9/new-document30, 4파일50개 exit0. 최종 fullcheck 및 현재 UI 증거는 `docs/ui-validation/2026-11-17-personal-home/README.md`와 source-manifest를 따른다. 기대한 기능 부재 RED와 위 회귀/도구 오류는 구분한다.
+- 검증 도구 오류: 최초 TEST_DATABASE_URL 누락, disclosure reviewer 환경 누락, 가짜 credential을 canonical authorizer에 전달한 fixture, 이미 승인된 제안 위에 겹치는 제안 생성, 여러 공간에서 globally keyed 합성 요청 ID 재사용을 각각 올바른 fixture로 고쳤다. 제품 권한·도메인 제약은 완화하지 않았다. 문자열 기반 로컬 패치의 형식 가정도 두 번 실패했으며 실제 적용/검사를 확인한 뒤 계속했다.
+- 브라우저 도구 오류: link navigation 완료 전 evaluate와 종료 중 in-flight route.fetch가 실패 원인을 가렸다. waitForURL/route 종료 처리를 보완하고 failure DOM을 로그에 남겼다. 기존 WorkflowPanel의 wrapping label에는 textarea 초기 본문이 포함되어 exact label 조회가 0개였으므로 prefix locator와 정확한 ID/본문/CAS 검증을 사용한다. `workflow_activity.kind`를 존재하지 않는 visit으로 센 잘못된 가정은 canonical `recent`로 고쳤다. 이 실패 뒤의 새 DB/런타임에서 다시 확인하기 전 성공으로 표시하지 않았다.
+- 상태/후속 작업: 제품 회귀는 위 증거로 수정 확인. inherited wrapping-label 접근성 한계, workspace digest의 DB scan 비용, 기존 큰 Vite chunk와 운영 IdP/OS·스크린리더/성능·의미 품질 인수는 미검증/후속 사항이다. 부모 PostgreSQL/다른 작업은 정리 대상이 아니다.
+
+- C4 packaging 후속: 첫 feature commit 직전 `git diff --cached --check`가 원본 terminal log의 trailing whitespace/EOF 빈 줄을 경고했는데 shell이 다음 명령으로 진행해 commit됐다. 제품 검사 실패는 아니지만 packaging gate 진행 제어 실수다. 로그의 줄 끝 공백/EOF 빈 줄만 정규화하고 실제 실패·결과·본문은 유지했다. log SHA manifest를 다시 생성했으며 후속 staging/전체 base diff 검사는 check=True gate로 통과 확인한 뒤 commit한다. 제품 source·실행 결과·캡처는 바꾸거나 재실행하지 않는다.
+
+
+### 2026-11-17 — C4 I1 기본 Home codec/preview 회귀
+- 맥락/관련 PR: PR72 Draft, task review0 Critical/1 Important. FIX_BASE d8dfa94.
+- 사실과 영향: implicit Home의 parser 결과를 serializer가 알 수 없는 legacy `#home`으로 바꾸어 실제 공간 selector 변경 후 운영 개요로 이동했다. 같은 empty-hash default를 preview에 적용해 bare preview에는 Home도 Overview도 없었다. 초기 첫 화면/명시적 운영 링크 검증만으로 serializer와 실제 공간 전환의 의미 보존을 검증했다고 볼 수 없었다.
+- 원인: workspace default를 legacy helper에 추가하면서 route serializer 및 preview 모드의 지원 본문을 함께 점검하지 않은 구현 누락이다.
+- 조치: 기존 route codec/entryMode 안에서 workspace no-hash Home과 preview Overview를 구분하고 implicit Home의 canonical no-hash 직렬화를 유지한다. 지원하지 않는 preview Home builder는 명시 오류로 막는다. 별도 codec/URL key/권한·backend 변경은 없다.
+- 검증: c4-i1-red.log8실패/86통과, c4-i1-red-mode-guard.log9실패/86통과(exit1); focused121, 최종447/48/16/41/251/types/build/smoke 및 네 조건52 실제 캡처 exit0. same-backend native50+130을 carry하고 재실행으로 표시하지 않는다. 실제 공간 전환·bare preview 본문/no-native-API까지 검사한다.
+- 도구 관찰: 첫 cleanup checker가 incomplete를 보고했으나 바로 뒤 진단은 DB/profile/process0이었다. 원인은 확정하지 않았으며 plain process command-text 필터의 wrapper 일치 가능성을 배제하도록 Chromium 실행 파일까지 확인했다. 수정된 verifier로 DB/profile/orphan0·포트 해제·parentPG 생존을 재확인했다. 실제 잔여 자원/제품 실패를 추정하거나 성공으로 덮지 않았다.
+- 상태/후속: I1 local 수정·검증 완료, controller exact-head 재리뷰/CI/merge 대기. 기존 accessibility/digest scan/운영 IdP/큰 bundle·의미 품질 제한은 유지한다.
+
+- I1 packaging 관찰: 일반 git add가 tracked report를 stage하면서도 ignored `.superpowers` 부모 경고로 exit1을 반환했다. check=True가 commit 진행을 중단했다. 소유 report/new I1 logs만 명시적 `-f`로 stage하고 diff/manifest gates 후 commit한다. 기존 작업이나 ignored baseline/brief는 stage하지 않는다.

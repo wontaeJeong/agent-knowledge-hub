@@ -69,6 +69,7 @@ async function mount(
   data: (path: string) => unknown,
   authenticated = true,
   currentIdentity: () => Identity = () => person,
+  preview = false,
 ) {
   window.history.replaceState(null, "", href);
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -99,7 +100,7 @@ async function mount(
   const container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => root!.render(<OperationalApp />));
+  await act(async () => root!.render(<OperationalApp preview={preview} />));
   return container;
 }
 const rows = Array.from({ length: 30 }, (_, i) => ({
@@ -714,4 +715,30 @@ test("cancelled detail navigation keeps the prior detail query and does not hand
  await act(async()=>container.querySelector<HTMLButtonElement>('.global-search > button')!.click());await writeSearchInput(container.querySelector<HTMLInputElement>('.quick-open input')!,"private code");
  const cancel=(event:Event)=>event.preventDefault();window.addEventListener("akh:before-navigate",cancel);
  try{await act(async()=>Array.from(container.querySelectorAll<HTMLButtonElement>('.quick-open button')).find(b=>b.textContent==="상세 검색")!.click());expect(container.querySelector('.quick-open')).not.toBeNull();expect(container.querySelector<HTMLInputElement>('.search-page input')?.value).toBe("prior query");}finally{window.removeEventListener("akh:before-navigate",cancel);}
+});
+
+test("default personal landing does not depend on legacy administration bootstrap and operations overview remains explicit", async()=>{
+ const calls:string[]=[];const h=Object.fromEntries(["recent","favorites","drafts","requests","revisions","reviews","failedJobs","accessRequests"].map(k=>[k,{status:"ready",items:[],nextCursor:null}]));
+ const container=await mount("/?app=1&space=team",path=>{calls.push(path);if(path==="/convenience/home")return h;if(path==="/spaces")return {items:[]};throw Error("unrelated aggregate must not load");});
+ expect(container.querySelector("h1")?.textContent).toBe("홈");expect(container.textContent).toContain("내 초안");expect(calls).not.toContain("/pages");expect(calls).not.toContain("/members");expect(container.textContent).not.toContain("서버 정본 ·");
+ const overview=Array.from(container.querySelectorAll<HTMLAnchorElement>("a")).find(a=>a.textContent==="운영 개요");expect(overview?.href).toContain("#overview");
+});
+
+test("actual space selection preserves the implicit personal Home rather than drifting to operations",async()=>{
+ vi.spyOn(window,"confirm").mockReturnValue(true);
+ const h=Object.fromEntries(["recent","favorites","drafts","requests","revisions","reviews","failedJobs","accessRequests"].map(k=>[k,{status:"ready",items:[],nextCursor:null}]));
+ const container=await mount("/?app=1&space=team",path=>{
+  if(path==="/convenience/home")return h;
+  if(path==="/spaces")return {items:[{id:"team",namespaceSlug:"org",slug:"first",role:"write"},{id:"other",namespaceSlug:"org",slug:"second",role:"write"}]};
+  if(path.startsWith("/usage"))return new Response(JSON.stringify({code:"UNAVAILABLE"}),{status:503});
+  return {items:[]};
+ },true,()=>({...person,workspaceId:new URLSearchParams(window.location.search).get("space")??"team"}));
+ expect(container.querySelector("h1")?.textContent).toBe("홈");
+ const space=container.querySelector<HTMLSelectElement>(".op-context select")!;expect(space).not.toBeNull();
+ await act(async()=>{space.value="other";space.dispatchEvent(new Event("change",{bubbles:true}));});
+ expect(new URLSearchParams(window.location.search).get("space")).toBe("other");expect(window.location.hash).not.toBe("#home");expect(container.querySelector("h1")?.textContent).toBe("홈");expect(container.querySelector('[data-home-widget="drafts"]')).not.toBeNull();expect(container.querySelector(".console-overview")).toBeNull();
+});
+test("bare preview renders its supported Overview body without calling authenticated Home",async()=>{
+ const container=await mount("/?preview=1",()=>{throw Error("preview must not call native API");},true,()=>person,true);
+ expect(container.querySelector("h1")?.textContent).toBe("운영 개요");expect(container.querySelector(".console-overview")).not.toBeNull();expect(container.querySelector('[data-home-widget]')).toBeNull();
 });

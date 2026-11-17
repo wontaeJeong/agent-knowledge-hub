@@ -1,0 +1,40 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ src/operational/convenience/home.test.tsx (2 tests | 2 failed) 8ms
+   × home distinguishes successful empty and failed widgets, retries only one and preserves exact resume 6ms
+   × loading and account generation never show previous personal rows or late responses 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/home.test.tsx > home distinguishes successful empty and failed widgets, retries only one and preserves exact resume
+AssertionError: personal Home component: expected undefined to be defined
+ ❯ mount src/operational/convenience/home.test.tsx:11:132
+      9| async function mount(api:any,principalId="editor"){
+     10|  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);
+     11|  const m=await import(/* @vite-ignore */ String("./Home")).catch(()=>(…
+       |                                                                                                                                    ^
+     12|  const el=document.createElement("div");document.body.append(el); cons…
+     13|  const props={api,spaceId:"s",principalId,capabilities:["knowledge.rea…
+ ❯ src/operational/convenience/home.test.tsx:18:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/operational/convenience/home.test.tsx > loading and account generation never show previous personal rows or late responses
+AssertionError: personal Home component: expected undefined to be defined
+ ❯ mount src/operational/convenience/home.test.tsx:11:132
+      9| async function mount(api:any,principalId="editor"){
+     10|  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);
+     11|  const m=await import(/* @vite-ignore */ String("./Home")).catch(()=>(…
+       |                                                                                                                                    ^
+     12|  const el=document.createElement("div");document.body.append(el); cons…
+     13|  const props={api,spaceId:"s",principalId,capabilities:["knowledge.rea…
+ ❯ src/operational/convenience/home.test.tsx:23:63
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  20:28:51
+   Duration  559ms (environment 90%, import 5%, transform 3%, tests 2%)

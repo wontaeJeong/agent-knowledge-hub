@@ -1,0 +1,27 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ src/operational/convenience/home.test.tsx (5 tests | 1 failed) 184ms
+   × current ACL refresh removes a focused row with keyboard fallback and never steals deliberate outside focus 37ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/home.test.tsx > current ACL refresh removes a focused row with keyboard fallback and never steals deliberate outside focus
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/operational/convenience/home.test.tsx:138:50
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  20:43:23
+   Duration  642ms (environment 63%, tests 31%, import 3%, transform 2%)

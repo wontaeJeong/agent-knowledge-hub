@@ -1,0 +1,33 @@
+[1/1] server/convenience/home.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ server/convenience/home.test.ts (6 tests | 1 failed) 5437ms
+   × failure feed reads only own canonical jobs and current input ACL, never successful or other-owner records 53ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+   Start at  20:38:13
+   Duration  5.66s (tests 97%, import 2%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/home.test.ts > failure feed reads only own canonical jobs and current input ACL, never successful or other-owner records
+Error: UNAUTHENTICATED
+ ❯ effectiveAccess server/access/index.ts:244:28
+    242|       [ctx.credentialId, ctx.principalId, ctx.workspaceId],
+    243|     );
+    244|     if (!c.rowCount) throw Error("UNAUTHENTICATED");
+       |                            ^
+    245|     capabilities = capabilities.filter(
+    246|       (a) => delegated.has(a as Action) && c.rows[0].actions.includes(…
+ ❯ authorizeActionDb server/access/index.ts:279:13
+ ❯ authorizeInTransaction server/access/index.ts:469:3
+ ❯ JobService.check server/jobs/service.ts:158:5
+ ❯ server/jobs/service.ts:169:7
+ ❯ JobService.tx server/jobs/service.ts:143:21
+ ❯ JobService.request server/jobs/service.ts:167:20
+ ❯ server/convenience/home.test.ts:208:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

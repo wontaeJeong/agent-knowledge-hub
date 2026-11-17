@@ -1,0 +1,27 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ src/operational/convenience/home.test.tsx (3 tests | 1 failed) 122ms
+   × exact page-bound draft beyond first 25 delegates to the existing editor with original CAS/base 41ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/home.test.tsx > exact page-bound draft beyond first 25 delegates to the existing editor with original CAS/base
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/operational/convenience/home.test.tsx:129:91
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  20:36:49
+   Duration  614ms (environment 71%, tests 22%, import 3%, transform 3%)

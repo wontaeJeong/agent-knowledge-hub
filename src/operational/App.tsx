@@ -1,3 +1,5 @@
+import { Home } from "./convenience/Home";
+import { MyTasks } from "./convenience/MyTasks";
 import { DocumentComposer } from "./convenience/DocumentComposer";
 import { DocumentSnapshot } from "./convenience/DocumentSnapshot";
 import { GlobalSearch } from "./convenience/QuickOpen";
@@ -408,7 +410,7 @@ function OperationalWorkspace({
       ? location
       : undefined;
   const pendingDestination =
-    (location.kind === "section" && !target && !["favorites","recent","subscriptions","search","compose"].includes(location.section)) ||
+    (location.kind === "section" && !target && !["home","tasks","favorites","recent","subscriptions","search","compose"].includes(location.section)) ||
     (location.kind === "document" && !!location.anchor);
   const [pages, setPages] = useState<PublishedPage[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
@@ -526,6 +528,8 @@ function OperationalWorkspace({
     };
   }, [api, clearProtected]);
 
+  const personalLanding = !preview && ["home", "tasks"].includes(tab) && !target;
+  const PersonalLanding = tab === "tasks" ? MyTasks : Home;
   const load = useCallback(async () => {
     let epoch = requestEpoch.current;
     let sequence = ++loadSequence.current;
@@ -573,6 +577,11 @@ function OperationalWorkspace({
         currentScope.current = nextScope;
         setSpaces(available.items);
         setTab("access");
+        return;
+      }
+      if(personalLanding){
+        setIdentity(current);currentScope.current=nextScope;setDataReady(true);
+        try{const available=await api.get<{items:typeof spaces}>("/spaces");if(isCurrent())setSpaces(available.items);}catch(e){if(e instanceof ApiError&&[401,403].includes(e.status))throw e;if(isCurrent())setNotice("공간 목록을 불러오지 못했습니다. 홈은 별도로 조회합니다.");}
         return;
       }
       const [p, s, c, m, j, config, availableSpaces, executors] =
@@ -664,7 +673,7 @@ function OperationalWorkspace({
         throw e;
       }
     }
-  }, [api, preview, clearProtected, setAnswer]);
+  }, [api, preview, clearProtected, setAnswer, personalLanding]);
   useEffect(() => {
     let active = true;
     let authenticated = false;
@@ -955,6 +964,18 @@ function OperationalWorkspace({
           </section>
         ) : (
           <>
+            {personalLanding && location.kind !== "invalid" && (
+              <PersonalLanding
+                api={api}
+                spaceId={identity.workspaceId}
+                principalId={identity.principalId}
+                capabilities={identity.capabilities ?? []}
+                onError={e => {
+                  if (e instanceof ApiError && [401, 403].includes(e.status)) clearProtected();
+                }}
+                onNavigate={() => window.dispatchEvent(new Event("akh:before-navigate", {cancelable: true}))}
+              />
+            )}
             {location.kind === "section" &&
               (location.section === "favorites" || location.section === "recent" || location.section === "subscriptions") &&
               !preview && dataReady && (
@@ -1028,7 +1049,7 @@ function OperationalWorkspace({
                 </label>
               </div>
             )}
-            {location.kind !== "invalid" && !pendingDestination && (
+            {location.kind !== "invalid" && !pendingDestination && !personalLanding && (
               <>
                 {![
                   "overview",

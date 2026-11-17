@@ -1,0 +1,113 @@
+# C4 whole-branch final review — PR72
+
+Base: `0def475457b54d50b38c2b61655e1987234da8f3`
+Head: `f74f408c0b056725fc55b26548b0853a48a921d5`
+Reviewed package: `.superpowers/sdd/2026-11-16-essential-convenience/review-0def475..f74f408.diff`
+Checkout: `/Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub`
+Review is read-only. No helper reviewers, checkout/index/HEAD changes, or product edits.
+
+### Strengths
+
+- The server composition has a sound authorization boundary: own drafts use owner-scoped canonical draft/history checks; own requests use `changesetDetailDb` or current disclosure validation; assigned reviews reuse current qualification and publication requirements; failed jobs reuse own scope and input-envelope checks. Home only emits small metadata and exact links, not private bodies or administrative aggregates (`server/convenience/home.ts:111`, `server/workflows/service.ts:253`, `server/workflows/governance/service.ts:559`, `:583`, `:963`, `server/jobs/service.ts:421`). Access-request metadata intentionally omits restricted resource IDs and titles (`server/workflows/governance/service.ts:83`). No new arbitrary foreign private-draft grant was found.
+- Independent canonical transactions and server-selected revision dependencies distinguish a real failed widget from a successful empty one. The native tests exercise an actual unavailable table, sibling survival, and common-authority failure; the HTTP test checks authenticated scope, strict query input, no-store, and session invalidation (`server/convenience/home.ts:215`, `server/convenience/http.ts:51`, `server/convenience/home.test.ts:298`, `server/convenience/home-http.test.ts:1`).
+- Optional draft/review candidate pagination retains legacy exhaustive response contracts, advances over hidden rows, and uses opaque actor/space/feed/data/authority-bound continuation. This is real continuation rather than repeatedly returning the first 25 authorized cards (`server/workflows/service.ts:253`, `server/workflows/governance/service.ts:963`, `server/convenience/home.ts:100`). Existing personal-library snapshot limits are separately disclosed; this is not a claim of constant database cost.
+- The new personal landing bootstraps without unrelated operations aggregates, while exact legacy destinations remain available. The I1 repair correctly distinguishes implicit no-hash workspace Home from preview Overview and preserves explicit/unknown legacy hash behavior (`src/operational/App.tsx:531`, `:575`, `src/operational/console.ts:85`, `src/operational/convenience/route.ts:141`, `:157`). The accepted `Overview.tsx` no-hunk exception is appropriate; adding cosmetic code there would not improve behavior.
+- Home keeps read/approval/publication stages separate and uses keyed identity/API/capability sessions and sequence checks. The exact draft resolver retains the requested ID and delegates to the existing editor with its original base/revision rather than selecting the first list item (`src/operational/convenience/Home.tsx:41`, `:70`, `src/operational/convenience/DocumentComposer.tsx:104`, `src/operational/workflows.tsx:702`). The recovery integration defect below does not negate those useful boundaries.
+- Evidence is unusually inspectable: failure history, real synthetic canonical HTTP/PG browser flows, source fingerprints, screenshots, current-versus-carried test distinctions, and operational limitations are recorded. The inspected final-check log supports frontend447/Node48/import16/evaluation41/251 requirements/types/build/static-smoke; native180 is correctly described as carried evidence in the I1 round, not a fresh single run (`.superpowers/sdd/2026-11-16-essential-convenience/logs/c4-i1-final-check.log:1`, `docs/ui-validation/2026-11-17-personal-home/README.md:15`).
+
+### Issues
+
+#### Critical (Must Fix)
+
+None found in the reviewed change.
+
+#### Important (Should Fix)
+
+1. **C4-F1 — Automatic Home refresh discards the user's continuation page even when nothing changed.**
+
+   **Files:** `src/operational/convenience/Home.tsx:90`, `:110`, `:141`, `:178`.
+
+   `refresh()` clears `summary` at line92 and always requests the first-page summary. The focus/visibility handlers and 30-second timer call it. While summary is null, all `HomeWidget` instances unmount; their current page state is lost, and the new instances initialize from the first-page results. This applies to both Home and My Tasks.
+
+   A user who has opened page2 to continue an older task loses that location merely by switching tabs/windows and returning, or by spending 30 seconds reviewing the queue. The dataset need not change. Repeated resets make large backlogs difficult to inspect and also replace the focused list controls. This is a functional continuation/keyboard workflow problem, not cosmetic refresh flicker. A reasonable user expects a background authorization refresh to preserve the page being viewed if it remains valid.
+
+   **Focused reproduction:** `/private/tmp/akh-c4-final-probe/home-refresh.test.tsx`, test `unchanged queue retains selected second page after returning focus`. The test clicked the real Next button, verified `second-page-draft`, dispatched window focus, and then observed `first-page-draft`. API calls were:
+
+   ```text
+   /convenience/home
+   /convenience/home?widget=drafts&cursor=page2
+   /convenience/home
+   ```
+
+   The unchanged-page retention assertion failed. Full output: `/private/tmp/akh-c4-final-probe/output-native.log`.
+
+   **Fix:** retain each widget's requested cursor and identity-bound state through automatic refresh, revalidate the current page, and update it without wholesale widget remounting. Keep current fail-closed behavior: stale/revoked/error results must clear invalid data and provide an explicit restart/retry. Do not fix this by disabling current-permission revalidation or indefinitely retaining stale rows. Add regressions for page2 across focus, visibility and the timer, including a refresh racing with Next and a stale/revoked cursor.
+
+2. **C4-F2 — Exact page-bound draft resume bypasses the existing permitted local-recovery flow.**
+
+   **Files:** `src/operational/workflows.tsx:702`–705 (changed initialization), `:440` (recovery guard), `:532` and `:641` (cache cleanup); integration entry at `src/operational/convenience/DocumentComposer.tsx:152`.
+
+   The new initial-draft branch sets `draft` and server `content` immediately. The existing local-recovery effect explicitly returns whenever `draft` exists. Therefore an exact `section=compose&draft=<page-bound ID>` resume never checks/offers an otherwise valid newer local recovery for that same draft. It proceeds with the older server text and shows the ordinary saved status. Later successful autosave/flush or editor cleanup can remove the unoffered local cache.
+
+   This affects a concrete restart scenario covered by the preservation contract: the browser has a still-valid, policy-permitted cache containing unsent text; the user returns through the Home draft card or reloads that exact URL. The ordinary document-entry path offers recovery, while the new direct resume path silently bypasses it. The persisted server draft remains intact, but the user's recoverable unsent edits can be lost; this is an Important integration defect.
+
+   **Focused comparison:** the same temporary probe seeded a real `RecoveryCache` with a page-bound draft at r1, server body `server body`, and local `UNSENT LOCAL BODY`, using a current five-minute grant. Its transport supplied successful current identity and canonical validation responses. The ordinary-page case passed the recovery-dialog assertion. The exact-draft case failed and reported:
+
+   ```json
+   {"mode":"exact-draft","recoveryOffered":false,"calls":["/workflows/recovery/permission"],"editor":["server body"],"cachePresent":true}
+   ```
+
+   Thus the exact path never calls `/me` or `/workflows/recovery/validate` for recovery; it only asks permission for future caching. Output: `/private/tmp/akh-c4-final-probe/recovery-output.log`. Existing new exact-resume coverage deliberately denies recovery and has no seeded restart cache, so it cannot detect this (`src/operational/convenience/home.test.tsx:117`, `:157`).
+
+   **Fix:** integrate exact page-bound resume with the existing online identity/full-lineage/local-copy/CAS recovery handshake before initializing/clearing the ordinary saved editor state. Match the cached draft ID to the requested exact ID (page-bound caches are keyed by page, so never silently select another draft for that page). Offer explicit restore/discard and preserve the conflict path; do not assign cached content before authorization. Cover matching valid cache, different draft on the same page, changed server revision/conflict, revoked/expired grant and failed validation, along with ordinary and page-less resume regressions.
+
+#### Minor (Nice to Have)
+
+No new standalone Minor finding. Existing concerns were actively triaged below; none is silently treated as proven safe or waived for production.
+
+### Architecture, scalability, and inherited-risk triage
+
+- **C6 M1 Composer/session coupling:** still maintenance debt, and the changed exact-destination adapter keeps one editor rather than creating a second write engine (`DocumentComposer.tsx:72`, `:104`). However, the actual new interaction with WorkflowPanel recovery is a demonstrated correctness problem and is elevated to C4-F2, not deferred under the old M1 label. A broad Composer refactor is unnecessary to close the concrete defect.
+- **SQL digest cost:** `listRevision` hashes whole workspace tables and global authority tables (`server/workflows/manual-disclosure.ts:125`, `:152`); a Home read performs an admission binding and before/after bindings for each widget (`server/convenience/home.ts:70`, `:102`, `:201`, `:215`). This increases default-page database work, including with empty personal queues. The output and candidate batches are bounded, but database scan/CPU cost is not constant. Actual scale latency/load has not been measured, so no evidence establishes an immediate timeout at the supported synthetic scale. Retain as a performance/operational follow-up: measure representative workspace/authority sizes and replace corpus hashing with comprehensive transactional revisions before claiming scalable operation. Omitting security dependencies to make it faster is not acceptable.
+- **Existing personal library snapshot:** recent/favorites reuse the canonical 10,000-item-cap snapshot with per-item authorization (`server/workflows/service.ts:1373`, `:1408`, `server/convenience/personal.ts:67`). These two feeds are not a new 25-candidate SQL scan. The existing cap produces an error rather than a fabricated complete empty list; continuation is valid within that inherited contract. This is disclosed scale debt, not an ACL bypass or an undisclosed unbounded response. No new capacity assurance is granted.
+- **Process-local cursor keys:** restarts invalidate cursors; multiple app processes would invalidate one another's tokens (`server/workflows/manual-disclosure.ts:28`, `server/convenience/personal.ts:8`). Current ADR003 explicitly starts with one app instance and no HA guarantee, so this is not a demonstrated supported-topology merge blocker. It is a real multi-instance readiness constraint and requires shared/rotatable key management before horizontal serving, not merely a documentation label. Error/restart UX must remain truthful.
+- **C6 M2 large chunks:** current build still measures629.09/1499.04kB chunks and emits the existing warning (`c4-i1-final-check.log:280`). This can affect cold loading, particularly mobile, but the C4 change does not demonstrate a new loading regression or establish a failing load budget. Keep the existing measured bundle-loading follow-up; do not claim production mobile performance from these captures.
+- **Inherited wrapping-label accessible name:** the reused WorkflowPanel label includes initial textarea content; the browser harness's prefix selector does not repair that user-facing issue (`src/operational/workflows.tsx`, Markdown textarea; `docs/ui-validation/2026-11-17-personal-home/README.md:20`). This is real accessibility/usability debt in the unchanged editor, not an authorization defect. C4 keyboard list evidence is meaningful, but it does not certify screen-reader behavior. Keep an explicit editor accessible-name follow-up.
+- **Exact review/job/access and login return:** inspected the changed generated links against App target mapping/initial props and the route/login allowlist. ReviewSelection's exact fallback calls canonical detail; jobs and access receive the selected ID (`server/convenience/home.ts:107`, `src/operational/App.tsx:406`, `:1563`, `:1799`, `:2265`, `src/operational/api.ts:13`, `src/operational/convenience/ReviewSelection.tsx:23`). No C4 link-to-panel mismatch was found. C1/C2 evidence supplied by the controller remains carried evidence; this review did not freshly exercise complete native browser review/job/access/login journeys. C12 still owns that broad journey validation.
+
+### Plan alignment and testing assessment
+
+The implementation substantially follows UXC-05 and preserves the protected North Star/251 requirements. Owner-scoped metadata additions, optional canonical paging, the exact draft adapter, independent personal bootstrap and Home-only list CSS are justified extensions needed for the task. The Overview no-hunk exception remains justified. I1 is addressed by the current codec and targeted actual-space/preview evidence.
+
+Two requirements remain unmet in ordinary changed flows: usable continued paging across routine revalidation (F1), and preservation of local recovery when following exact page-bound draft resume (F2). Existing tests cover several critical authorization and paging boundaries, real storage failure, account/response generation isolation, exact old draft base/revision, and distinct workflow states, but lack those interactions. The temporary probes are additional failing review evidence; they do not invalidate the reported original suites or pretend those suites included these cases.
+
+No schema migration is introduced. Native and HTTP authorization checks remain server-side, and the old draft/review API response shape remains compatible unless optional paging is requested. There is no new model call or claimed knowledge/agent quality gain. Real IdP, retention operating acceptance, restore/load/security acceptance and production readiness remain unverified.
+
+### Checked scope and review method
+
+- Read task-4 brief/constraints before code, implementer report and controller decisions, the requested reviewer template, North Star and relevant project guidance, original task review and I1 scoped review.
+- Reviewed the supplied three-commit diff in passes, including all changed production modules: server Home/HTTP/runtime registration, jobs, governance, manual-disclosure cursor revisions, workflow drafts; App/console/route, Home/MyTasks/CSS, DocumentComposer and WorkflowPanel. Reviewed changed Home/native/HTTP/client/navigation/route tests and the handoff/plan/evidence narrative. Large log/manifest sections were not treated as product code; tool truncation was resolved for the production hunks with focused reads. No Git diff was regenerated.
+- Named surrounding-code investigations: whole-change source/author authorization in publication detail; own access DTO privacy; review qualification; failed-job input envelope; personal-library snapshot and cursor continuation; login-return allowlist and exact target-panel mapping; current-DOM focus recovery; draft recovery initialization/CAS/cache cleanup. These were directly relevant integration questions, not an unrelated unchanged-code audit.
+- Inspected the current full-check transcript and browser README/results context. Controller-supplied independent source/artifact hashes and visual inspections were relied on as supplied; I did not rerun hashes, browser captures, native DB suites, or the full suite to authenticate that evidence. The native10 unique files/180 tests remain carried, not newly run here.
+- Executed only two narrowly motivated DOM probes outside the checkout: automatic refresh continuation (one failing case) and exact-draft versus ordinary-page local recovery (one passing control, one failing exact case). Temporary files and logs are under `/private/tmp/akh-c4-final-probe/`. The first probe's initial bundled-config startup was blocked by EPERM when Vite tried its dependency-cache location; it did not execute tests and is not product-failure evidence. Retrying with `--configLoader native` avoided that write and produced the actual assertion result. The second command selected only the recovery cases, not the earlier probe. No successful checkout mutation was performed; all authored review files are in `/private/tmp`.
+
+### Recommendations
+
+Close F1 and F2 together in the authorized final fix wave, preserving the current canonical authorization and request-generation boundaries. Add focused interaction regressions, perform required changed-code verification, and refresh affected UI/source evidence. Avoid a general Composer rewrite or security-digest optimization in that repair. After the scoped re-review, the controller must still verify all eight required CI jobs on the exact final head before merge.
+
+### Declined to judge
+
+- Real corporate IdP revocation/operating ACL propagation acceptance — no real IdP or corporate data is present in this C4 review; canonical changed-path checks were reviewed, but synthetic evidence cannot establish operating acceptance.
+- Production retention/backup restore and legal-erasure operating acceptance — unchanged operating machinery and no restore environment here; C4 current erasure/lineage gates were considered, while full operating certification belongs to the existing acceptance plan.
+- Quantified production throughput/latency at target organizational scale — no representative workload measurement is supplied; the actual digest/snapshot complexity was assessed above and remains unverified scale debt.
+- OS IME and screen-reader certification — Chromium keyboard evidence and code inspection are insufficient for assistive-technology/OS certification; the inherited accessible-name concern is explicitly retained above.
+- LLM semantic quality or downstream agent-performance improvement — Home adds model-free navigation and does not claim controlled evaluation results; those effects require the existing EVALUATION contract.
+- Full unchanged native review/job/access/login-return browser journeys — current links and integration points were reviewed and no mismatch found; C1/C2 evidence is carried and C12 full-journey execution remains pending, not silently counted as fresh C4 proof.
+
+### Assessment
+
+**Ready to merge? No.**
+
+**Reasoning:** The canonical authorization, widget isolation and default-home repair are sound, but two reproduced user-flow regressions remain: automatic refresh loses continuation position, and exact page-bound resume bypasses permitted local recovery. Fix those and obtain scoped re-review plus all eight exact-head CI checks; existing synthetic evidence does not substitute for those gates or production acceptance.
+
+**Finding counts:** 0 Critical, 2 Important, 0 new Minor. Original I1 addressed. Inherited debt/operational limits explicitly triaged above.

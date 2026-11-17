@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, React 19.3.1, Vite 8.3.5, Node `^22.12.0 || ^24.0.0`, npm `>=10`, PostgreSQL, existing marked/DOMPurify/Vitest. 기존 package-lock을 유지하고 의존성을 추가하기 전에 필요성을 확인한다.
 
-**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 [PR #69](https://github.com/wontaeJeong/agent-knowledge-hub/pull/69), main `d4048bd`에 병합됐고 최종 소스 `d4bb97f`의 CI `44019161055` 필수 8개 검사와 독립 리뷰를 통과했다. C5 / Task 5는 [PR #70](https://github.com/wontaeJeong/agent-knowledge-hub/pull/70), main `83b00f4`에 병합됐고 최종 소스 `629c9c6`의 CI `44036706074` 필수 8개 검사와 독립 리뷰를 통과했다. C6 / Task 6은 로컬 구현·검증·커밋 범위이며 독립 리뷰·원격 CI·PR/main 병합은 대기다. 그 외 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
+**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 [PR #69](https://github.com/wontaeJeong/agent-knowledge-hub/pull/69), main `d4048bd`에 병합됐고 최종 소스 `d4bb97f`의 CI `44019161055` 필수 8개 검사와 독립 리뷰를 통과했다. C5 / Task 5는 [PR #70](https://github.com/wontaeJeong/agent-knowledge-hub/pull/70), main `83b00f4`에 병합됐고 최종 소스 `629c9c6`의 CI `44036706074` 필수 8개 검사와 독립 리뷰를 통과했다. C6 / Task 6은 [PR #71](https://github.com/wontaeJeong/agent-knowledge-hub/pull/71), main `0def475457b54d50b38c2b61655e1987234da8f3`에 병합됐고 최종 소스 `1bd418a580fa1edac1098291afd8b76490f033f0`의 CI `44068230799` 필수8개 검사와 controller 독립 리뷰를 통과했다. C4 / Task 4는 이 merge 뒤 로컬 구현·검증을 완료했으며 feature commit `cb0d42f2e8ffcd7a115db3b3e3b505a9efa94fdb`까지 완료했으며 독립 리뷰·정확 head 원격 CI·PR/main 병합은 아직 controller 인계 단계다. 그 외 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
 
 ## Global Constraints
 
@@ -46,7 +46,7 @@
 | C11 / 11 | C3,C5 | 개인 저장 보기 | UXC-10 |
 | C12 / 12 | C1~C11 | 모든 동선의 통합·권한·회귀 인수 기록 | 전체 |
 
-현재 실행 순서는 **C1 → C2 → C3 → C5 → C6 → C4 → C7 → C8 → C9 → C10 → C11 → C12**다. C4 홈의 compose·draft 정확한 이어가기는 C6 Composer와 pageId 없는 새 초안 복구가 필요하다. 현재 WorkflowPanel은 initialDraftId를 받지 않고 pageId 없는 resume도 비활성화하므로 C4는 C6에서 실제 새 초안 재개가 연결된 뒤 진행한다. 요구사항·251개 기준·North Star·작업 범위는 바꾸지 않는다.
+현재 실행 순서는 **C1 → C2 → C3 → C5 → C6 → C4 → C7 → C8 → C9 → C10 → C11 → C12**다. C4 홈의 compose·draft 정확한 이어가기는 C6 Composer와 pageId 없는 새 초안 복구가 필요하다. C6가 실제 page-less 재개를 연결한 뒤 C4를 시작했다. C4의 로컬 확장은 own exact ID를 판별하고 page-bound 초안도 `compose&draft`에서 기존 WorkflowPanel(initialDraftId) editor에 위임한다. C4의 독립 리뷰·CI·병합은 대기다. 요구사항·251개 기준·North Star·작업 범위는 바꾸지 않는다.
 
 독립 단위의 진행 순서는 조정할 수 있지만 같은 파일을 동시 수정하지 않는다. 각 PR 종료 시 해당 요구사항·변경 파일·검증·남은 조건을 인계 문서에 기록한다. 이 문서는 병렬 실행을 자동 승인하거나 이미 실행했다고 선언하지 않는다.
 
@@ -96,11 +96,17 @@
 
 **Interfaces:** Consumes Tasks 1~3 and Task 6 exact Composer/page-less draft resume, existing workflow drafts/governance review inbox/changesets/jobs and PR #30 discovery links. Produces `HomeService.read(ctx:Context):Promise<HomeSummary>` where each widget has `status:'ready'|'error'`, `items`, `nextCursor`; successful empty differs from failed. GET `/convenience/home` uses only the authenticated person's permitted records.
 
-- [ ] Add failures for own vs other drafts/requests/jobs, assigned vs permitted review, capability changes, one widget error, exact resume links and read-not-equal-complete.
-- [ ] Run server `home.test.ts` and client `home.test.tsx` red checks.
-- [ ] Implement bounded per-widget authorized composition and precise links. Make personal home the default user landing; preserve operations overview as an explicit destination.
-- [ ] Run focused tests, existing overview/navigation tests and actual resume flows. Capture empty/loading/partial-error and both viewport/theme combinations.
-- [ ] Commit `feat: add wiki home and personal work queue`.
+- [x] Add failures for own vs other drafts/requests/jobs, assigned vs permitted review, capability changes, one widget error, exact resume links and read-not-equal-complete.
+- [x] Run server `home.test.ts` and client `home.test.tsx` red checks.
+- [x] Implement bounded per-widget authorized composition and precise links. Make personal home the default user landing; preserve operations overview as an explicit destination.
+- [x] Run focused tests, existing overview/navigation tests and actual resume flows. Capture empty/loading/partial-error and both viewport/theme combinations.
+- [x] Commit `feat: add wiki home and personal work queue` (`cb0d42f2e8ffcd7a115db3b3e3b505a9efa94fdb`).
+
+**로컬 검증/범위 명확화:** 최종 fullcheck436/48/16/41/251/types/build/smoke exit0, 최신 native4파일50개와 이전 green130개 carry(고유10파일180, 단일 현재180 실행 아님), 새 runtime/전체 source fingerprint의 Chromium 네 조건44PNG exit0. [증거](../../ui-validation/2026-11-17-personal-home/README.md). C4의 독립 review/정확 head CI/PR·병합은 아직 대기다.
+
+**승인된 계획 예외/확장:** `Overview.tsx`는 무수정이다. 기존 컴포넌트/`#overview` URL을 그대로 명시적 운영 목적지로 보존하고 default/미조회 aggregate chrome 경계를 App/console에 연결했으므로 cosmetic hunk를 만들지 않는다. 작은 canonical own 요청·접근 feed, drafts/review 선택적 paging, JobService own failure filter, C6 cursor helper의 서버 고정 feed 선택, 기존 Composer/WorkflowPanel의 own exact page-bound 분기와 Home-only CSS/HTTP 회귀를 추가했다. 공개 요청은 별도 새 위젯 대신 own-request metadata에 합치며 body를 내려받거나 foreign draft 일반 권한을 부여하지 않는다. Home native scroll은25개와 true cursor/키보드를 보존하며 nested scroll 비용이 있다. 공통 ACL/source/erasure fence는 유지하고 대규모 DB digest scan 비용은 미검증이다.
+
+**C4 task review I1 수정:** FIX_BASE d8dfa94에서 default Home 직렬화/실제 공간 변경 및 bare preview 렌더링 회귀를 RED9/95로 확인했다. 기존 entryMode·codec의 no-hash Home/preview Overview 구별로 수정하고 focused121/fullcheck447/48/16/41/251/types/build/smoke 및 새 네 조건52캡처를 통과했다. backend 동일 바이트의 native50+130을 carry하며 재실행으로 표시하지 않는다. 새 fingerprint `ec5dfbbab8d29cc2e4bdb90e12960f1da6442451c264440cd116279ff071eb76`; 이전44캡처/hash는 과거 근거이고 PR72 controller 재리뷰/CI/병합은 대기다.
 
 ## Task 5: 전역 검색과 Quick Open
 
@@ -126,13 +132,15 @@
 - [x] Connect global new-document entry, title/parent/template/form/preview, new draft resume and explicit publication states. Run workflow/publication/retention regressions and browser disconnect/IME/dual-tab conflict flows.
 - [x] Commit `feat: add reviewed creation of new wiki documents`.
 
-**로컬 증거:** Node24 fullcheck frontend415/Node48/import16/evaluation41/requirements251/types/build/smoke, UUID-isolated native14파일224시험. 실제 Chromium 1440/390 light/dark의 재시작·오프라인·IME(CDP)·충돌·개인/팀 발행·철회 결과와 소스 hash는 [C6 증거](../../ui-validation/2026-11-17-new-document/README.md)에 있다. 모델 품질/운영 IdP/OS IME/독립 리뷰·원격 CI·병합 인수는 포함하지 않는다. **승인된 파일 목록 예외(M3):** controller가 ImportWorkbench 무수정을 수용하여 Modify 목록에서 제거했다. 기존 화면의 누락 동작은 발견되지 않았고 공통 helper/API 호환 및 native import 회귀를 재사용한다. 화면 diff를 만들기 위한 수정은 하지 않는다.
+**초기 로컬 증거(과거 기록):** Node24 fullcheck frontend415/Node48/import16/evaluation41/requirements251/types/build/smoke, UUID-isolated native14파일224시험. 실제 Chromium 1440/390 light/dark의 재시작·오프라인·IME(CDP)·충돌·개인/팀 발행·철회 결과와 소스 hash는 [C6 증거](../../ui-validation/2026-11-17-new-document/README.md)에 있다. 모델 품질/운영 IdP/OS IME 인수는 포함하지 않는다. 당시 미완료였던 독립 리뷰·최종 CI·병합은 아래 완료 기록을 따른다. **승인된 파일 목록 예외(M3):** controller가 ImportWorkbench 무수정을 수용하여 Modify 목록에서 제거했다. 기존 화면의 누락 동작은 발견되지 않았고 공통 helper/API 호환 및 native import 회귀를 재사용한다. 화면 diff를 만들기 위한 수정은 하지 않는다.
 
 **리뷰 수정 1차:** I1 승인 독자/검토자 표시·선택 변경 무효화, I2 등록 전 템플릿 파생 초안의 owner-scoped 삭제 계보, I3 공개 요청/결정 사유 저장·readback, I4 예상 denial만 목록에서 제외하도록 수정했다. 최종 fullcheck frontend421/native15파일230 및 새 런타임4조건 증거를 갱신했다. M1 Composer 책임 분리는 최종 broad triage로, M2 기존 chunk debt는 별도 측정 개선으로 보류한다.
 
-**리뷰 수정 2차:** I2 등록된 파생 사본의 정본 source_id 전파, private 삭제·template CAS 갱신 뒤 최소 내부 관계 및 기존 source/page 상한 보존을 추가했다. 실제 제출/발행/hold 변형을 포함한 native15파일239와 fullcheck421이 exit0이다. 새 runtime/현재 소스 증거는 C6 검증 폴더에 기록하며 독립 재검토·새 head CI·PR71 병합은 아직 controller 단계다.
+**리뷰 수정 2차:** I2 등록된 파생 사본의 정본 source_id 전파, private 삭제·template CAS 갱신 뒤 최소 내부 관계 및 기존 source/page 상한 보존을 추가했다. 실제 제출/발행/hold 변형을 포함한 native15파일239와 fullcheck421이 exit0이다. 새 runtime/현재 소스 증거는 C6 검증 폴더에 기록하며 당시 독립 재검토·새 head CI·PR71 병합은 controller 단계였으며 아래 완료 기록으로 갱신한다.
 
-**최종 통합 수정 F1/F2:** 승인/숨은25행 뒤 검토·정확한 재개 누락은 기존 GET의 bounded keyset/암호화 cursor/partial/exact draft query와 별도 owner/queue 상태로 보완한다. template 쓰기는 기존 product erasure fence에 연결한다. 실제 Chromium keyboard blur 후 current DOM focus·outside intent 회귀를 포함한다. 검증·현재 runtime·hash는 C6 증거/report로 확정하며 scoped final re-review와 exact-head CI/병합은 controller 단계다. M1/M2는 deferred, M3 예외/I1–I4는 유지한다.
+**최종 통합 수정 F1/F2:** 승인/숨은25행 뒤 검토·정확한 재개 누락은 기존 GET의 bounded keyset/암호화 cursor/partial/exact draft query와 별도 owner/queue 상태로 보완한다. template 쓰기는 기존 product erasure fence에 연결한다. 실제 Chromium keyboard blur 후 current DOM focus·outside intent 회귀를 포함한다. 검증·현재 runtime·hash는 C6 증거/report로 확정하며 당시 scoped final re-review와 exact-head CI/병합은 controller 단계였으며 아래 완료 기록으로 갱신한다. M1/M2는 deferred, M3 예외/I1–I4는 유지한다.
+
+**C6 완료 기록:** [PR71](https://github.com/wontaeJeong/agent-knowledge-hub/pull/71) / main `0def475457b54d50b38c2b61655e1987234da8f3` / final `1bd418a580fa1edac1098291afd8b76490f033f0` / [CI44068230799](https://github.com/wontaeJeong/agent-knowledge-hub/actions/runs/44068230799)8개 필수 job 성공 및 controller 최종 독립 리뷰 후 병합 완료다. C4는 이 완료 근거를 전달받아 진행했다. 과거 단계의 pending 문구를 현재 상태로 해석하지 않는다. 실제 사내 운영·의미 품질·OS/스크린리더 인수와는 구분한다.
 
 ## Task 7: 문서 트리·이동·복제
 

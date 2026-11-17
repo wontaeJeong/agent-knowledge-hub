@@ -1,0 +1,69 @@
+[1/1] server/convenience/home.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ server/convenience/home.test.ts (4 tests | 4 failed) 483ms
+   × home contains only own drafts, own review requests and own access metadata without creating visits 367ms
+   × assigned review requires current canonical qualification and approval remains distinct from publication 40ms
+   × bounded cursors progress past hidden rows and bind actor, widget, current data and authority 37ms
+   × a failed widget transaction preserves ready siblings and a session failure fails closed globally 38ms
+
+ Test Files  1 failed (1)
+      Tests  4 failed (4)
+   Start at  20:28:48
+   Duration  868ms (tests 60%, transform 26%, import 14%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/home.test.ts > home contains only own drafts, own review requests and own access metadata without creating visits
+AssertionError: personal home service: expected undefined to be defined
+ ❯ setup server/convenience/home.test.ts:15:48
+     13|  const governance=new GovernanceService(f.pool,authorizeInTransaction);
+     14|  const m=await import(/* @vite-ignore */ String("./home")).catch(()=>(…
+     15|  expect(m.HomeService,"personal home service").toBeDefined();
+       |                                                ^
+     16|  return {...f,workflows,governance,home:new m.HomeService!(f.pool,work…
+     17| }
+ ❯ server/convenience/home.test.ts:20:10
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  server/convenience/home.test.ts > assigned review requires current canonical qualification and approval remains distinct from publication
+AssertionError: personal home service: expected undefined to be defined
+ ❯ setup server/convenience/home.test.ts:15:48
+     13|  const governance=new GovernanceService(f.pool,authorizeInTransaction);
+     14|  const m=await import(/* @vite-ignore */ String("./home")).catch(()=>(…
+     15|  expect(m.HomeService,"personal home service").toBeDefined();
+       |                                                ^
+     16|  return {...f,workflows,governance,home:new m.HomeService!(f.pool,work…
+     17| }
+ ❯ server/convenience/home.test.ts:34:10
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  server/convenience/home.test.ts > bounded cursors progress past hidden rows and bind actor, widget, current data and authority
+AssertionError: personal home service: expected undefined to be defined
+ ❯ setup server/convenience/home.test.ts:15:48
+     13|  const governance=new GovernanceService(f.pool,authorizeInTransaction);
+     14|  const m=await import(/* @vite-ignore */ String("./home")).catch(()=>(…
+     15|  expect(m.HomeService,"personal home service").toBeDefined();
+       |                                                ^
+     16|  return {...f,workflows,governance,home:new m.HomeService!(f.pool,work…
+     17| }
+ ❯ server/convenience/home.test.ts:44:10
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  server/convenience/home.test.ts > a failed widget transaction preserves ready siblings and a session failure fails closed globally
+AssertionError: personal home service: expected undefined to be defined
+ ❯ setup server/convenience/home.test.ts:15:48
+     13|  const governance=new GovernanceService(f.pool,authorizeInTransaction);
+     14|  const m=await import(/* @vite-ignore */ String("./home")).catch(()=>(…
+     15|  expect(m.HomeService,"personal home service").toBeDefined();
+       |                                                ^
+     16|  return {...f,workflows,governance,home:new m.HomeService!(f.pool,work…
+     17| }
+ ❯ server/convenience/home.test.ts:58:10
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯

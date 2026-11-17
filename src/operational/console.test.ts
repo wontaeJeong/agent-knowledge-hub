@@ -19,7 +19,7 @@ test("console deep links normalize unknown and malformed routes", () => {
   expect(readConsoleTab("#access")).toBe("access");
   expect(readConsoleTab("#boards")).toBe("boards");
   expect(readConsoleTab("#%ZZ")).toBe("overview");
-  expect(readConsoleTab("")).toBe("overview");
+  expect(readConsoleTab("")).toBe("home");
 });
 test("console shell retains workflow navigation alongside existing management tabs", () => {
   const html = renderToStaticMarkup(createElement(ConsoleShell, {
@@ -60,4 +60,9 @@ test("overview preserves pending publication, own failures and unexecuted lint",
     runningJobs: 1,
     issues: null,
   });
+});
+
+test("legacy default distinguishes supported workspace Home and preview Overview",()=>{
+ expect(readConsoleTab("","workspace")).toBe("home");expect(readConsoleTab("","preview")).toBe("overview");
+ for(const mode of ["workspace","preview"] as const){expect(readConsoleTab("#overview",mode)).toBe("overview");expect(readConsoleTab("#home",mode)).toBe("overview");expect(readConsoleTab("#unknown",mode)).toBe("overview");}
 });

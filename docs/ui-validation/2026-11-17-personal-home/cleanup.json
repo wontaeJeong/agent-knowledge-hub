@@ -1,0 +1,13 @@
+{
+  "verifiedAt": "2026-11-17T15:32:02.581Z",
+  "ownedDatabasePrefix": "akh_c4_test_ui_",
+  "remainingOwnedDatabases": 0,
+  "remainingOwnedProfiles": 0,
+  "remainingOwnedBrowserProcesses": 0,
+  "freedPorts": [
+    4394,
+    5194
+  ],
+  "parentPostgresAlive": true,
+  "stoppedOwnedOrphanBrowserProcesses": 0
+}

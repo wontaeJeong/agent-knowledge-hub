@@ -1,0 +1,9 @@
+.personal-home {
+  align-items: start;
+}
+.personal-home .personal-home-list {
+  max-height: 26rem;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-right: 0.35rem;
+}

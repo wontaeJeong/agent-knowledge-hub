@@ -332,6 +332,7 @@ export function WorkflowPanel({
   principalId,
   spaceId,
   initialPageId,
+  initialDraftId,
 }: {
   api: OperationalApi;
   pages: { id: string; title: string }[];
@@ -341,8 +342,12 @@ export function WorkflowPanel({
   principalId?: string;
   spaceId?: string;
   initialPageId?: string;
+  initialDraftId?: string;
 }) {
   const readAttachment = useCallback((blobId: string) => api.get<ImagePreview>(`/storage/blobs/${blobId}/preview`), [api]);
+  const initialResume=useRef(initialDraftId);
+  // Hold the exact server draft until its matching recovery is offered or discarded.
+  const pendingExact = useRef<PrivateDraft | null>(null);
   const [selected, setSelected] = useState(initialPageId ?? "");
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -433,6 +438,7 @@ export function WorkflowPanel({
   // A cached body is never assigned to UI fields until a fresh identity and the
   // server's current full-lineage/local.copy/CAS check have succeeded.
   useEffect(() => {
+    if (pendingExact.current) return;
     setLocalRecovery(null);
     if (!principalId || !spaceId || !selected || !detail || draft) return;
     const abort = new AbortController();
@@ -527,7 +533,7 @@ export function WorkflowPanel({
         setSaveStatus(state.status);
         setDraft(state.draft);
         if (state.status === "saved")
-          recoveryCache.current?.clear(principalId, spaceId, selected);
+          recoveryCache.current?.clear(principalId, spaceId, selected, original.id);
         else
           recoveryCache.current?.write(
             recoveryGrant.current,
@@ -605,7 +611,7 @@ export function WorkflowPanel({
         if (!active) return;
         recoveryGrant.current = null;
         if (e instanceof ApiError)
-          recoveryCache.current?.clear(principalId, spaceId, selected);
+          recoveryCache.current?.clear(principalId, spaceId, selected, original.id);
         setLocalCopyNotice(
           "브라우저 복구 보관은 허용되지 않거나 현재 확인할 수 없습니다. 서버 자동 저장만 사용하며 미전송 입력은 재시작 시 유실될 수 있습니다.",
         );
@@ -635,7 +641,7 @@ export function WorkflowPanel({
       window.removeEventListener("pagehide", flush);
       recoveryGrant.current = null;
       autosave.current = null;
-      recoveryCache.current?.clearAll();
+      recoveryCache.current?.clear(principalId, spaceId, selected, original.id);
     };
     // The coordinator owns revisions/content after initialization; remount only for identity/space/draft changes.
   }, [api, principalId, spaceId, selected, draft?.id, fail, identityChanged]);
@@ -677,6 +683,9 @@ export function WorkflowPanel({
   }, [load, fail]);
   useEffect(() => {
     let active = true;
+    const admissionAbort = new AbortController();
+    pendingExact.current = null;
+    setLocalRecovery(null);
     setDetail(null);
     setComments([]);
     setCommentPage(0);
@@ -692,9 +701,49 @@ export function WorkflowPanel({
         api.get<{ items: Comment[] }>(
           `/workflows/pages/${encodeURIComponent(selected)}/comments`,
         ),
+        initialResume.current ? api.get<{items:PrivateDraft[]}>("/workflows/drafts") : Promise.resolve(null),
       ])
-        .then(([d, c]) => {
+        .then(async ([d, c, saved]) => {
           if (!active) return;
+          if (initialResume.current) {
+            const exact = saved?.items.find(
+              (x) => x.id === initialResume.current && x.pageId === selected,
+            );
+            if (!write || !exact)
+              throw new ApiError(
+                "요청한 초안이 없거나 현재 접근할 수 없습니다.", 404, "NOT_FOUND",
+              );
+            let recovered: RecoveredDraft | null = null;
+            try {
+              recoveryCache.current ??= new RecoveryCache(window.localStorage);
+            } catch {
+              /* Server-only editing remains available. */
+            }
+            if (recoveryCache.current && principalId && spaceId)
+              recovered = await recoveryCache.current.recover(
+                principalId, spaceId, selected,
+                async (binding) => {
+                  const identity = await draftRequest<{
+                    principalId: string; workspaceId: string;
+                  }>(api, "/me", undefined, admissionAbort.signal);
+                  if (identity.principalId !== principalId || identity.workspaceId !== spaceId)
+                    throw new ApiError("현재 계정 또는 공간이 변경되었습니다.", 403);
+                  return draftRequest<RecoveryValidation>(
+                    api, "/workflows/recovery/validate", { binding }, admissionAbort.signal,
+                  );
+                },
+                exact.id,
+              );
+            if (!active) return;
+            initialResume.current = undefined;
+            if (recovered) {
+              pendingExact.current = exact;
+              setLocalRecovery(recovered);
+            } else {
+              setDraft(exact);
+              setContent(exact.content);
+            }
+          }
           setDetail(d);
           setComments(c.items);
           const commentId = window.location.hash.match(
@@ -719,6 +768,7 @@ export function WorkflowPanel({
         });
     return () => {
       active = false;
+      admissionAbort.abort();
     };
   }, [api, selected, fail]);
   useEffect(() => {
@@ -746,14 +796,16 @@ export function WorkflowPanel({
     setDetail(d);
     setComments(c.items);
   };
-  const action = async (work: () => Promise<void>) => {
+  const action = async (work: () => Promise<void>, reload = true) => {
     setBusy(true);
     setError("");
     setNotice("");
     try {
       await work();
-      await load();
-      await onChanged();
+      if (reload) {
+        await load();
+        await onChanged();
+      }
     } catch (e) {
       fail(e);
     } finally {
@@ -824,10 +876,13 @@ export function WorkflowPanel({
                   { binding: localRecovery.binding },
                 );
                 resumeRecovery.current = { ...localRecovery, validation };
+                pendingExact.current = null;
                 setDraft(localRecovery.draft);
                 setContent(localRecovery.content);
                 setLocalRecovery(null);
-              })
+                // Local restore starts autosave; a parent reload would unmount
+                // the coordinator before its pending CAS is persisted.
+              }, false)
             }
           >
             권한 재확인 후 입력 복구
@@ -836,7 +891,13 @@ export function WorkflowPanel({
             disabled={busy}
             onClick={() => {
               if (principalId && spaceId)
-                recoveryCache.current?.clear(principalId, spaceId, selected);
+                recoveryCache.current?.clear(principalId, spaceId, selected, localRecovery.draft.id);
+              const exact = pendingExact.current;
+              pendingExact.current = null;
+              if (exact) {
+                setDraft(exact);
+                setContent(exact.content);
+              }
               setLocalRecovery(null);
             }}
           >

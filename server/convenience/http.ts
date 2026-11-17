@@ -1,3 +1,5 @@
+import type { HomeService } from "./home";
+import { homeWidgets } from "./home";
 import { z } from "zod";
 import type { Context } from "../service";
 import type { PersonalLibraryService } from "./personal";
@@ -50,4 +52,37 @@ export async function handlePersonalRoute(
     return true;
   }
   return false;
+}
+
+/** Authenticated read-only adapter; query cannot override actor/space. */
+export async function handleHomeRoute(
+  input: {
+    method: string;
+    path: string;
+    query?: URLSearchParams;
+    ctx: Context;
+    send: (status: number, data: unknown) => void;
+  },
+  service: HomeService,
+): Promise<boolean> {
+  if (input.method !== "GET" || input.path !== "/api/v1/convenience/home")
+    return false;
+  const params = input.query ?? new URLSearchParams();
+  if ([...params.keys()].some((k) => params.getAll(k).length > 1))
+    throw Error("VALIDATION_FAILED");
+  const q = z
+    .object({
+      widget: z.enum(homeWidgets).optional(),
+      cursor: z.string().max(4096).optional(),
+    })
+    .strict()
+    .parse(Object.fromEntries(params));
+  if (q.cursor && !q.widget) throw Error("VALIDATION_FAILED");
+  input.send(
+    200,
+    q.widget
+      ? await service.widget(input.ctx, q.widget, q.cursor)
+      : await service.read(input.ctx),
+  );
+  return true;
 }

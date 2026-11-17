@@ -1,0 +1,140 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ src/operational/convenience/home-refresh.test.tsx (7 tests | 6 failed) 117ms
+   × unchanged current page and focused node survive automatic focus revalidation 64ms
+   × unchanged current page and focused node survive automatic visibility revalidation 11ms
+   × unchanged current page and focused node survive automatic timer revalidation 8ms
+   × automatic refresh racing Next revalidates its requested page and ignores late earlier response 7ms
+   × automatic current-page 409 clears invalid rows and requires explicit retry or restart 6ms
+   × automatic current-page 403 clears invalid rows and requires explicit retry or restart 9ms
+ ❯ src/operational/convenience/exact-recovery.test.tsx (9 tests | 8 failed) 208ms
+   × exact recovery offers authorized unsent input before an editor, and explicit restore preserves original CAS 75ms
+   × explicit discard starts the exact server draft without silently restoring cached input 13ms
+   × another draft on the same page is neither restored nor erased by exact saved-editor flush/unmount 23ms
+   × changed server revision restores old local CAS only into explicit conflict without automatic overwrite 15ms
+   × REVOKED validation never assigns cached body and clears matching invalid cache 14ms
+   × FAILED validation never assigns cached body and clears matching invalid cache 7ms
+   × expired grant is removed and exact resume keeps authorized server body 10ms
+   × pending validation exposes no cached body and keeps it unoffered until online authority completes 10ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 14 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/exact-recovery.test.tsx > exact recovery offers authorized unsent input before an editor, and explicit restore preserves original CAS
+AssertionError: expected null not to be null
+ ❯ src/operational/convenience/exact-recovery.test.tsx:19:91
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/14]⎯
+
+ FAIL  src/operational/convenience/exact-recovery.test.tsx > explicit discard starts the exact server draft without silently restoring cached input
+TypeError: Cannot read properties of undefined (reading 'click')
+ ❯ src/operational/convenience/exact-recovery.test.tsx:8:140
+
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:890:22
+ ❯ click src/operational/convenience/exact-recovery.test.tsx:8:44
+ ❯ src/operational/convenience/exact-recovery.test.tsx:21:133
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/14]⎯
+
+ FAIL  src/operational/convenience/exact-recovery.test.tsx > another draft on the same page is neither restored nor erased by exact saved-editor flush/unmount
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ src/operational/convenience/exact-recovery.test.tsx:22:367
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/14]⎯
+
+ FAIL  src/operational/convenience/exact-recovery.test.tsx > changed server revision restores old local CAS only into explicit conflict without automatic overwrite
+AssertionError: expected null not to be null
+ ❯ src/operational/convenience/exact-recovery.test.tsx:23:216
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/14]⎯
+
+ FAIL  src/operational/convenience/exact-recovery.test.tsx > REVOKED validation never assigns cached body and clears matching invalid cache
+ FAIL  src/operational/convenience/exact-recovery.test.tsx > FAILED validation never assigns cached body and clears matching invalid cache
+AssertionError: expected [ '/workflows/recovery/permission' ] to include '/workflows/recovery/validate'
+ ❯ src/operational/convenience/exact-recovery.test.tsx:24:178
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/14]⎯
+
+ FAIL  src/operational/convenience/exact-recovery.test.tsx > expired grant is removed and exact resume keeps authorized server body
+AssertionError: expected '{"schema":"private-plaintext-draft-ca…' not to contain 'UNSENT LOCAL BODY'
+
+Expected: "UNSENT LOCAL BODY"
+Received: "{"schema":"private-plaintext-draft-cache-v1","binding":{"id":"resume","pageId":"topic","baseVersion":1,"expectedRevision":1,"sourceIds":[],"dependencyVersions":{},"principalId":"editor","workspaceId":"s","lineageHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","policyHash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","expiresAt":1794920571997,"cacheBinding":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},"draft":{"id":"resume","revision":1,"title":"page draft","content":"server body","pageId":"topic","baseVersion":1},"content":"UNSENT LOCAL BODY"}"
+
+ ❯ src/operational/convenience/exact-recovery.test.tsx:25:333
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/14]⎯
+
+ FAIL  src/operational/convenience/exact-recovery.test.tsx > pending validation exposes no cached body and keeps it unoffered until online authority completes
+AssertionError: expected null not to be null
+ ❯ src/operational/convenience/exact-recovery.test.tsx:26:485
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/14]⎯
+
+ FAIL  src/operational/convenience/home-refresh.test.tsx > unchanged current page and focused node survive automatic focus revalidation
+AssertionError: expected '내 초안firstsaved새로 고침다음 25개' to contain 'second'
+
+Expected: "second"
+Received: "내 초안firstsaved새로 고침다음 25개"
+
+ ❯ src/operational/convenience/home-refresh.test.tsx:21:33
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/14]⎯
+
+ FAIL  src/operational/convenience/home-refresh.test.tsx > unchanged current page and focused node survive automatic visibility revalidation
+ FAIL  src/operational/convenience/home-refresh.test.tsx > unchanged current page and focused node survive automatic timer revalidation
+AssertionError: expected [ '/convenience/home', …(1) ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ src/operational/convenience/home-refresh.test.tsx:21:247
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/14]⎯
+
+ FAIL  src/operational/convenience/home-refresh.test.tsx > automatic refresh racing Next revalidates its requested page and ignores late earlier response
+AssertionError: expected '내 초안firstsaved새로 고침다음 25개' to contain 'current-second'
+
+Expected: "current-second"
+Received: "내 초안firstsaved새로 고침다음 25개"
+
+ ❯ src/operational/convenience/home-refresh.test.tsx:26:165
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/14]⎯
+
+ FAIL  src/operational/convenience/home-refresh.test.tsx > automatic current-page 409 clears invalid rows and requires explicit retry or restart
+ FAIL  src/operational/convenience/home-refresh.test.tsx > automatic current-page 403 clears invalid rows and requires explicit retry or restart
+AssertionError: expected '내 초안secondsaved새로 고침' not to contain 'second'
+
+Expected: "second"
+Received: "내 초안secondsaved새로 고침"
+
+ ❯ src/operational/convenience/home-refresh.test.tsx:30:192
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/14]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  14 failed | 2 passed (16)
+   Start at  21:57:51
+   Duration  818ms (environment 60%, tests 24%, import 11%, transform 5%)

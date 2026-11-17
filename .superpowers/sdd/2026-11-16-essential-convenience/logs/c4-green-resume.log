@@ -1,0 +1,29 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ src/operational/convenience/composer.test.tsx (18 tests | 1 failed) 359ms
+   × a requested draft removed by current ACL clears its restart cache before rendering 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/composer.test.tsx > a requested draft removed by current ACL clears its restart cache before rendering
+AssertionError: expected '{"schema":"private-plaintext-draft-ca…' not to contain '철회된 미전송 본문'
+
+Expected: "철회된 미전송 본문"
+Received: "{"schema":"private-plaintext-draft-cache-v1","binding":{"id":"revoked","kind":"draft","draftId":"revoked","expectedRevision":1,"sourceIds":[],"dependencyVersions":{},"principalId":"editor","workspaceId":"team","lineageHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","policyHash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","expiresAt":1794915750038,"cacheBinding":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},"draft":{"id":"revoked","revision":1,"title":"제한 초안","content":"서버 본문"},"content":"철회된 미전송 본문"}"
+
+ ❯ src/operational/convenience/composer.test.tsx:317:54
+    315|   try {
+    316|     expect(el.textContent).not.toContain("철회된 미전송 본문");
+    317|     expect(Object.values(localStorage).join("")).not.toContain(
+       |                                                      ^
+    318|       "철회된 미전송 본문",
+    319|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 20 passed (21)
+   Start at  20:37:29
+   Duration  706ms (tests 50%, environment 44%, import 3%, transform 2%)

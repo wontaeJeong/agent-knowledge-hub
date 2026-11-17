@@ -1,0 +1,135 @@
+[1/9] server/collaboration/inbox.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  21 passed (21)
+   Start at  20:50:37
+   Duration  5.73s (tests 98%, import 1%, transform 1%)
+
+[2/9] server/convenience/home-http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  20:50:43
+   Duration  1.04s (tests 77%, import 15%, transform 8%)
+
+[3/9] server/convenience/home.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ server/convenience/home.test.ts (8 tests | 1 failed) 5517ms
+   × own revision requests remain actionable and an approved review never becomes a published version by reading Home 433ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  20:50:44
+   Duration  5.68s (tests 98%, import 1%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/home.test.ts > own revision requests remain actionable and an approved review never becomes a published version by reading Home
+Error: VALIDATION_FAILED
+ ❯ principalId server/publication.ts:456:15
+    454|         enqueueBatch(state, batch);
+    455|       } catch {
+    456|         throw Error("VALIDATION_FAILED");
+       |               ^
+    457|       }
+    458|       const hash = batchHash(batch);
+ ❯ transaction server/database.ts:111:20
+ ❯ WorkflowService.proposeEdit server/workflows/service.ts:534:20
+ ❯ server/convenience/home.test.ts:295:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+[4/9] server/convenience/personal-http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  20:50:50
+   Duration  1.65s (tests 89%, import 8%, transform 3%)
+
+[5/9] server/convenience/personal.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  20:50:51
+   Duration  4.37s (tests 97%, import 2%, transform 1%)
+
+[6/9] server/jobs/jobs.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  20:50:56
+   Duration  4.47s (tests 97%, import 1%, transform 1%)
+
+[7/9] server/workflows/governance/governance.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  14 passed (14)
+   Start at  20:51:01
+   Duration  3.23s (tests 98%, import 1%, transform 1%)
+
+[8/9] server/workflows/manual-disclosure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  20:51:04
+   Duration  18.45s (tests 99%)
+
+[9/9] server/workflows/workflows.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ server/workflows/workflows.test.ts (36 tests | 1 failed) 3115ms
+   × workflow route validates private CAS submit and withdrawal without publishing live content 87ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 35 passed (36)
+   Start at  20:51:23
+   Duration  3.30s (tests 96%, import 2%, transform 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/workflows/workflows.test.ts > workflow route validates private CAS submit and withdrawal without publishing live content
+AssertionError: expected { items: [], nextAfter: null } to deeply equal { items: [] }
+
+- Expected
++ Received
+
+  {
+    "items": [],
++   "nextAfter": null,
+  }
+
+ ❯ server/workflows/workflows.test.ts:313:40
+    311|   ).toBe("rejected");
+    312|   await call("POST", "/drafts/route-draft/delete", { expectedRevision:…
+    313|   expect(await call("GET", "/drafts")).toEqual({ items: [] });
+       |                                        ^
+    314|   await expect(
+    315|     call("POST", "/drafts", {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

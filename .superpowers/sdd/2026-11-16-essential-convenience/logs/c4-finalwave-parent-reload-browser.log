@@ -1,0 +1,180 @@
+Primary capture failure AssertionError [ERR_ASSERTION]: /workflows/drafts: 400 {"code":"VALIDATION_FAILED","requestId":"1807fa7e-2154-475d-b347-9f5deea80525"}
+    at canonical (file:///Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub/docs/ui-validation/2026-11-17-personal-home/capture.mjs:149:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub/docs/ui-validation/2026-11-17-personal-home/capture.mjs:481:7 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+Observed URL http://127.0.0.1:5194/?app=1&space=f23a038b-8c86-43c1-bde0-535146fa87d8&section=compose&draft=d27
+Observed DOM 본문으로 이동
+agent-knowledge-hub
+Agent-native knowledge platform
+현재 지식 공간
+접근 범위는 서버에서 확인
+
+지식 공간
+
+홈
+지식 탐색 · 트렌드
+발행 지식
+검색
+내 작업
+새 문서
+자료 넣기 · 자동 정리
+
+내 문서
+
+즐겨찾기
+최근 방문
+구독
+저장 보기
+
+지식 도구
+
+편집 · 협업
+버전 비교 · 복원
+내 알림 · 검토함
+질문 · 재편입
+공지 · VOC · 내부 검토
+정련 · 경험
+원본 · 편입
+변경 검토
+지식 건강 점검
+
+내 도구
+
+에이전트 · 토큰
+연동 · 자동화
+
+관리·운영
+
+내 작업 이력
+E
+editor
+Write
+지식 환경
+새 문서
+검색 ⌘/Ctrl K
+새 문서
+알림
+서버 연결 모드
+새 문서
+편집과 협업
+
+개인 초안은 본인에게만 보입니다. 검토·승인 전에는 발행본이 바뀌지 않습니다.
+
+내 문서
+즐겨찾기
+처음부터 새로고침
+주제 · v1
+위로
+아래로
+최근 문서
+처음부터 새로고침
+주제 · v1
+2026. 11. 18. 오전 12:24:50
+구독 문서
+처음부터 새로고침
+
+표시할 문서 없음
+
+문서 선택
+문서를 선택하세요
+주제
+주제 · v1
+문서 고유 링크
+현재 발행본 본문 · v1
+목차
+
+제목 없음
+
+문서 내 검색
+일치 0건
+이전 일치
+다음 일치
+현재 위치로 이동
+
+기존 내용
+
+지원하는 문서 형식
+연결·백링크·관련 문서
+첨부 및 자료 이동
+
+파일당 최대 5 MiB. 원본은 덮어쓰지 않으며 PDF는 검사 승인 전 내려받을 수 없습니다. PDF 변환은 지원하지 않습니다.
+
+Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다. 이미지는 최대 400만 화소·한 변 4096px의 정지 이미지만 지원합니다.
+
+첨부 목록을 조회하세요.
+
+첨부 조회
+파일 업로드
+검토·철회 사유
+문서 기준 버전
+근거·버전 포함 내보내기
+검토용 가져오기 제안
+
+상태: 활성 · 보호: 설정 안 됨
+
+즐겨찾기 해제
+알림 구독
+개인 초안 시작
+내부 문서 검색
+링크 후보 검색
+개인 초안 · 기준 v1 · 저장 r2
+
+연결 중단 · 서버 저장 확인 안 됨
+
+로컬 복사가 허용된 입력만 최대 5분·항목 128KiB·전체 512KiB/10건 한도로 임시 보관합니다. 재시작 복원에는 온라인 권한 재확인이 필요합니다.
+
+입력 후 최대 1초 안에 자동 저장을 시도하며, 포커스 이동·재연결 때 다시 시도합니다. 탭 종료 전 전송은 최선의 시도이며 전달을 보장하지 않습니다.
+
+Markdown 본문
+개인 초안 저장
+변경 이유
+발행본과 제안 비교
+저장하고 검토 요청템플릿으로 저장
+버전 기록 · 복원은 새 변경 제안
+작업 이유
+버전·문단 댓글
+댓글
+문단 앵커 (본문의 정확한 발췌)
+멘션할 사용자 ID (쉼표 구분)
+댓글 등록
+저장된 개인 초안 (29)
+개인 템플릿 (0)
+내 알림 (0건 읽지 않음)
+내 알림 수신 설정
+지식 공간
+@24647984-ecb3-4d26-8e6a-13c840f3a570/knowledge · write
+@af308b96-6e0e-4f5d-871f-ad24621a158f/knowledge · write
+@cbd17a89-0f63-4798-9711-a92aae9974da/knowledge · write
+@f23a038b-8c86-43c1-bde0-535146fa87d8/knowledge · write
+@user-1553cc62ff246044c683a61e203e6554/personal · admin
+서버 정본 · 1개 접근 가능 발행본
+모델: 미연결
+실행 방식
+실제 모델
+구조 검사·발췌 (모델 미사용)
+서버 저장 · 현재 권한 재검사 · 검토 후 발행
+실제 모델 품질과 운영 인수 결과는 별도 검증 기록을 따릅니다.
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: /workflows/drafts: 400 {"code":"VALIDATION_FAILED","requestId":"1807fa7e-2154-475d-b347-9f5deea80525"}
+    at canonical (file:///Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub/docs/ui-validation/2026-11-17-personal-home/capture.mjs:149:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub/docs/ui-validation/2026-11-17-personal-home/capture.mjs:481:7 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v24.22.2

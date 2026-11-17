@@ -1,3 +1,5 @@
+import { HomeService } from "../convenience/home";
+import { handleHomeRoute } from "../convenience/http";
 import { ScheduledPublicationService } from "../jobs/scheduled-publication";
 import { discoveryReport } from "../discovery";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -576,6 +578,7 @@ export function createRuntimeHandler(options: {
         )
       )
         return;
+      if (await handleHomeRoute({method:req.method??"GET",path,query:url.searchParams,ctx,send},new HomeService(options.pool,new WorkflowService(options.pool,service,authorizeInTransaction,options.origin),new GovernanceService(options.pool,authorizeInTransaction),options.jobs?.jobs))) return;
       if (
         await handleGovernanceRoute(
           { method: req.method ?? "GET", path, body, ctx, send },

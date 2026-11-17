@@ -36,7 +36,7 @@ const listQuery = z
     queue: z.enum(["all", "assigned-pending"]).default("all"),
   })
   .strict();
-function encodeCursor(value: unknown) {
+export function encodeCursor(value: unknown) {
   const iv = randomBytes(12),
     cipher = createCipheriv("aes-256-gcm", cursorKey, iv);
   const data = Buffer.concat([
@@ -45,7 +45,7 @@ function encodeCursor(value: unknown) {
   ]);
   return Buffer.concat([iv, cipher.getAuthTag(), data]).toString("base64url");
 }
-function decodeCursor(raw: string) {
+export function decodeCursor(raw: string) {
   try {
     const data = Buffer.from(raw, "base64url"),
       decipher = createDecipheriv(
@@ -112,9 +112,38 @@ const globalCursorTables = [
   "identity_manual_group_members",
   "identity_group_denies",
 ];
-async function listRevision(db: PoolClient, ctx: Context) {
+// Only these server-owned feed dependencies can extend the shared digest query.
+export type CursorFeedTable =
+  | "batches"
+  | "access_batch_authors"
+  | "access_review_rules"
+  | "governance_review_assignments"
+  | "workflow_access_requests"
+  | "workflow_activity"
+  | "workflow_personal_library_state"
+  | "durable_jobs";
+export async function listRevision(
+  db: PoolClient,
+  ctx: Context,
+  extraTables: readonly CursorFeedTable[] = [],
+  privateData: "all" | "drafts" | "none" = "all",
+) {
   const parts = [
-    ...scopedCursorTables.map((table) => ({ table, scoped: true })),
+    ...[
+      ...scopedCursorTables.filter((table) =>
+        table === "workflow_draft_disclosures"
+          ? privateData === "all"
+          : ["workflow_drafts", "workflow_draft_revision_history"].includes(
+                table,
+              )
+            ? privateData !== "none"
+            : true,
+      ),
+      ...extraTables,
+    ].map((table) => ({
+      table,
+      scoped: true,
+    })),
     ...globalCursorTables.map((table) => ({ table, scoped: false })),
   ];
   const sql = parts

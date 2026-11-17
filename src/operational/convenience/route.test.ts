@@ -152,3 +152,49 @@ test.each([
 ])("rejects contradictory standalone share location %s", (search) => {
   expect(parse(search, "#share-s1")).toMatchObject({ kind: "invalid" });
 });
+
+test.each([
+  ["?app=1&space=team", "workspace", "home"],
+  ["?app=1", "workspace", "home"],
+  ["?app=1&preview=1&space=team", "workspace", "home"],
+  ["?preview=1", "preview", "overview"],
+  ["?preview=1&space=team", "preview", "overview"],
+] as const)(
+  "implicit %s landing preserves meaning through its generated %s href",
+  (search, mode, tab) => {
+    const location = parse(search);
+    expect(location).toMatchObject({ kind: "console", tab });
+    const generated = new URL(
+      route.convenienceHref(location, mode),
+      "https://workspace.invalid",
+    );
+    expect(parse(generated.search, generated.hash)).toEqual(location);
+    expect(generated.hash).not.toBe("#home");
+  },
+);
+test.each(["workspace", "preview"] as const)(
+  "%s explicit operations and unknown legacy hash keep their meaning",
+  (mode) => {
+    for (const hash of ["#overview", "#unknown", "#%ZZ"]) {
+      const location = parse(
+        `?${mode === "preview" ? "preview" : "app"}=1&space=team`,
+        hash,
+      );
+      expect(location).toMatchObject({ kind: "console", tab: "overview" });
+      const generated = new URL(
+        route.convenienceHref(location, mode),
+        "https://workspace.invalid",
+      );
+      expect(parse(generated.search, generated.hash)).toEqual(location);
+    }
+  },
+);
+
+test("serializer refuses a workspace-only implicit Home in preview rather than generating a drifting URL", () => {
+  expect(() =>
+    route.convenienceHref(
+      { kind: "console", spaceId: "team", tab: "home" },
+      "preview",
+    ),
+  ).toThrow();
+});

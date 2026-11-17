@@ -1,0 +1,58 @@
+### Spec Compliance
+
+- ❌ Issues found: one Important default-routing regression. The new implicit Home is represented as a legacy console tab that the route codec cannot read back; the same unconditional default also selects an unrendered Home in preview mode. Evidence and affected flows are below at `src/operational/console.ts:89`, `src/operational/convenience/route.ts:140`, `src/operational/convenience/route.ts:153`, and `src/operational/App.tsx:531`.
+- ✅ The substantive personal-queue implementation matches UXC-05: authenticated owner feeds, canonical current permission checks, precise draft/review/job/access links, bounded candidate continuation, distinct empty/error states, and independent widget retry. `server/convenience/home.ts:1`, `server/workflows/service.ts:253`, `server/workflows/governance/service.ts:548`, and `src/operational/convenience/Home.tsx:1` contain the corresponding implementation.
+- ✅ All planned files have their corresponding changes except the controller-approved `Overview.tsx` no-hunk exception. The default/explicit-operations integration is in App/console, and preserving the unchanged Overview component is appropriate; the issue below concerns functional route preservation rather than absence of a cosmetic hunk. Additional canonical-service paging/owner feeds, HTTP test, resume adapter, Home CSS, and evidence/handoff changes serve the task's contracts rather than duplicate task engines (`server/workflows/service.ts:253`, `src/operational/convenience/DocumentComposer.tsx:73`, `src/operational/workflows.tsx:325`, `docs/AGENT_HANDOFF.md:3`).
+- ⚠️ Cannot fully verify from this diff: unchanged review/job/access detail panels, their complete login-return behavior, and unchanged production ACL/retention machinery. This task reuses their exact routes and canonical gates; the controller should retain prior task evidence and include those flows in the broad final integration review. This is distinct from the directly reproduced default-route defect (`server/convenience/home.ts:1`, `src/operational/App.tsx:403`).
+
+### Strengths
+
+- `server/convenience/home.ts:215` isolates canonical widget transactions and preserves explicit error results instead of fabricating successful zeroes. The native tests exercise actual access-request/disclosure table unavailability as well as shared authority failure, rather than relying only on a mocked rejection (`server/convenience/home.test.ts:1`; `.superpowers/sdd/2026-11-16-essential-convenience/logs/c4-final-isolation-native.log:1`).
+- `server/workflows/service.ts:253` preserves the ordinary exhaustive draft DTO and applies candidate paging only when explicitly requested, while retaining the existing draft-history/source/page checks. Governance similarly extends its existing reviewer path instead of filtering an administrative aggregate in the browser (`server/workflows/governance/service.ts:953`).
+- `src/operational/convenience/DocumentComposer.tsx:73` resolves the exact owned draft before selecting the page-bound editor or page-less Composer. The new WorkflowPanel initial-draft path retains the draft's own content/base/revision rather than choosing the first list item or substituting the current published body (`src/operational/workflows.tsx:688`; `src/operational/convenience/home.test.tsx:1`).
+- `src/operational/convenience/Home.tsx:1` has actor/space/API/capability keyed sessions, request sequence guards, local retry, current-DOM focus fallback, and honest stage labels. The browser harness uses actual canonical responses and a real table outage and checks continuation and exact older draft resume (`docs/ui-validation/2026-11-17-personal-home/capture.mjs:1`).
+- The inspected final logs substantiate frontend436/Node48/import16/evaluation41/requirements251/types/build/smoke, and current native four files/50 tests. The report correctly treats the additional six files/130 tests as carried evidence, not a single final180-test run (`.superpowers/sdd/2026-11-16-essential-convenience/logs/c4-final-check.log:1`, `.superpowers/sdd/2026-11-16-essential-convenience/logs/c4-final-isolation-native.log:1`, `.superpowers/sdd/2026-11-16-essential-convenience/task-4-report.md:1`).
+
+### Issues
+
+#### Critical (Must Fix)
+
+- None.
+
+#### Important (Should Fix)
+
+- **I1 — Represent the default Home with a route that survives serialization, and keep preview's supported landing.** `src/operational/console.ts:89` changes the empty legacy hash to `home`, but `home` is not in the legacy `consoleItems` recognized by the same function. `parseConvenienceLocation` therefore produces `{kind:'console', tab:'home'}` (`src/operational/convenience/route.ts:140`), while `convenienceHref` serializes that value to `#home` (`src/operational/convenience/route.ts:153`); reparsing it returns `overview`. A focused execution on this head produced exactly:
+
+  ```text
+  parse('?app=1&space=team', '')
+    => {kind:'console', spaceId:'team', tab:'home'}
+  convenienceHref(...)
+    => /?app=1&space=team#home
+  parse(the generated href)
+    => {kind:'console', spaceId:'team', tab:'overview'}
+  ```
+
+  This affects a real existing flow: OperationalApp's space-change handler preserves `current.tab` for console locations and passes it through `convenienceHref` (`src/operational/App.tsx:178`). Changing space from the new implicit Home consequently writes `#home` and mounts the operations destination in the new space. It violates the new personal default's preservation through navigation and the route codec's meaning-preservation contract.
+
+  The same root change is unconditional across modes. The probe also confirmed `parse('?preview=1','') => {kind:'console',tab:'home'}`. App sets `personalLanding` only for `!preview` (`src/operational/App.tsx:531`) and renders Overview only for `tab === 'overview'` (`src/operational/App.tsx:1109`). Thus the previously supported bare preview URL now selects neither its Overview nor a Home body. This rendering consequence follows directly from the branch conditions; I did not run a new browser session.
+
+  Make the implicit workspace Home a valid, mode-aware route (for example, canonical `section=home`), and preserve a supported preview default. Ensure any resulting console Home value round-trips if it remains part of the codec. Add focused regressions for the generated-href round-trip, default-Home space change, and bare preview rendering; the new navigation test currently checks the initial workspace title and explicit overview link only (`src/operational/convenience/Navigation.test.tsx:712`).
+
+#### Minor (Nice to Have)
+
+- No new Minor issue. The final build log retains the existing large-chunk warning at `.superpowers/sdd/2026-11-16-essential-convenience/logs/c4-final-check.log:280`; this is the already deferred C6 M2 concern, not a new C4 blocker. The inherited wrapping-label, process-local cursor continuity, and digest-scan complexity limitations are disclosed and not promoted to production assurances (`docs/ui-validation/2026-11-17-personal-home/README.md:18`).
+
+### Checks and Review Boundaries
+
+- Read the supplied brief, verbatim constraints, and implementer report before evaluating the two-commit package. Read the diff in sequential passes. Tool-output truncation affected evidence/docs/hash sections, so the final native/fullcheck logs and cut documentation hunks were recovered from their stated locations; no tests were regenerated. App/WorkflowPanel/manual-disclosure surrounding source was inspected only where the relevant diff hunks ended mid-function or omitted the shared dependency list needed to judge the changed contract.
+- Named focused external risk — **personal-library continuation contract loss:** inspected `server/convenience/personal.ts:67` once. Its return contract supplies items/revision/nextCursor and has no omitted partial field; the Home wrapper forwards its continuation instead of substituting a first-page link.
+- Named focused external risk — **default route meaning after serialization and preview selection:** inspected the route parser/serializer (`src/operational/convenience/route.ts:140`, `src/operational/convenience/route.ts:153`) and the cut App landing/space/render context; ran one pure-helper `node --import tsx --input-type=module` probe, exit0, yielding I1 above. The local loader emitted a Node `module.register()` deprecation notice; it is not an application/runtime test failure.
+- Named focused external risk — **own-request metadata bypassing complete source/input authorization:** inspected `server/publication.ts:832`/`:837` once. `changesetDetailDb` delegates to current author/reviewer admission, rejects withdrawal, captures the full input envelope, and authorizes all envelope pages/sources before returning updates. The new Home feed then selects metadata.
+- Named focused external risk — **own access-request detail leaking hidden targets:** inspected `server/workflows/governance/service.ts:83` once. The canonical applicant DTO selects only applicant-owned decision metadata and excludes resource IDs/titles. One attempted alternate filename in that focused lookup did not exist; the actual symbol was found in service.ts without further crawling.
+- No Git commands, package-suite reruns, evidence regeneration, helper agents, checkout/index changes, or product edits were performed. Review output is outside the checkout at `/private/tmp/akh-c4-task-review.md`.
+
+### Assessment
+
+**Task quality:** Needs fixes.
+
+**Reasoning:** The personal feeds and their canonical authorization/error boundaries are well implemented and supported by meaningful native/UI evidence. The unconditional legacy default change introduces a concrete route round-trip and preview regression; fix I1 before treating this task as complete. Counts: 0 Critical, 1 Important, 0 new Minor.
