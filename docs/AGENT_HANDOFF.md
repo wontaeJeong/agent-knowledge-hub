@@ -1,5 +1,44 @@
 # 에이전트 인계
 
+## C8 post-final CI fix: scoped erasure dependencies (authoritative)
+
+CI44161579437/job134316519258 at44d73b97 failed all four physical storage-graph tests. This was a C8 regression: globally treating targetPageId as provenance followed a Source routing hint into an independent source, erased its readers/import references and released retained shared bytes. Clean3b8f310 passed4/4; C8 failed4/4; an actual-PG differential probe isolated the hint. Prior local green did not cover this suite and is not CI acceptance.
+
+The combined fix removes global target-key authority. Exact published version linkReferences and published_page_links endpoints remain erasure/hold dependencies; generic existing references remain unchanged. Canonical target IDs survive scrub while labels are removed. Retention now projects historical canonical IDs without private labels/body, even when no current index edge exists. No existing storage assertion or fixture was weakened. UXC-07 and privacy/retention invariants remain;251/North Star/C9/C12 and cross-feature acceptance unchanged.
+
+Current final native8files101 pass: links HTTP1/migration4/links13/erasureDB28/new scoped-link3/product-erasure18/storage-graph4/retention30. Fullcheck494/48/16/41/251/types/build/smoke passes. Earlier runtime/discovery/clock/restore/versions and C7/lineage suites are explicitly carried, not added to101. Fresh canonical4config20PNG uses production fingerprint 93d89a4896dd4cdd702e08c23db4ff8c202bb3cd1d51ac9b83d2e3b1a68a9de9; owned ports/processes/DB/profile/blob root cleaned, parent PG kept. Full CI log, baseline/head reproductions, RED/intermediate/final logs and historical captures are preserved in task-8-report/evidence. Controller owns independent scoped review, fresh exact-head CI and merge. Existing bundle warning and synthetic/local operational limits remain.
+
+## C8 round1 authoritative final preview persistence
+
+Controller-requested changed-data PG RED found two intermediate preview receipts. Final VersionService.run remains unchanged: a pure projection crosses identity refresh, then one final current authorized projection writes one returned receipt. Exact reviewer detail reprojects read-only. Current fullcheck494/48/16/41/251/types/build/smoke and native6files50 pass; preceding8files134 explicitly carried. Earlier replay/upsert wording is superseded; no business mutation replays. Current single-write browser/evidence and full report are authoritative; controller rereview/CI/integration pending.
+
+
+
+## C8 round1 final-release follow-up
+
+Final self-review closed actual-PG async identity-refresh races in restore preview and exact reviewer detail. Only idempotent preview/read DTOs repeat under current authorization; no publication mutation replay. Final fullcheck494/48/16/41/251/types/build/smoke and current native6files49 pass. Preceding8files134 are carried separately. Current final browser/manifest supersedes intermediate round1; report records both. Controller rereview/CI/integration pending.
+
+## 2026-11-18 C8 round1: preserve published identity and reviewed restore relations
+
+- FIX_BASE add8b4a3eadb9a506200c612d5beade1f93e4868; task review found0Critical/2Important/1pre-existing Minor. I1/I2 corrected locally; controller rereview/CI/integration pending.
+- I1: legacy rebuild writes only disposable version-keyed published_page_links. It no longer enriches existing versions.data. Existing version bytes/hash, approved proposals, answer envelopes/discovery/refiling remain valid; new versions still store structured refs at publication. Current-version/refs equality, shared transaction/erasure gates, ACL/source checks remain. The earlier statement that backfill merely needs rereview is withdrawn.
+- I2: selected body and selected relation metadata use shared effectiveReferenceIds before dependency capture/hash. Restore plan preserves selected fields and records before/selected/effective/induced sets. Current target/source/ancestor access is checked before returning the preview; target versions and envelope dependencies are captured. Exact plan/draft/hash guards remain. Authorized requester preview and reviewer list/exact detail show induced IDs; publication rechecks access. Trusted configured origin propagates into VersionService; Host remains untrusted.
+- Current fullcheck494frontend/48Node/16import/41evaluation/251criteria/types/build/smoke and native14files183 all exit0. Fresh four-config browser20PNG includes actual content-only restore preview, independent reviewer disclosure and UI approval/publication plus prior C8 link/rename/revoke flow. Earlier302 native is prior-head evidence, not this run's count. See C8 evidence and task-8-report round1 appendix.
+- EDT-001 whole export roundtrip, KNO-007 authority precedence and KNO-010 merged-document redirects/reason are cross-feature/unverified by C8; their criteria and C12 operational acceptance tracking remain unchanged. No OS IME/production IdP/load/model-quality claim. Existing bundle warning and scan/double-read cost remain.
+
+
+
+## 2026-11-18 #49 C8: internal links and published backlinks
+
+- UXC-07 / EDT-001/007. All 251 criteria, classifications and North Star remain unchanged. Work is isolated on feat/convenience-internal-links-20261118; controller owns review/CI/PR/merge. C7 PR73 is merged at main3b8f310, final85f241c, CI44146448457 eight checks.
+- Reuses WorkflowService.linkSearch/navigation, LinkCompletion/RelatedDocuments, C6 drafts/publication and stable document URLs. Explicit duplicate-title selection inserts portable Markdown and pins the current target version. Unselected [[title]] stays unresolved. sourceBlockId is null until verified block identity exists; C9 is not claimed complete.
+- Version linkReferences are canonical; migration144 published_page_links stores disposable endpoint IDs. Publication replaces edges atomically. Bounded100 rebuild checks current version under the shared gate. Backlink25 opaque cursors bind actor/space/session/credential/authority/data. Every read checks current source/target/ancestor/raw-source/erasure, regardless of stale indexes; read projections repeat after final async identity refresh to close revocation races.
+- Required discovery regressions exposed a pre-existing app/DB clock defect: baseline8/C8 8 probes omitted new answers/capacity errors. Controller authorized assigning only a NEW answer's persisted/returned at from DB clock inside its existing atomic write. queryAsOf, historical rows, replay, policy/lineage remain unchanged. Original discovery.test.ts is unmodified.
+- Current final native20 files302 tests and fullcheck493frontend/48Node/16import/41evaluation/251criteria/types/build/smoke all exit0. Includes upgrade/backfill/restart/drift/erasure, exact MCP inventory, C7 trusted-origin, model/jobs/replay and C6 publication/lineage. No carried runs added to current counts. [Browser evidence and limitations](ui-validation/2026-11-18-internal-links/README.md); full task-8-report under .superpowers/sdd/2026-11-16-essential-convenience.
+- North Star loop: author/review/publish connections feed Query/navigation and maintenance; drafts do not enter public graphs. Source access ceilings, approved versions and idempotency remain invariant. These synthetic functional/security checks do not establish knowledge/model quality; EVALUATION controlled experiments remain required.
+- Remaining costs: full state/digest loading, explicit10k scan bound, two read projections, existing large Vite chunk. Production IdP/load, OS IME/accessibility and semantic quality remain separate acceptance.
+
+
 ## 2026-11-18 #49 C4 최종 F1/F2 — 현재 페이지·정확한 로컬 복구 보존
 
 - 동일한 ONE combined final wave의 중단을 이어서 완료했다. FIX_BASE `f74f408c0b056725fc55b26548b0853a48a921d5`; UXC-05 / UX-001/003/004, REV-001/002, SRH-009 및 기존 EDT 복구 계약. North Star/251기준/server/SQL/migration은 변경하지 않았다.

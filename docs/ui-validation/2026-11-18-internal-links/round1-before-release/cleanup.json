@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-11-17T19:30:19.280Z",
+  "ownDatabases": [],
+  "ownBrowserProfiles": [],
+  "ports": {
+    "4398": "closed",
+    "5198": "closed"
+  },
+  "processes": {
+    "27770": "absent",
+    "27835": "absent"
+  },
+  "parent": {
+    "database": "knowledge_test",
+    "alive": 1
+  }
+}

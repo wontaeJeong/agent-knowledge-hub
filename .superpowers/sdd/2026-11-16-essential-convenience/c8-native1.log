@@ -1,0 +1,259 @@
+[1/15] server/convenience/links-migration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  03:49:47
+   Duration  1.16s (tests 95%, import 4%, transform 1%)
+
+[2/15] server/convenience/links.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  03:49:48
+   Duration  4.82s (tests 98%, import 2%, transform 1%)
+
+[3/15] server/convenience/structure-final.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  03:49:53
+   Duration  8.18s (tests 95%, transform 3%, import 2%)
+
+[4/15] server/convenience/structure-http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  03:50:02
+   Duration  2.89s (tests 93%, import 5%, transform 2%)
+
+[5/15] server/discovery.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/discovery.test.ts (15 tests | 2 failed) 4435ms
+   × citation rankings respect self versus aggregate permission, deduplication and current ACL 457ms
+   × large input envelopes fail explicitly instead of silently disappearing 86ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 13 passed (15)
+   Start at  03:50:05
+   Duration  4.59s (tests 98%, import 1%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/discovery.test.ts > citation rankings respect self versus aggregate permission, deduplication and current ACL
+AssertionError: expected [ [ 'topic', 1 ] ] to deeply equal [ [ 'topic', 2 ] ]
+
+- Expected
++ Received
+
+  [
+    [
+      "topic",
+-     2,
++     1,
+    ],
+  ]
+
+ ❯ server/discovery.test.ts:19:65
+     17|     const aggregate = await discoveryReport(f.pool, runtime, f.ctx, 7);
+     18|     expect(aggregate.scope).toBe("workspace");
+     19|     expect(aggregate.mostCited.map((p) => [p.id, p.citations])).toEqua…
+       |                                                                 ^
+     20|       ["topic", 2],
+     21|     ]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  server/discovery.test.ts > large input envelopes fail explicitly instead of silently disappearing
+AssertionError: promise resolved "{ …(11) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "citations": 0,
++   "daily": [
++     {
++       "citations": 0,
++       "day": "2026-11-11",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-12",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-13",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-14",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-15",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-16",
++     },
++     {
++       "citations": 0,
++       "day": "2026-11-17",
++     },
++   ],
++   "from": "2026-11-11T00:00:00.000Z",
++   "links": 0,
++   "mostCited": [],
++   "mostLinked": [],
++   "pages": 1,
++   "scope": "self",
++   "timezone": "UTC",
++   "to": "2026-11-17T18:50:06.642Z",
++   "trending": [],
+  }
+
+ ❯ server/discovery.test.ts:234:64
+    232|       ],
+    233|     );
+    234|     await expect(discoveryReport(f.pool, runtime, f.editor, 7)).reject…
+       |                                                                ^
+    235|       "DISCOVERY_CAPACITY",
+    236|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+[6/15] server/operations/erasure-db.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  28 passed (28)
+   Start at  03:50:10
+   Duration  6.10s (tests 98%, import 1%, transform 1%)
+
+[7/15] server/operations/product-erasure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  03:50:16
+   Duration  3.36s (tests 97%, import 2%, transform 1%)
+
+[8/15] server/runtime/runtime.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  03:50:19
+   Duration  2.26s (tests 91%, import 6%, transform 3%)
+
+[9/15] server/service.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  25 passed (25)
+   Start at  03:50:22
+   Duration  2.52s (tests 97%, import 2%, transform 1%)
+
+[10/15] server/workflows/lineage-closure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  03:50:25
+   Duration  4.60s (tests 98%, import 2%, transform 1%)
+
+[11/15] server/workflows/manual-disclosure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  03:50:29
+   Duration  19.11s (tests 99%)
+
+[12/15] server/workflows/navigation-http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  03:50:49
+   Duration  4.10s (tests 95%, import 3%, transform 2%)
+
+[13/15] server/workflows/new-document.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/workflows/new-document.test.ts (30 tests | 1 failed) 15393ms
+   × origin source erasure reaches a registered copy (published=true, deleted=false, templateUpdated=false) 5093ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 29 passed (30)
+   Start at  03:50:53
+   Duration  15.57s (tests 99%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/workflows/new-document.test.ts > origin source erasure reaches a registered copy (published=true, deleted=false, templateUpdated=false)
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ server/workflows/new-document.test.ts:723:3
+    721|   [true, true, false],
+    722|   [true, true, true],
+    723| ])(
+       |   ^
+    724|   "origin source erasure reaches a registered copy (published=%s, dele…
+    725|   async (published, removeDerived, updateTemplate) => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+[14/15] server/workflows/versions/publication-integration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  03:51:09
+   Duration  3.53s (tests 97%, import 2%, transform 1%)
+
+[15/15] server/workflows/workflows.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  36 passed (36)
+   Start at  03:51:12
+   Duration  3.42s (tests 96%, import 2%, transform 1%)
+

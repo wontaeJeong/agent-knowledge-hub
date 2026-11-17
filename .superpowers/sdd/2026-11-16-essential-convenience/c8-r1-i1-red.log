@@ -1,0 +1,65 @@
+[1/1] server/convenience/links-migration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/convenience/links-migration.test.ts (4 tests | 2 failed) 1292ms
+   × legacy rebuild preserves exact version bytes and already approved proposal identity 143ms
+   × legacy rebuild leaves prior answer envelope current for discovery and actual refiling 98ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed (4)
+   Start at  04:21:04
+   Duration  1.42s (tests 95%, import 3%, transform 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/links-migration.test.ts > legacy rebuild preserves exact version bytes and already approved proposal identity
+AssertionError: expected [ { …(2) } ] to deeply equal [ { …(2) } ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "bytes": "{\"at\": \"2026-10-29T00:00:00Z\", \"id\": \"v1\", \"author\": \"editor\", \"number\": 1, \"reason\": \"fixture\", \"content\": \"기존 내용\", \"sourceIds\": [\"source-a\"]}",
+-     "hash": "2197a461f28548de881b4153b0209e89",
++     "bytes": "{\"at\": \"2026-10-29T00:00:00Z\", \"id\": \"v1\", \"author\": \"editor\", \"number\": 1, \"reason\": \"fixture\", \"content\": \"기존 내용\", \"sourceIds\": [\"source-a\"], \"linkReferences\": []}",
++     "hash": "a760dfe2d7d1ec62058e778bdbf7f7a6",
+    },
+  ]
+
+ ❯ server/convenience/links-migration.test.ts:148:169
+    146|     const approved=(await f.pool.query("SELECT data,hash FROM batches …
+    147|     await rebuildPublishedLinks(f.pool,f.workspaceId);
+    148|     expect((await f.pool.query("SELECT data::text AS bytes,md5(data::t…
+       |                                                                                                                                                                         ^
+    149|     expect((await f.pool.query("SELECT data,hash FROM batches WHERE wo…
+    150|     expect(await runtime.core.publish(f.ctx,batch.id,batch.hash,"appro…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  server/convenience/links-migration.test.ts > legacy rebuild leaves prior answer envelope current for discovery and actual refiling
+AssertionError: expected [] to deeply equal [ [ 'topic', 1 ] ]
+
+- Expected
++ Received
+
+- [
+-   [
+-     "topic",
+-     1,
+-   ],
+- ]
++ []
+
+ ❯ server/convenience/links-migration.test.ts:161:101
+    159|     const before=(await f.pool.query("SELECT data::text AS bytes FROM …
+    160|     await rebuildPublishedLinks(f.pool,f.workspaceId);
+    161|     expect((await discoveryReport(f.pool,runtime,f.editor,7)).mostCite…
+       |                                                                                                     ^
+    162|     expect((await f.pool.query("SELECT data::text AS bytes FROM runtim…
+    163|     expect(await runtime.file(f.editor,answer.id)).toHaveProperty("id"…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

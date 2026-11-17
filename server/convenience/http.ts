@@ -139,3 +139,13 @@ export async function handleStructureRoute(
   }
   return false;
 }
+
+export async function handleLinksRoute(input:{method:string;path:string;query:URLSearchParams;body:unknown;ctx:Context;send:(status:number,data:unknown)=>void},service:import('../workflows/service').WorkflowService):Promise<boolean>{
+ const match=input.path.match(/^\/api\/v1\/convenience\/pages\/([a-zA-Z0-9_-]{1,100})\/backlinks$/);
+ if(input.method==='GET'&&match){
+  if([...input.query.keys()].some(k=>input.query.getAll(k).length>1))throw Error('VALIDATION_FAILED');
+  const q=z.object({cursor:z.string().max(4096).optional(),limit:z.coerce.number().int().min(1).max(25).optional()}).strict().parse(Object.fromEntries(input.query));
+  input.send(200,await service.backlinks(input.ctx,match[1],q));return true;
+ }
+ return false;
+}

@@ -1,3 +1,5 @@
+import { publishedReferences, replacePublishedLinks } from "./convenience/links";
+import { effectiveReferenceIds, referenceOrigin } from "./workflows/references";
 import { createHash } from "node:crypto";
 import { applyPublishedImportAttachments } from "./storage/roundtrip";
 import type { Pool, PoolClient } from "pg";
@@ -78,6 +80,8 @@ const batchHash = ({
   reviewFeedback?: { reason: string; recordedAt: string; recordedBy: string };
 }) => digest(content);
 type RuntimeBatch = Batch & {
+  referenceOrigin?: string;
+  versionMetadataChanges?: {pageId:string;relationChanges?:{induced:string[]}}[];
   reviewFeedback?: { reason: string; recordedBy: string; recordedAt: string };
   producer?: NonNullable<import("../src/domain/types").Version["producer"]>;
   responsibleUserId?: string;
@@ -274,6 +278,7 @@ export async function propose(
   updates: Draft[],
   sourceIds: string[],
   options?: {
+    referenceOrigin?: string;
     expectedStateHash?: string;
     mode?: "offline" | "model";
     dependencyIds?: string[];
@@ -300,6 +305,8 @@ export async function propose(
     versionMetadataPlans?: RestorePlan[];
   },
 ) {
+  const trustedOrigin = referenceOrigin(options?.referenceOrigin);
+  updates = updates.map(d => ({...d, links:effectiveReferenceIds(d.content,ctx.workspaceId,d.links,trustedOrigin)}));
   return transaction(
     pool,
     ctx.workspaceId,
@@ -408,6 +415,7 @@ export async function propose(
             current(p),
           ]);
         }
+        if (trustedOrigin) (batch as RuntimeBatch).referenceOrigin = trustedOrigin;
         if (options?.initialDocument) (batch as RuntimeBatch).initialDocument = options.initialDocument;
         if (options?.answerId) batch.answerId = options.answerId;
         if (options?.candidates?.length)
@@ -449,6 +457,7 @@ export async function propose(
               targetVersion: p.targetVersion,
               fields: p.fields,
               next: p.next,
+              ...(p.relationChanges ? {relationChanges:p.relationChanges} : {}),
             })),
           });
         enqueueBatch(state, batch);
@@ -896,6 +905,9 @@ export async function authorizedChangesetDetailDb(
       hash: row.hash,
       status: batch.status,
       updates: batch.updates,
+      ...(batch.versionMetadataChanges ? {restoreRelationChanges:batch.versionMetadataChanges
+        .filter(p=>p.relationChanges?.induced.length)
+        .map(p=>({pageId:p.pageId,relationChanges:{induced:p.relationChanges!.induced}}))} : {}),
       proposedBy: row.author_id ?? batch.proposedBy,
       readOnly: own || !["pending", "approved"].includes(batch.status),
       ...(batch.reviewFeedback ? { reviewFeedback: batch.reviewFeedback } : {}),
@@ -1171,6 +1183,7 @@ export async function publishInTransaction(
       };
       const v = {
         ...history.at(-1)!,
+        linkReferences: publishedReferences(history.at(-1)!.content,ctx.workspaceId,d.links,(batch as RuntimeBatch).referenceOrigin),
         author: ctx.principalId,
         batchId: id,
         proposedBy: originalAuthor,
@@ -1204,6 +1217,7 @@ export async function publishInTransaction(
         v.number,
         v,
       ]);
+      await replacePublishedLinks(db,{workspaceId:ctx.workspaceId,pageId:d.id,version:v.number,refs:v.linkReferences});
       versions[d.id] = v.number;
     }
     const candidates =

@@ -1,0 +1,44 @@
+[1/1] server/runtime/discovery-clock.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/runtime/discovery-clock.test.ts (2 tests | 2 failed) 678ms
+   × new offline answers use canonical persistence clock despite host ahead; scope time and oversized-envelope failure remain 524ms
+   × new model answers use canonical persistence clock despite host ahead; scope time and oversized-envelope failure remain 153ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  03:59:49
+   Duration  838ms (tests 86%, import 9%, transform 5%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/runtime/discovery-clock.test.ts > new offline answers use canonical persistence clock despite host ahead; scope time and oversized-envelope failure remain
+AssertionError: expected 1794942289820 to be less than or equal to 1794941990023
+ ❯ server/runtime/discovery-clock.test.ts:23:144
+     21|  const runtime=new RuntimeService(f.pool),answer=await runtime.query(f…
+     22|  const observed=(await f.pool.query("SELECT clock_timestamp() AS now,d…
+     23|  expect(answer.at).toBe(observed.data.at);expect(Date.parse(answer.at)…
+       |                                                                                                                                                ^
+     24|  expect((answer as any).asOf).toBe(hostAt.toISOString()); // Query sel…
+     25|  expect((await discoveryReport(f.pool,runtime,f.editor,7)).mostCited.m…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  server/runtime/discovery-clock.test.ts > new model answers use canonical persistence clock despite host ahead; scope time and oversized-envelope failure remain
+Error: UNAUTHENTICATED
+ ❯ prepareTransmission server/policy/model.ts:403:54
+    401|   envelope?: InputEnvelope,
+    402| ) {
+    403|   if (!ctx.authorization && !ctx.credentialId) throw Error("UNAUTHENTI…
+       |                                                      ^
+    404|   await ctx.authorization?.revalidate();
+    405|   const epoch = await transaction(pool, ctx.workspaceId, async (db) =>…
+ ❯ bindModelTransmission server/policy/binding.ts:34:21
+ ❯ server/runtime/knowledge.ts:1026:33
+ ❯ RuntimeService.job server/runtime/knowledge.ts:394:22
+ ❯ server/runtime/discovery-clock.test.ts:21:50
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

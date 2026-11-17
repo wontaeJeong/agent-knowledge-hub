@@ -161,6 +161,7 @@ export function VersionsPanel({
     [preview, setPreview] = useState<{
       previewHash: string;
       conflicts: { pageId: string; field: string; code: string }[];
+      items?: RestoreRelationItem[];
     } | null>(null);
   const [batchId, setBatch] = useState(""),
     [selected, setSelected] = useState<string[]>([]),
@@ -584,6 +585,7 @@ export function VersionsPanel({
             </Button>
             {preview && (
               <>
+                <RestoreRelationChanges items={preview.items ?? []} />
                 <ul>
                   {preview.conflicts.map((c, i) => (
                     <li key={i}>
@@ -751,4 +753,15 @@ export function VersionsPanel({
       </fieldset>
     </section>
   );
+}
+
+export interface RestoreRelationItem {
+  pageId:string;
+  relationChanges?:{before?:string[];selected?:string[];effective?:string[];induced:string[]};
+}
+/** Shared preview/reviewer display; values are authorized and frozen by the server plan. */
+export function RestoreRelationChanges({items}:{items:RestoreRelationItem[]}) {
+  const changed=items.filter(item=>item.relationChanges?.induced.length);
+  if(!changed.length)return null;
+  return <section aria-label="복원 연결 변경"><p>선택한 관계 속성과 별도로, 복원 본문에 포함된 문서 링크가 연결에 추가됩니다.</p><ul>{changed.map(item=><li key={item.pageId}>{item.pageId} · 본문 링크로 추가되는 연결: {item.relationChanges!.induced.join(", ")}</li>)}</ul></section>;
 }

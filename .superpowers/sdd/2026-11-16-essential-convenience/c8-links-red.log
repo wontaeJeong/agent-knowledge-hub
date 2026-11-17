@@ -1,0 +1,95 @@
+[1/1] server/convenience/links.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/convenience/links.test.ts (8 tests | 8 failed) 608ms
+   × duplicate title suggestions return distinct stable IDs; unresolved title text never creates edges 359ms
+   × publication records exact references atomically; replay and rename preserve identity; draft has no edges 43ms
+   × backlinks hide current source revocation even with stale index 42ms
+   × backlinks hide current target revocation even with stale index 35ms
+   × backlinks hide current raw revocation even with stale index 33ms
+   × backlinks hide current ancestor revocation even with stale index 31ms
+   × opaque cursors bind actor target limit and current data; bounded pages have no repeats 32ms
+   × trusted same-origin links work; external links, code and unresolved titles are not edges 33ms
+
+ Test Files  1 failed (1)
+      Tests  8 failed (8)
+   Start at  03:40:44
+   Duration  938ms (tests 69%, transform 22%, import 9%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/links.test.ts > duplicate title suggestions return distinct stable IDs; unresolved title text never creates edges
+error: null value in column "data" of relation "pages" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ node server/convenience/links.test.ts:14:2
+     12|  await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)",[f.wo…
+     13|  await f.pool.query("INSERT INTO resource_readers SELECT $1,'page',$2,…
+     14|  await f.pool.query('INSERT INTO pages VALUES($1,$2,$3)',[f.workspaceI…
+       |  ^
+     15|  await f.pool.query('INSERT INTO versions VALUES($1,$2,1,$3)',[f.works…
+     16| }
+ ❯ server/convenience/links.test.ts:23:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  server/convenience/links.test.ts > publication records exact references atomically; replay and rename preserve identity; draft has no edges
+error: null value in column "data" of relation "pages" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ node server/convenience/links.test.ts:14:2
+     12|  await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)",[f.wo…
+     13|  await f.pool.query("INSERT INTO resource_readers SELECT $1,'page',$2,…
+     14|  await f.pool.query('INSERT INTO pages VALUES($1,$2,$3)',[f.workspaceI…
+       |  ^
+     15|  await f.pool.query('INSERT INTO versions VALUES($1,$2,1,$3)',[f.works…
+     16| }
+ ❯ server/convenience/links.test.ts:28:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  server/convenience/links.test.ts > backlinks hide current source revocation even with stale index
+ FAIL  server/convenience/links.test.ts > backlinks hide current target revocation even with stale index
+ FAIL  server/convenience/links.test.ts > backlinks hide current raw revocation even with stale index
+ FAIL  server/convenience/links.test.ts > backlinks hide current ancestor revocation even with stale index
+error: null value in column "data" of relation "pages" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ node server/convenience/links.test.ts:14:2
+     12|  await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)",[f.wo…
+     13|  await f.pool.query("INSERT INTO resource_readers SELECT $1,'page',$2,…
+     14|  await f.pool.query('INSERT INTO pages VALUES($1,$2,$3)',[f.workspaceI…
+       |  ^
+     15|  await f.pool.query('INSERT INTO versions VALUES($1,$2,1,$3)',[f.works…
+     16| }
+ ❯ server/convenience/links.test.ts:41:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  server/convenience/links.test.ts > opaque cursors bind actor target limit and current data; bounded pages have no repeats
+error: null value in column "data" of relation "pages" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ node server/convenience/links.test.ts:14:2
+     12|  await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)",[f.wo…
+     13|  await f.pool.query("INSERT INTO resource_readers SELECT $1,'page',$2,…
+     14|  await f.pool.query('INSERT INTO pages VALUES($1,$2,$3)',[f.workspaceI…
+       |  ^
+     15|  await f.pool.query('INSERT INTO versions VALUES($1,$2,1,$3)',[f.works…
+     16| }
+ ❯ server/convenience/links.test.ts:48:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  server/convenience/links.test.ts > trusted same-origin links work; external links, code and unresolved titles are not edges
+error: null value in column "data" of relation "pages" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ node server/convenience/links.test.ts:14:2
+     12|  await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)",[f.wo…
+     13|  await f.pool.query("INSERT INTO resource_readers SELECT $1,'page',$2,…
+     14|  await f.pool.query('INSERT INTO pages VALUES($1,$2,$3)',[f.workspaceI…
+       |  ^
+     15|  await f.pool.query('INSERT INTO versions VALUES($1,$2,1,$3)',[f.works…
+     16| }
+ ❯ server/convenience/links.test.ts:57:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+

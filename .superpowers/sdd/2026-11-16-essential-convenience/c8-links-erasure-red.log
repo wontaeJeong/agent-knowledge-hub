@@ -1,0 +1,44 @@
+[1/1] server/operations/links-erasure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/operations/links-erasure.test.ts (3 tests | 3 failed) 418ms
+   × routing hints and arbitrary link metadata confer no erasure authority; historical canonical references do 338ms
+   × retention projection keeps historical canonical link IDs without labels and excludes source routing hints 42ms
+   × canonical version targets retain legal holds and index endpoints are selected in both directions 37ms
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  05:07:06
+   Duration  540ms (tests 86%, import 9%, transform 5%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/operations/links-erasure.test.ts > routing hints and arbitrary link metadata confer no erasure authority; historical canonical references do
+error: null value in column "data" of relation "sources" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ setup server/operations/links-erasure.test.ts:14:3
+
+ ❯ server/operations/links-erasure.test.ts:31:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  server/operations/links-erasure.test.ts > retention projection keeps historical canonical link IDs without labels and excludes source routing hints
+error: null value in column "data" of relation "sources" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ setup server/operations/links-erasure.test.ts:14:3
+
+ ❯ server/operations/links-erasure.test.ts:47:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  server/operations/links-erasure.test.ts > canonical version targets retain legal holds and index endpoints are selected in both directions
+error: null value in column "data" of relation "sources" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ setup server/operations/links-erasure.test.ts:14:3
+
+ ❯ server/operations/links-erasure.test.ts:58:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+

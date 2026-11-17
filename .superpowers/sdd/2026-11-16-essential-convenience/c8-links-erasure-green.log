@@ -1,0 +1,37 @@
+[1/2] server/operations/links-erasure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/operations/links-erasure.test.ts (3 tests | 1 failed) 789ms
+   × retention projection keeps historical canonical link IDs without labels and excludes source routing hints 117ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  05:08:07
+   Duration  917ms (tests 91%, import 5%, transform 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/operations/links-erasure.test.ts > retention projection keeps historical canonical link IDs without labels and excludes source routing hints
+AssertionError: expected [ 'topic' ] to include 'linked'
+ ❯ server/operations/links-erasure.test.ts:52:77
+     50|     const selected=selectErasureRows(rows,{kind:"page",id:"topic"});
+     51|     expect(selected.filter(r=>r.table==="sources")).toEqual([]);
+     52|     expect(selected.filter(r=>r.table==="versions").map(r=>r.data.page…
+       |                                                                             ^
+     53|     expect(JSON.stringify(rows)).not.toContain("private link label");
+     54|     expect(JSON.stringify(rows)).not.toContain("historic linked privat…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+[2/2] server/operations/storage-graph.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  05:08:08
+   Duration  1.79s (tests 96%, import 3%, transform 1%)
+

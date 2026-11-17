@@ -1,0 +1,77 @@
+
+> agent-knowledge-hub@0.2.0-demo check
+> npm run doctor && npm test && npm run test:imports && npm run test:evaluation && npm run check:requirements && npm run check:server && npm run build && npm run test:smoke
+
+
+> agent-knowledge-hub@0.2.0-demo doctor
+> node scripts/doctor.mjs
+
+PASS Node 24.22.2
+PASS 개발 의존성 설치됨 (잠금 파일 동기화는 npm ci로 확인)
+모델 키·Docker는 기본 개발/검증에 필요하지 않습니다. 전체 검사: npm run check
+
+> agent-knowledge-hub@0.2.0-demo test
+> vitest run src && node --test scripts/model-api.test.mjs scripts/migrate.test.mjs scripts/doctor.test.mjs scripts/smoke.test.mjs scripts/wiki-connector/cli.test.mjs scripts/wiki-connector/client.test.mjs scripts/wiki-connector/mcp.test.mjs scripts/wiki-connector/service.test.mjs
+
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ src/operational/document-navigation.test.tsx (7 tests | 1 failed) 635ms
+   × personal lists and lazy neighborhood open authorized document links without whole graph 23ms
+ ❯ src/operational/navigation-draft.test.tsx (3 tests | 3 failed) 145ms
+   × pending insertion invokes the committed current draft callback 33ms
+   × typing while insertion authorization is pending survives in the actual editor and persisted autosave (save in flight: false) 84ms
+   × typing while insertion authorization is pending survives in the actual editor and persisted autosave (save in flight: true) 27ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/document-navigation.test.tsx > personal lists and lazy neighborhood open authorized document links without whole graph
+AssertionError: the given combination of arguments (undefined and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string
+ ❯ src/operational/document-navigation.test.tsx:109:5
+    107|     node.querySelector('a[href="/?app=1&space=space&document=back"]')
+    108|       ?.textContent,
+    109|   ).toContain("역참조");
+       |     ^
+    110|   await act(async () => root.unmount());
+    111| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/operational/navigation-draft.test.tsx > pending insertion invokes the committed current draft callback
+TypeError: Cannot read properties of undefined (reading 'click')
+ ❯ src/operational/navigation-draft.test.tsx:81:57
+     79|         ),
+     80|     );
+     81|     await act(async () => button(node, "Target · 링크 삽입").click());
+       |                                                         ^
+     82|     await act(async () =>
+     83|       root.render(
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:890:22
+ ❯ src/operational/navigation-draft.test.tsx:81:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/operational/navigation-draft.test.tsx > typing while insertion authorization is pending survives in the actual editor and persisted autosave (save in flight: false)
+ FAIL  src/operational/navigation-draft.test.tsx > typing while insertion authorization is pending survives in the actual editor and persisted autosave (save in flight: true)
+TypeError: Cannot read properties of undefined (reading 'click')
+ ❯ src/operational/navigation-draft.test.tsx:211:63
+    209|         ),
+    210|     );
+    211|     await act(async () => button(completion, "Target · 링크 삽입").click()…
+       |                                                               ^
+    212|     const editor = node.querySelector<HTMLTextAreaElement>(
+    213|       "textarea[rows='14']",
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:890:22
+ ❯ src/operational/navigation-draft.test.tsx:211:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+
+ Test Files  2 failed | 68 passed (70)
+      Tests  4 failed | 488 passed (492)
+   Start at  03:48:26
+   Duration  4.13s (environment 42%, tests 34%, import 19%, transform 4%, worker 1%)
+
+    Isolate  70 workers spawned · ~263ms startup each (spawn + environment, per file)
+             at least ~1.79s faster with isolate: false — reuses workers across files instead of one per file
+

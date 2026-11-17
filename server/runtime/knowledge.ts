@@ -283,12 +283,14 @@ export class RuntimeService {
   async changeset(ctx: Context, id: string) {
     if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) throw Error("NOT_FOUND");
     await ctx.authorization?.revalidate();
-    const result = await transaction(this.pool, ctx.workspaceId, async (db) => {
+    const read = () => transaction(this.pool, ctx.workspaceId, async (db) => {
       await ctx.authorization?.assertSession(db);
       return changesetDetailDb(db, ctx, id);
     });
+    await read();
     await ctx.authorization?.revalidate();
-    return result;
+    // The final asynchronous identity refresh must not release an older ACL projection.
+    return read();
   }
   async changesets(ctx: Context) {
     return transaction(this.pool, ctx.workspaceId, (db) =>
@@ -329,6 +331,11 @@ export class RuntimeService {
         hash: r.hash,
         status: r.data.status,
         updates: r.data.updates,
+        ...(Array.isArray(r.data.versionMetadataChanges) ? {
+          restoreRelationChanges: r.data.versionMetadataChanges
+            .filter((p:{relationChanges?:{induced:string[]}}) => p.relationChanges?.induced.length)
+            .map((p:{pageId:string;relationChanges:{induced:string[]}}) => ({pageId:p.pageId,relationChanges:{induced:p.relationChanges.induced}})),
+        } : {}),
         triage: r.triage ?? "untriaged",
         proposedBy: r.data.importAuthorId ?? r.data.proposedBy,
         ...(r.data.reviewFeedback
@@ -1094,6 +1101,10 @@ export class RuntimeService {
                 throw Error("STALE_VERSION");
             }
             const write = async () => {
+              // Discovery windows use the database clock. Assign only a NEW
+              // answer's persistence time here; queryAsOf and durable replay
+              // retain their original selection/result identities.
+              answer.at = (await db.query("SELECT clock_timestamp() AS at")).rows[0].at.toISOString();
               saveAnswer(fresh, answer);
               await db.query(
                 "INSERT INTO runtime_answers VALUES($1,$2,$3,$4)",

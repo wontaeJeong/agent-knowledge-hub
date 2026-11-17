@@ -1,0 +1,8 @@
+/private/tmp/akh_c8_discovery_probe.mts:6
+const parent=process.env.TEST_DATABASE_URL!;const admin=new Pool({connectionString:parent});
+                                                        ^
+
+TypeError: Pool is not a constructor
+    at <anonymous> (/private/tmp/akh_c8_discovery_probe.mts:6:57)
+
+Node.js v24.22.2

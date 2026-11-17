@@ -70,7 +70,7 @@ test("personal lists and lazy neighborhood open authorized document links withou
           related: [],
           truncated: { links: false, backlinks: false, related: false },
         }
-      : { items: [{ id: "topic", title: "즐겨 문서", version: 1 }] },
+      : path.endsWith("/backlinks") ? {pageId:"topic",version:1,items:[{id:"back",title:"역참조",version:1}],nextCursor:null} : { items: [{ id: "topic", title: "즐겨 문서", version: 1 }] },
   );
   const node = document.createElement("div");
   document.body.append(node);

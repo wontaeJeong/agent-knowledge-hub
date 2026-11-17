@@ -1,0 +1,71 @@
+[1/1] server/convenience/links.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/convenience/links.test.ts (8 tests | 6 failed) 2980ms
+   × publication records exact references atomically; replay and rename preserve identity; draft has no edges 311ms
+   × backlinks hide current source revocation even with stale index 230ms
+   × backlinks hide current target revocation even with stale index 229ms
+   × backlinks hide current raw revocation even with stale index 211ms
+   × backlinks hide current ancestor revocation even with stale index 207ms
+   × trusted same-origin links work; external links, code and unresolved titles are not edges 204ms
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 2 passed (8)
+   Start at  03:43:02
+   Duration  3.17s (tests 96%, import 2%, transform 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/links.test.ts > publication records exact references atomically; replay and rename preserve identity; draft has no edges
+Error: STALE_VERSION
+ ❯ replacePublishedLinks server/convenience/links.ts:19:114
+     17|  await assertProductWritesNotErased(db,workspaceId,pageId);
+     18|  const current=(await db.query('SELECT number,data FROM versions WHERE…
+     19|  if(!current||current.number!==version||JSON.stringify(current.data.li…
+       |                                                                                                                  ^
+     20|  await db.query('DELETE FROM published_page_links WHERE workspace_id=$…
+     21|  await db.query('INSERT INTO published_page_links SELECT $1,$2,$3,unne…
+ ❯ publishInTransaction server/publication.ts:1215:7
+ ❯ transaction server/database.ts:111:20
+ ❯ publish server/convenience/links.test.ts:20:37
+ ❯ server/convenience/links.test.ts:31:14
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  server/convenience/links.test.ts > backlinks hide current source revocation even with stale index
+ FAIL  server/convenience/links.test.ts > backlinks hide current target revocation even with stale index
+ FAIL  server/convenience/links.test.ts > backlinks hide current raw revocation even with stale index
+ FAIL  server/convenience/links.test.ts > backlinks hide current ancestor revocation even with stale index
+Error: STALE_VERSION
+ ❯ replacePublishedLinks server/convenience/links.ts:19:114
+     17|  await assertProductWritesNotErased(db,workspaceId,pageId);
+     18|  const current=(await db.query('SELECT number,data FROM versions WHERE…
+     19|  if(!current||current.number!==version||JSON.stringify(current.data.li…
+       |                                                                                                                  ^
+     20|  await db.query('DELETE FROM published_page_links WHERE workspace_id=$…
+     21|  await db.query('INSERT INTO published_page_links SELECT $1,$2,$3,unne…
+ ❯ publishInTransaction server/publication.ts:1215:7
+ ❯ transaction server/database.ts:111:20
+ ❯ publish server/convenience/links.test.ts:20:37
+ ❯ server/convenience/links.test.ts:41:39
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  server/convenience/links.test.ts > trusted same-origin links work; external links, code and unresolved titles are not edges
+Error: STALE_VERSION
+ ❯ replacePublishedLinks server/convenience/links.ts:19:114
+     17|  await assertProductWritesNotErased(db,workspaceId,pageId);
+     18|  const current=(await db.query('SELECT number,data FROM versions WHERE…
+     19|  if(!current||current.number!==version||JSON.stringify(current.data.li…
+       |                                                                                                                  ^
+     20|  await db.query('DELETE FROM published_page_links WHERE workspace_id=$…
+     21|  await db.query('INSERT INTO published_page_links SELECT $1,$2,$3,unne…
+ ❯ publishInTransaction server/publication.ts:1215:7
+ ❯ transaction server/database.ts:111:20
+ ❯ publish server/convenience/links.test.ts:20:37
+ ❯ server/convenience/links.test.ts:58:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+

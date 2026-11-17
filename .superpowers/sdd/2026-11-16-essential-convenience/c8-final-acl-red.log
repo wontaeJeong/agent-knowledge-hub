@@ -1,0 +1,35 @@
+[1/1] server/convenience/links.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/convenience/links.test.ts (12 tests | 1 failed) 4881ms
+   × final asynchronous identity revalidation cannot return pre-revocation backlink or suggestion metadata 252ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  03:57:54
+   Duration  5.06s (tests 98%, import 1%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/links.test.ts > final asynchronous identity revalidation cannot return pre-revocation backlink or suggestion metadata
+AssertionError: expected [ { id: 'topic', title: '주제', …(1) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "id": "topic",
++     "title": "주제",
++     "version": 2,
++   },
++ ]
+
+ ❯ server/convenience/links.test.ts:254:48
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

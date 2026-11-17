@@ -1,5 +1,5 @@
 import {DocumentStructureService,structureCredentialOperation} from "../convenience/structure";
-import {handleStructureRoute} from "../convenience/http";
+import {handleStructureRoute,handleLinksRoute} from "../convenience/http";
 import { HomeService } from "../convenience/home";
 import { handleHomeRoute } from "../convenience/http";
 import { ScheduledPublicationService } from "../jobs/scheduled-publication";
@@ -120,7 +120,7 @@ export function createRuntimeHandler(options: {
       )
     : undefined;
   const legacyAccess = new LegacyAccessService(options.pool);
-  const versions = new VersionService(options.pool, authorizeInTransaction);
+  const versions = new VersionService(options.pool, authorizeInTransaction, options.origin);
   const questions =
     options.questions ??
     new QuestionsService(options.pool, {
@@ -582,6 +582,7 @@ export function createRuntimeHandler(options: {
         )
       )
         return;
+      if(await handleLinksRoute({method:req.method??"GET",path,query:url.searchParams,body,ctx,send},new WorkflowService(options.pool,service,authorizeInTransaction,options.origin)))return;
       if(await handleStructureRoute({method:req.method??"GET",path,query:url.searchParams,body,ctx,send},new DocumentStructureService(new WorkflowService(options.pool,service,authorizeInTransaction,options.origin),options.auth)))return;
       if (await handleHomeRoute({method:req.method??"GET",path,query:url.searchParams,ctx,send},new HomeService(options.pool,new WorkflowService(options.pool,service,authorizeInTransaction,options.origin),new GovernanceService(options.pool,authorizeInTransaction),options.jobs?.jobs))) return;
       if (

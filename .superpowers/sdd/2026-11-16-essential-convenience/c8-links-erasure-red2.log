@@ -1,0 +1,93 @@
+[1/1] server/operations/links-erasure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/operations/links-erasure.test.ts (3 tests | 2 failed) 648ms
+   × routing hints and arbitrary link metadata confer no erasure authority; historical canonical references do 369ms
+   × retention projection keeps historical canonical link IDs without labels and excludes source routing hints 102ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed (3)
+   Start at  05:07:24
+   Duration  774ms (tests 90%, import 6%, transform 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/operations/links-erasure.test.ts > routing hints and arbitrary link metadata confer no erasure authority; historical canonical references do
+AssertionError: expected [ 'source-a', 'independent' ] to deeply equal [ 'source-a' ]
+
+- Expected
++ Received
+
+  [
+    "source-a",
++   "independent",
+  ]
+
+ ❯ server/operations/links-erasure.test.ts:33:69
+     31|   const f=await setup();
+     32|   const selected=selectErasureRows(await fullRows(f),{kind:"source",id…
+     33|   expect(selected.filter(r=>r.table==="sources").map(r=>r.data.id)).to…
+       |                                                                     ^
+     34|   expect(selected.filter(r=>r.table==="versions").map(r=>r.data.page_i…
+     35|   await f.pool.query("INSERT INTO operations_legal_holds(workspace_id,…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  server/operations/links-erasure.test.ts > retention projection keeps historical canonical link IDs without labels and excludes source routing hints
+AssertionError: expected [ { table: 'sources', …(2) }, …(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "data": {
++       "data": {
++         "createdAt": "2026-10-29T00:00:00Z",
++         "id": "source-a",
++         "importId": null,
++         "importRunId": null,
++         "manualProvenance": null,
++         "targetPageId": "topic",
++       },
++       "id": "source-a",
++       "kind": "source",
++       "private_payload_sha256": "ff8676c52ef2f68b5adca36aa404d96b4248befc0faa84d072f10a4bea93f0a1",
++       "workspace_id": "7b2ea9b0-c51c-4981-85b8-0010d2034a82",
++     },
++     "locator": "(0,3)",
++     "table": "sources",
++   },
++   {
++     "data": {
++       "data": {
++         "createdAt": "2026-10-29T00:00:00Z",
++         "id": "independent",
++         "importId": null,
++         "importRunId": null,
++         "manualProvenance": null,
++         "targetPageId": "topic",
++       },
++       "id": "independent",
++       "kind": "source",
++       "private_payload_sha256": "56227abb7e3c3558be067d1fd74f9cfbef80e5395fb1a73e433185b7206fdffc",
++       "workspace_id": "7b2ea9b0-c51c-4981-85b8-0010d2034a82",
++     },
++     "locator": "(0,4)",
++     "table": "sources",
++   },
++ ]
+
+ ❯ server/operations/links-erasure.test.ts:51:53
+     49|     const rows=await retentionInventory(db,f.workspaceId);
+     50|     const selected=selectErasureRows(rows,{kind:"page",id:"topic"});
+     51|     expect(selected.filter(r=>r.table==="sources")).toEqual([]);
+       |                                                     ^
+     52|     expect(selected.filter(r=>r.table==="versions").map(r=>r.data.page…
+     53|     expect(JSON.stringify(rows)).not.toContain("private link label");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

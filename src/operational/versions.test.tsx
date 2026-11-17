@@ -1,6 +1,6 @@
 import {expect,test} from "vitest";
 import {renderToStaticMarkup} from "react-dom/server";
-import {VersionsPanel,decisionInput} from "./versions";
+import {VersionsPanel,decisionInput,RestoreRelationChanges} from "./versions";
 import {OperationalApi} from "./api";
 test("version UI states unknown historical metadata and independent review, without claiming text restoration is full history",()=>{
  const html=renderToStaticMarkup(<VersionsPanel api={new OperationalApi()} pages={[]} batches={[]} spaceId="s" principalId="p" canPropose canReview/>);
@@ -10,4 +10,9 @@ test("partial decision request contains exact hash and selected per-document rea
  const b={id:"batch",hash:"a".repeat(64),status:"pending",updates:[{id:"a",title:"A"},{id:"b",title:"B"}]};
  expect(decisionInput(b,["a"],{a:"독립 문서",b:"미선택"},"approve")).toEqual({batchId:b.id,expectedHash:b.hash,pageIds:["a"],decision:"approve",reasons:{a:"독립 문서"}});
  expect(()=>decisionInput(b,["a"],{},"approve")).toThrow("판단 이유");
+});
+
+test("restore preview and independent review expose body-induced relations without changing selected fields",()=>{
+ const html=renderToStaticMarkup(<RestoreRelationChanges items={[{pageId:"topic",relationChanges:{before:[],selected:[],effective:["target"],induced:["target"]}}]}/>);
+ expect(html).toContain("topic");expect(html).toContain("target");expect(html).toContain("본문 링크로 추가되는 연결");expect(html).toContain("선택한 관계 속성과 별도로");
 });

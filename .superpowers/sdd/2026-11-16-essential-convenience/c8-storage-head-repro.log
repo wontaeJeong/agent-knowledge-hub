@@ -1,0 +1,103 @@
+[1/1] server/operations/storage-graph.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/411f/agent-knowledge-hub
+
+ ❯ server/operations/storage-graph.test.ts (4 tests | 4 failed) 1425ms
+   × private staged import absent from storage_blobs is backed up and prevents unrelated-parent purge; archive erasure explicitly releases it 612ms
+   × old immutable slot version and mapped import effect retain shared bytes even when head has changed 266ms
+   × actual StorageService CAS upload and metadata transaction cannot race exclusive physical unlink 281ms
+   × private import blobMap and slotMap references survive unrelated root tombstones without a storage_blobs parent grant 262ms
+
+ Test Files  1 failed (1)
+      Tests  4 failed (4)
+   Start at  05:01:11
+   Duration  1.62s (tests 92%, import 5%, transform 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/operations/storage-graph.test.ts > private staged import absent from storage_blobs is backed up and prevents unrelated-parent purge; archive erasure explicitly releases it
+AssertionError: expected { removed: 1, …(2) } to match object { removed: +0 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "removed": 0,
++   "removed": 1,
+  }
+
+ ❯ server/operations/storage-graph.test.ts:113:5
+    111|   expect(
+    112|     await f.ops.purgeApprovedBlobs(f.ctx, (h) => f.purge.remove(h)),
+    113|   ).toMatchObject({ removed: 0 });
+       |     ^
+    114|   expect(await readFile(join(f.root, sha))).toEqual(bytes);
+    115|   const db = await f.pool.connect();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  server/operations/storage-graph.test.ts > old immutable slot version and mapped import effect retain shared bytes even when head has changed
+AssertionError: expected { removed: 2, …(2) } to match object { removed: +0 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "removed": 0,
++   "removed": 2,
+  }
+
+ ❯ server/operations/storage-graph.test.ts:164:5
+    162|   expect(
+    163|     await f.ops.purgeApprovedBlobs(f.ctx, (h) => f.purge.remove(h)),
+    164|   ).toMatchObject({ removed: 0 });
+       |     ^
+    165|   expect(await readFile(join(f.root, sha))).toEqual(bytes);
+    166| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  server/operations/storage-graph.test.ts > actual StorageService CAS upload and metadata transaction cannot race exclusive physical unlink
+Error: NOT_FOUND
+ ❯ assertResourceUpperBound server/access/index.ts:364:13
+    362|       ).includes(ctx.principalId)
+    363|     )
+    364|       throw Error("NOT_FOUND");
+       |             ^
+    365|     if (
+    366|       resource.kind === "source" &&
+ ❯ authorizeActionDb server/access/index.ts:338:3
+ ❯ StorageService.authorizeInTransaction [as authorize] server/access/index.ts:469:3
+ ❯ server/storage/service.ts:217:7
+ ❯ transaction server/database.ts:111:20
+ ❯ StorageService.run server/storage/service.ts:213:20
+ ❯ StorageService.upload server/storage/service.ts:447:5
+ ❯ server/operations/storage-graph.test.ts:207:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  server/operations/storage-graph.test.ts > private import blobMap and slotMap references survive unrelated root tombstones without a storage_blobs parent grant
+AssertionError: expected { removed: 1, …(2) } to match object { removed: +0 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "removed": 0,
++   "removed": 1,
+  }
+
+ ❯ server/operations/storage-graph.test.ts:251:5
+    249|   expect(
+    250|     await f.ops.purgeApprovedBlobs(f.ctx, (h) => f.purge.remove(h)),
+    251|   ).toMatchObject({ removed: 0 });
+       |     ^
+    252|   expect(await f.files.get(f.sha)).toEqual(f.bytes);
+    253| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+

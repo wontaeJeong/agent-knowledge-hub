@@ -1,3 +1,4 @@
+import { publishedReferences, linkPageQuery, assertLinkReadNotErased } from "../convenience/links";
 import { effectiveAccess } from "../access";
 import { encodeCursor, decodeCursor, listRevision } from "./manual-disclosure";
 import { structureQuery, structureMoveSchema, duplicateSchema, type StructureNode } from "../convenience/structure";
@@ -122,16 +123,20 @@ export class WorkflowService {
     action: string,
     resource: WorkflowResource | undefined,
     work: (db: PoolClient) => Promise<T>,
+    recheckRead = false,
   ): Promise<T> {
     await ctx.authorization?.revalidate();
-    const result = await transaction(this.pool, ctx.workspaceId, async (db) => {
+    const execute = () => transaction(this.pool, ctx.workspaceId, async (db) => {
       await membership(db, ctx);
       await ctx.authorization?.assertSession(db);
       await this.authorize(db, ctx, action, resource);
       return work(db);
     });
+    const result = await execute();
     await ctx.authorization?.revalidate();
-    return result;
+    // Read DTOs cannot outlive an asynchronous identity refresh. Re-run only
+    // explicitly read-only projections under the same canonical gate/ACL checks.
+    return recheckRead ? execute() : result;
   }
   private async page(
     db: PoolClient,
@@ -173,6 +178,7 @@ export class WorkflowService {
       if (status.rows[0] && status.rows[0].state !== "active")
         throw Error("NOT_FOUND");
     }
+    await assertLinkReadNotErased(db,ctx.workspaceId,p,[...visited]);
     return p;
   }
   private async requireVersion(
@@ -528,6 +534,7 @@ export class WorkflowService {
         return {
           draft: {
             ...draftOf(p),
+            links:(p.links??[]).filter(id=>!internalReferenceIds(current(p).content,ctx.workspaceId,this.origin).has(id)),
             content: edit.content,
             sourceIds: envelope.sourceIds,
           },
@@ -542,6 +549,7 @@ export class WorkflowService {
       [prepared.draft],
       prepared.draft.sourceIds,
       {
+        referenceOrigin: this.origin,
         expectedStateHash: prepared.fingerprint,
         inputEnvelope: prepared.envelope,
         producer: {
@@ -693,20 +701,56 @@ export class WorkflowService {
     const state = await loadState(db, ctx.workspaceId);
     const visible = await visiblePageIds(db, ctx, state);
     // visiblePageIds includes current source lineage, ancestor ACLs, cycles and trash.
-    return state.pages
-      .filter((p) => visible.has(p.id))
-      .sort((a, b) => a.id.localeCompare(b.id));
+    if(state.pages.length>10000)throw Error('LINK_SCAN_BOUND');
+    const result:Page[]=[];
+    for(const p of state.pages.filter(p=>visible.has(p.id))){
+      try{await this.page(db,ctx,p.id,false,{state,visible});result.push(p);}catch(e){if(!(e instanceof Error)||!['NOT_FOUND','FORBIDDEN'].includes(e.message))throw e;}
+    }
+    return result.sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
   }
   private linkedIds(p: Page, workspaceId: string) {
-    return new Set([
-      ...(p.links ?? []),
-      ...internalReferenceIds(current(p).content, workspaceId, this.origin),
-    ]);
+    return new Set((current(p).linkReferences ?? publishedReferences(current(p).content,workspaceId,p.links??[],this.origin)).map(r=>r.targetPageId));
+  }
+  resolveLinkSuggestions(ctx:Context,query:string,limit=10) {
+    return this.linkSearch(ctx,{query,limit});
+  }
+  async backlinks(ctx:Context,pageId:string,input:unknown = {}) {
+    const q=linkPageQuery.parse(input);
+    return this.run(ctx,'knowledge.read',{kind:'page',id:pageId},async db=>{
+      const target=await this.page(db,ctx,pageId);
+      // Current canonical refs cover missing/stale indexes during a rolling rebuild.
+      // Never trust an index edge or its version/title as authorization evidence.
+      const candidates=(await db.query(`SELECT DISTINCT p.id FROM pages p
+        JOIN versions v ON v.workspace_id=p.workspace_id AND v.page_id=p.id
+        WHERE p.workspace_id=$1 AND v.number=(SELECT max(number) FROM versions WHERE workspace_id=p.workspace_id AND page_id=p.id)
+        AND (v.data->'linkReferences' @> $2::jsonb OR NOT(v.data ? 'linkReferences')
+          OR EXISTS(SELECT 1 FROM published_page_links l WHERE l.workspace_id=p.workspace_id AND l.page_id=p.id AND l.target_page_id=$3))
+        ORDER BY p.id LIMIT 10001`,[ctx.workspaceId,JSON.stringify([{targetPageId:pageId}]),pageId])).rows;
+      if(candidates.length>10000)throw Error('LINK_SCAN_BOUND');
+      const state=await loadState(db,ctx.workspaceId),visible=await visiblePageIds(db,ctx,state);
+      const items=[];
+      for(const candidate of candidates){
+        const p=state.pages.find(p=>p.id===candidate.id);
+        if(!p||p.id===pageId||!visible.has(p.id)||!this.linkedIds(p,ctx.workspaceId).has(pageId))continue;
+        try { await this.page(db,ctx,p.id,false,{state,visible}); } catch(e) { if(e instanceof Error && ["NOT_FOUND","FORBIDDEN"].includes(e.message))continue;throw e; }
+        items.push({id:p.id,title:p.title,version:current(p).number});
+      }
+      // Resource IDs are ASCII; keep the cursor order independent of DB collation.
+      items.sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
+      const binding=fingerprint({workspace:ctx.workspaceId,principal:ctx.principalId,credential:ctx.credentialId??null,session:ctx.authorization?.sessionId??null,agent:ctx.agent??null,pageId,limit:q.limit,items,revision:await listRevision(db,ctx,[],'none')});
+      let after='';
+      if(q.cursor){const c=decodeCursor(q.cursor);if(c.binding!==binding||c.expires<Date.now())throw Error('STALE_CURSOR');after=c.id;}
+      const remaining=items.filter(x=>x.id>after),page=remaining.slice(0,q.limit);
+      // Recheck origin/target/raw input/ancestors after gathering, under the shared erasure and workspace gates.
+      await this.page(db,ctx,pageId);
+      for(const p of page)await this.page(db,ctx,p.id);
+      return {pageId,version:current(target).number,items:page,nextCursor:remaining.length>q.limit?encodeCursor({binding,at:'',id:page.at(-1)!.id,expires:Date.now()+600000}):null};
+    }, true);
   }
 
   async linkSearch(ctx: Context, input: unknown) {
-    const { query } = z
-      .object({ query: z.string().trim().min(1).max(200) })
+    const { query, limit } = z
+      .object({ query: z.string().trim().min(1).max(200), limit:z.number().int().min(1).max(20).default(20) })
       .strict()
       .parse(input);
     return this.run(ctx, "knowledge.read", undefined, async (db) => {
@@ -716,14 +760,14 @@ export class WorkflowService {
           p.id.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
       );
       return {
-        items: matches.slice(0, 20).map((p) => ({
+        items: matches.slice(0, limit).map((p) => ({
           id: p.id,
           title: p.title,
           version: current(p).number,
         })),
-        truncated: matches.length > 20,
+        truncated: matches.length > limit,
       };
-    });
+    }, true);
   }
   async navigation(ctx: Context, pageId: string) {
     return this.run(
@@ -765,6 +809,7 @@ export class WorkflowService {
           },
         };
       },
+      true,
     );
   }
   private async structureBinding(

@@ -52,7 +52,7 @@ import type { ConsoleTab } from "./console";
 import { PreviewApi } from "./preview";
 import "./styles.css";
 import { SourceLifecycle } from "./workflows";
-import { VersionsPanel } from "./versions";
+import { VersionsPanel, RestoreRelationChanges, type RestoreRelationItem } from "./versions";
 import { QuestionsWorkbench } from "./questions";
 import { AccessPanel } from "./access";
 import { PolicyManager } from "./policy";
@@ -97,6 +97,7 @@ interface ChangeSet {
     sourceVersion: string;
     location: { start: number; end: number; quote: string };
   }[];
+  restoreRelationChanges?: RestoreRelationItem[];
   reviewWarnings?: {
     pageId: string;
     key: string;
@@ -1931,6 +1932,7 @@ function OperationalWorkspace({
                                   </select>
                                 </label>
                               )}
+                            <RestoreRelationChanges items={c.restoreRelationChanges ?? []} />
                             {c.updates.map((d) => (
                               <details key={d.id}>
                                 <summary>

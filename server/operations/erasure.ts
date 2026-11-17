@@ -1,3 +1,4 @@
+import {assertPublishedLinksSchema} from "../convenience/links";
 import {assertDocumentOrderSchema} from "../convenience/structure-schema";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -25,7 +26,7 @@ export interface ProductRow {
   data: Record<string, unknown>;
 }
 const tablePattern =
-  /^(scheduled_publications|sources|pages|versions|batches|requests|publications|approvals|workflow_[a-z_]+|runtime_(answers|lints|jobs)|agent_[a-z_]+|refinement_[a-z_]+|durable_(jobs|job_outbox|model_calls)|storage_(imports|import_sources|import_effects|snapshots|attachment_links)|question_(threads|turns|feedback|feedback_work)|version_(metadata|metadata_events|restore_previews|restore_plans|restore_applications)|versions_decisions|model_usage_events|collaboration_[a-z_]+|governance_[a-z_]+)$/;
+  /^(published_page_links|scheduled_publications|sources|pages|versions|batches|requests|publications|approvals|workflow_[a-z_]+|runtime_(answers|lints|jobs)|agent_[a-z_]+|refinement_[a-z_]+|durable_(jobs|job_outbox|model_calls)|storage_(imports|import_sources|import_effects|snapshots|attachment_links)|question_(threads|turns|feedback|feedback_work)|version_(metadata|metadata_events|restore_previews|restore_plans|restore_applications)|versions_decisions|model_usage_events|collaboration_[a-z_]+|governance_[a-z_]+)$/;
 const identityColumns =
   /^(id|workspace_id|principal_id|owner_id|created_by|recorded_by|reviewed_by|approved_by|actor_id|kind|state|status|operation|role|scope|parent_kind|[a-z_]+_id|[a-z_]+_hash|sha256|mime|provider|model|key|token_hash|mode|policy_mode|category|decision|action|requested_scope|cadence|backend|user_code|document_type|due_cycle|updated_by|applied_by|decision_by|resource_type)$/;
 const referenceKeys: Record<string, string> = {
@@ -244,6 +245,21 @@ function own(row: ProductRow) {
     result.add(`${kind}:${id ?? d.page_id}`);
   return result;
 }
+// targetPageId is also a Source placement hint. Only these canonical link
+// locations confer a page dependency; arbitrary metadata never does.
+function versionLinkReferences(value: unknown): Record<string, unknown>[] {
+  const links = (value as {linkReferences?: unknown} | null)?.linkReferences;
+  return Array.isArray(links) ? links.filter((link): link is Record<string, unknown> =>
+    !!link && typeof link === "object" && typeof link.targetPageId === "string") : [];
+}
+function publishedLinkRefs(row: ProductRow) {
+  const result = new Set<string>();
+  if (row.table === "published_page_links" && typeof row.data.target_page_id === "string")
+    result.add(`page:${row.data.target_page_id}`);
+  if (row.table === "versions")
+    for (const link of versionLinkReferences(row.data.data)) result.add(`page:${link.targetPageId}`);
+  return result;
+}
 function lineageRefs(row: ProductRow) {
   if (row.table === "collaboration_events") {
     // Publication capture stores its originating batch ID, while page_id is
@@ -266,6 +282,7 @@ function lineageRefs(row: ProductRow) {
       importRunId: row.data.run_id,
     });
   const result = refs(row.table === "storage_import_sources" ? {...row.data,sourceId:row.data.target_id} : row.data);
+  for (const ref of publishedLinkRefs(row)) result.add(ref);
   if (typeof row.data.owner_id === "string") {
     const data = row.data.data as {sourceDraftId?:unknown}|undefined;
     const binding = row.data.binding as {id?:unknown}|undefined;
@@ -342,6 +359,18 @@ const lineageKeys = new Set([
   "effectiveFrom",
   "effectiveTo",
 ]);
+function scrubProductColumn(row: ProductRow, column: string, value: unknown): unknown {
+  const scrubbed = scrubProductValue(value);
+  if (row.table === "versions" && column === "data" && scrubbed && typeof scrubbed === "object") {
+    // Keep canonical IDs for recovery/hold closure, while removing link labels.
+    // Source placement hints and similarly named private metadata are redacted.
+    const original = versionLinkReferences(value);
+    if (original.length) (scrubbed as Record<string, unknown>).linkReferences = original.map(link => ({
+      ...(scrubProductValue(link) as Record<string, unknown>), targetPageId: link.targetPageId,
+    }));
+  }
+  return scrubbed;
+}
 export function scrubProductValue(
   value: unknown,
   key = "",
@@ -464,6 +493,7 @@ export async function hasVersionWorkflowData(db: PoolClient, workspaceId: string
   return result.rows[0].present as boolean;
 }
 async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
+  await assertPublishedLinksSchema(db,"ERASURE_GRAPH_UNSUPPORTED");
   await assertDocumentOrderSchema(db,"ERASURE_GRAPH_UNSUPPORTED");
   const metadata = (
       await db.query(
@@ -507,8 +537,8 @@ async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
  * Remove configuration rather than inventing an invalid or colliding target. */
 /** Rank is disposable page metadata; erase it in the same approved gated transaction. */
 async function eraseDocumentOrder(db:PoolClient,row:ProductRow){
- if(row.table!=="workflow_document_order")return false;
- await db.query("DELETE FROM workflow_document_order WHERE ctid=$1::tid",[row.locator]);
+ if(!["workflow_document_order","published_page_links"].includes(row.table))return false;
+ await db.query(`DELETE FROM ${row.table} WHERE ctid=$1::tid`,[row.locator]);
  return true;
 }
 async function eraseScheduledPublication(db:PoolClient,row:ProductRow) {
@@ -539,7 +569,7 @@ export async function replayProductErasure(
       entireWorkspace ? undefined : resources,
     ),
     selectedRefs = new Set(
-      selected.flatMap((r) => [...own(r), ...refs(r.data)]),
+      selected.flatMap((r) => [...own(r), ...refs(r.data), ...publishedLinkRefs(r)]),
     );
   const held = (
     await db.query(
@@ -581,7 +611,7 @@ export async function replayProductErasure(
       if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result") || (row.table === "version_restore_previews" && c.name === "hash")) continue;
       const value = row.data[c.name];
       if (c.type === "jsonb" || c.type === "json")
-        replacements[c.name] = row.table === "workflow_draft_disclosures" && c.name === "submission" ? null : scrubProductValue(value);
+        replacements[c.name] = row.table === "workflow_draft_disclosures" && c.name === "submission" ? null : scrubProductColumn(row, c.name, value);
       else if (
         (c.type === "text" || c.type === "character varying") &&
         value !== null
@@ -634,7 +664,7 @@ async function calculate(db: PoolClient, ctx: Context, input: unknown) {
     )
   ).rows;
   const selectedRefs = new Set(
-    selected.flatMap((r) => [...own(r), ...refs(r.data)]),
+    selected.flatMap((r) => [...own(r), ...refs(r.data), ...publishedLinkRefs(r)]),
   );
   const blocked = held.some(
     (h) =>
@@ -790,7 +820,7 @@ export async function executeErasure(
             if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result") || (row.table === "version_restore_previews" && c.name === "hash")) continue;
             const value = row.data[c.name];
             if (c.type === "jsonb" || c.type === "json")
-              replacements[c.name] = row.table === "workflow_draft_disclosures" && c.name === "submission" ? null : scrubProductValue(value);
+              replacements[c.name] = row.table === "workflow_draft_disclosures" && c.name === "submission" ? null : scrubProductColumn(row, c.name, value);
             else if (
               (c.type === "text" || c.type === "character varying") &&
               value !== null

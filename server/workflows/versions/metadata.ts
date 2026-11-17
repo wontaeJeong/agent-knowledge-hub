@@ -74,6 +74,7 @@ export async function finishVersionMetadataChange(db:PoolClient,ctx:Context,toke
 }
 
 export interface RestorePlan {
+ relationChanges?:{before:string[];selected:string[];effective:string[];induced:string[]};
  pageId:string;targetVersion:number;baseVersion:number;settingsRevision:number;policyVersion:number;
  fields:string[];next:MetadataSnapshot;currentHash:string;content:string;sourceIds:string[];dependencies:string[];
 }
@@ -121,7 +122,7 @@ export async function assertVersionPlansCurrent(db:PoolClient,ctx:Context,batchI
  const plans=rows.map(r=>r.payload as RestorePlan).sort((a,b)=>a.pageId.localeCompare(b.pageId));
  if((plans.length>0)!==!!batch.data.versionRestorePlanHash ||
    (plans.length && (fingerprint(plans)!==batch.data.versionRestorePlanHash ||
-     fingerprint(plans.map(p=>({pageId:p.pageId,targetVersion:p.targetVersion,fields:p.fields,next:p.next})))!==fingerprint(batch.data.versionMetadataChanges))))throw Error("APPROVAL_STALE");
+     fingerprint(plans.map(p=>({pageId:p.pageId,targetVersion:p.targetVersion,fields:p.fields,next:p.next,...(p.relationChanges?{relationChanges:p.relationChanges}:{})})))!==fingerprint(batch.data.versionMetadataChanges))))throw Error("APPROVAL_STALE");
  for(const plan of plans){const draft=batch.data.updates.find((d:{id:string})=>d.id===plan.pageId);
    if(!draft||draft.baseVersion!==plan.baseVersion||draft.content!==plan.content||draft.title!==plan.next.title||draft.summary!==plan.next.summary||fingerprint(draft.links)!==fingerprint(plan.next.relations)||fingerprint(draft.sourceIds)!==fingerprint(plan.sourceIds))throw Error("APPROVAL_STALE");}
  const projections:Record<string,MetadataSnapshot>={};
