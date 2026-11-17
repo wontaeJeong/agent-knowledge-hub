@@ -73,3 +73,7 @@ Final commit, PR and cleanup evidence are recorded in the final handoff update b
 Final validation update: current check exit0 and current native26 pass were observed. Current browser command exit0 completed all4 configurations/12PNG with final source fingerprint; representative desktop/mobile light/dark screenshots were opened and visually inspected. Exact owned runtime/Vite processes and ad-hoc/random databases are stopped/removed; ports4400/5200 closed and parent PG SELECT1 succeeds (cleanup.json). Worktree remains for controller review.
 
 Packaging note: staged whitespace check flags trailing spaces/blank EOF emitted by Vitest/Vite in raw retained logs. Logs are intentionally unmodified; `git diff --cached --check -- . ':!*.log'` verifies implementation/docs separately. Root checkout is clean main and remote main remains the base29a892b at handoff.
+
+## Published review handoff
+
+Feature commit: `cd81c7d4915230b50bc7ce6feb4371643d8cb1e1` (`feat: add document property forms and reviewed bulk actions`). Pushed authorized feature branch. Draft PR: https://github.com/wontaeJeong/agent-knowledge-hub/pull/76, base main29a892b, draft=true, merged=false observed. This final report/PR-link update is documentation-only; production/test/capture fingerprints remain those verified above. Exact-head CI and independent reviews are pending controller verification, not claimed passed.

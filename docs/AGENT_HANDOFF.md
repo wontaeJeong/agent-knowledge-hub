@@ -2,6 +2,8 @@
 
 ## 2026-11-18 C10 속성 폼·검토되는 일괄 정리
 
+Draft PR [#76](https://github.com/wontaeJeong/agent-knowledge-hub/pull/76), 기능 커밋 `cd81c7d`. 독립 검토/CI 대기; 병합하지 않음.
+
 UXC-09 / EDT-005·012, LIF-001~004, VER-004, REV-004·005. 기존 PR45의 50건/10분 preview/apply와 BulkEditor를 확장했다. canonical 속성 폼·담당자/대체자 attribution·필수 정책·선택 JSON, reviewed metadata 계획, 원래 사람 세션의 exact bulk grant와 durable per-item receipt, SIGKILL/restart 멱등성, source/ancestor/erasure/current-ACL 조회를 연결했다. Migration145만 추가한다. 임시 무자격 Context는 trusted bulk executor 트랜잭션 안에서만 사용하고 일반 credential ceiling은 확대하지 않는다.
 
 승인된 호환 변경: 기존 `{token}` 이동/보관은 동기 계약 유지, 태그만 즉시 applied 대신 reviewed needs-review/batch/hash를 반환한다. 단일 `/state` tags는409 METADATA_REVIEW_REQUIRED로 안내한다. 기타 운영 properties/구조/보호/수명주기 계약은 보존한다. 일반 jobs 결과/checkpoint는 bulk에 null이며 원래 session queue 상태만 제공한다. 교체/철회 세션·다른 actor/hash/mutation으로 실행/조회할 수 없다. 일부 대상 철회는 그 항목을 숨기고 denied로 처리하며 다른 인가 항목은 진행한다. 상세 입력/응답과 만료 경계는 API_CONTRACT 참조.
