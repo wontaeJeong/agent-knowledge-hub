@@ -151,3 +151,32 @@ test("removing labels from a later private revision cannot remove historical sou
     workflows.saveDraft(f.editor, { ...draft, expectedRevision: 2 }),
   ).rejects.toThrow("NOT_FOUND");
 });
+
+test("page-less recovery is bound to the existing owner's exact draft and current revision, never another private owner", async()=>{
+ const saved=await workflows.saveDraft(f.editor,{id:"new-recovery",title:"새 개인 초안",content:"서버 본문",expectedRevision:0});
+ const grant=await service.permission(f.editor,{kind:"draft",id:saved.id,draftId:saved.id,expectedRevision:1});
+ expect(grant).toMatchObject({kind:"draft",draftId:"new-recovery",expectedRevision:1});
+ expect((await new DraftRecoveryService(f.pool).validate(f.editor,{binding:grant})).status).toBe("ready");
+ await expect(service.permission(f.ctx,{kind:"draft",id:saved.id,draftId:saved.id,expectedRevision:1})).rejects.toThrow("NOT_FOUND");
+ await workflows.saveDraft(f.editor,{id:saved.id,title:saved.title,content:"다른 탭 저장",expectedRevision:1});
+ expect(await service.validate(f.editor,{binding:grant})).toMatchObject({status:"conflict",revision:2,serverDraft:{content:"다른 탭 저장"}});
+});
+test("page-less recovery cannot strip historical source lineage and source policy revocation invalidates grants",async()=>{
+ await permit();await workflows.saveDraft(f.editor,{id:"new-linked",expectedRevision:0,title:"계보",content:"원본에서 작성",sourceIds:["source-a"]});
+ const g=await service.permission(f.editor,{kind:"draft",id:"new-linked",draftId:"new-linked",expectedRevision:1});
+ await f.pool.query("UPDATE access_source_policy SET local_copy_allowed=false,revision=revision+1 WHERE workspace_id=$1",[f.workspaceId]);
+ await expect(service.validate(f.editor,{binding:g})).rejects.toThrow("FORBIDDEN");
+});
+test("issued read and local.copy credentials cannot bypass the nondelegable draft.write boundary",async()=>{
+ const {AccessService}=await import("../access/index");const access=new AccessService(f.pool);
+ await workflows.saveDraft(f.editor,{id:"credential-draft",expectedRevision:0,title:"본인",content:"수동 입력"});
+ const input={kind:"draft",id:"credential-draft",draftId:"credential-draft",expectedRevision:1};
+ await expect(access.issueCredential(f.editor,{actions:["knowledge.read","draft.write","local.copy"],expiresAt:new Date(Date.now()+60000).toISOString()})).rejects.toThrow("FORBIDDEN");
+ for (const actions of [["knowledge.read"],["knowledge.read","local.copy"]]) {
+  const token=await access.issueCredential(f.editor,{actions,expiresAt:new Date(Date.now()+60000).toISOString()});
+  const ctx=await access.authenticateCredential(token.secret,f.workspaceId);
+  await expect(service.permission(ctx,input)).rejects.toThrow("FORBIDDEN");
+ }
+ const grant=await service.permission(f.editor,input);expect((await service.validate(f.editor,{binding:grant})).status).toBe("ready");
+});
+test("new-draft grants require the exact current server revision at issuance",async()=>{await workflows.saveDraft(f.editor,{id:"exact-grant",expectedRevision:0,title:"초안",content:"본문"});await expect(service.permission(f.editor,{kind:"draft",id:"exact-grant",draftId:"exact-grant",expectedRevision:0})).rejects.toThrow("STALE_VERSION");});

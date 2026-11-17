@@ -1,3 +1,4 @@
+import { personalOwner, qualifiedReviewers, readDisclosureInputs, assertDisclosureAudience } from "./disclosure-policy";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -347,55 +348,9 @@ export class ImportService {
     await assertReleasedImportContext(db, ctx, id);
     return r.rows[0] as Row;
   }
-  private async personalOwner(db: PoolClient, ctx: Context) {
-    const a = await effectiveAccess(db, ctx);
-    return a.space.namespaceKind === "personal" && a.space.owner;
-  }
-  private async qualifiedReviewers(db: PoolClient, ctx: Context) {
-    const rows = (
-      await db.query(
-        "SELECT r.principal_id FROM access_reviewers r JOIN access_principals p ON p.id=r.principal_id AND p.active AND p.kind='human' WHERE r.workspace_id=$1",
-        [ctx.workspaceId],
-      )
-    ).rows;
-    const allowed: string[] = [];
-    for (const row of rows) {
-      const access = await effectiveAccess(db, {
-        workspaceId: ctx.workspaceId,
-        principalId: row.principal_id,
-      });
-      if (
-        access.capabilities.includes("changeset.approve") &&
-        this.reviewers().has(row.principal_id)
-      )
-        allowed.push(row.principal_id);
-    }
-    return allowed;
-  }
-  private async readInputs(
-    db: PoolClient,
-    ctx: Context,
-    envelope: InputEnvelope,
-  ) {
-    for (const id of envelope.sourceIds)
-      await authorizeInTransaction(db, ctx, "knowledge.read", {
-        kind: "source",
-        id,
-      });
-    for (const id of envelope.pageIds)
-      await authorizeInTransaction(db, ctx, "knowledge.read", {
-        kind: "page",
-        id,
-      });
-  }
-  private reviewers() {
-    return new Set(
-      (process.env.IMPORT_DISCLOSURE_REVIEWERS || "")
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean),
-    );
-  }
+  private personalOwner = personalOwner;
+  private qualifiedReviewers = qualifiedReviewers;
+  private readInputs = readDisclosureInputs;
   async config(ctx: Context) {
     return transaction(this.pool, ctx.workspaceId, async (db) => {
       await this.authorize(db, ctx);
@@ -1243,16 +1198,7 @@ export class ImportService {
         !audience.includes(body.reviewerId)
       )
         throw Error("FORBIDDEN");
-      for (const principalId of audience)
-        if (
-          !(
-            await effectiveAccess(db, {
-              workspaceId: ctx.workspaceId,
-              principalId,
-            })
-          ).role
-        )
-          throw Error("FORBIDDEN");
+      await assertDisclosureAudience(db, ctx, audience);
       if (row.input_envelope) {
         await this.readInputs(db, ctx, row.input_envelope);
         await assertEnvelope(
@@ -1262,16 +1208,7 @@ export class ImportService {
           row.input_envelope,
         );
       }
-      // Every supplied page/source can taint the synthesized prose. Do not expand its audience.
-      for (const [kind, ids] of [
-        ["source", row.input_envelope?.sourceIds || []],
-        ["page", row.input_envelope?.pageIds || []],
-      ] as [string, string[]][])
-        for (const ref of ids) {
-          const allowed = await readers(db, ctx.workspaceId, kind, ref);
-          if (audience.some((who) => !allowed.includes(who)))
-            throw Error("SOURCE_SCOPE_CONFLICT");
-        }
+      await assertDisclosureAudience(db, ctx, audience, row.input_envelope);
       const fingerprint = digest([
         row.result,
         row.input_revision,

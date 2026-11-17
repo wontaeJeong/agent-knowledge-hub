@@ -1,5 +1,15 @@
 # 실수와 교훈 기록
 
+### 2026-11-17 — C6 정확한 초안·계보·검증 상태의 경계 누락
+
+- 초기 RED는 page-less recovery schema, 수동 공개/최초 제안 endpoint, Composer 및 title autosave 부재였다. 템플릿 계보를 일괄 완화한 초기 구현은 기존 strict template 2회귀를 실패시켰다. 서버 소유 `retainLineage`의 명시적 확장만 허용하고 기존 두 검사의 의미를 유지하여 lineage30 GREEN으로 복구했다. 원본 readers 누락도 실제 raw source 목록 RED 뒤 기존 provenance 교집합에 연결했다.
+- 실제 erasure에서 새 policy_mode를 본문처럼 지워 CHECK constraint가 실패했다. 고정 enum은 비본문 식별 열로 보존하고 submission은 null로 지워 유일 키를 유지했다. manual source 자체 삭제가 원래 private draft/템플릿을 놓친 RED를 disclosure 정본 source→owner/draft edge로 수정했다. 임의 Source JSON edge 주입/다른 owner 동명 보존도 시험했다. private draft 삭제가 등록 edge를 제거하던 후속 RED는 snapshot/decisions만 지우고 등록 관계를 유지하여 수정했다. 완료 workspace erasure 후 새 초안 쓰기 RED는 기존 product-write fence로 차단했다.
+- 실제 브라우저 재시작은 StrictMode 초기 cleanup의 캐시 삭제를 드러냈다. 초기화 이전 cleanup에서 기존 cache를 지우지 않도록 DOM RED→GREEN. 제출 후 App 재조회는 URL만 바뀌고 host draft 상태는 비어 있어 새 초안으로 remount했으며, 동일 active ID를 보존하는 host/Composer 경로로 수정했다. 최종 ACL 철회 보강에서 목록에 없는 정확한 draft가 일반 Error로 끝나 캐시를 남기는 DOM RED를 확인해 기존404 cleanup으로 연결했다. 템플릿 선택이 과거 복구 grant로 새 본문을 캐시할 수 있던 RED는 canonical lineage save 성공 뒤 적용하도록 고쳤다.
+- 두 탭 첫 capture는 재조회 전 placeholder를 읽었다. 실제 UI는 server=null 동안 충돌 선택 버튼 disabled였다. 임의 대기 대신 native 응답을 잠시 보류해 disabled를 단언하고 해제 후 정확한 서버 본문/활성화를 단언했다. capture의 생성 응답200 가정은 정본201로 수정했으며, 중간 실행이 남긴 제목과 충돌한 검색 assertion은 실행별 고유 제목으로 고쳤다. 화면은 전체 높이로 캡처하고 개인 확인 응답 완료를 기다렸다. 이는 harness 수정이며 제품 성공을 위조하지 않았다.
+- 최종 검사에서 기존 ALREADY_PROPOSED 중복 오류맵 키와 compose union 타입 오류가 검출됐다. cleanup 명령의 exit0을 양쪽 타입 GREEN으로 잘못 보고한 뒤 실제 로그에서 즉시 정정했다. 최종 결과는 명령별 실제 exit0와 로그 원문으로 확인했다. 잘못된 native 파일명은 시작 전 INVALID_SERVER_TEST_FILTER로 거부됐고 실제 파일명으로 정정했다. 불가능한 draft.write 위임 토큰 fixture는 발급 정책을 바꾸지 않고 실제 read/local.copy 발급 거부 경계로 교체했다.
+- 최종 검증: native14파일224, fullcheck frontend415/Node48/import16/eval41/251/타입/build/smoke, composer/recovery12; [실제 4조건 브라우저 증거](ui-validation/2026-11-17-new-document/README.md). 중간 실패 로그는 작업 report/logs에 보존했다. 운영 데이터 영향은 확인하지 않았으며 합성 검증·독립 리뷰/원격 CI 대기 상태를 구분한다.
+
+
 ### 2026-11-17 — 확장된 navigation HTTP 시험의 기본 5초 예산 초과
 
 - 맥락/관련 PR: PR #62 head `7387484`, CI run [43898200490/job133407397086](https://github.com/wontaeJeong/agent-knowledge-hub/actions/runs/43898200490/job/133407397086). 2026-11-16 15:47 UTC에 `server/workflows/navigation-http.test.ts:9`의 단일 시험이 5005ms에 `Test timed out in 5000ms`로 실패했다. 다른 서버 125파일과 staged 알림 신규 16시험(4017ms)은 통과했으나 해당 CI 실행 전체를 통과로 취급하지 않는다.

@@ -1,3 +1,6 @@
+import { assertProductWritesNotErased } from "../operations/product-erasure";
+import { submitNewDraft } from "./new-document";
+import { ManualDraftDisclosureService } from "./manual-disclosure";
 import { recordDocumentVisit } from "./activity";
 import { PersonalLibraryService } from "../convenience/personal";
 import type { LibraryKind } from "../convenience/types";
@@ -58,10 +61,13 @@ const draftSchema = z
     title: z.string().trim().min(1).max(300),
     content: text,
     pageId: id.optional(),
+    parentId: id.nullable().optional(),
     baseVersion: z.number().int().min(1).optional(),
     originSpaceId: id.optional(),
     sourceIds: z.array(id).max(100).optional(),
     dependencyVersions: dependencyVersions.optional(),
+    templateId: id.optional(),
+    templateRevision: z.number().int().positive().optional(),
     mutationId: z.string().uuid().optional(),
   })
   .strict();
@@ -282,7 +288,7 @@ export class WorkflowService {
       return { items };
     });
   }
-  private async draftHistoryAccess(
+  async draftHistoryAccess(
     db: PoolClient,
     ctx: Context,
     draftId: string,
@@ -303,6 +309,7 @@ export class WorkflowService {
     for (const row of history.rows) {
       const d = row.data;
       if (d.pageId) await this.page(db, ctx, d.pageId);
+      if (d.parentId) await this.page(db,ctx,d.parentId);
       for (const sid of d.sourceIds ?? []) {
         await requireRead(db, ctx, "source", sid);
         sources.add(sid);
@@ -326,12 +333,25 @@ export class WorkflowService {
       async (db) => {
         if (d.originSpaceId && d.originSpaceId !== ctx.workspaceId)
           throw Error("SOURCE_SCOPE_CONFLICT");
+        await assertProductWritesNotErased(db,ctx.workspaceId,d.pageId ?? d.id);
         await assertDraftNotRetired(db, ctx, d.id);
         const history = await this.draftHistoryAccess(db, ctx, d.id);
+        if (!!d.templateId !== !!d.templateRevision) throw Error("VALIDATION_FAILED");
+        if (d.templateId) {
+          const template = (await db.query("SELECT revision,data FROM workflow_templates WHERE workspace_id=$1 AND owner_id=$2 AND id=$3", [ctx.workspaceId,ctx.principalId,d.templateId])).rows[0];
+          if (!template || template.revision !== d.templateRevision) throw Error("STALE_VERSION");
+          const inherited = await this.plainTemplateAccess(db,ctx,template.data);
+          history.sourceIds = [...new Set([...history.sourceIds,...inherited.sourceIds])];
+          history.dependencyVersions = mergeDependencyVersions(history.dependencyVersions,inherited.dependencyVersions);
+        }
         if (d.pageId) {
           const p = await this.page(db, ctx, d.pageId);
           if (!d.baseVersion) throw Error("VALIDATION_FAILED");
           await this.requireVersion(db, ctx, p, d.baseVersion);
+        }
+        if (d.parentId) {
+          await this.authorize(db,ctx,"draft.write",{kind:"page",id:d.parentId});
+          await this.page(db,ctx,d.parentId);
         }
         for (const sid of d.sourceIds ?? [])
           await requireRead(db, ctx, "source", sid);
@@ -445,6 +465,10 @@ export class WorkflowService {
         "DELETE FROM workflow_draft_recovery_grants WHERE workspace_id=$1 AND owner_id=$2 AND binding->>'id'=$3",
         [ctx.workspaceId, ctx.principalId, draftId],
       );
+      await db.query("DELETE FROM workflow_draft_disclosures WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3 AND batch_id IS NULL",[ctx.workspaceId,ctx.principalId,draftId]);
+      // Retain the server registration edge for source-root erasure of surviving
+      // templates/caches; the deleted private snapshot itself is no longer needed.
+      await db.query("UPDATE workflow_draft_disclosures SET snapshot='{}',decisions='{}' WHERE workspace_id=$1 AND owner_id=$2 AND draft_id=$3 AND batch_id IS NOT NULL",[ctx.workspaceId,ctx.principalId,draftId]);
       await audit(db, ctx, "draft.delete", draftId);
       return { id: draftId };
     });
@@ -537,6 +561,8 @@ export class WorkflowService {
     );
     return result;
   }
+  submitNewDraft(ctx: Context, draftId: string, input: unknown) { return submitNewDraft(this, ctx, draftId, input); }
+  get manualDisclosures() { return new ManualDraftDisclosureService(this); }
   async submitDraft(
     ctx: Context,
     draftId: string,
@@ -1522,6 +1548,7 @@ export class WorkflowService {
       sourceIds?: string[];
       sourceDraftId?: string;
       sourceDraftRevision?: number;
+      retainLineage?: boolean;
     },
   ) {
     const origin = t.originPageId
@@ -1593,15 +1620,16 @@ export class WorkflowService {
     const originSources = new Set(
       origin ? inheritedProvenance(origin).sourceIds : [],
     );
-    if (
+    if (!(t.sourceDraftId && t.retainLineage) && (
       Object.keys(dependencies).some(
         (target) =>
           target !== t.originPageId || dependencies[target] !== originVersion,
       ) ||
       [...sources].some((source) => !originSources.has(source))
-    )
+    ))
       throw Error("SOURCE_SCOPE_CONFLICT");
-    return originVersion;
+    if (origin && originVersion) dependencies = mergeDependencyVersions(dependencies,{[origin.id]:originVersion});
+    return {originVersion,dependencyVersions:dependencies,sourceIds:[...new Set([...sources,...originSources])]};
   }
   async saveTemplate(ctx: Context, input: unknown) {
     const t = z
@@ -1613,6 +1641,7 @@ export class WorkflowService {
         originPageId: id.optional(),
         sourceDraftId: id.optional(),
         sourceDraftRevision: z.number().int().positive().optional(),
+        retainLineage: z.boolean().optional(),
       })
       .strict()
       .refine((t) => !!t.sourceDraftId === !!t.sourceDraftRevision)
@@ -1653,14 +1682,14 @@ export class WorkflowService {
           if (previous.originPageId && previous.originPageId !== t.originPageId)
             throw Error("SOURCE_SCOPE_CONFLICT");
         }
-        const originVersion = await this.plainTemplateAccess(db, ctx, {
+        const lineage = await this.plainTemplateAccess(db, ctx, {
           ...t,
           originVersion: previous?.originVersion ?? draftOriginVersion,
         });
         const { expectedRevision: _, ...rest } = t;
         const data = {
           ...rest,
-          ...(originVersion ? { originVersion } : {}),
+          ...lineage,
         };
         await db.query(
           "INSERT INTO workflow_templates VALUES($1,$2,$3,$4,$5) ON CONFLICT(workspace_id,owner_id,id) DO UPDATE SET revision=excluded.revision,data=excluded.data",

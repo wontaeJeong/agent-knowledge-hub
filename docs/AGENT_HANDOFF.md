@@ -1,5 +1,16 @@
 # 에이전트 인계
 
+## 2026-11-17 #49 C6 — 신규 문서·수동 원본 공개·정확한 초안 복구
+
+- 요구사항: UXC-04 작업 매핑 EDT-001~003/006, REV-001~009, UX-002. 원본 접근·승인/발행·복구 불변식의 ACL/CORE 회귀를 포함했으며 기존 251 기준/North Star는 변경하지 않았다.
+- `DocumentComposer(mode:new|edit)`는 기존 편집 패널·CAS/1초 자동 저장·DocumentBody를 재사용한다. 전역 새 문서에서 제목/위치/기본·개인 템플릿/미리보기/공유 독자를 다루며 `section=compose&draft=<id>`는 정확한 page-less 초안을 재개한다. C4 홈 구현은 하지 않았다. C7은 기존 개인 saveDraft 계보 계약을 재사용할 수 있다.
+- `manual-disclosure.ts`, `new-document.ts`, migration142가 서버 결정 팀 독립 검토/실제 owner-only 개인 확인을 구현한다. 승인 전 source/batch가 없고, 승인 후 동일 본문 초기 제안을 기존 approve/publish에 연결한다. legacy submitDraft 거부·import run 의미를 유지하고 `imports/disclosure-policy.ts`만 공통 추출했다. 모델 호출은 필요 없다.
+- `repository.ts`의 raw manual source readers도 현재 원계보 교집합을 적용한다. `retention/{recovery,inventory}.ts`, `operations/erasure.ts`는 현재/과거/상위 위치 복구·서버 등록 관계 기반 owner별 삭제를 보존한다. 다른 owner 동명 초안 및 조작 Source JSON은 삭제 edge가 아니다. private draft 삭제는 등록 관계만 남기고 snapshot/decisions를 비운다. 완료 workspace erasure는 늦은 저장/새 공개 요청을 막는다.
+- 주요 변경: 위 새 모듈과 `workflows/{service,http}.ts`, `runtime/http.ts`, `publication.ts`, `imports/service.ts`, `src/operational/{App,workflows,draft-recovery}.tsx/ts`, Composer 및 해당 회귀, API/retention 문서. 모든 변경 생산 파일 해시는 [source manifest](ui-validation/2026-11-17-new-document/source-manifest.json)에 있다.
+- 최종 검증: Node24.22.2 `npm run check` exit0 — frontend415(65파일), Node48, imports16, evaluation41, requirements251, server types/build/static smoke. UUID DB 격리 native14파일/224시험 exit0. 새 recovery/composer12시험 GREEN. 중간414시험 성공 이후 ACL 누락 초안 캐시 삭제 RED를 고쳐415로 증가했다. Vite 기존500kB chunk 경고는 숨기지 않았다.
+- [실제 브라우저 증거](ui-validation/2026-11-17-new-document/README.md): 1440/390 light/dark, 실제 브라우저 프로세스 재시작·오프라인 미전송 복구·두 탭 양쪽 충돌·정확한 draft URL·현재 ACL 철회 캐시 삭제·키보드·개인 검색/백링크 제외·개인/팀 별도 원본 승인 및 지식 발행, 모델 호출0. 합성 PG17/loopback 인증 어댑터이며 OS IME(실제 검사는 CDP composition), 운영 SSO/부하·접근성 전체·품질 인수는 별도다.
+- North Star: 사람이 작성한 업무 근거를 개인 초안→공개 승인→검토 가능한 변경 집합→발행 순환으로 연결한다. 승인/사실/독립 증거를 구분하고 기존 지식 접근 상한을 보존했다. 지식·에이전트 성능 향상은 대조 실험 전 목표이며 합성 실행 성공으로 주장하지 않는다. 로컬 구현/검증/커밋 범위이며 독립 리뷰·원격8CI·PR/main 병합은 controller 후속이다.
+
 ## 2026-11-17 Task1c — Unicode lexical compatibility correction
 
 - SRH-001/002/004/006 and CORE-009/010: before PR #55 merge, an actual PostgreSQL17 locale probe showed SQL lower() differs from JavaScript toLocaleLowerCase() for contextual final sigma and dotted I. Native canonical tests with unrelated title/summary reproduced two missed body hits and two overmatches before implementation. A fifth Kelvin-sign/ASCII-query case retains coverage of Unicode bodies.

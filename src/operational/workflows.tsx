@@ -25,6 +25,8 @@ import {
 } from "./draft-recovery";
 
 interface PrivateDraft {
+  templateId?: string;
+  templateRevision?: number;
   id: string;
   revision: number;
   title: string;
@@ -79,6 +81,8 @@ interface Template {
   content: string;
   originPageId?: string;
   originVersion?: number;
+  sourceIds?: string[];
+  dependencyVersions?: Record<string,number>;
 }
 export function draftInput(
   draft: PrivateDraft,
@@ -92,6 +96,7 @@ export function draftInput(
     content,
     pageId: draft.pageId,
     baseVersion: draft.baseVersion,
+    ...(draft.templateId ? {templateId:draft.templateId,templateRevision:draft.templateRevision} : {}),
     ...(draft.sourceIds ? { sourceIds: draft.sourceIds } : {}),
     ...(draft.dependencyVersions
       ? { dependencyVersions: draft.dependencyVersions }
@@ -1583,15 +1588,14 @@ export function WorkflowPanel({
                     revision: 0,
                     title: detail.page.title,
                     content: t.content,
+                    templateId: t.id, templateRevision: t.revision,
                     pageId: selected,
                     baseVersion: latest.number,
-                    ...(t.originPageId && t.originVersion
-                      ? {
-                          dependencyVersions: {
-                            [t.originPageId]: t.originVersion,
-                          },
-                        }
-                      : {}),
+                    sourceIds: t.sourceIds ?? [],
+                    dependencyVersions: {
+                      ...(t.dependencyVersions ?? {}),
+                      ...(t.originPageId && t.originVersion ? {[t.originPageId]:t.originVersion} : {}),
+                    },
                   });
                   setContent(t.content);
                 }}

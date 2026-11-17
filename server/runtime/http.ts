@@ -1240,6 +1240,8 @@ export function createRuntimeHandler(options: {
         MUTATION_CONFLICT: 409,
         INBOX_QUERY_LIMIT: 413,
         APPROVAL_STALE: 409,
+        DISCLOSURE_REQUIRED: 409,
+        SOURCE_REGISTRATION_REQUIRED: 409,
         IDEMPOTENCY_CONFLICT: 409,
         SOURCE_SCOPE_CONFLICT: 409,
         LAST_OWNER: 409,

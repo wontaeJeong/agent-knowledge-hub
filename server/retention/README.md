@@ -44,3 +44,11 @@
 검토 가능한 변경 후보와 계보를 장애/권한 철회 뒤에도 안전하게 유지하여 Ingest → 검토 → 발행 순환의 불변식 5·6·8을 보강한다. 기존 발행 지식을 변경하거나 효과 향상을 주장하지 않는다. 근거 없는 TTL 삭제보다 보존/차단과 미구현을 표시하는 대안을 택했다. 품질/후속 에이전트 성능은 평가 계약의 대조 실험 전까지 목표다.
 
 검증 파일: `server/retention/{recovery,retention,http}.test.ts`, `src/operational/draft-recovery.test.ts`, 기존 `server/workflows/workflows.test.ts` 및 `server/access/access.test.ts`. 실제 런타임 HTTP 시험은 OIDC userinfo fixture·DB 세션·CSRF를 거쳐 commit 후 응답 유실/다른 탭 승자/재접속 CAS/명시 병합, 로컬 복사 금지 0건 저장, 재시작 캐시의 신원/원본 철회 차단을 확인한다. 가짜 시계로 만료와 보존 기간을 확인하고, DB 삭제 실패 rollback 및 기존 법정 삭제가 새 평문 복사본을 찾는 것도 시험한다.
+
+## C6 새 개인 문서 확장 (2026-11-17)
+
+페이지 없는 복구는 실제 owner의 저장 초안과 `draft.write`, 동일 Context의 `effectiveAccess.local.copy`를 먼저 확인하고, 현재/이력/본문 참조/상위 위치의 모든 page/source를 정본 `local.copy`와 명시 원본 정책으로 검사한다. 페이지 권한을 가짜로 만들거나 credential context를 제거하지 않는다. 발급 정책상 draft.write 위임 토큰은 존재하지 않으므로 실제 발급 가능한 read/local.copy 토큰의 draft.write 거부와 인간 owner 경계를 각각 시험했다.
+
+`workflow_draft_disclosures`와 source의 `manualProvenance`는 현재 inventory/법정 삭제 그래프에 포함된다. snapshot/decisions/submission/audience는 inventory에 본문으로 반환하지 않는다. 서버 등록 관계만 owner+draft 삭제 edge가 되며 다른 owner의 동명 초안은 보존한다. private draft 삭제 후에도 등록 관계는 남고 snapshot/decisions는 지운다. 원계보 source 삭제와 manual source 자체 삭제의 실제 DB redaction, 완료된 workspace erasure 뒤 새 저장/공개 요청 차단을 검증했다. 기존 hold/restore/replay와 물리 purge의 한계는 그대로다.
+
+C6 Chromium 실제 브라우저 프로세스 재시작·오프라인·두 탭 충돌·1440/390 light/dark 증거는 [검증 기록](../../docs/ui-validation/2026-11-17-new-document/README.md)에 있다. 합성 PG17/loopback 인증 어댑터를 사용하며 운영 IdP/OS IME/품질 인수로 승격하지 않는다. 템플릿 본문은 정본 계보 저장 성공 후 편집기/복구 캐시에 들어오고, 정확한 요청 초안이 현재 ACL에서 사라지면 캐시를 비운다.

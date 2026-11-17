@@ -42,7 +42,11 @@ export async function readers(
   kind: string,
   id: string,
   options?: { includeSelfTrash?: boolean },
+  lineagePath: ReadonlySet<string> = new Set(),
 ): Promise<string[]> {
+  const key = kind + ":" + id;
+  if (lineagePath.has(key) || lineagePath.size >= 1000) return [];
+  const path = new Set([...lineagePath,key]);
   const r = await db.query(
     "SELECT principal_id FROM resource_readers WHERE workspace_id=$1 AND kind=$2 AND resource_id=$3 FOR SHARE",
     [workspace, kind, id],
@@ -57,6 +61,33 @@ export async function readers(
       [workspace, id],
     );
     if (s.rowCount && s.rows[0].state !== "active") return [];
+  }
+  if (kind === "source") {
+    const provenance = (await db.query("SELECT data->'manualProvenance' AS provenance FROM sources WHERE workspace_id=$1 AND id=$2",[workspace,id])).rows[0]?.provenance;
+    if (provenance) {
+      if (!Array.isArray(provenance.sourceIds) || !Array.isArray(provenance.pageIds) || [...provenance.sourceIds,...provenance.pageIds].some(v=>typeof v!=="string")) return [];
+      const sources = new Set<string>(provenance.sourceIds), pages = new Set<string>(provenance.pageIds);
+      // Include current and historical lineage of influencing pages. New source
+      // restrictions must apply even after the immutable manual snapshot was made.
+      const pending = [...pages], visited = new Set<string>();
+      while (pending.length) {
+        const pageId = pending.pop()!;
+        if (visited.has(pageId)) continue;
+        if (visited.size >= 1000) return [];
+        visited.add(pageId);
+        const versions = (await db.query("SELECT jsonb_build_object('sourceIds',data->'sourceIds','provenance',data->'provenance') AS data FROM versions WHERE workspace_id=$1 AND page_id=$2",[workspace,pageId])).rows;
+        if (!versions.length) return [];
+        for (const v of versions) {
+          for (const sid of [...(v.data.sourceIds ?? []),...(v.data.provenance?.sourceIds ?? [])]) sources.add(sid);
+          for (const pid of v.data.provenance?.pageIds ?? []) { pages.add(pid); pending.push(pid); }
+        }
+      }
+      for (const [dependencyKind,ids] of [["source",sources],["page",pages]] as const)
+        for (const dependencyId of ids) {
+          const upper = await readers(db,workspace,dependencyKind,dependencyId,undefined,path);
+          result = result.filter(who=>upper.includes(who));
+        }
+    }
   }
   if (kind === "page" && tables.rows[0].documents) {
     const ancestors = await db.query(
@@ -98,7 +129,7 @@ export async function readers(
         ...(v.rows[0].data.sourceIds ?? []),
         ...(v.rows[0].data.provenance?.sourceIds ?? []),
       ])) {
-        const upper = await readers(db, workspace, "source", sourceId);
+        const upper = await readers(db, workspace, "source", sourceId, undefined, path);
         result = result.filter((who) => upper.includes(who));
       }
     }
