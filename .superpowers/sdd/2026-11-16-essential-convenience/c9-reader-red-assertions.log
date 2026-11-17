@@ -1,0 +1,86 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+ ❯ src/operational/convenience/reader.test.tsx (5 tests | 4 failed) 86ms
+   × outline separates Korean headings and excludes fenced or raw HTML headings 4ms
+   × search uses rendered safe text including Korean code/table with a bounded result count 1ms
+   × reader preserves sanitizer, navigates previous/next with keyboard and offers denied code-copy fallback 69ms
+   × stable anchors jump exactly; removed or ambiguous anchors never jump to another paragraph 11ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > outline separates Korean headings and excludes fenced or raw HTML headings
+AssertionError: expected [] to deeply equal [ '설치', '설치' ]
+
+- Expected
++ Received
+
+- [
+-   "설치",
+-   "설치",
+- ]
++ []
+
+ ❯ src/operational/convenience/reader.test.tsx:16:198
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > search uses rendered safe text including Korean code/table with a bounded result count
+AssertionError: expected [] to have a length of 3 but got +0
+
+- Expected
++ Received
+
+- 3
++ 0
+
+ ❯ src/operational/convenience/reader.test.tsx:17:142
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > reader preserves sanitizer, navigates previous/next with keyboard and offers denied code-copy fallback
+TypeError: Cannot read properties of undefined (reading 'click')
+ ❯ src/operational/convenience/reader.test.tsx:15:139
+
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:890:22
+ ❯ click src/operational/convenience/reader.test.tsx:15:51
+ ❯ src/operational/convenience/reader.test.tsx:18:740
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > stable anchors jump exactly; removed or ambiguous anchors never jump to another paragraph
+AssertionError: expected '목차설치설치문서 내 검색일치 0건이전 일치다음 일치현재 위치로 이동…' to contain '위치가 변경되었거나 사라졌습니다'
+
+- Expected
++ Received
+
+- 위치가 변경되었거나 사라졌습니다
++ 목차설치설치문서 내 검색일치 0건이전 일치다음 일치현재 위치로 이동설치
++ 첫 한글 문단
++ 설치
++ const 한글 = "<script>bad()</script>";
++
++
++
++ 값
++
++
++
++ 한글
++
++
++
+
+ ❯ src/operational/convenience/reader.test.tsx:19:464
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 1 passed (5)
+   Start at  05:36:01
+   Duration  434ms (environment 49%, tests 23%, import 19%, transform 8%)
+

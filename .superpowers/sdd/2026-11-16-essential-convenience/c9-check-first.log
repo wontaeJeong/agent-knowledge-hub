@@ -1,0 +1,160 @@
+
+> agent-knowledge-hub@0.2.0-demo check
+> npm run doctor && npm test && npm run test:imports && npm run test:evaluation && npm run check:requirements && npm run check:server && npm run build && npm run test:smoke
+
+
+> agent-knowledge-hub@0.2.0-demo doctor
+> node scripts/doctor.mjs
+
+PASS Node 24.22.2
+PASS 개발 의존성 설치됨 (잠금 파일 동기화는 npm ci로 확인)
+모델 키·Docker는 기본 개발/검증에 필요하지 않습니다. 전체 검사: npm run check
+
+> agent-knowledge-hub@0.2.0-demo test
+> vitest run src && node --test scripts/model-api.test.mjs scripts/migrate.test.mjs scripts/doctor.test.mjs scripts/smoke.test.mjs scripts/wiki-connector/cli.test.mjs scripts/wiki-connector/client.test.mjs scripts/wiki-connector/mcp.test.mjs scripts/wiki-connector/service.test.mjs
+
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+
+ Test Files  71 passed (71)
+      Tests  501 passed (501)
+   Start at  05:42:56
+   Duration  4.28s (environment 41%, tests 34%, import 20%, transform 4%, worker 1%)
+
+    Isolate  71 workers spawned · ~262ms startup each (spawn + environment, per file)
+             at least ~1.81s faster with isolate: false — reuses workers across files instead of one per file
+
+✔ diagnostics reject unsupported runtimes at the supported boundaries (1.212584ms)
+✔ missing dependencies provide an actionable reproducible install command (0.170459ms)
+✔ diagnostic CLI fails without dependencies without reading secrets (37.117875ms)
+✔ migration CLI refuses to run without explicit database configuration (97.456666ms)
+✔ unconfigured model returns a visible error without an offline fallback (15.697333ms)
+✔ model proxy sends system policy and data, keeps key server-side (8.110583ms)
+✔ rejects cross-origin browser calls (1.953625ms)
+✔ invalid provider JSON is not applied as a successful answer (4.498792ms)
+✔ upstream failures do not leak response bodies (2.683625ms)
+✔ smoke accepts a complete static build served over HTTP (27.757375ms)
+✔ smoke rejects missing referenced asset /assets/app.js (11.083208ms)
+✔ smoke rejects missing referenced asset /assets/app.css (6.470792ms)
+✔ smoke rejects missing referenced asset /brand/favicon.svg (4.969ms)
+✔ smoke rejects SPA HTML fallback masquerading as JavaScript (4.186125ms)
+✔ smoke rejects fallback success for an unknown file (5.744ms)
+✔ smoke rejects an empty application shell (1.564542ms)
+✔ local smoke stops its demo child after success (142.072208ms)
+✔ local smoke stops its demo child after failure (127.236708ms)
+✔ local smoke reports a missing build without hanging (70.365ms)
+✔ URL-mode CLI propagates a failed HTTP check (65.841541ms)
+✔ CLI persists private work, exposes a frozen review, and publishes only with reviewer credentials (674.128541ms)
+✔ CLI refuses non-synthetic service configuration (42.692458ms)
+✔ local edits persist through restart, sync to personal only and are visible on another device (161.800917ms)
+✔ simultaneous device edits preserve three versions and require a hash-bound confirmation (227.825375ms)
+✔ new remote edits invalidate prepared merge and preserve both sides (140.441667ms)
+✔ revocation removes cached content and prepared conflicts from every response (112.977166ms)
+✔ authorization outage fails closed, pending edits survive, tokens never reach disk (28.598ms)
+✔ writes queued behind a sync are not lost; repeated syncs do not create duplicate revisions (57.0605ms)
+✔ explicit proposal freezes selected personal text, never automatically publishes it (45.229875ms)
+✔ local directory is bound to endpoint and account without persisting the token (17.660542ms)
+✔ a lost acceptance response recovers without duplicate personal versions (42.107ms)
+✔ connected polling syncs writes and close cancels scheduling without a daemon (64.130625ms)
+✔ network transport rejects redirects and does not forward authorization to another origin (16.588834ms)
+✔ cross-space page ID collision preserves the first draft and cannot publish restricted content (69.208125ms)
+▶ proposal pins the selected personal revision across authorization refresh and request races
+  ✔ before-access (113.255709ms)
+  ✔ before-submit (106.3035ms)
+✔ proposal pins the selected personal revision across authorization refresh and request races (220.317625ms)
+✔ official MCP client edits personal knowledge, cannot publish, closes on EOF and resumes (391.579584ms)
+✔ personal push persists, is isolated, and never changes shared knowledge (33.077708ms)
+✔ retries are idempotent, reused keys with different payload fail, stale writes preserve winner (16.710833ms)
+✔ PR freezes personal revision; only reviewers publish with current shared base (45.730583ms)
+✔ competing PRs cannot publish over a changed shared base (63.994167ms)
+✔ untrusted page metadata cannot widen source scope or invent source evidence (7.650167ms)
+✔ store locks concurrent writers, survives reopening, preserves corrupt state (18.828292ms)
+✔ reserved identifiers cannot address prototype properties (21.91675ms)
+✔ personal updates cannot drop inherited provenance (15.675458ms)
+✔ an unrelated private page cannot replace an existing shared page without lineage (21.2735ms)
+✔ proposal viewing requires current scope and cannot leak to another author (53.81275ms)
+ℹ tests 48
+ℹ suites 0
+ℹ pass 48
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1296.073083
+
+> agent-knowledge-hub@0.2.0-demo test:imports
+> vitest run server/imports/parser.test.ts server/imports/organizer.test.ts
+
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+
+ Test Files  2 passed (2)
+      Tests  16 passed (16)
+   Start at  05:43:02
+   Duration  111ms (import 42%, transform 33%, tests 22%, worker 3%)
+
+
+> agent-knowledge-hub@0.2.0-demo test:evaluation
+> node --test scripts/evaluation/*.test.mjs
+
+✔ all arms receive same authorized raw and budget while static wiki stays at stage zero (4.442833ms)
+✔ failed and timed-out assignments remain in denominators and unknown cost is not zero (21.328792ms)
+✔ heldout task or secret labels in maintenance material fail before use (0.243667ms)
+✔ human work requires exactly one explicit ordered start/end and rejects duplicate events (0.077834ms)
+✔ repeated citations from one raw origin count as one evidence root and preserve old-answer regression (0.437333ms)
+✔ start and end from different human identities cannot produce work time (0.032708ms)
+✔ label-shaped fields cannot enter maintenance input (0.060541ms)
+✔ heldout task records cannot smuggle labels into model inputs (0.118ms)
+✔ invalid holdout labels or unbounded budget fail preflight (0.191166ms)
+✔ an agent cannot alter sealed raw sources to validate a fabricated citation (0.353042ms)
+✔ duplicate or out-of-order stage assignments are rejected (0.101333ms)
+✔ decoded quoted, backslash and newline heldout prompts cannot hide in nested metadata (0.066666ms)
+✔ abstention is scored against an explicit disposition and retained (0.305375ms)
+✔ the expected abstention disposition is mandatory before any evaluation (0.378542ms)
+✔ unexecuted abstention tasks remain in the expected disposition denominator (0.141541ms)
+✔ ground-truth label objects hidden in nested metadata are rejected (0.057833ms)
+✔ driver requires distinct explicit reviewer and exact model identity (13.282625ms)
+✔ runs three actual maintenance stages and freezes the first snapshot (2.688709ms)
+✔ leaked holdout stops before ingestion and failed stage remains incomplete (0.483959ms)
+✔ runtime model and actor verification precede any maintenance write (0.120292ms)
+✔ maintenance timeout stops later cycles and remains incomplete (5.467333ms)
+✔ driver identity must match the policy-bound evaluation principal before writes (0.142125ms)
+✔ records rejected, reproposed and rereviewed attempts with explicit reviewer events (0.541958ms)
+✔ summary exposes review rejections and unknown work instead of inferred zero (0.328209ms)
+✔ future reviewer events are unmeasured even when paired (0.238958ms)
+✔ pre-aborted experiment schedules no maintenance writes (0.102709ms)
+✔ a post-publication query failure records completed writes and requires reconciliation (0.194875ms)
+✔ a failed review submission is not recorded as an accepted approval (0.134542ms)
+✔ real HTTP evaluation transport uses fixed seed/budgets/tools, unknown cost null and clean session (18.042166ms)
+✔ transmission opt-in required; never falls back to fixture when unconfigured (0.246667ms)
+✔ unknown token usage cannot silently exceed a multi-call token budget (4.417042ms)
+✔ records actual LiteLLM response cost without inferring a value (1.581125ms)
+✔ failed truncated outputs retain measured cost and tokens without claiming completion (6.134083ms)
+✔ timed-out later tool call preserves known earlier usage and unknown final total (309.249709ms)
+✔ heldout expected answers never reach agent; paired conditions use identical budgets/tools/model (4.4065ms)
+✔ failed/unexecuted tasks stay in denominator; unknown cost stays unknown (1.152875ms)
+✔ independent withheld labels score output, fake citations are safety failures (1.089833ms)
+✔ report uses Korean limits, explicit denominators, accessible tables and escapes data (1.112166ms)
+✔ timeouts and unavailable raw sources cannot produce success or hide incomplete assignments (210.962875ms)
+✔ actual usage separates maintenance, query and unknown cost (0.93175ms)
+✔ usage attribution requires an explicitly isolated evaluation workspace (0.328417ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 41
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 418.053792
+
+> agent-knowledge-hub@0.2.0-demo check:requirements
+> node scripts/check-requirements.mjs
+
+PASS: all 251 requirements have a roadmap phase, original acceptance and honest production status
+
+> agent-knowledge-hub@0.2.0-demo check:server
+> tsc -p tsconfig.server.json
+
+server/convenience/anchors.test.ts(14,256): error TS7006: Parameter 'a' implicitly has an 'any' type.

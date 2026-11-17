@@ -40,7 +40,7 @@ export async function handleWorkflowRoute(
           ? await service.navigation(ctx, page[1])
           : page[2]
             ? await service.comments(ctx, page[1])
-            : await service.document(ctx, page[1]),
+            : await service.document(ctx, page[1],{recordVisit:z.array(z.enum(["0","1"])).max(1).parse(input.query?.getAll("visit")??[])[0]!=="0"}),
       );
   }
   if (method !== "POST") return false;

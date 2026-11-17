@@ -1,0 +1,15 @@
+{
+  "at": "2026-11-17T21:50:45.049Z",
+  "round": "combined-final",
+  "database": "akh_c9_test_ui_cc1f3bc80f554a4e99a6cdec8aafe17a",
+  "ownedDatabasesRemaining": [],
+  "ownedProfilesRemaining": [],
+  "portsListening": {
+    "4399": false,
+    "5199": false
+  },
+  "parent": {
+    "name": "knowledge_test",
+    "alive": 1
+  }
+}

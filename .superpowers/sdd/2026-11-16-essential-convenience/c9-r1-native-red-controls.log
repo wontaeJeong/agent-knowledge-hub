@@ -1,0 +1,46 @@
+[1/1] server/convenience/anchors.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+ ❯ server/convenience/anchors.test.ts (13 tests | 2 failed) 4953ms
+   × CR publication capture binds changed, moved and deleted blocks without rewriting historical bytes 214ms
+   × mixed publication capture binds changed, moved and deleted blocks without rewriting historical bytes 542ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 11 passed (13)
+   Start at  06:07:33
+   Duration  5.12s (tests 98%, import 1%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/anchors.test.ts > CR publication capture binds changed, moved and deleted blocks without rewriting historical bytes
+AssertionError: expected 'e3b0c44298fc1c149afbf4c8996fb92427ae4…' not to be 'e3b0c44298fc1c149afbf4c8996fb92427ae4…' // Object.is equality
+ ❯ server/convenience/anchors.test.ts:242:26
+    240|  const oldText=heading+original+last+"# 끝";
+    241|  await publish(oldText,1);const old=await v.version(f.reader,'topic',2…
+    242|  expect(target.hash).not.toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e…
+       |                          ^
+    243|  await publish(last+heading+original+"# 끝",2);const moved=await v.vers…
+    244|  expect(resolveAnchor(target,moved.anchors.anchors)).toMatchObject({re…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  server/convenience/anchors.test.ts > mixed publication capture binds changed, moved and deleted blocks without rewriting historical bytes
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ server/convenience/anchors.test.ts:246:65
+    244|  expect(resolveAnchor(target,moved.anchors.anchors)).toMatchObject({re…
+    245|  await publish(last+heading+'전혀 다른 문단'+endings[1]+'# 끝',3);const chang…
+    246|  expect(resolveAnchor(target,changed.anchors.anchors).resolved).toBe(f…
+       |                                                                 ^
+    247|  expect(changed.anchors.anchors.some((anchor:{id:string})=>anchor.id==…
+    248|  await publish(last+heading+"# 끝",4);const deleted=await v.version(f.r…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯

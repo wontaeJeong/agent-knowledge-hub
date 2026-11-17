@@ -1,0 +1,105 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+ ❯ src/operational/convenience/reader-revalidation.test.tsx (10 tests | 2 failed) 148ms
+   × latest periodic read hides protected DOM then restores same-version query, match, selection and focus without replaying anchor 78ms
+   × 2 periodic read hides protected DOM then restores same-version query, match, selection and focus without replaying anchor 14ms
+ ❯ src/operational/workflows-reader.test.tsx (7 tests | 4 failed) 174ms
+   × pending manual read cannot cross principal 18ms
+   × pending manual read cannot cross space 20ms
+   × pending manual read cannot cross selection 12ms
+   × workflow background read preserves current search state after authorization without keeping protected DOM 41ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/workflows-reader.test.tsx > pending manual read cannot cross principal
+AssertionError: expected '편집과 협업여러 문서의 태그·위치·보관 변경최대 50개 문서를 선택…' not to contain 'Protected Korean'
+
+- Expected
++ Received
+
+- Protected Korean
++ 편집과 협업여러 문서의 태그·위치·보관 변경최대 50개 문서를 선택해 변경 내용을 확인합니다. 적용은 문서별로 처리하며 권한이나 기준이 달라진 대상은 실패로 표시합니다.대상 문서Title변경 종류태그 교체상위 문서 변경보관새 태그 (쉼표 구분)변경 이유변경 미리보기개인 초안은 본인에게만 보입니다. 검토·승인 전에는 발행본이 바뀌지 않습니다.서버에 저장하고 있습니다…문서 선택문서를 선택하세요TitleTitle · v1현재 발행본 본문 · v1발행 시점미확인검토 시점미확인공식 문서 여부미확인부분 위치 기록이 없습니다. 문서 전체 링크를 사용하세요.목차제목 없음문서 내 검색일치 0건이전 일치다음 일치현재 위치로 이동Protected Korean paragraph
++ Second Korean
++ 지원하는 문서 형식Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다.첨부 및 자료 이동파일당 최대 5 MiB. 원본은 덮어쓰지 않으며 PDF는 검사 승인 전 내려받을 수 없습니다. PDF 변환은 지원하지 않습니다.Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다. 이미지는 최대 400만 화소·한 변 4096px의 정지 이미지만 지원합니다.첨부 목록을 조회하세요.첨부 조회상태: 활성 · 보호: 설정 안 됨버전 기록 · 복원은 새 변경 제안v1 · 생성 경로: 기존 기록 · 생성 주체 미구분기존 author 기록  · 작성/발행 역할 미구분Protected Korean paragraph
++
++ Second Korean작업 이유문서 구조·속성·보호상위 문서최상위속성 (문자열 값의 JSON 객체){}구조·속성 저장문서 보호문서 수명주기유효기간 종료 (UTC)설정한 시각이 지나면 구독자에게 만료 알림을 생성합니다. 빈 값은 종료 시각 미설정입니다.유효기간 저장보관활성화휴지통으로 이동버전·문단 댓글내 알림 (0건 읽지 않음)휴지통 (0)현재 원본·상위 문서 권한을 만족하는 문서만 표시합니다. 복구로 과거 권한은 복원하지 않습니다. 유예 시각 경과만으로 삭제하지 않으며, 실제 정리는 별도 보존 정책과 실행 결과를 따릅니다.내 알림 수신 설정멘션 알림 받기구독 문서 댓글 알림 받기알림 시각대알림 설정 저장
+
+ ❯ src/operational/workflows-reader.test.tsx:28:70
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  src/operational/workflows-reader.test.tsx > pending manual read cannot cross space
+AssertionError: expected '편집과 협업여러 문서의 태그·위치·보관 변경최대 50개 문서를 선택…' not to contain 'Protected Korean'
+
+- Expected
++ Received
+
+- Protected Korean
++ 편집과 협업여러 문서의 태그·위치·보관 변경최대 50개 문서를 선택해 변경 내용을 확인합니다. 적용은 문서별로 처리하며 권한이나 기준이 달라진 대상은 실패로 표시합니다.대상 문서Title변경 종류태그 교체상위 문서 변경보관새 태그 (쉼표 구분)변경 이유변경 미리보기개인 초안은 본인에게만 보입니다. 검토·승인 전에는 발행본이 바뀌지 않습니다.서버에 저장하고 있습니다…내 문서즐겨찾기처음부터 새로고침표시할 문서 없음최근 문서처음부터 새로고침표시할 문서 없음구독 문서처음부터 새로고침표시할 문서 없음 문서 트리표시할 문서가 없습니다.문서 트리 열기문서 선택문서를 선택하세요TitleTitle · v1문서 고유 링크문서 이동현재 발행본 본문 · v1최신 문서 링크 복사v1 고정 링크 복사발행 시점미확인검토 시점미확인공식 문서 여부미확인부분 위치 기록이 없습니다. 문서 전체 링크를 사용하세요.목차제목 없음문서 내 검색일치 0건이전 일치다음 일치현재 위치로 이동Protected Korean paragraph
++ Second Korean
++ 지원하는 문서 형식Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다.연결·백링크·관련 문서연결한 문서·같은 태그 각 최대 20건 · 백링크는 25건씩 표시첨부 및 자료 이동파일당 최대 5 MiB. 원본은 덮어쓰지 않으며 PDF는 검사 승인 전 내려받을 수 없습니다. PDF 변환은 지원하지 않습니다.Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다. 이미지는 최대 400만 화소·한 변 4096px의 정지 이미지만 지원합니다.첨부 목록을 조회하세요.첨부 조회상태: 활성 · 보호: 설정 안 됨즐겨찾기 추가알림 구독버전 기록 · 복원은 새 변경 제안v1 · 생성 경로: 기존 기록 · 생성 주체 미구분기존 author 기록  · 작성/발행 역할 미구분Protected Korean paragraph
++
++ Second Korean작업 이유문서 구조·속성·보호상위 문서최상위속성 (문자열 값의 JSON 객체){}구조·속성 저장문서 보호문서 수명주기유효기간 종료 (UTC)설정한 시각이 지나면 구독자에게 만료 알림을 생성합니다. 빈 값은 종료 시각 미설정입니다.유효기간 저장보관활성화휴지통으로 이동버전·문단 댓글내 알림 (0건 읽지 않음)휴지통 (0)현재 원본·상위 문서 권한을 만족하는 문서만 표시합니다. 복구로 과거 권한은 복원하지 않습니다. 유예 시각 경과만으로 삭제하지 않으며, 실제 정리는 별도 보존 정책과 실행 결과를 따릅니다.내 알림 수신 설정멘션 알림 받기구독 문서 댓글 알림 받기알림 시각대알림 설정 저장
+
+ ❯ src/operational/workflows-reader.test.tsx:28:70
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  src/operational/workflows-reader.test.tsx > pending manual read cannot cross selection
+AssertionError: expected '편집과 협업여러 문서의 태그·위치·보관 변경최대 50개 문서를 선택…' not to contain 'Protected Korean'
+
+- Expected
++ Received
+
+- Protected Korean
++ 편집과 협업여러 문서의 태그·위치·보관 변경최대 50개 문서를 선택해 변경 내용을 확인합니다. 적용은 문서별로 처리하며 권한이나 기준이 달라진 대상은 실패로 표시합니다.대상 문서Title변경 종류태그 교체상위 문서 변경보관변경 이유변경 미리보기개인 초안은 본인에게만 보입니다. 검토·승인 전에는 발행본이 바뀌지 않습니다.유효기간을 저장했습니다.문서 선택문서를 선택하세요TitleTitle · v1현재 발행본 본문 · v1발행 시점미확인검토 시점미확인공식 문서 여부미확인부분 위치 기록이 없습니다. 문서 전체 링크를 사용하세요.목차제목 없음문서 내 검색일치 0건이전 일치다음 일치현재 위치로 이동Protected Korean paragraph
++ Second Korean
++ 지원하는 문서 형식Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다.첨부 및 자료 이동파일당 최대 5 MiB. 원본은 덮어쓰지 않으며 PDF는 검사 승인 전 내려받을 수 없습니다. PDF 변환은 지원하지 않습니다.Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다. 이미지는 최대 400만 화소·한 변 4096px의 정지 이미지만 지원합니다.첨부 목록을 조회하세요.첨부 조회상태: 활성 · 보호: 설정 안 됨버전 기록 · 복원은 새 변경 제안v1 · 생성 경로: 기존 기록 · 생성 주체 미구분기존 author 기록  · 작성/발행 역할 미구분Protected Korean paragraph
++
++ Second Korean작업 이유문서 구조·속성·보호상위 문서최상위속성 (문자열 값의 JSON 객체){}구조·속성 저장문서 보호문서 수명주기유효기간 종료 (UTC)설정한 시각이 지나면 구독자에게 만료 알림을 생성합니다. 빈 값은 종료 시각 미설정입니다.유효기간 저장보관활성화휴지통으로 이동버전·문단 댓글내 알림 (0건 읽지 않음)휴지통 (0)현재 원본·상위 문서 권한을 만족하는 문서만 표시합니다. 복구로 과거 권한은 복원하지 않습니다. 유예 시각 경과만으로 삭제하지 않으며, 실제 정리는 별도 보존 정책과 실행 결과를 따릅니다.내 알림 수신 설정멘션 알림 받기구독 문서 댓글 알림 받기알림 시각대알림 설정 저장
+
+ ❯ src/operational/workflows-reader.test.tsx:28:70
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  src/operational/workflows-reader.test.tsx > workflow background read preserves current search state after authorization without keeping protected DOM
+AssertionError: expected '' to be 'Korean' // Object.is equality
+
+- Expected
++ Received
+
+- Korean
+
+ ❯ src/operational/workflows-reader.test.tsx:35:21
+     33|  await act(async()=>window.dispatchEvent(new Event("focus")));expect(f…
+     34|  const next=[...f.host.querySelectorAll("input")].find(i=>i.closest("l…
+     35|  expect(next.value).toBe("Korean");expect(f.host.textContent).toContai…
+       |                     ^
+     36| });
+     37|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  src/operational/convenience/reader-revalidation.test.tsx > latest periodic read hides protected DOM then restores same-version query, match, selection and focus without replaying anchor
+ FAIL  src/operational/convenience/reader-revalidation.test.tsx > 2 periodic read hides protected DOM then restores same-version query, match, selection and focus without replaying anchor
+AssertionError: expected '' to be 'Korean' // Object.is equality
+
+- Expected
++ Received
+
+- Korean
+
+ ❯ src/operational/convenience/reader-revalidation.test.tsx:28:26
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  6 failed | 11 passed (17)
+   Start at  06:29:17
+   Duration  573ms (environment 40%, tests 31%, import 18%, transform 11%)

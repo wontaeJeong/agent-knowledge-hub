@@ -1,0 +1,94 @@
+case 1440 light
+periodic restoration passed 1440 light
+math round trips passed 1440 light
+case 1440 dark
+periodic restoration passed 1440 dark
+math round trips passed 1440 dark
+case 390 light
+periodic restoration passed 390 light
+math round trips passed 390 light
+case 390 dark
+periodic restoration passed 390 dark
+math round trips passed 390 dark
+[
+  {
+    "width": 1440,
+    "theme": "light",
+    "periodicReadingStateRestored": true,
+    "mathUnavailableAndExactRoundTrip": true,
+    "manualRevocationBothOrders": true,
+    "copyOutOfOrder": true,
+    "crMixedMovedChangedDeleted": true,
+    "keyboard": true,
+    "distinctRepeatedHeadings": true,
+    "koreanSearch": 4,
+    "codeCopyDenied": true,
+    "selectableFallback": true,
+    "fixedAndLatest": true,
+    "missingAnchorFailClosed": true,
+    "historicalCurrentAcl": true,
+    "overflow": false,
+    "errors": [],
+    "browserVersion": "158.0.8127.18"
+  },
+  {
+    "width": 1440,
+    "theme": "dark",
+    "periodicReadingStateRestored": true,
+    "mathUnavailableAndExactRoundTrip": true,
+    "manualRevocationBothOrders": true,
+    "copyOutOfOrder": true,
+    "crMixedMovedChangedDeleted": true,
+    "keyboard": true,
+    "distinctRepeatedHeadings": true,
+    "koreanSearch": 4,
+    "codeCopyDenied": true,
+    "selectableFallback": true,
+    "fixedAndLatest": true,
+    "missingAnchorFailClosed": true,
+    "historicalCurrentAcl": true,
+    "overflow": false,
+    "errors": [],
+    "browserVersion": "158.0.8127.18"
+  },
+  {
+    "width": 390,
+    "theme": "light",
+    "periodicReadingStateRestored": true,
+    "mathUnavailableAndExactRoundTrip": true,
+    "manualRevocationBothOrders": true,
+    "copyOutOfOrder": true,
+    "crMixedMovedChangedDeleted": true,
+    "keyboard": true,
+    "distinctRepeatedHeadings": true,
+    "koreanSearch": 4,
+    "codeCopyDenied": true,
+    "selectableFallback": true,
+    "fixedAndLatest": true,
+    "missingAnchorFailClosed": true,
+    "historicalCurrentAcl": true,
+    "overflow": false,
+    "errors": [],
+    "browserVersion": "158.0.8127.18"
+  },
+  {
+    "width": 390,
+    "theme": "dark",
+    "periodicReadingStateRestored": true,
+    "mathUnavailableAndExactRoundTrip": true,
+    "manualRevocationBothOrders": true,
+    "copyOutOfOrder": true,
+    "crMixedMovedChangedDeleted": true,
+    "keyboard": true,
+    "distinctRepeatedHeadings": true,
+    "koreanSearch": 4,
+    "codeCopyDenied": true,
+    "selectableFallback": true,
+    "fixedAndLatest": true,
+    "missingAnchorFailClosed": true,
+    "historicalCurrentAcl": true,
+    "overflow": false,
+    "errors": [],
+    "browserVersion": "158.0.8127.18"
+  }
+]

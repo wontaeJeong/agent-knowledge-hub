@@ -1,0 +1,294 @@
+
+> agent-knowledge-hub@0.2.0-demo check
+> npm run doctor && npm test && npm run test:imports && npm run test:evaluation && npm run check:requirements && npm run check:server && npm run build && npm run test:smoke
+
+
+> agent-knowledge-hub@0.2.0-demo doctor
+> node scripts/doctor.mjs
+
+PASS Node 24.22.2
+PASS 개발 의존성 설치됨 (잠금 파일 동기화는 npm ci로 확인)
+모델 키·Docker는 기본 개발/검증에 필요하지 않습니다. 전체 검사: npm run check
+
+> agent-knowledge-hub@0.2.0-demo test
+> vitest run src && node --test scripts/model-api.test.mjs scripts/migrate.test.mjs scripts/doctor.test.mjs scripts/smoke.test.mjs scripts/wiki-connector/cli.test.mjs scripts/wiki-connector/client.test.mjs scripts/wiki-connector/mcp.test.mjs scripts/wiki-connector/service.test.mjs
+
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+
+ Test Files  73 passed (73)
+      Tests  532 passed (532)
+   Start at  06:34:55
+   Duration  4.89s (environment 39%, tests 36%, import 21%, transform 3%, worker 1%)
+
+    Isolate  73 workers spawned · ~280ms startup each (spawn + environment, per file)
+             at least ~1.99s faster with isolate: false — reuses workers across files instead of one per file
+
+✔ diagnostics reject unsupported runtimes at the supported boundaries (0.876125ms)
+✔ missing dependencies provide an actionable reproducible install command (0.058292ms)
+✔ diagnostic CLI fails without dependencies without reading secrets (46.462792ms)
+✔ migration CLI refuses to run without explicit database configuration (83.175667ms)
+✔ unconfigured model returns a visible error without an offline fallback (20.609041ms)
+✔ model proxy sends system policy and data, keeps key server-side (11.594042ms)
+✔ rejects cross-origin browser calls (1.399583ms)
+✔ invalid provider JSON is not applied as a successful answer (5.1645ms)
+✔ upstream failures do not leak response bodies (3.4475ms)
+✔ smoke accepts a complete static build served over HTTP (33.745917ms)
+✔ smoke rejects missing referenced asset /assets/app.js (13.276375ms)
+✔ smoke rejects missing referenced asset /assets/app.css (7.336916ms)
+✔ smoke rejects missing referenced asset /brand/favicon.svg (5.72275ms)
+✔ smoke rejects SPA HTML fallback masquerading as JavaScript (4.076917ms)
+✔ smoke rejects fallback success for an unknown file (4.094208ms)
+✔ smoke rejects an empty application shell (1.07625ms)
+✔ local smoke stops its demo child after success (141.994459ms)
+✔ local smoke stops its demo child after failure (128.185416ms)
+✔ local smoke reports a missing build without hanging (78.298542ms)
+✔ URL-mode CLI propagates a failed HTTP check (70.252208ms)
+✔ CLI persists private work, exposes a frozen review, and publishes only with reviewer credentials (729.693041ms)
+✔ CLI refuses non-synthetic service configuration (42.503708ms)
+✔ local edits persist through restart, sync to personal only and are visible on another device (172.415292ms)
+✔ simultaneous device edits preserve three versions and require a hash-bound confirmation (259.877416ms)
+✔ new remote edits invalidate prepared merge and preserve both sides (147.38325ms)
+✔ revocation removes cached content and prepared conflicts from every response (144.168042ms)
+✔ authorization outage fails closed, pending edits survive, tokens never reach disk (28.122042ms)
+✔ writes queued behind a sync are not lost; repeated syncs do not create duplicate revisions (49.632541ms)
+✔ explicit proposal freezes selected personal text, never automatically publishes it (40.147083ms)
+✔ local directory is bound to endpoint and account without persisting the token (17.0435ms)
+✔ a lost acceptance response recovers without duplicate personal versions (38.607166ms)
+✔ connected polling syncs writes and close cancels scheduling without a daemon (62.015209ms)
+✔ network transport rejects redirects and does not forward authorization to another origin (13.865375ms)
+✔ cross-space page ID collision preserves the first draft and cannot publish restricted content (51.083833ms)
+▶ proposal pins the selected personal revision across authorization refresh and request races
+  ✔ before-access (83.9965ms)
+  ✔ before-submit (72.914541ms)
+✔ proposal pins the selected personal revision across authorization refresh and request races (157.195083ms)
+✔ official MCP client edits personal knowledge, cannot publish, closes on EOF and resumes (465.451375ms)
+✔ personal push persists, is isolated, and never changes shared knowledge (33.318667ms)
+✔ retries are idempotent, reused keys with different payload fail, stale writes preserve winner (22.38925ms)
+✔ PR freezes personal revision; only reviewers publish with current shared base (66.7085ms)
+✔ competing PRs cannot publish over a changed shared base (66.798833ms)
+✔ untrusted page metadata cannot widen source scope or invent source evidence (14.234ms)
+✔ store locks concurrent writers, survives reopening, preserves corrupt state (20.394708ms)
+✔ reserved identifiers cannot address prototype properties (20.189167ms)
+✔ personal updates cannot drop inherited provenance (24.070292ms)
+✔ an unrelated private page cannot replace an existing shared page without lineage (53.676875ms)
+✔ proposal viewing requires current scope and cannot leak to another author (44.079333ms)
+ℹ tests 48
+ℹ suites 0
+ℹ pass 48
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1270.150167
+
+> agent-knowledge-hub@0.2.0-demo test:imports
+> vitest run server/imports/parser.test.ts server/imports/organizer.test.ts
+
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+
+ Test Files  2 passed (2)
+      Tests  16 passed (16)
+   Start at  06:35:02
+   Duration  108ms (import 55%, tests 31%, transform 10%, worker 4%)
+
+
+> agent-knowledge-hub@0.2.0-demo test:evaluation
+> node --test scripts/evaluation/*.test.mjs
+
+✔ all arms receive same authorized raw and budget while static wiki stays at stage zero (4.136792ms)
+✔ failed and timed-out assignments remain in denominators and unknown cost is not zero (20.873584ms)
+✔ heldout task or secret labels in maintenance material fail before use (0.25875ms)
+✔ human work requires exactly one explicit ordered start/end and rejects duplicate events (0.084416ms)
+✔ repeated citations from one raw origin count as one evidence root and preserve old-answer regression (0.479167ms)
+✔ start and end from different human identities cannot produce work time (0.034375ms)
+✔ label-shaped fields cannot enter maintenance input (0.06175ms)
+✔ heldout task records cannot smuggle labels into model inputs (0.115375ms)
+✔ invalid holdout labels or unbounded budget fail preflight (0.188875ms)
+✔ an agent cannot alter sealed raw sources to validate a fabricated citation (0.364167ms)
+✔ duplicate or out-of-order stage assignments are rejected (0.102833ms)
+✔ decoded quoted, backslash and newline heldout prompts cannot hide in nested metadata (0.07ms)
+✔ abstention is scored against an explicit disposition and retained (0.619625ms)
+✔ the expected abstention disposition is mandatory before any evaluation (0.145375ms)
+✔ unexecuted abstention tasks remain in the expected disposition denominator (0.131875ms)
+✔ ground-truth label objects hidden in nested metadata are rejected (0.061ms)
+✔ driver requires distinct explicit reviewer and exact model identity (11.792083ms)
+✔ runs three actual maintenance stages and freezes the first snapshot (3.506ms)
+✔ leaked holdout stops before ingestion and failed stage remains incomplete (0.422416ms)
+✔ runtime model and actor verification precede any maintenance write (0.105292ms)
+✔ maintenance timeout stops later cycles and remains incomplete (6.812791ms)
+✔ driver identity must match the policy-bound evaluation principal before writes (0.161416ms)
+✔ records rejected, reproposed and rereviewed attempts with explicit reviewer events (0.600917ms)
+✔ summary exposes review rejections and unknown work instead of inferred zero (0.338917ms)
+✔ future reviewer events are unmeasured even when paired (0.244375ms)
+✔ pre-aborted experiment schedules no maintenance writes (0.105208ms)
+✔ a post-publication query failure records completed writes and requires reconciliation (0.20275ms)
+✔ a failed review submission is not recorded as an accepted approval (0.13925ms)
+✔ real HTTP evaluation transport uses fixed seed/budgets/tools, unknown cost null and clean session (17.863417ms)
+✔ transmission opt-in required; never falls back to fixture when unconfigured (0.268375ms)
+✔ unknown token usage cannot silently exceed a multi-call token budget (4.887584ms)
+✔ records actual LiteLLM response cost without inferring a value (1.852875ms)
+✔ failed truncated outputs retain measured cost and tokens without claiming completion (6.107125ms)
+✔ timed-out later tool call preserves known earlier usage and unknown final total (302.386875ms)
+✔ heldout expected answers never reach agent; paired conditions use identical budgets/tools/model (4.110542ms)
+✔ failed/unexecuted tasks stay in denominator; unknown cost stays unknown (1.118ms)
+✔ independent withheld labels score output, fake citations are safety failures (1.254834ms)
+✔ report uses Korean limits, explicit denominators, accessible tables and escapes data (1.090459ms)
+✔ timeouts and unavailable raw sources cannot produce success or hide incomplete assignments (177.990084ms)
+✔ actual usage separates maintenance, query and unknown cost (0.494833ms)
+✔ usage attribution requires an explicitly isolated evaluation workspace (0.167083ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 41
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 399.4165
+
+> agent-knowledge-hub@0.2.0-demo check:requirements
+> node scripts/check-requirements.mjs
+
+PASS: all 251 requirements have a roadmap phase, original acceptance and honest production status
+
+> agent-knowledge-hub@0.2.0-demo check:server
+> tsc -p tsconfig.server.json
+
+
+> agent-knowledge-hub@0.2.0-demo build
+> tsc -b && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 3683 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                           1.26 kB │ gzip:   0.60 kB
+dist/assets/AgentCredentials-CXhPQiRE.css                 1.33 kB │ gzip:   0.52 kB
+dist/assets/BoardsWorkbench-DEHCBFnc.css                  1.79 kB │ gzip:   0.72 kB
+dist/assets/UsageDashboard-BLr_Ozi3.css                   2.49 kB │ gzip:   0.85 kB
+dist/assets/wiki-CcZMvzTm.css                             2.86 kB │ gzip:   0.94 kB
+dist/assets/App--YT1YvwR.css                             34.30 kB │ gzip:   6.92 kB
+dist/assets/index-D9AcMG6d.css                           47.55 kB │ gzip:   9.32 kB
+dist/assets/pie-XZMESJXO-0KDViwxE.js                      0.10 kB │ gzip:   0.12 kB
+dist/assets/info-OHQRW6UA-27yXW11l.js                     0.10 kB │ gzip:   0.12 kB
+dist/assets/radar-ABXABTNO-CfoI-R_V.js                    0.10 kB │ gzip:   0.12 kB
+dist/assets/packet-JDAUHWVQ-DCbU-c22.js                   0.11 kB │ gzip:   0.12 kB
+dist/assets/cynefin-EF2NZ3EQ-Bgt7qJB7.js                  0.11 kB │ gzip:   0.12 kB
+dist/assets/treemap-SAJKECNS-CqOSn335.js                  0.11 kB │ gzip:   0.12 kB
+dist/assets/wardley-7MLQ67FV-BlEAYpnc.js                  0.11 kB │ gzip:   0.12 kB
+dist/assets/gitGraph-VSP46ZUC-jUiNEmvC.js                 0.11 kB │ gzip:   0.12 kB
+dist/assets/railroad-I3PHUGI6-DvnHPWbR.js                 0.11 kB │ gzip:   0.12 kB
+dist/assets/treeView-D4JQ5SDB-Z9JU52wW.js                 0.11 kB │ gzip:   0.12 kB
+dist/assets/railroad-peg-JR7BVNR7-DPIL4sO2.js             0.11 kB │ gzip:   0.13 kB
+dist/assets/architecture-WOLXFQ4H-D9Ab_a3t.js             0.11 kB │ gzip:   0.12 kB
+dist/assets/railroad-abnf-LNEFI6M7-D0z6HwF2.js            0.11 kB │ gzip:   0.13 kB
+dist/assets/railroad-ebnf-DWYD2UWJ-BPYny3eg.js            0.11 kB │ gzip:   0.13 kB
+dist/assets/eventmodeling-K75KTNOO-BIA5ISbc.js            0.11 kB │ gzip:   0.13 kB
+dist/assets/chunk-Y2CYZVJY-DsF7k-Jl.js                    0.20 kB │ gzip:   0.19 kB │ map:     0.75 kB
+dist/assets/chunk-2Q5K7J3B-C1jixKkw.js                    0.24 kB │ gzip:   0.21 kB │ map:     0.82 kB
+dist/assets/search-Cej2omAn.js                            0.24 kB │ gzip:   0.22 kB │ map:     1.02 kB
+dist/assets/chunk-JWPE2WC7-DVXcaiue.js                    0.27 kB │ gzip:   0.21 kB │ map:     0.84 kB
+dist/assets/chunk-XXDRQBXY-i7MKP1NY.js                    0.31 kB │ gzip:   0.27 kB │ map:     1.06 kB
+dist/assets/chunk-5VM5RSS4-ZNzvKenW.js                    0.41 kB │ gzip:   0.31 kB │ map:     0.75 kB
+dist/assets/flowDiagram-MALGAFMO-DWnB9tXZ.js              0.53 kB │ gzip:   0.30 kB
+dist/assets/chunk-TU62E6Q5-B_2nLXaA.js                    0.63 kB │ gzip:   0.45 kB │ map:     2.27 kB
+dist/assets/chunk-J5ZVWO5B-oDCd-gWO.js                    0.68 kB │ gzip:   0.48 kB │ map:     2.90 kB
+dist/assets/infoDiagram-KBXO4MBG-Bec2KS6m.js              0.71 kB │ gzip:   0.46 kB │ map:     2.23 kB
+dist/assets/swimlanesDiagram-OMPLPG4O-CMT8LmXy.js         0.86 kB │ gzip:   0.51 kB │ map:     1.62 kB
+dist/assets/sizeCapture-INFHLROL-3uHXrFqA.js              0.93 kB │ gzip:   0.56 kB │ map:     3.31 kB
+dist/assets/chunk-DUW6YSOI-Dgx8z5s3.js                    0.94 kB │ gzip:   0.50 kB │ map:     2.79 kB
+dist/assets/rolldown-runtime-COiEfhsA.js                  1.11 kB │ gzip:   0.62 kB
+dist/assets/chunk-LEVMRMFU-XzntrQ1c.js                    1.47 kB │ gzip:   0.84 kB │ map:     4.88 kB
+dist/assets/railroadDiagram-MRQ6NCDL-C93yhwz5.js          1.73 kB │ gzip:   0.82 kB │ map:     5.06 kB
+dist/assets/abnfDiagram-S7VZAUFO-Dua9QiHF.js              1.91 kB │ gzip:   0.94 kB │ map:     6.25 kB
+dist/assets/ConsoleTable-D3BgYdOW.js                      1.99 kB │ gzip:   1.03 kB │ map:     6.07 kB
+dist/assets/chunk-X4PVCEUW-BrFsY-fO.js                    2.00 kB │ gzip:   0.99 kB │ map:     7.04 kB
+dist/assets/console-dandf-qB.js                           2.00 kB │ gzip:   1.09 kB │ map:     6.08 kB
+dist/assets/chunk-HFQBQIA3-C-reKKno.js                    2.02 kB │ gzip:   0.93 kB │ map:     6.98 kB
+dist/assets/pegDiagram-FD4XPPHP-4TPULveE.js               2.07 kB │ gzip:   0.99 kB │ map:     6.60 kB
+dist/assets/ebnfDiagram-UZSYDL2S-DHye__uU.js              2.12 kB │ gzip:   0.94 kB │ map:     6.72 kB
+dist/assets/ModelAssessment-DVCMmudK.js                   2.17 kB │ gzip:   1.29 kB │ map:     5.02 kB
+dist/assets/ImportPreview-DXNKHCSy.js                     3.27 kB │ gzip:   1.76 kB │ map:     7.72 kB
+dist/assets/diagram-DNEMPZML-C2009xPb.js                  4.40 kB │ gzip:   1.94 kB │ map:    13.90 kB
+dist/assets/pieDiagram-J4AKIIQI-DfqsfeWE.js               5.06 kB │ gzip:   2.16 kB │ map:    17.76 kB
+dist/assets/bpmnIcons-APHXDYXF-C0jbCElo.js                5.26 kB │ gzip:   1.20 kB │ map:     7.44 kB
+dist/assets/chunk-KS47KZWR-B4Grj_99.js                    5.49 kB │ gzip:   2.54 kB │ map:    24.74 kB
+dist/assets/chunk-R3KSYZAL-DECBl5cW.js                    5.95 kB │ gzip:   2.75 kB │ map:    27.59 kB
+dist/assets/diagram-L3MUGCDN-JKMr14P6.js                  6.13 kB │ gzip:   2.61 kB │ map:    21.18 kB
+dist/assets/BoardsWorkbench-DnHZ9YUj.js                   7.40 kB │ gzip:   2.64 kB │ map:    20.25 kB
+dist/assets/diagram-XPFHEONP-DXISvNPO.js                  8.18 kB │ gzip:   3.68 kB │ map:    28.66 kB
+dist/assets/cynefinDiagram-L36ESFBY-CNwREzp9.js          10.00 kB │ gzip:   3.55 kB │ map:    34.40 kB
+dist/assets/chunk-KQLB2F66-Cglj4qGk.js                   10.44 kB │ gzip:   4.37 kB │ map:    41.15 kB
+dist/assets/diagram-MHCOC4E2-C_gPAJmw.js                 10.98 kB │ gzip:   4.30 kB │ map:    39.09 kB
+dist/assets/UsageDashboard-wQL01F2q.js                   11.10 kB │ gzip:   3.96 kB │ map:    25.38 kB
+dist/assets/AgentCredentials-D2yqn_DP.js                 11.51 kB │ gzip:   3.79 kB │ map:    26.45 kB
+dist/assets/AccessManager-07cXVRvv.js                    14.20 kB │ gzip:   4.36 kB │ map:    46.71 kB
+dist/assets/chunk-M57EVK23-NrK_WDHJ.js                   15.03 kB │ gzip:   4.35 kB │ map:    53.37 kB
+dist/assets/chunk-6MUBBAK2-CcMApKxO.js                   15.44 kB │ gzip:   6.15 kB │ map:    79.87 kB
+dist/assets/chunk-OY52VR5R-B9Q5fPQz.js                   15.70 kB │ gzip:   4.40 kB │ map:    52.11 kB
+dist/assets/diagram-LA4NIPWU-DY_e2y4v.js                 16.18 kB │ gzip:   5.69 kB │ map:    86.68 kB
+dist/assets/mermaid-parser.core-Bj8BzE48.js              16.50 kB │ gzip:   3.95 kB │ map:    67.88 kB
+dist/assets/ishikawaDiagram-M35NCXHK-BPAQNRDg.js         17.37 kB │ gzip:   6.59 kB │ map:    62.70 kB
+dist/assets/KnowledgeWorkbench-CfcFNDS7.js               17.50 kB │ gzip:   6.14 kB │ map:    47.22 kB
+dist/assets/kanban-definition-BZKZHSQY-D7iMWOw1.js       20.33 kB │ gzip:   7.19 kB │ map:    67.85 kB
+dist/assets/d3-selection-COWvaQNI.js                     20.99 kB │ gzip:   7.40 kB │ map:    71.52 kB
+dist/assets/mindmap-definition-I2QAS2VK-7baUAxro.js      22.96 kB │ gzip:   7.75 kB │ map:    73.51 kB
+dist/assets/journeyDiagram-OPLOXDXO-CeG61jvn.js          23.22 kB │ gzip:   8.21 kB │ map:    80.07 kB
+dist/assets/graphlib-DS17s2tU.js                         23.95 kB │ gzip:   8.35 kB │ map:   202.44 kB
+dist/assets/wardleyDiagram-S7YFUSEH-DCaZzmHX.js          25.27 kB │ gzip:   6.59 kB │ map:    81.89 kB
+dist/assets/ImportWorkbench-DaCTjbo_.js                  25.62 kB │ gzip:   8.72 kB │ map:    81.20 kB
+dist/assets/dist-DdXDFcej.js                             25.66 kB │ gzip:   6.46 kB │ map:   108.31 kB
+dist/assets/rough.esm-Dy-Kn_BL.js                        27.15 kB │ gzip:   8.89 kB │ map:    76.55 kB
+dist/assets/gitGraphDiagram-STJD7YCW-BNA0Xgtb.js         29.07 kB │ gzip:   8.60 kB │ map:   117.72 kB
+dist/assets/timeline-definition-SEUHKTQE-C_GfTskG.js     30.53 kB │ gzip:  10.08 kB │ map:   108.21 kB
+dist/assets/erDiagram-EYBAPDEH-CDCSFEHa.js               30.68 kB │ gzip:  10.60 kB │ map:   104.70 kB
+dist/assets/requirementDiagram-Y7LWUY3S-kh3wc6MY.js      31.13 kB │ gzip:   9.87 kB │ map:   100.27 kB
+dist/assets/quadrantDiagram-XTYBLID2-BvpqKSoM.js         33.59 kB │ gzip:   9.78 kB │ map:   111.69 kB
+dist/assets/sankeyDiagram-WGJFYUXA-BVVVHTIw.js           38.88 kB │ gzip:  14.71 kB │ map:   114.81 kB
+dist/assets/d3-scale-CElPUUud.js                         40.71 kB │ gzip:  14.82 kB │ map:   226.77 kB
+dist/assets/vennDiagram-NNMJR3RB-BAZ-QROk.js             41.24 kB │ gzip:  15.16 kB │ map:   187.27 kB
+dist/assets/stateDiagram-v2-FJ4FJNEA-C2E6pUl4.js         41.65 kB │ gzip:  13.95 kB │ map:   135.04 kB
+dist/assets/blockDiagram-APKKGZFW-DHvKkXQ8.js            42.45 kB │ gzip:  13.90 kB │ map:   139.82 kB
+dist/assets/xychartDiagram-GGNKY7IX-BvJ0Rx2w.js          43.27 kB │ gzip:  11.91 kB │ map:   143.70 kB
+dist/assets/ManagementPreview-DYNgv427.js                47.56 kB │ gzip:  15.09 kB │ map:   119.88 kB
+dist/assets/dagre-SPEB5RXH-BP-Bg4Vd.js                   47.89 kB │ gzip:  17.15 kB │ map:   298.03 kB
+dist/assets/chunk-DQASFODM-DlF5UIY1.js                   48.72 kB │ gzip:  11.97 kB │ map:   163.11 kB
+dist/assets/classDiagram-v2-L25IHNXF-CS6lNcoY.js         49.81 kB │ gzip:  16.22 kB │ map:   155.29 kB
+dist/assets/chunk-STOXU5M4-DsJY8urC.js                   51.29 kB │ gzip:  16.68 kB │ map:   135.85 kB
+dist/assets/ganttDiagram-23REXITY-6BctgcbN.js            53.07 kB │ gzip:  17.65 kB │ map:   170.76 kB
+dist/assets/App-bZuDO3Rt.js                              54.05 kB │ gzip:  15.93 kB │ map:   150.82 kB
+dist/assets/chunk-QB3YPZ4I-5x6iJAoW.js                   64.48 kB │ gzip:  20.93 kB │ map:   206.43 kB
+dist/assets/c4Diagram-KJ2TOQU5-CoBN0jac.js               65.15 kB │ gzip:  18.65 kB │ map:   194.99 kB
+dist/assets/diagram-3B7GL73J-Bn1_82-e.js                 80.54 kB │ gzip:  25.20 kB │ map:   273.66 kB
+dist/assets/cose-bilkent-JH36ORCC-DtqORN6Z.js            81.29 kB │ gzip:  21.57 kB │ map:   302.03 kB
+dist/assets/mermaid.core-fMwYc3St.js                     84.88 kB │ gzip:  29.33 kB │ map:   317.78 kB
+dist/assets/sequenceDiagram-5NDRBG5M-BzpwJ38i.js        117.74 kB │ gzip:  31.43 kB │ map:   359.29 kB
+dist/assets/swimlanes-UMQ2AFYF-Bz3wJYPb.js              117.90 kB │ gzip:  40.58 kB │ map:   567.91 kB
+dist/assets/chunk-AXFCVDMN-CTy3X6XJ.js                  122.80 kB │ gzip:  31.33 kB │ map:   482.69 kB
+dist/assets/roadmap-BONdgxiB.js                         132.46 kB │ gzip:  23.49 kB │ map:   182.86 kB
+dist/assets/architectureDiagram-YGSQEFNW-D2HsaZ2B.js    148.95 kB │ gzip:  41.15 kB │ map:   595.33 kB
+dist/assets/usecaseDiagram-AFA6YXN4-BGW9g45t.js         187.98 kB │ gzip:  49.27 kB │ map:   719.48 kB
+dist/assets/chunk-BG4553SI-BBy8g3SB.js                  212.31 kB │ gzip:  28.88 kB │ map:   490.26 kB
+dist/assets/index-BUrQ4OUc.js                           243.55 kB │ gzip:  77.34 kB │ map: 1,084.85 kB
+dist/assets/katex-B_JcIwqj.js                           258.84 kB │ gzip:  77.69 kB │ map:   972.62 kB
+dist/assets/wiki-QewjDfJF.js                            369.11 kB │ gzip: 116.60 kB │ map: 1,314.29 kB
+dist/assets/cytoscape.esm-D_lON4qP.js                   441.77 kB │ gzip: 139.72 kB │ map: 1,862.31 kB
+dist/assets/App-BaNTTRXx.js                             498.62 kB │ gzip: 140.67 kB │ map: 1,793.28 kB
+dist/assets/chunk-NGNAAXSQ-Bw6tHVuc.js                  629.09 kB │ gzip: 127.37 kB │ map: 1,894.39 kB
+dist/assets/elk-XV6XMXQE-Cal8MXv3.js                  1,499.04 kB │ gzip: 465.99 kB │ map: 4,774.00 kB
+
+[plugin builtin:vite-reporter]
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 911ms
+
+> agent-knowledge-hub@0.2.0-demo test:smoke
+> node scripts/smoke.mjs
+
+PASS static HTTP smoke: HTML, JS/CSS/brand assets, MIME types, 404

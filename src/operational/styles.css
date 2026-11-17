@@ -424,3 +424,18 @@
 .op-publication-schedule { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: .75rem; overflow-wrap: anywhere; }
 .op-publication-schedule input { display: block; max-width: 100%; margin: .5rem 0; }
 .op-schedule-row { padding: .75rem 0; border-top: 1px solid var(--border); }
+
+.op-document-reader { min-width: 0; overflow-wrap: anywhere; }
+.op-document-reader textarea { display: block; width: 100%; min-height: 6rem; resize: vertical; }
+.op-document-reader [data-document-start] { max-width: 75ch; scroll-margin-block: 2rem; }
+.op-document-reader pre { max-width: 100%; overflow: auto; }
+.op-document-reader .reader-block-link { font-size: .8rem; margin-block: .25rem .75rem; }
+.op-document-reader [data-block-id]:focus { outline: 2px solid var(--plum, #623680); outline-offset: 4px; }
+.op-document-reader [data-reader-control] { min-height: 32px; }
+
+.reader-metadata { display:flex; flex-wrap:wrap; gap:.5rem 1.5rem; margin-block:1rem; font-size:.8rem; }
+.reader-metadata div { min-width:0; }
+.reader-metadata dt { font-weight:600; }
+.reader-metadata dd { margin:0; overflow-wrap:anywhere; }
+.op-document-reader table { border-collapse:collapse; }
+.op-document-reader th,.op-document-reader td { padding:.45rem .75rem; text-align:left; border-bottom:1px solid var(--line,#d8ccd6); }

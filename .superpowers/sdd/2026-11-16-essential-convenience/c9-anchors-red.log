@@ -1,0 +1,64 @@
+[1/1] server/convenience/anchors.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+ ❯ server/convenience/anchors.test.ts (4 tests | 2 failed) 1300ms
+   × adjacent headings and paragraph each have separate stable published block identity 620ms
+   × new inferred references ignore invisible raw HTML but preserve Markdown links outside code and trusted origin policy 40ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed (4)
+   Start at  05:38:31
+   Duration  1.64s (tests 82%, transform 13%, import 5%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/anchors.test.ts > adjacent headings and paragraph each have separate stable published block identity
+AssertionError: expected [ 1, 5, 9 ] to deeply equal [ 1, 2, 3, 5, 9 ]
+
+- Expected
++ Received
+
+  [
+    1,
+-   2,
+-   3,
+    5,
+    9,
+  ]
+
+ ❯ server/convenience/anchors.test.ts:14:273
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  server/convenience/anchors.test.ts > new inferred references ignore invisible raw HTML but preserve Markdown links outside code and trusted origin policy
+AssertionError: expected [ …(3) ] to deeply equal [ { targetPageId: 'topic', …(2) } ]
+
+- Expected
++ Received
+
+  [
+    {
++     "label": "숨김",
++     "sourceBlockId": null,
++     "targetPageId": "topic",
++   },
++   {
++     "label": "중첩",
++     "sourceBlockId": null,
++     "targetPageId": "topic",
++   },
++   {
+      "label": "표시",
+      "sourceBlockId": null,
+      "targetPageId": "topic",
+    },
+  ]
+
+ ❯ server/convenience/anchors.test.ts:16:335
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

@@ -1,5 +1,15 @@
 # 실수와 교훈 기록
 
+
+### 2026-11-18 — C9 final review: shared read authority, math identity and revalidation state
+
+- Context: PR75 whole-branch review at4615153 independently reproduced older manual success restoring a revoked body, two display-math wrappers sharing one ID, and each60s refresh discarding query/focus. The previous tests covered background requests separately, plain Markdown positions and denial, missing these cross-path and unchanged-success cases.
+- Correction: all four published detail/comments writers use one identity/selection/read epoch and current denial invalidates pending reads; pre-paint detail binding blocks identity leaks. Exact rendered/metadata ranges plus one-to-one wrapper mapping fail closed for ambiguous math/coarse records without rewriting stored versions. A scoped parent keeps safe interaction coordinates only while protected DOM is removed; denial/version/identity changes discard them and copy fallback data never persists.
+- Evidence: corrected tests on unchanged FIX_BASE17fail/5pass; identity/space boundary2fail/22pass. Original fixture mistakes (resolver captured after replacement, first select belonging to BulkEditor, intermediate undefined variable) were corrected and their logs retained. No assertion or original criterion was removed.
+- Implementation/browser mistakes: a broad target-jump replacement incorrectly constrained explicit search/TOC actions; existing search and actual browser found it, dedicated TOC RED1 now guards it. Chromium tabindex removal blurred the initial target although jsdom characterization passed; retaining unchanged attributes fixes that. Actual second periodic mark-focus loss revealed StrictMode decorator replay consumed restoration state; strengthened Snapshot StrictMode tests RED2 precede correction. The browser harness initially tried a button inside closed lifecycle details; actual role/ACL probe confirmed proper access and the harness now opens the real disclosure.
+- Packaging: the first fail-fast staging command stopped on the ignored `.superpowers` directory; no commit occurred. Explicit `git add -f` was limited to this task's report/review/log paths, then staged whitespace and manifest checks were rerun.
+- Final source focused6files72 and fullcheck534/48/16/41/251/types/build/smoke passed. Native15files120 ran this wave against unchanged server bytes; not claimed rerun after frontend-only browser fixes. Intermediate green/check/capture logs are historical. Final browser/cleanup/source manifest is linked by the C9 report; controller independent re-review and exact-head CI remain separate. Parent PG/root checkout preserved; merge not authorized for this worker.
+
 ### C8 round1 controller correction: preview receipt is a write
 
 The intermediate final-refresh fix repeated an idempotent preview INSERT. Changed-summary-between-refresh actual-PG RED1/10passed demonstrated two receipts. No authorization bypass was shown because proposal recomputed the plan, but intermediate persistence was unnecessary. Final code keeps generic run unchanged, performs a pure first projection, then one current canonical projection/receipt insert. GREEN11 restore tests prove exactly one fresh receipt and actual approve/publish, with existing revocation assertions. Final affected6files50 and fullcheck494/48/16/41/251/types/build/smoke pass; current single-write capture supersedes intermediate runs. No business mutation replay.
@@ -1177,3 +1187,28 @@ Ruling: update only those four expected names, retaining strict full-list equali
 - Fix/ruling/cost: only versions.data.linkReferences[].targetPageId and published_page_links.target_page_id confer new target dependencies. Existing generic page refs and hold behavior remain. Erasure preserves canonical IDs for recovery while scrubbing labels; historical retention SQL projects IDs only. Cost is a bounded per-version reference projection, with no new table, historical version rewrite outside explicit erasure, access engine or publication rule. This is the single controller-authorized combined post-final-review wave at FIX_BASE44d73b97.
 - Honest test attempts: new fixture first omitted explicit source/page columns, producing3 setup NOT_NULL failures (not meaningful RED); corrected fixture columns, then meaningful2FAIL/1PASS on unrelated source selection. First production patch applied erasure but its script asserted on an overly broad retention text match before writing retention; intermediate run confirms storage4PASS/new2PASS1FAIL on missing historical retention link. All attempts retained. Scoped SQL projection corrected; final3new tests and original4storage pass. Legal-hold assertions also prove no reliance on the disposable index.
 - Verification: final native8files101, fullcheck494frontend/48Node/16imports/41evaluation/251criteria/types/build/smoke exit0; fresh canonical four-config browser20PNG and current SHA manifest. Earlier runs are carried/historical, not added. No failed CI relabeling or production/IdP/model-quality claim. Independent controller review/fresh CI still required.
+
+
+### 2026-11-18 — C9 새 읽기 회귀와 fixture/타입 가정 수정
+
+- 맥락: UXC-08 격리 worktree `feat/convenience-document-reader-20261118`, base79a90cc. 새 기능 TDD frontend 첫 import 부재 뒤 assertion RED4fail/1pass, native RED2fail/2pass를 보존했다. 반복 heading/paragraph가 한 앵커이고 raw HTML 링크가 보이지 않아도 관계로 추출되는 실제 gap을 확인했다.
+- 조치: 기존 renderer/segmentAnchors·metadata store를 확장하고 불안정 중복·과거 coarse fallback을 보존했다. 새 raw HTML 추출만 제외한다. 기존 보안 fixture는 visible Markdown을 함께 두어 동일 ACL assertion을 유지하며 새 별도 HTML 제외·frozen relation/복제/복원/삭제 회귀를 추가했다. 기대조건 삭제·운영 성공 승격은 없다.
+- 실행 실패: 추가 legacy fixture의 `INSERT INTO pages VALUES`가 확장된 schema의 data 컬럼을 채우지 않아 NOT NULL 실패했다. 명시 컬럼으로 수정했다. 최초 copy assertion은 target 직접 pin을 예상했으나 구현은 exact origin pin으로 Page.links 권한을 전이한다. 실제 계약 `{topic:2}`를 확인하고 target 철회 후 고정 조회·copy/replay·복원 preview/proposal 모두 거부하는 assertion으로 권한 보존을 검증했다. 이 오류를 제품 우회로 숨기지 않았다.
+- 최초 전체 check는 새 테스트 map callback의 implicit-any 때문에 서버 타입 단계에서 실패했다. 앞선 src501/Node48/import16/eval41/251 통과와 전체 check 성공을 구분했고 명시 타입 뒤 전체를 재실행했다. 추가 no-visit fixture의 활동 테이블명 오기는 실행 전 실제 `workflow_activity` 정본을 확인해 수정했다.
+- 탐색 시 존재하지 않는 후보 파일 경로들을 조회한 뒤 실제 파일을 rg로 찾았고, 비상승 `ps` 조회는 sandbox가 거부했다. 검증된 자기 lsof PID를 상승 실행의 command와 대조한 뒤 자기 runtime/frontend만 종료했다. root/타 worktree/부모PG를 정리하지 않았다.
+- 자체 검토: focus 갱신이 편집 selection token을 바꾸면 초기 exact-draft admission을 버릴 수 있음을 발견하여 준비된 문서만 재검증하고 편집 token을 유지했다. 자동 재검증은 visit=0으로 최근 방문을 만들지 않는다. source 변경 때 runtime/frontend를 새로 시작하여 최종 fingerprint의 브라우저 증거를 다시 생성했다.
+- 최종 검증: check src501/Node48/import16/eval41/251/types/build/smoke exit0, focused58, native15files115, 실제 Chromium 네조건16PNG/errors[] 및 cleanup 통과. 실패 로그는 C9 report/source manifest에 보존한다. 실제회사IdP/품질/운영·전체접근성은 미검증, 번들 크기 경고 유지. 독립 리뷰/정확headCI 대기.
+
+- 포장 단계의 캡처 숫자를 20으로 잘못 합산한 보고를 manifest의 실제 16PNG(4조건×4상태)·18 artifacts에 맞춰 수정했다. controller에게 즉시 정정했으며 이미지를 만들거나 중복 계수하지 않았다.
+
+
+### 2026-11-18 — C9 Round1 CR 좌표 불일치와 Clipboard 늦은 성공
+
+- 맥락/관련 PR: [draft #75](https://github.com/wontaeJeong/agent-knowledge-hub/pull/75), FIX_BASE2199d70, 독립 task review I1/I2.
+- 확인된 영향: marked는 standalone CR을 newline으로 보지만 새 capture는 원래 `split("\n")` 배열로 해시를 만들었다. 실제 문단에 빈 hash가 붙어 교체된 문단에도 stable ID가 유지될 수 있었다. Clipboard는 문서 세대만 검사해 최신 고정 링크의 실패 이후 앞선 최신 링크 성공이 도착하면 실패/fallback을 지웠다. 두 경우 모두 명시된 UX 불변식 위반이며 최초 C9 완료 주장을 이 사례까지 확장하지 않는다.
+- 조치: 새 token mode만 standalone CR 경계를 맞추고 원래 CRLF hash/legacy fallback을 보존했다. 과거 body/metadata를 재작성하지 않는다. copy마다 request sequence와 시작 시 feedback 초기화를 추가하고 문서 generation과 함께 현재 응답만 표시한다.
+- 시험 실패/분리: 초기 native RED4fail/9pass에는 제품CR/mixed2개 외에 fixture의 trailing whitespace가 기존 edit schema trim을 거쳐 달라진 LF/CRLF control2개가 섞였다. 고정 종단 문단을 둬 불필요한 delimiter 변화를 제거한 후 **수정 전 clean RED2fail/11pass**를 재확인했다. reader clean RED5fail/9pass는 실제 DOM 미이동/오이동·두블록 교체·copy race/feedback을 각각 재현했다. 기대조건을 삭제하거나 normalization으로 원문을 덮지 않았다.
+- 검증: focused3files28, native initial2files19 GREEN; 최종 check508/48/16/41/251/types/build/smoke와 native15files120 exit0. fresh actual HTTP/PG Chromium 네조건24PNG(errors[])에서 CR/mixed 실제 발행과 복사 out-of-order까지 확인하고 own resources를 정리했다. 별도 source manifest와 RED/GREEN 로그 보존.
+- 상태/후속: 구현·로컬 증거 완료, controller scoped re-review/정확headCI 대기. inherited chunk warning은 별도 nonblocking debt이며 운영·품질·전체접근성 미검증은 그대로다.
+
+- Round1 포장 후속: `git diff --cached --check`가 raw 시험 로그의 trailing whitespace/EOF blank를 보고했지만 shell에 fail-fast가 없어 `02b020b` commit/push가 계속됐다. 이 검사를 통과로 표시하지 않는다. 해당 commit에 원래 stdout bytes를 보존했고, 후속에서는 `c9-r1-*.log` 줄끝/EOF 공백만 정규화하여 모든 출력/실패 내용을 유지하고 SHA manifest를 갱신했다. `set -e`로 staged check·manifest·tracked-path를 통과한 뒤 evidence-only commit을 만들었다. 제품/테스트/harness/캡처는 변경하지 않는다.

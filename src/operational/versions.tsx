@@ -1,3 +1,4 @@
+import {convenienceHref} from "./convenience/route";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, OperationalApi } from "./api";
 import { Button } from "../ui/primitives";
@@ -342,6 +343,7 @@ export function VersionsPanel({
                 </select>
               </label>
             ))}
+            {spaceId&&pageId&&to>0&&<a href={convenienceHref({kind:"document",spaceId,document:pageId,version:to})}>대상 v{to} 본문 읽기</a>}
             <Button
               disabled={busy || !from || !to}
               onClick={() => void action(() => loadComparison())}

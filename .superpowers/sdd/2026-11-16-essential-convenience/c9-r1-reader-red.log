@@ -1,0 +1,111 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+ ❯ src/operational/convenience/reader.test.tsx (13 tests | 4 failed) 178ms
+   × CR actual reader keeps moved identity and never maps changed/deleted content to its old anchor 5ms
+   × mixed actual reader keeps moved identity and never maps changed/deleted content to its old anchor 6ms
+   × a late successful latest copy cannot replace the newer failed fixed-copy fallback 6ms
+   × new copy clears stale feedback; pending completion cannot cross a document switch or unmount 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > CR actual reader keeps moved identity and never maps changed/deleted content to its old anchor
+AssertionError: expected null to be 'a-c103433d17a93d20a30c2bc947e9db29' // Object.is equality
+
+- Expected:
+"a-c103433d17a93d20a30c2bc947e9db29"
+
++ Received:
+null
+
+ ❯ src/operational/convenience/reader.test.tsx:227:65
+    225|   await act(async()=>root.render(<DocumentReader document={{id:'doc',s…
+    226|   expect(document.activeElement?.textContent).toContain('원래 문단');
+    227|   expect(document.activeElement?.getAttribute('data-block-id')).toBe(t…
+       |                                                                 ^
+    228|   const changedText=last+heading+'전혀 다른 문단'+endings[1],changed=segment…
+    229|   await act(async()=>root.render(<DocumentReader document={{id:'doc',s…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > mixed actual reader keeps moved identity and never maps changed/deleted content to its old anchor
+AssertionError: expected '마지막\n부분 링크' to contain '원래 문단'
+
+- Expected
++ Received
+
+- 원래 문단
++ 마지막
++ 부분 링크
+
+ ❯ src/operational/convenience/reader.test.tsx:226:47
+    224|   const movedText=last+heading+original,moved=segmentAnchors('doc',3,m…
+    225|   await act(async()=>root.render(<DocumentReader document={{id:'doc',s…
+    226|   expect(document.activeElement?.textContent).toContain('원래 문단');
+       |                                               ^
+    227|   expect(document.activeElement?.getAttribute('data-block-id')).toBe(t…
+    228|   const changedText=last+heading+'전혀 다른 문단'+endings[1],changed=segment…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > a late successful latest copy cannot replace the newer failed fixed-copy fallback
+AssertionError: expected '최신 문서 링크 복사v2 고정 링크 복사발행 시점미확인검토 시점미확…' to contain '복사하지 못했습니다'
+
+- Expected
++ Received
+
+- 복사하지 못했습니다
++ 최신 문서 링크 복사v2 고정 링크 복사발행 시점미확인검토 시점미확인공식 문서 여부미확인복사했습니다.목차설치설치문서 내 검색일치 0건이전 일치다음 일치현재 위치로 이동설치
++ 부분 링크첫 한글 문단
++ 부분 링크설치
++ 부분 링크const 한글 = "<script>bad()</script>";
++ 코드 복사부분 링크
++
++
++ 값
++
++
++
++ 한글
++
++
++ 부분 링크
+
+ ❯ src/operational/convenience/reader.test.tsx:252:27
+    250|  expect(fallback).toContain('version=2');
+    251|  await act(async()=>finishFirst());
+    252|  expect(host.textContent).toContain('복사하지 못했습니다');
+       |                           ^
+    253|  expect(host.querySelector('textarea')?.value).toBe(fallback);
+    254|  expect(host.textContent).not.toContain('복사했습니다.');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > new copy clears stale feedback; pending completion cannot cross a document switch or unmount
+AssertionError: expected <textarea readonly></textarea> to be null
+
+- Expected:
+null
+
++ Received:
+<textarea
+  readonly=""
+>
+  http://localhost:3000/?app=1&space=space&document=doc&version=2
+</textarea>
+
+ ❯ src/operational/convenience/reader.test.tsx:264:73
+    262|  const {host,root}=await mount();
+    263|  await click(host,'v2 고정 링크 복사');expect(host.querySelector('textarea')…
+    264|  await click(host,'최신 문서 링크 복사');expect(host.querySelector('textarea')…
+       |                                                                         ^
+    265|  await act(async()=>root.render(<DocumentReader document={{id:'other',…
+    266|  await act(async()=>finishSecond());expect(host.textContent).not.toCon…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 9 passed (13)
+   Start at  06:06:28
+   Duration  517ms (environment 41%, tests 38%, import 15%, transform 5%)

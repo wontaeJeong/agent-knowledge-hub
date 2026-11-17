@@ -1,0 +1,119 @@
+me {"workspaceId":"424bbe96-c63d-4852-8cac-f8cc4c092bc3","principalId":"reviewer","role":"reviewer","csrfToken":"test-only-csrf","identityFeatures":{"emergency":false,"directory":false},"capabilities":["knowledge.read","comment.write","queue.triage","source.create","changeset.propose","lint.run","personal.sync","changeset.approve","changeset.publish","policy.strengthen","draft.write","triage.manage","knowledge.protect","lifecycle.manage","data.export","local.copy","space.create"],"legacyAccess":false,"effectiveRole":"maintain","spaceRole":"Maintain","canReviewKnowledge":true,"personalSpace":false,"space":{"id":"424bbe96-c63d-4852-8cac-f8cc4c092bc3","namespaceId":"93488316-ee09-4169-95df-6f075a369a39","namespaceKind":"team","namespaceSlug":"424bbe96-c63d-4852-8cac-f8cc4c092bc3","slug":"knowledge","visibility":"private","policyVersion":1,"owner":false}}
+me {"workspaceId":"424bbe96-c63d-4852-8cac-f8cc4c092bc3","principalId":"reviewer","role":"reviewer","csrfToken":"test-only-csrf","identityFeatures":{"emergency":false,"directory":false},"capabilities":["knowledge.read","comment.write","queue.triage","source.create","changeset.propose","lint.run","personal.sync","changeset.approve","changeset.publish","policy.strengthen","draft.write","triage.manage","knowledge.protect","lifecycle.manage","data.export","local.copy","space.create"],"legacyAccess":false,"effectiveRole":"maintain","spaceRole":"Maintain","canReviewKnowledge":true,"personalSpace":false,"space":{"id":"424bbe96-c63d-4852-8cac-f8cc4c092bc3","namespaceId":"93488316-ee09-4169-95df-6f075a369a39","namespaceKind":"team","namespaceSlug":"424bbe96-c63d-4852-8cac-f8cc4c092bc3","slug":"knowledge","visibility":"private","policyVersion":1,"owner":false}}
+me {"workspaceId":"424bbe96-c63d-4852-8cac-f8cc4c092bc3","principalId":"reviewer","role":"reviewer","csrfToken":"test-only-csrf","identityFeatures":{"emergency":false,"directory":false},"capabilities":["knowledge.read","comment.write","queue.triage","source.create","changeset.propose","lint.run","personal.sync","changeset.approve","changeset.publish","policy.strengthen","draft.write","triage.manage","knowledge.protect","lifecycle.manage","data.export","local.copy","space.create"],"legacyAccess":false,"effectiveRole":"maintain","spaceRole":"Maintain","canReviewKnowledge":true,"personalSpace":false,"space":{"id":"424bbe96-c63d-4852-8cac-f8cc4c092bc3","namespaceId":"93488316-ee09-4169-95df-6f075a369a39","namespaceKind":"team","namespaceSlug":"424bbe96-c63d-4852-8cac-f8cc4c092bc3","slug":"knowledge","visibility":"private","policyVersion":1,"owner":false}}
+buttons [
+  'RreviewerMaintain',
+  '검색 ⌘/Ctrl K',
+  '새 문서',
+  '알림',
+  '처음부터 새로고침',
+  '처음부터 새로고침',
+  '처음부터 새로고침',
+  '문서 이동',
+  '개인 초안으로 복제',
+  '하위 문서 작성',
+  '최신 문서 링크 복사',
+  'v8 고정 링크 복사',
+  'Safe',
+  'End',
+  '이전 일치',
+  '다음 일치',
+  '현재 위치로 이동',
+  '부분 링크',
+  '부분 링크',
+  '부분 링크',
+  '첨부 조회',
+  '',
+  '근거·버전 포함 내보내기',
+  '개인 초안 시작',
+  '댓글 등록'
+]
+tail 63d-4852-8cac-f8cc4c092bc3/knowledge · maintain@66e1c25d-c6d5-4f90-85f8-fe78a61415ea/knowledge · maintain@8f137c93-9d28-414d-9f27-e32971aa16b4/knowledge · maintain@aa0bbaa5-eeb5-4be9-95cb-afdb4fdf14d1/knowledge · maintain서버 정본 · 4개 접근 가능 발행본모델: 미연결실행 방식 실제 모델구조 검사·발췌 (모델 미사용)편집과 협업여러 문서의 태그·위치·보관 변경최대 50개 문서를 선택해 변경 내용을 확인합니다. 적용은 문서별로 처리하며 권한이나 기준이 달라진 대상은 실패로 표시합니다.대상 문서중복 제목중복 제목검토 절차운영 지식변경 종류태그 교체상위 문서 변경보관새 태그 (쉼표 구분)변경 이유변경 미리보기개인 초안은 본인에게만 보입니다. 검토·승인 전에는 발행본이 바뀌지 않습니다.내 문서즐겨찾기처음부터 새로고침표시할 문서 없음최근 문서처음부터 새로고침운영 지식 · v82026. 11. 18. 오전 6:46:30구독 문서처음부터 새로고침현재 접근 권한을 확인하는 중입니다. 문서 트리중복 제목중복 제목검토 절차운영 지식문서 트리 열기문서 선택문서를 선택하세요중복 제목중복 제목검토 절차운영 지식운영 지식운영 지식 · v8문서 고유 링크문서 이동개인 초안으로 복제하위 문서 작성현재 발행본 본문 · v8최신 문서 링크 복사v8 고정 링크 복사발행 시점2026-11-17T21:45:19.868Z검토 시점미확인공식 문서 여부미확인반복되거나 화면과 범위가 일치하지 않는 블록은 위치를 확정할 수 없어 부분 링크를 제공하지 않습니다.목차SafeEnd문서 내 검색일치 0건이전 일치다음 일치현재 위치로 이동before
+xafter
+zAdjacent paragraph
+Safe
+부분 링크y부분 링크End
+부분 링크지원하는 문서 형식Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다.연결·백링크·관련 문서연결한 문서·같은 태그 각 최대 20건 · 백링크는 25건씩 표시첨부 및 자료 이동파일당 최대 5 MiB. 원본은 덮어쓰지 않으며 PDF는 검사 승인 전 내려받을 수 없습니다. PDF 변환은 지원하지 않습니다.Markdown 표·코드·내부 링크, PNG/JPEG/WebP 첨부, $…$·$$…$$ 수식, Mermaid flowchart·sequenceDiagram을 지원합니다. 외부 이미지·HTML·스크립트·다이어그램 설정과 클릭 동작은 지원하지 않습니다. 이미지는 최대 400만 화소·한 변 4096px의 정지 이미지만 지원합니다.첨부 목록을 조회하세요.첨부 조회파일 업로드 검토·철회 사유문서 기준 버전근거·버전 포함 내보내기검토용 가져오기 제안원본 ID·권한·이력을 보존하는 제안입니다. 기존 발행본·권한을 덮어쓰거나 즉시 발행하지 않습니다.내보내기 JSON가져오기 제안 확인가져온 과거 이력은 읽기 전용 보관본입니다. 현재 내용은 아래 기준 버전으로 별도 검토를 요청합니다. 새 ID는 소유한 개인 공간에서만 허용하며 팀 공간의 미등록 원본은 거부합니다.검토할 보관본 ID문서 기준 버전 JSON (새 개인 문서는 0){}등록된 원본 정정 매핑 JSON (없으면 빈 객체){}가져온 현재 내용의 검토 변경 집합 만들기상태: 활성 · 보호: 설정 안 됨개인 설정 확인 중개인 초안 시작버전 기록 · 복원은 새 변경 제안v8 · 2026-11-17T21:45:19.868Z자료 편입생성 경로: 사용자 제출 · 원작성 여부 미확인제안 주체 editor · 책임 사용자 editor · 발행자 reviewerbefore $$x$$
+after
+
+$$z$$
+Adjacent paragraph
+
+# Safe
+
+$$y$$
+
+# End이 버전 복원 제안v7 · 2026-11-17T21:45:18.730Z자료 편입생성 경로: 사용자 제출 · 원작성 여부 미확인제안 주체 editor · 책임 사용자 editor · 발행자 reviewer앞 문단
+
+# 줄바꿈이 버전 복원 제안v6 · 2026-11-17T21:45:16.657Z자료 편입생성 경로: 사용자 제출 · 원작성 여부 미확인제안 주체 editor · 책임 사용자 editor · 발행자 reviewer앞 문단
+
+# 줄바꿈
+
+대체 문단이 버전 복원 제안v5 · 2026-11-17T21:45:15.533Z자료 편입생성 경로: 사용자 제출 · 원작성 여부 미확인제안 주체 editor · 책임 사용자 editor · 발행자 reviewer앞 문단
+
+# 줄바꿈
+
+원래 문단이 버전 복원 제안v4 · 2026-11-17T21:45:14.333Z자료 편입생성 경로: 사용자 제출 · 원작성 여부 미확인제안 주체 editor · 책임 사용자 editor · 발행자 reviewer# 줄바꿈
+
+원래 문단이 버전 복원 제안v3 · 2026-11-17T21:45:10.230Z자료 편입생성 경로: 사용자 제출 · 원작성 여부 미확인제안 주체 editor · 책임 사용자 editor · 발행자 reviewer# 문서 읽기
+
+위치가 바뀐 새 문단이 버전 복원 제안v2 · 2026-11-17T21:44:47.287Z자료 편입생성 경로: 사용자 제출 · 원작성 여부 미확인제안 주체 editor · 책임 사용자 editor · 발행자 reviewer# 문서 읽기
+
+## 설치
+
+한글 첫 문단: 설치 절차를 확인합니다.
+
+## 설치
+
+한글 두 번째 문단: 적용 조건을 확인합니다.
+
+```ts
+const 한글 = "<script>안전한 예제</script>";
+```
+
+| 항목 | 값 |
+| --- | --- |
+| 언어 | 한글 |
+
+<script>alert(1)</script>이 버전 복원 제안v1 · 2026-10-29T00:00:00Zfixture생성 경로: 기존 기록 · 생성 주체 미구분기존 author 기록 editor · 작성/발행 역할 미구분기존 내용이 버전 복원 제안작업 이유문서 구조·속성·보호상위 문서최상위중복 제목중복 제목검토 절차속성 (문자열 값의 JSON 객체){}구조·속성 저장문서 보호문서 수명주기유효기간 종료 (UTC)설정한 시각이 지나면 구독자에게 만료 알림을 생성합니다. 빈 값은 종료 시각 미설정입니다.유효기간 저장보관활성화휴지통으로 이동버전·문단 댓글댓글문단 앵커 (본문의 정확한 발췌)멘션할 사용자 ID (쉼표 구분)댓글 등록저장된 개인 초안 (0)개인 템플릿 (0)내 알림 (0건 읽지 않음)휴지통 (0)현재 원본·상위 문서 권한을 만족하는 문서만 표시합니다. 복구로 과거 권한은 복원하지 않습니다. 유예 시각 경과만으로 삭제하지 않으며, 실제 정리는 별도 보존 정책과 실행 결과를 따릅니다.내 알림 수신 설정멘션 알림 받기구독 문서 댓글 알림 받기알림 시각대알림 설정 저장서버 저장 · 현재 권한 재검사 · 검토 후 발행실제 모델 품질과 운영 인수 결과는 별도 검증 기록을 따릅니다.
+
+
+
+
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+TargetClosedError2: "route.fetch: Request context disposed.
+Call log:
+[2m  - → GET http://127.0.0.1:4399/api/v1/workflows/subscriptions?limit=25[22m
+[2m    - user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.8127.18 Safari/537.36[22m
+[2m    - accept: */*[22m
+[2m    - accept-encoding: gzip,deflate,br[22m
+[2m    - referer: http://127.0.0.1:5199/?app=1&space=424bbe96-c63d-4852-8cac-f8cc4c092bc3&document=topic[22m
+[2m    - x-space-id: 424bbe96-c63d-4852-8cac-f8cc4c092bc3[22m
+[2m    - sec-ch-ua: "Chromium";v="158", "Not.A/Brand";v="24", "HeadlessChrome";v="158"[22m
+[2m    - sec-ch-ua-mobile: ?0[22m
+[2m    - sec-ch-ua-platform: "macOS"[22m
+[2m    - cookie: synthetic-reviewer[22m
+[2m    - origin: http://127.0.0.1:5199[22m
+" while running route callback.
+Consider awaiting `await page.unrouteAll({ behavior: 'ignoreErrors' })`
+before the end of the test to ignore remaining routes in flight.
+    at /private/tmp/akh-c9-race-browser-probe.mjs:5:125 {
+  log: [
+    '  - → GET http://127.0.0.1:4399/api/v1/workflows/subscriptions?limit=25',
+    '    - user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.8127.18 Safari/537.36',
+    '    - accept: */*',
+    '    - accept-encoding: gzip,deflate,br',
+    '    - referer: http://127.0.0.1:5199/?app=1&space=424bbe96-c63d-4852-8cac-f8cc4c092bc3&document=topic',
+    '    - x-space-id: 424bbe96-c63d-4852-8cac-f8cc4c092bc3',
+    '    - sec-ch-ua: "Chromium";v="158", "Not.A/Brand";v="24", "HeadlessChrome";v="158"',
+    '    - sec-ch-ua-mobile: ?0',
+    '    - sec-ch-ua-platform: "macOS"',
+    '    - cookie: synthetic-reviewer',
+    '    - origin: http://127.0.0.1:5199'
+  ]
+}
+
+Node.js v24.22.2

@@ -152,7 +152,7 @@ test("authenticated native navigation, completion and personal lists remove revo
       ["query-draft", `[B](?app=1&space=${f.workspaceId}&document=target)`],
       [
         "html-draft",
-        `<a href="/?app=1&amp;space=${f.workspaceId}&amp;document=target">B</a>`,
+        `<a href="/?app=1&amp;space=${f.workspaceId}&amp;document=target">B</a>\n\n[B](/?app=1&amp;space=${f.workspaceId}&amp;document=target)`,
       ],
       [
         "absolute-md",
@@ -164,11 +164,11 @@ test("authenticated native navigation, completion and personal lists remove revo
       ],
       [
         "absolute-html",
-        `<a href="http://localhost/?app=1&space=${f.workspaceId}&document=target">B</a>`,
+        `<a href="http://localhost/?app=1&space=${f.workspaceId}&document=target">B</a>\n\n[B](http://localhost/?app=1&space=${f.workspaceId}&document=target)`,
       ],
       [
         "network-html",
-        `<a href="//localhost/?app=1&space=${f.workspaceId}&document=target">B</a>`,
+        `<a href="//localhost/?app=1&space=${f.workspaceId}&document=target">B</a>\n\n[B](//localhost/?app=1&space=${f.workspaceId}&document=target)`,
       ],
     ]) {
       response = await call("/drafts", { ...draft, id, content });

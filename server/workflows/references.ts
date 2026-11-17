@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { marked } from "marked";
+import { Marked } from "marked";
 import { parseFragment, type DefaultTreeAdapterTypes } from "parse5";
 
 const resourceId = /^[a-zA-Z0-9_-]{1,100}$/;
@@ -46,7 +46,7 @@ export function referenceOrigin(value?: string) {
   return url.origin;
 }
 
-/** Parse the rendered HTML, including decoded HTML href attributes and query-relative links.
+/** Parse visible Markdown links using the reader’s raw-HTML exclusion policy.
  * Code examples remain excluded; external origins, paths and spaces are not relations. */
 export function internalReferences(
   content: string,
@@ -55,7 +55,7 @@ export function internalReferences(
 ) {
   const baseOrigin = trustedOrigin ?? "https://workspace.invalid";
   const links: {targetPageId:string;label:string;sourceBlockId:null}[] = [];
-  const tree = parseFragment(marked.parse(content, { async: false }));
+  const tree = parseFragment(new Marked({renderer:{html:()=>""}}).parse(content, { async: false }));
   const visit = (node: DefaultTreeAdapterTypes.Node) => {
     if ("tagName" in node) {
       if (["code", "pre", "script", "style", "template"].includes(node.tagName))
