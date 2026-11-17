@@ -133,4 +133,9 @@ SQL lower() is now only a physical candidate proposal. The helper unions conserv
 - QNA-004/CORE-010: 웹 질문의 주제·현재/과거 발행 기록·UTC 기간 선택이 실제 REST/cookie MCP query와 durable 실행에 연결된다. agent REST/MCP `wiki_get_context`도 같은 범위와 적용 주장/예외/유효 기간을 예산 내에서 제공한다. 결과와 저장 답변 재조회에 선택 범위·조회 시각을 남긴다.
 - 현재 권고와 과거 기록을 구별하고 과거 미기록 속성을 현재 속성으로 채우지 않는다. 기록 기간과 사실 유효 기간은 별개다. 전체 주장 계보가 현재 ACL·선택 원본 envelope 안에 있어야 하며 전송/저장 시 재검사한다. 알려진 조건 일치도 의미상 진실·독립 실행 검증을 보증하지 않는다.
 - [정확한 API·기간·예산·한계](implementation/2026-11-16-question-scope.md), [합성 인증 브라우저 증거](pr-assets/roadmap-question-scope/README.md). 기존 251개 요구사항의 운영 검증 상태는 올리지 않는다. 실제 사내 모델/의미 품질/업무 성과/대규모 부하와 기존 별도 인증 동시성 이슈는 이 단위의 검증 범위가 아니다.
+## 2026-11-17 — 검토된 변경 집합의 예약 발행
+
+REV-011의 서버/UI 경로를 추가했다. 사람이 승인된 고정 집합과 미리보기 시각을 확인하고 현재 세션에 묶어 예약하며, App1 스캐너가 도래 시 정본 즉시 발행과 같은 현재 권한·검토자·해시·원본 상한·정책·기준 버전을 재검사한다. 취소/성공과 발행 영수증은 DB 잠금으로 직렬화하고 중복 worker/재시작에서 중복 버전을 만들지 않는다. 승인/발행 권한을 에이전트 job이나 서비스에 부여하지 않는다.
+
+`scheduledPublication` 사이트/공간 정책은 생성과 실제 worker 양쪽에서 적용하며 조회/취소는 비활성화 중에도 가능하다. 예약 기간은 현재 세션·절대·유휴 만료 안으로 제한하고 장기 예약을 보장하지 않는다. 실제 운영 검증과 정각 SLA는 미완료다. [계약·설정·검증 범위](implementation/2026-11-17-scheduled-publication.md), [화면 증거의 합성 API 경계](pr-assets/scheduled-publication/README.md)를 참조한다.
 - 2026-11-17 PR60 검토 A 보완: Weekly도 통합된 일반 ingest와 동일한 후보 스키마/원본 인용 binder를 사용하고 후보·변경 이유를 canonical 검토 해시에 보존한다. 독립 발행에서 새 버전의 미검증 주장·근거로 연결하며 invalid quote/out-of-scope 및 현재 원본 철회는 실패한다. 전체 고정 원본 텍스트가 허용된 모델 문맥에 들어가며 모델이 source version/검증 상태를 정하지 않는다. 무변경 응답과 기존 권한/예산을 유지한다. [수정·검증 기록](implementation/2026-11-16-maintenance-cycles.md).

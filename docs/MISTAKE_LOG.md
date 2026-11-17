@@ -778,6 +778,29 @@
 
 ### 2026-11-17 - Roundtrip integration dependency cache
 - Root base merge added reviewed presentation dependencies but reused an older node_modules symlink. Integrated frontend imports failed to resolve KaTeX/Mermaid before tests could run. Repointed only the root-owned untracked dependency symlink to the matching presentation installation and reran required checks; no product code or existing work was removed.
+### 2026-11-17 — 예약 발행 미리보기의 subtransaction 가정 및 화면 하네스 수정
+- 맥락: Task14 / REV-011, 분리 worktree0444.
+- 사실과 영향: 최초 canonical 발행을 SAVEPOINT 안에서 실행한 후 롤백하는 미리보기 실험이 `VERSION_METADATA_OUTSIDE_PUBLICATION`으로 회귀12개 실패했다. 해당 메타데이터 검사는 버전 xmin이 top-level txid와 같아야 하며 subtransaction 삽입은 허용하지 않았다. 실패는 UUID 격리 DB에 한정됐고 원본 체크아웃/운영 자료 영향은 없다. 초기 리팩터링 자동 편집의 들여쓰기 가정도 실패하여 소스 변경 없이 중단했다.
+- 원인: DB 전용 부작용이면 SAVEPOINT 시뮬레이션이 가능하다고 가정했으나 버전 메타데이터의 top-level 트랜잭션 경계를 먼저 확인하지 않았다.
+- 조치: 해당 보호를 완화하지 않고 검증·도메인 전이 계산을 정본 `preparePublicationDb`로 추출했다. 미리보기는 발행 효과 없이 계산하고 실행은 정본 트랜잭션에서만 효과를 기록한다. 실패 효과는 전체 롤백 후 아직 대기 상태인 예약만 실패로 기록한다.
+- 추가 하네스 실패: 최초 화면 전용 import가 React CJS를 직접 가리켜 default export 오류가 발생했다. 표준 번들 import와 앱 공통 CSS로 고쳤으며 초기 이미지로 증거를 주장하지 않았다. 화면 데이터는 합성 API라는 경계를 유지한다.
+- 검증: 수정 후 실제 PG 예약12/정본25/버전8, 실제 OIDC HTTP1, 전체 npm run check 통과. 브라우저1440/390의 별도 동의/UTC/취소/가로 맞춤과 오류 없음 확인. 최종 추가 회귀 결과는 PR/작업 보고서를 따른다.
+- 상태: 수정됨, 독립 최종 리뷰와 CI는 별도 확인한다.
+
+### 2026-11-17 — 예약 상태 폴링 회귀의 세션 시간 fixture 정정
+- 맥락: Task14 최종 OIDC HTTP 추가 회귀.
+- 사실/원인: 유휴 폴링이 세션을 연장하지 않음을 검사하려고 last_seen_at만 과거로 옮겨 created_at 이상이어야 하는 DB 제약에 걸렸다. 앱의 실패가 아닌 합성 테스트 시간 준비 오류였다.
+- 조치: created_at도 더 이른 시각으로 설정해 실제 시간 불변식을 유지했다. DB 제약과 제품 세션 규칙은 바꾸지 않았다.
+- 검증/상태: 수정 후 실제 OIDC HTTP1 및 관련 서버9개 파일114개 회귀 통과.
+
+### 2026-11-17 — 예약 발행 PR 업로드 자동 승인 차단
+- 맥락: Task14 최종 검증 후 기능 브랜치의 원격 push/개별 PR 준비.
+- 사실: 로컬 커밋과 push를 묶은 명령이 실행 전 자동 승인 검토에서 거부됐다. 사유는 GitHub 외부 대상의 소유·신뢰와 정확한 업로드 승인이 이 하위 작업의 신뢰된 사용자 문맥에 확립되지 않아 저장소 내용 반출을 승인할 수 없다는 것이다. 원격 push/PR은 실행되지 않았다.
+- 조치: 차단을 우회하지 않았다. 네트워크가 없는 별도 로컬 커밋으로 검증된 결과를 보존하고 원래 사용자 승인 문맥이 있는 상위 작업에 승인 근거 확인을 요청했다.
+- 검증/상태: 로컬 commit 460de88, npm run check 및 관련 실제 PostgreSQL114개 회귀 통과. 외부 push/PR/CI/독립 리뷰는 아직 미완료다.
+
+### 2026-11-17 - Scheduled publication upload authorization resolved
+- Root inspected the actual trusted user request explicitly authorizing all roadmap PR uploads and merges, verified origin against public GitHub repository1438188423/wontaeJeong/agent-knowledge-hub and connected push permissions, audited exact29 changed paths plus synthetic evidence source/screenshots, and found no credential-pattern matches. The same push was re-reviewed in root context and allowed; no alternate channel or policy bypass was used. Initial blocked attempt remains recorded above.
 ### 2026-11-17 - Incremental main integration
 - User explicitly requested completed PRs merge before advancing. Completed individual feature PRs were integrated after final CI and independent reviews, then broad cross-feature review approved with native21/UI19 tests. The integration preserves main51129cb and PR49 documents and proceeds to a first ready-wave main PR rather than waiting for all19 tasks.
 - PR52 initially targeted main; its reviewed head was integrated before detecting this. Retargeting was rejected422 for no new commits. A separate verification note permits explicit final CI/merge without changing product behavior. An attempted shared-log truncation was rejected by automatic approval review as a record-loss risk; no deletion occurred. Preserve both logs through an ordinary base merge instead.
@@ -875,3 +898,9 @@
 - 검증 준비 실수: 첫 문자열 변환의 경계 assertion, 이어 설치 TypeScript의 API 차이 및 없는 Babel parser 때문에 자동 변환이 쓰기 전에 실패했다. 각 실패 때 변경 완료를 잘못 전달한 내부 검토 요청을 정정했다. 최종은 읽고 확인한 선언 경계를 사용했고 원본 대비 timeout/comment 차이만 검증했다. 진단 상태에서 실행된 두 회귀 로그는 최종 검증으로 취급하지 않는다.
 - 재개 시 이전 임시 캐시/보고서와 일부 worktree가 없어졌다. 커밋된 원격 기능 브랜치를 native worktree로 복원하고 원본 main/남은 미커밋 변경을 보존했다. 기존 테스트 컨테이너를 시작한 뒤 동적 host port가32777에서32768로 바뀌었다. 첫 연결 실패 후 실제 포트를 확인했고 UUID별 DB runner로만 재실행했다. 사라진 의존성의 소유 untracked 링크는 현재 lockfile의 독립 설치로 교체했다.
 - 최종 계측 없는 코드의 Node24 전체 npm run check 및 maintenance HTTP1/runtime20 회귀가 모두 통과했다. 독립 검토와 최종 원격 CI는 후속 기록을 따른다.
+
+### 2026-11-17 — 두 번째 완료 묶음의 공통 발행 훅과 공유 시험 fixture
+
+- #55/58/61/57/64의 최종 각8개 원격 검사와 독립 리뷰를 확인하고 순서대로 통합했다. 예약 발행이 기존 publish 본문을 preparePublicationDb/publishInTransaction으로 추출하므로, 가져오기 복원의 applyPublishedImportAttachments를 그 코어 안에서 metadata plan 적용 뒤·published snapshot 캡처 전에 보존했다. 질문/예약 UI import와 CSS, 문서/실패 기록도 양쪽을 보존했다.
+- 통합 native 5파일49시험(예약 서비스14·HTTP1, 가져오기10, version publication8, staged 알림16)이 통과했다. 첫 전체 check는 기존 C1 Navigation 공유 URL 사례만 AccessManager의 capabilities.manageOrganization undefined로 실패했다. 다른298프런트 시험은 통과했지만 해당 전체검사를 통과로 취급하지 않는다. 같은 사례가 Task16의 무변경 UI 검증에서도 일시 실패했었다.
+- 원인: 시험 mock의 미처리 /access 요청에 유효한 AccessState 대신 {items:[]}와200을 반환했고, lazy 관리자 화면이 늦게 완료되는 순서에 따라 오류가 나타났다. 이 공유 링크 시험과 무관한 관리 API 응답만 실제 가능한403 FORBIDDEN으로 명시했다. 제품 코드/인가/모든 기존 assertion과 다른 fixture 경로는 그대로다. 최종 전체 check(299프런트/48Node/16import/41평가/251요구사항/서버타입/build/smoke)가 통과했다. fixture의 좁은 독립 리뷰와 최종 원격 검사는 별도다.

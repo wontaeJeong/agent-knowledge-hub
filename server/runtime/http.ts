@@ -1,3 +1,4 @@
+import { ScheduledPublicationService } from "../jobs/scheduled-publication";
 import { discoveryReport } from "../discovery";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
@@ -106,6 +107,13 @@ export function createRuntimeHandler(options: {
 }) {
   const storageHandler = options.storage
     ? storageRoutes(options.storage, options.collector, options.artifacts)
+    : undefined;
+  const scheduledPublication = options.auth
+    ? new ScheduledPublicationService(
+        options.pool,
+        (row) => options.auth!.backgroundContext(row),
+        options.auth.sessionPolicy,
+      )
     : undefined;
   const legacyAccess = new LegacyAccessService(options.pool);
   const versions = new VersionService(options.pool, authorizeInTransaction);
@@ -340,6 +348,60 @@ export function createRuntimeHandler(options: {
           req,
           path.startsWith("/api/v1/storage/") ? 5 * 1024 * 1024 : 512000,
         );
+      }
+      const scheduleRoute = path.match(
+        /^\/api\/v1\/changesets\/([a-zA-Z0-9_-]{1,100})\/publication-schedules(?:\/(preview))?$/,
+      );
+      const scheduleItem = path.match(
+        /^\/api\/v1\/publication-schedules\/([a-zA-Z0-9_-]{1,100})(?:\/(cancel))?$/,
+      );
+      if (scheduleRoute || scheduleItem) {
+        if (credential || agent) throw Error("FORBIDDEN");
+        if (!scheduledPublication) throw Error("NOT_FOUND");
+        if (scheduleRoute) {
+          if (req.method === "GET" && !scheduleRoute[2])
+            return send(
+              200,
+              await scheduledPublication.list(ctx, scheduleRoute[1]),
+            );
+          if (req.method === "POST") {
+            if (scheduleRoute[2])
+              return send(
+                200,
+                await scheduledPublication.preview(ctx, scheduleRoute[1], body),
+              );
+            const key = z
+              .string()
+              .trim()
+              .min(1)
+              .max(200)
+              .parse(req.headers["idempotency-key"]);
+            return send(
+              201,
+              await scheduledPublication.create(
+                ctx,
+                scheduleRoute[1],
+                body,
+                key,
+              ),
+            );
+          }
+        }
+        if (scheduleItem) {
+          if (req.method === "GET" && !scheduleItem[2])
+            return send(
+              200,
+              await scheduledPublication.read(ctx, scheduleItem[1]),
+            );
+          if (req.method === "POST" && scheduleItem[2]) {
+            z.object({}).strict().parse(body);
+            return send(
+              200,
+              await scheduledPublication.cancel(ctx, scheduleItem[1]),
+            );
+          }
+        }
+        throw Error("NOT_FOUND");
       }
       if (path.startsWith("/api/v1/identity/")) {
         if (credential || agent) throw Error("FORBIDDEN");
@@ -1136,6 +1198,11 @@ export function createRuntimeHandler(options: {
             ? e.message
             : "";
       const statuses: Record<string, number> = {
+        SCHEDULE_TIME_INVALID: 400,
+        SCHEDULE_AUTHORIZATION_EXPIRES: 409,
+        SCHEDULE_PREVIEW_STALE: 409,
+        SCHEDULE_ALREADY_EXISTS: 409,
+        SCHEDULE_FINISHED: 409,
         NOT_FOUND: 404,
         ENOENT: 404,
         FORBIDDEN: 403,

@@ -694,6 +694,13 @@ Final feature validation (2026-11-17): `npm run check` passed after ancestry har
 
 - Task3/Task2 final base integration: Node24 npmruncheck passed, native presentation-http/navigation-http/bulk3files passed, actual Chromium1440/390 safe-renderer navigation fixture passed outline4/find1/math/diagram/preview with external0/errors0/overflowfalse. Synthetic component input/reader is explicit in capture README; original actualOIDC/runtime/DB flow remains separately evidenced.
 
+## 2026-11-17 Task 14 — 예약 발행 (REV-011)
+
+- 요구사항: REV-011, GOV-007, 현재 승인/원본 상한/기준 버전 불변식. [실행 계약](implementation/2026-11-17-scheduled-publication.md).
+- 변경: migration128 `scheduled_publications`, 인간 세션에 묶인 단일 발행 동의, 엄격 HTTP 미리보기/예약/상태/취소, App1 15초 스캐너, 정본 `preparePublicationDb`/`publishInTransaction` 공통 검사, UTC/기기 시각 UI. 일반 에이전트 job은 승인·발행하지 않는다.
+- 수명주기: retention 명시 분류와 원본→batch→예약 계보, 법정 삭제/복구의 typed 취소·비밀 참조/결과 정리. unknown fail-safe 보존.
+- 검증: 전체 `npm run check`에서 UI/domain214, script48, imports16, evaluation41, 요구사항251·서버 타입·build·static HTTP smoke 통과. 초기 실제 PG 예약12/정본25/버전8과 실제 OIDC HTTP1 통과. 최종 실제 PG9개 파일114개 테스트(예약14, OIDC HTTP1, legacy2, 삭제18, 정책14, retention30, auth2, 정본25, 버전8) 통과. [화면1440/390](pr-assets/scheduled-publication/README.md)은 실제 컴포넌트+합성 API이며 인증 브라우저 E2E로 주장하지 않는다.
+- 제한: 현재 세션/절대/유휴 만료 이전 예약만 허용한다. 장기 위임·정각 SLA·운영 배포·사내 IdP·실제 모델 품질과 지식 효과는 미검증이다. 기능이 꺼져도 기존 조회/취소는 유지하며 도래 실행은 실패 상태를 남긴다.
 ## 2026-11-17 - First ready wave to main
 - User requests incremental completed-PR merges. This wave contains canonical/semantic search, document navigation, bulk edits, subscriptions/events, fixed-descendant sharing, ingest lineage/feedback and safe document/image rendering. Each immutable feature head passed final8 CI and independent scoped review. Product code from PR52ee1599d is integrated; its corrected-base verification note remains its separately tracked PR completion.
 - Broad combined review found no new Critical/Important issues and independently verified native21/UI19. Integrated requiredchecks and targeted native cross-feature regressions passed; final main-PR CI remains required before merge. Existing PR49 design documents and all251 requirements are preserved.
@@ -763,3 +770,8 @@ Final feature validation (2026-11-17): `npm run check` passed after ancestry har
 
 - PR #56의 이후 최종9e209d2를 병합했다. 실제 source 차이는 없고 양쪽 HANDOFF/MISTAKE_LOG29줄을 보존했다. 원격9e209d2의 취소된 macOS job을 정상 재실행해 최신8개 검사가 전부 통과했다.
 - 유지관리 기본5초 native 예산 실패를 실제 단계 비용으로 진단하고 해당 파일의 async PG/정책/모델/worker 기본 사례14선언/그룹에만20초 예산을 명시했다. 원본 본문·assertion·제품 timeout·기존15초·순수 달력은 유지했다. Node24 전체 check(프런트293/Node48/import16/evaluation41/251요구사항/types/build/smoke) 및 native21시험 통과. 독립 검토와 최종main CI 후 머지한다. 나머지 기능/첫 배포1노드App1DB1 최소리소스 기준은 계속 유지한다.
+
+## 2026-11-17 두 번째 완료 묶음 통합
+
+- main #59의6366597을 보존한 뒤 #55 인덱스, #58 질문 범위, #61 실제 추가 수집기, #57 구조/이력 왕복을 각각 최종8검사·독립 승인과 통합 회귀 후 머지했다. #64 예약 발행은 같은 원자 발행 코어 안에 가져오기 첨부 훅을 보존해 통합한다. 요구사항SRH-001~010/QNA-004/CORE-010/COL-004/LIF-008/009/REV 발행 관련이며 전체251개 기준·현재 권한/원본 상한은 유지한다.
+- 통합 전체check299/48/16/41/251 및 native49시험이 통과했다. 처음 전체검사의 무효한 관리 API fixture 실패와 수정은 MISTAKE_LOG에 보존했다. 원격 최종 CI와 통합 broad review를 통과한 뒤 다음 main PR로 반영한다. 실제 회사 SSO/모델 품질·운영 인수와 성능 효과는 주장하지 않는다. 1노드/App1/DB1 최소리소스 기준을 유지한다.

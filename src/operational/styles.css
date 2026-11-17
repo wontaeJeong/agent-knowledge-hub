@@ -421,3 +421,6 @@
 }
 
 .op-answer-scope { overflow-wrap:anywhere; }
+.op-publication-schedule { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: .75rem; overflow-wrap: anywhere; }
+.op-publication-schedule input { display: block; max-width: 100%; margin: .5rem 0; }
+.op-schedule-row { padding: .75rem 0; border-top: 1px solid var(--border); }

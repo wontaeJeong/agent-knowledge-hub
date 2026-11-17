@@ -388,6 +388,7 @@ export class OidcAuth {
       workspaceId: input.workspace_id,
       principalId: input.principal_id,
       authorization: {
+        verifiedIssuer: this.config.serverMetadata().issuer,
         sessionId: input.session_id!,
         revalidate,
         assertSession: async (db) => {
@@ -720,7 +721,7 @@ export class OidcAuth {
           s.principal_id,
           typeof info.name === "string" ? info.name : s.principal_id,
         );
-        const poll = /^\/api\/v1\/(?:jobs|notifications|events)(?:[/?]|$)/.test(
+        const poll = /^(?:\/api\/v1\/(?:jobs|notifications|events|publication-schedules)(?:[/?]|$)|\/api\/v1\/changesets\/[^/]+\/publication-schedules(?:[/?]|$))/.test(
           req.url ?? "",
         );
         if (interactive && !poll)

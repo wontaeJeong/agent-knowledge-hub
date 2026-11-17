@@ -4,7 +4,7 @@ import { releasedImportTables, releasedImportProjection } from "../operations/re
 // The same storage/product graph classes as operations erasure, including immutable
 // histories and released private imports. Unknown/new classes are never deleted.
 const productTables = new Set([
-  "sources","pages","versions","batches","requests","publications","approvals",
+  "scheduled_publications","sources","pages","versions","batches","requests","publications","approvals",
   "workflow_access_requests","workflow_activity","workflow_comments","workflow_document_state","workflow_draft_recovery_grants","workflow_draft_revision_history","workflow_draft_save_mutations","workflow_drafts","workflow_events","workflow_notifications","workflow_preferences","workflow_source_state","workflow_subscriptions","workflow_templates",
   "runtime_answers","runtime_execution_grants","runtime_jobs","runtime_lints","runtime_request_traces",
   "agent_api_keys","agent_device_clients","agent_device_grants","agent_key_audit","agent_key_requests","agent_outcomes","agent_personal_pages","agent_personal_revisions","agent_requests","agent_review_signals",
@@ -30,6 +30,8 @@ export function contains(value: unknown, target: string): boolean {
 /** Keep private bodies/titles inside PostgreSQL. Hash changes into the preview
  * without materializing them in the service or exposing them in a receipt. */
 function privateProjection(table:string):string | undefined {
+  if (table === "batches") return `(to_jsonb(t)-'data') || jsonb_build_object('sourceIds',(SELECT jsonb_agg(s->'id') FROM jsonb_array_elements(t.data->'snapshots') s),'pageIds',(SELECT jsonb_agg(u->'id') FROM jsonb_array_elements(t.data->'updates') u),'private_payload_sha256',encode(sha256(convert_to(t.data::text,'UTF8')),'hex'))`;
+  if (table === "scheduled_publications") return `(to_jsonb(t)-'session_id'-'request_key'-'result') || jsonb_build_object('private_payload_sha256',encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex'))`;
   if (table === "collaboration_subscriptions") return `(to_jsonb(t)-'target') || jsonb_build_object('private_payload_sha256',encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex'))`;
   if (table === "versions") return `(to_jsonb(t)-'data') || jsonb_build_object('data',jsonb_build_object('at',t.data->'at','sourceIds',t.data->'sourceIds','pageIds',t.data->'pageIds','provenance',jsonb_build_object('pageIds',t.data->'provenance'->'pageIds','sourceIds',t.data->'provenance'->'sourceIds'),'dependencyVersions',t.data->'dependencyVersions'),'private_payload_sha256',encode(sha256(convert_to(t.data::text,'UTF8')),'hex'))`;
   if (table === "sources") return `(to_jsonb(t)-'data') || jsonb_build_object('data',jsonb_build_object('id',t.data->'id','createdAt',t.data->'createdAt','targetPageId',t.data->'targetPageId','importId',t.data->'importId','importRunId',t.data->'importRunId'),'private_payload_sha256',encode(sha256(convert_to(t.data::text,'UTF8')),'hex'))`;
