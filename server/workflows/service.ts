@@ -1,3 +1,4 @@
+import {segmentAnchors} from "./versions/diff";
 import { publishedReferences, linkPageQuery, assertLinkReadNotErased } from "../convenience/links";
 import { effectiveAccess } from "../access";
 import { encodeCursor, decodeCursor, listRevision } from "./manual-disclosure";
@@ -672,7 +673,7 @@ export class WorkflowService {
       return { id: batchId, status: "rejected" };
     });
   }
-  async document(ctx: Context, pageId: string) {
+  async document(ctx: Context, pageId: string, options:{recordVisit?:boolean}={}) {
     return this.run(
       ctx,
       "knowledge.read",
@@ -683,9 +684,12 @@ export class WorkflowService {
           "SELECT revision,state,parent_id,data FROM workflow_document_state WHERE workspace_id=$1 AND page_id=$2",
           [ctx.workspaceId, pageId],
         );
-        await recordDocumentVisit(db, ctx, pageId);
+        if(options.recordVisit!==false)await recordDocumentVisit(db, ctx, pageId);
+        const latest=p.versions.at(-1)!;
+        const metadata=(await db.query("SELECT anchors FROM version_metadata WHERE workspace_id=$1 AND page_id=$2 AND number=$3",[ctx.workspaceId,pageId,latest.number])).rows[0];
         return {
           page: p,
+          anchors:metadata?.anchors??segmentAnchors(pageId,latest.number,latest.content),
           settings: settings.rows[0] ?? {
             revision: 0,
             state: "active",

@@ -87,7 +87,24 @@ function markdownParser() {
 }
 /** Read-only transformation: canonical Markdown is never serialized from the rendered DOM. */
 export function renderMarkdown(text: string) {
-  return DOMPurify.sanitize(markdownParser().parse(text, { async: false }), {
+  const parser = markdownParser();
+  const tokens = parser.lexer(text);
+  let line = 1;
+  // Source positions decorate the existing safe renderer. Raw HTML emits no node;
+  // links, attachment handlers, math and diagrams still use the same parser.
+  const html = tokens
+    .map((token) => {
+      const start = line;
+      line += (token.raw.match(/\n/g) ?? []).length;
+      const fragment = parser.parser(
+        Object.assign([token], { links: tokens.links }),
+      );
+      return fragment.trim()
+        ? `<div data-document-start="${start}" data-document-end="${line - (token.raw.endsWith("\n") ? 1 : 0)}">${fragment}</div>`
+        : "";
+    })
+    .join("");
+  return DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true, mathMl: true },
     FORBID_TAGS: [
       "img",

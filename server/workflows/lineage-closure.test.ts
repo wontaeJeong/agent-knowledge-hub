@@ -114,9 +114,9 @@ for (const form of ["query", "html", "html-entity"]) {
     form === "query"
       ? `[B](${href.slice(1)})`
       : form === "html"
-        ? `<a href="${href}">B</a>`
-        : `<a HREF='${href.replaceAll("&", "&#38;")}'>B</a>`;
-  test(`${form} rendered internal href captures the target and cannot exceed its audience`, async () => {
+        ? `<a href="${href}">B</a>\n\n[B](${href})`
+        : `<a HREF='${href.replaceAll("&", "&#38;")}'>B</a>\n\n[B](${href.replaceAll("&", "&#38;")})`;
+  test(`${form} visible Markdown beside excluded HTML href captures the target and cannot exceed its audience`, async () => {
     const body = content(await target());
     expect(await service.saveDraft(f.editor, draft(body))).toMatchObject({
       dependencyVersions: { target: 1 },
@@ -361,7 +361,7 @@ for (const form of [
       origin,
     );
     const body = (href: string) =>
-      form.endsWith("html") ? `<a href="${href}">B</a>` : `[B](${href})`;
+      form.endsWith("html") ? `<a href="${href}">B</a>\n\n[B](${href})` : `[B](${href})`;
     const href = `${form.startsWith("network") ? "//wiki.example.test" : origin}${relative}`;
     const content = body(href);
     expect(await trusted.saveDraft(f.editor, draft(content))).toMatchObject({

@@ -1,0 +1,20 @@
+[1/2] server/convenience/anchors.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  05:39:28
+   Duration  1.63s (tests 91%, import 5%, transform 5%)
+
+[2/2] server/workflows/versions/versions.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  05:39:30
+   Duration  1.70s (tests 94%, import 4%, transform 2%)
+

@@ -4,7 +4,7 @@ import type {PoolClient} from "pg";
 import type {Context} from "../../service";
 import {authorizeActionDb,type Action} from "../../access/index";
 import {fingerprint} from "../../provenance";
-import {segmentAnchors,type Anchor} from "./diff";
+import {captureBlockReferences} from "../../convenience/anchors";
 
 export interface MetadataSnapshot {
  pageId:string;number:number;title:string;summary:string;category:string;tags:string[];
@@ -43,8 +43,8 @@ export async function capturePublishedVersionMetadata(db:PoolClient,ctx:Context,
  if(latest!==number)throw Error("VERSION_METADATA_NOT_CURRENT");
  const snapshot=await currentMetadata(db,ctx,pageId,number);
  const body=(await db.query("SELECT data->>'content' AS content FROM versions WHERE workspace_id=$1 AND page_id=$2 AND number=$3",[ctx.workspaceId,pageId,number])).rows[0].content;
- const prior=(await db.query("SELECT anchors FROM version_metadata WHERE workspace_id=$1 AND page_id=$2 AND number<$3 ORDER BY number DESC LIMIT 1",[ctx.workspaceId,pageId,number])).rows[0]?.anchors?.anchors??[];
- const anchors=segmentAnchors(pageId,number,body,prior as Anchor[]);
+ const blocks=await captureBlockReferences({client:db,workspaceId:ctx.workspaceId},pageId,number,body);
+ const anchors={mode:blocks.some(block=>block.kind==="bounded-tail")?"bounded":"exact",anchors:blocks};
  await db.query("INSERT INTO version_metadata(workspace_id,page_id,number,snapshot,snapshot_hash,anchors,actor_id) VALUES($1,$2,$3,$4,$5,$6,$7)",[ctx.workspaceId,pageId,number,snapshot,fingerprint(snapshot),anchors,ctx.principalId]);
 }
 

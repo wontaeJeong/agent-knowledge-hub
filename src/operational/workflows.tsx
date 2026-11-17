@@ -1,3 +1,5 @@
+import {DocumentReader} from "./convenience/DocumentReader";
+import type {BlockReference} from "./convenience/document-reader";
 import {LinkAutocomplete} from "./convenience/LinkAutocomplete";
 import { Breadcrumbs } from "./convenience/Breadcrumbs";
 import { DocumentTreeNavigation, DocumentStructureControls } from "./convenience/PageTree";
@@ -8,7 +10,6 @@ import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
 import { Markdown, type ImagePreview, presentationFormats } from "../ui/Markdown";
 import {
-  DocumentBody,
   PersonalDocuments,
   RelatedDocuments,
   LinkCompletion,
@@ -40,6 +41,7 @@ interface PrivateDraft {
   dependencyVersions?: Record<string, number>;
 }
 interface DocumentDetail {
+  anchors?:{anchors:BlockReference[]};
   page: Page;
   settings: {
     revision: number;
@@ -382,6 +384,7 @@ export function WorkflowPanel({
   if (selection.current.api !== api || selection.current.identityScope !== identityScope || selection.current.selected !== selected)
     selection.current = { api, identityScope, selected };
   const selectionNow = selection.current;
+  const readyDocument=useRef<typeof selectionNow|null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const [focusRevision, setFocusRevision] = useState(0);
   const focusIntent = useRef<typeof selectionNow | null>(null);
@@ -792,6 +795,7 @@ export function WorkflowPanel({
               setContent(exact.content);
             }
           }
+          readyDocument.current=selectionNow;
           setDetail(d);
           setComments(c.items);
           const commentId = window.location.hash.match(
@@ -831,6 +835,24 @@ export function WorkflowPanel({
     );
     return () => cancelAnimationFrame(frame);
   }, [comments, commentPage]);
+  useEffect(()=>{
+    let active=true,request=0;
+    const refresh=async()=>{
+      const token=selection.current;
+      // Do not cancel an initial exact-draft admission or change the editor's
+      // selection token merely because the published read is being refreshed.
+      if(!selected||readyDocument.current!==token)return;
+      const current=++request;
+      setDetail(null);setComments([]);
+      try{
+        const [d,c]=await Promise.all([api.get<DocumentDetail>(`/workflows/pages/${encodeURIComponent(selected)}?visit=0`),api.get<{items:Comment[]}>(`/workflows/pages/${encodeURIComponent(selected)}/comments`)]);
+        if(active&&current===request&&selection.current===token){setDetail(d);setComments(c.items);}
+      }catch(e){if(active&&current===request&&selection.current===token)fail(e);}
+    };
+    const focus=()=>void refresh();
+    window.addEventListener("focus",focus);const timer=setInterval(focus,60000);
+    return()=>{active=false;request++;window.removeEventListener("focus",focus);clearInterval(timer);};
+  },[api,selected,identityScope,fail]);
   const refreshDocument = async () => {
     if (!selected) return;
     const [d, c] = await Promise.all([
@@ -1002,9 +1024,11 @@ export function WorkflowPanel({
           {spaceId && <DocumentStructureControls api={api} spaceId={spaceId} principalId={principalId ?? ""} pageId={selected} version={latest.number} revision={detail.settings.revision} capabilities={capabilities} canLeave={()=>!(draft && content!==draft.content) || window.confirm("저장하지 않은 입력을 닫을까요?")} onChanged={async()=>{const next=await api.get<DocumentDetail>(`/workflows/pages/${encodeURIComponent(selected)}`);if(!mounted.current || selection.current!==selectionNow || next.page.id!==selected)return;setDetail(next);await onChanged();}}/>}
           <details open>
             <summary>현재 발행본 본문 · v{latest.number}</summary>
-            <DocumentBody
+            <DocumentReader
               key={`${selected}:${latest.number}`}
-              content={latest.content}
+              document={{id:selected,spaceId,content:latest.content,publishedAt:latest.at}}
+              version={latest.number}
+              blocks={detail.anchors?.anchors}
               readAttachment={readAttachment}
             />
             <details><summary>지원하는 문서 형식</summary><p>{presentationFormats}</p></details>

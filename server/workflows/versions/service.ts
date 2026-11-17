@@ -59,6 +59,7 @@ export class VersionService {
   if(m?.snapshot.parentId)await this.permitted(db,ctx,"knowledge.read",{kind:"page",id:m.snapshot.parentId});
   return {pageId,number,isCurrentVersion:number===current(p).number,currentTitle:p.title,content:v.content,at:v.at,attribution:{author:v.author,producer:v.producer??{kind:"unknown"},proposedBy:v.proposedBy??null,publishedBy:v.publishedBy??null},metadata:m?{known:true as const,snapshot:m.snapshot as MetadataSnapshot,hash:m.snapshot_hash}:{known:false as const,snapshot:null,hash:null},anchors:m?.anchors??segmentAnchors(pageId,number,v.content)};
  }
+ async latestVersion(ctx:Context,pageId:string,options:{recordVisit?:boolean}={}){return this.run(ctx,"knowledge.read",async db=>{const p=await this.page(db,ctx,pageId);const value=await this.versionDb(db,ctx,pageId,current(p).number);if(options.recordVisit)await recordDocumentVisit(db,ctx,pageId);return value;});}
  async version(ctx:Context,pageId:string,number:number,options:{recordVisit?:boolean}={}){positive.parse(number);return this.run(ctx,"knowledge.read",async db=>{const value=await this.versionDb(db,ctx,pageId,number);if(options.recordVisit)await recordDocumentVisit(db,ctx,pageId);return value;});}
  async bundles(ctx:Context,offset=0){return this.run(ctx,"knowledge.read",async db=>{
   const rows=(await db.query("SELECT batch_id,result FROM publications WHERE workspace_id=$1 ORDER BY batch_id LIMIT 2501",[ctx.workspaceId])).rows;if(rows.length>2500)throw Error("VERSION_QUERY_LIMIT");

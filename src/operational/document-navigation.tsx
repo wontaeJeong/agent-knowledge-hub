@@ -1,7 +1,8 @@
+import {DocumentReader} from "./convenience/DocumentReader";
 import { Backlinks } from "./convenience/Backlinks";
 import { PersonalLibrary } from "./convenience/PersonalLibrary";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Markdown, type AttachmentReader } from "../ui/Markdown";
+import { type AttachmentReader } from "../ui/Markdown";
 import { Button } from "../ui/primitives";
 import { documentHref, OperationalApi } from "./api";
 
@@ -14,143 +15,10 @@ type Neighborhood = {
   related: Item[];
   truncated: Record<"links" | "backlinks" | "related", boolean>;
 };
-export function DocumentBody({ content, readAttachment }: { content: string; readAttachment?: AttachmentReader }) {
-  const body = useRef<HTMLDivElement>(null);
-  const [outline, setOutline] = useState<
-    { id: string; title: string; level: number }[]
-  >([]);
-  const [query, setQuery] = useState("");
-  const [count, setCount] = useState(0),
-    [position, setPosition] = useState(0);
-  const jump = (target: HTMLElement) => {
-    target.scrollIntoView?.({ block: "center" });
-    target.focus({ preventScroll: true });
-  };
-  useEffect(() => {
-    const element = body.current!;
-    // Decorate the canonical safe renderer without replacing its event-bound DOM.
-    for (const mark of element.querySelectorAll("mark[data-match]")) {
-      const parent = mark.parentNode!;
-      mark.replaceWith(document.createTextNode(mark.textContent ?? ""));
-      parent.normalize();
-    }
-    const headings = Array.from(
-      element.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6"),
-    );
-    setOutline(
-      headings.map((heading, i) => {
-        heading.id = `document-section-${i}`;
-        heading.tabIndex = -1;
-        return {
-          id: heading.id,
-          title: heading.textContent ?? "",
-          level: Number(heading.tagName[1]),
-        };
-      }),
-    );
-    const needle = query.trim().toLocaleLowerCase();
-    const nodes: Text[] = [];
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      const node = walker.currentNode as Text;
-      if (node.parentElement?.closest("math,svg,[data-diagram],button,figure,[role=status],.markdown-help")) continue;
-      nodes.push(node);
-    }
-    let matches = 0;
-    if (needle)
-      for (const node of nodes) {
-        const text = node.textContent ?? "",
-          lower = text.toLocaleLowerCase();
-        let start = 0,
-          index = lower.indexOf(needle);
-        if (index < 0) continue;
-        const fragment = document.createDocumentFragment();
-        while (index >= 0) {
-          fragment.append(text.slice(start, index));
-          const mark = document.createElement("mark");
-          mark.textContent = text.slice(index, index + needle.length);
-          mark.tabIndex = -1;
-          mark.dataset.match = String(matches++);
-          fragment.append(mark);
-          start = index + needle.length;
-          index = lower.indexOf(needle, start);
-        }
-        fragment.append(text.slice(start));
-        node.replaceWith(fragment);
-      }
-    setCount(matches);
-    setPosition(0);
-  }, [content, query]);
-  useEffect(() => {
-    body.current
-      ?.querySelectorAll<HTMLElement>("mark[data-match]")
-      .forEach((mark, i) => {
-        if (i === position) mark.setAttribute("aria-current", "true");
-        else mark.removeAttribute("aria-current");
-      });
-  }, [count, position, query]);
-  const move = (step: number) => {
-    const next = (position + step + count) % count;
-    setPosition(next);
-    const target = body.current?.querySelector<HTMLElement>(
-      `mark[data-match="${next}"]`,
-    );
-    if (target) jump(target);
-  };
-  return (
-    <section className="op-document-reader" aria-label="문서 읽기">
-      <nav aria-label="문서 목차">
-        <h4>목차</h4>
-        {outline.length ? (
-          <ol>
-            {outline.map((item) => (
-              <li
-                key={item.id}
-                style={{ marginInlineStart: `${(item.level - 1) * 0.65}rem` }}
-              >
-                <Button
-                  onClick={() => {
-                    const target = body.current?.querySelector<HTMLElement>(
-                      `#${item.id}`,
-                    );
-                    if (target) jump(target);
-                  }}
-                >
-                  {item.title}
-                </Button>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p>제목 없음</p>
-        )}
-      </nav>
-      <div className="op-actions">
-        <label>
-          문서 내 검색
-          <input
-            value={query}
-            maxLength={200}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-        <span role="status">
-          {count ? `${position + 1} / ${count}` : "일치 0건"}
-        </span>
-        <Button disabled={!count} onClick={() => move(-1)}>
-          이전 일치
-        </Button>
-        <Button disabled={!count} onClick={() => move(1)}>
-          다음 일치
-        </Button>
-        <Button disabled={!count} onClick={() => move(0)}>
-          현재 위치로 이동
-        </Button>
-      </div>
-      <div ref={body}><Markdown text={content} readAttachment={readAttachment} /></div>
-    </section>
-  );
+export function DocumentBody({content,readAttachment}:{content:string;readAttachment?:AttachmentReader}) {
+  return <DocumentReader document={{content}} readAttachment={readAttachment}/>;
 }
+
 function Documents({ items, spaceId }: { items: Item[]; spaceId: string }) {
   return items.length ? (
     <ul>

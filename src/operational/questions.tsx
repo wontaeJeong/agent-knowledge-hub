@@ -1,3 +1,4 @@
+import {DocumentBody} from "./document-navigation";
 import { normalizeSearchFilters } from "./convenience/search-client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError, OperationalApi, snapshotPath } from "./api";
@@ -625,7 +626,7 @@ export function QuestionsWorkbench({
           <h3>
             {snapshot.title} · v{snapshot.version.number}
           </h3>
-          <p style={{ whiteSpace: "pre-wrap" }}>{snapshot.version.content}</p>
+          <DocumentBody content={snapshot.version.content}/>
           <button type="button" onClick={() => setSnapshot(null)}>
             인용 본문 닫기
           </button>

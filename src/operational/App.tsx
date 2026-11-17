@@ -411,8 +411,7 @@ function OperationalWorkspace({
       ? location
       : undefined;
   const pendingDestination =
-    (location.kind === "section" && !target && !["home","tasks","favorites","recent","subscriptions","search","compose"].includes(location.section)) ||
-    (location.kind === "document" && !!location.anchor);
+    (location.kind === "section" && !target && !["home","tasks","favorites","recent","subscriptions","search","compose"].includes(location.section));
   const [pages, setPages] = useState<PublishedPage[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<ChangeSet[]>([]);
@@ -997,12 +996,14 @@ function OperationalWorkspace({
                 onOpen={openSearchDocument}
               />
             )}
-            {location.kind === "document" && location.version !== undefined && !location.anchor && !preview && dataReady && (
+            {location.kind === "document" && (location.version !== undefined || !!location.anchor) && !preview && dataReady && (
               <DocumentSnapshot
                 api={api}
                 identityKey={`${identity.workspaceId}:${identity.principalId}`}
                 pageId={location.document}
                 version={location.version}
+                spaceId={identity.workspaceId}
+                targetAnchor={location.anchor}
                 readAttachment={readAttachment}
               />
             )}
@@ -1484,7 +1485,7 @@ function OperationalWorkspace({
                     </p>
                   </section>
                 )}
-                {tab === "workflows" && !preview && dataReady && !(location.kind === "document" && location.version !== undefined) && (
+                {tab === "workflows" && !preview && dataReady && !(location.kind === "document" && (location.version !== undefined || !!location.anchor)) && (
                   <DocumentComposer mode="edit"
                     principalId={identity.principalId}
                     spaceId={identity.workspaceId}

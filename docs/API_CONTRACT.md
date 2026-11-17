@@ -115,7 +115,7 @@ C3 최종 리뷰 보완: favorite 항목의 호환 추가 `canMoveUp`/`canMoveDo
 
 기존 `historical`은 과거 포함 **조회 모드**이고 `currentRecommendation=false`는 그 모드의 보수적 값이다. additive `isCurrentVersion`은 해당 결과의 실제 최신 버전 여부다. UI는 세 값을 혼동하지 않으며 구형 DTO의 최신 여부는 unknown으로 표시한다. 과거 속성/제목은 당시 snapshot 또는 unknown이며 현재 메타데이터로 채우지 않는다. UI의 날짜·시각 선택은 기기의 현지 시각이며 전송 시 기존 UTC ISO 계약으로 변환한다. 빈 값은 조건을 제외하고 잘못된 날짜·역전 기간은 오류를 표시한다.
 
-`GET /api/v1/versions/pages/{id}/{number}`는 기존 비방문 조회/DTO를 유지하고 `isCurrentVersion`을 추가한다. 실제 고정 문서 route 전체 열기만 `?visit=1`을 사용한다. visit 값은 정확히 하나의 `1`만 허용하며 잘못된 값/중복은 validation 오류다. VersionService의 동일 트랜잭션에서 현재 page/version/metadata 권한 확인 후 기존 문서 열기와 공유하는 `recordDocumentVisit`으로 인증 주체의 최근 방문을 upsert한다. 목록·미리보기·비교·인용·포커스 refresh는 비방문이다. URL에는 공간/문서/버전만 넣고 검색어·제목·본문은 URL/localStorage에 저장하지 않는다. `anchor` 경로는 C9 후속 범위다.
+`GET /api/v1/versions/pages/{id}/{number}`는 기존 비방문 조회/DTO를 유지하고 `isCurrentVersion`을 추가한다. 실제 고정 문서 route 전체 열기만 `?visit=1`을 사용한다. visit 값은 정확히 하나의 `1`만 허용하며 잘못된 값/중복은 validation 오류다. VersionService의 동일 트랜잭션에서 현재 page/version/metadata 권한 확인 후 기존 문서 열기와 공유하는 `recordDocumentVisit`으로 인증 주체의 최근 방문을 upsert한다. 목록·미리보기·비교·인용·포커스 refresh는 비방문이다. URL에는 공간/문서/버전만 넣고 검색어·제목·본문은 URL/localStorage에 저장하지 않는다. `anchor` 경로는 C9의 현재/고정 발행 Reader에서 처리한다.
 
 ## C6 수동 신규 문서의 현재 구현 계약
 
@@ -185,3 +185,12 @@ Authorized GET /api/v1/changesets and /api/v1/changesets/:id add restoreRelation
 Restore preview and exact reviewer detail reproject under current canonical authorization after asynchronous identity refresh. The initial preview projection is pure; only the final authorized projection writes its one receipt. Generic transaction runners and approval/publication writes do not replay.
 
 C8 erasure/retention recognizes targetPageId only at versions.data.linkReferences[] and target_page_id only on published_page_links rows. Source placement hints and arbitrary intake metadata confer no deletion authority. Generic existing page references remain unchanged. Historical canonical target IDs survive content redaction for recovery/hold closure; labels are redacted. Retention projects only these IDs, never private link labels or bodies, and follows historical versions even if the current derived index is empty.
+
+
+## C9 문서 읽기와 부분 위치
+
+- 기존 `GET /api/v1/versions/pages/{id}/{number}`에 더해 `{number}=latest`는 같은 VersionService transaction·현재 문서/원본/상위/계보 인가로 최신 발행본과 기존 `anchors` DTO를 읽는다. 고정 조회는 당시 제목·메타데이터를 유지하고 latest는 인가된 현재 제목을 표시한다. `visit=1`은 최초 실제 열기에만, focus/60초 갱신에는 비방문 조회를 사용한다.
+- 기존 `GET /api/v1/workflows/pages/{id}` 응답에 `anchors`를 추가한다. 기존 기본 방문 계약을 유지하며 `?visit=0`은 현재 인가 재검증만 하고 최근 방문을 갱신하지 않는다. `visit`은 하나의 `0`/`1`만 받는다.
+- URL은 C1 codec의 `space`, `document`, 선택 `version`, 선택 `anchor`를 사용한다. 문서 위치에 hash를 쓰지 않으며 기존 댓글·공유 hash와 혼합을 거부한다. 로그인 복귀에서도 동일 URL을 보존한다.
+- 새 발행 metadata는 기존 `segmentAnchors`의 identity/중복 거부 규칙으로 Markdown top-level 토큰 경계를 저장한다. 최대 1000블록, 끝 범위는 불안정으로 표시한다. 원래 coarse metadata와 metadata가 없는 과거 버전의 legacy fallback은 재작성하지 않는다. 같은 블록은 ID를 유지하고 변경·삭제·모호한 위치는 이동하지 않는다.
+- 새 내부 관계 추출은 표시 renderer와 동일하게 원시 HTML을 제외한다. 일반 Markdown·query/absolute/network 링크의 신뢰 Origin 규칙과 현재 권한 상한은 유지한다. 이미 발행된 `linkReferences`, `Page.links`, provenance, 승인과 버전은 이 변경으로 재작성하지 않는다.

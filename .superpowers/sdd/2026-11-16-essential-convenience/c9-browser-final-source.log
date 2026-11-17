@@ -1,0 +1,62 @@
+[
+  {
+    "width": 1440,
+    "theme": "light",
+    "keyboard": true,
+    "distinctRepeatedHeadings": true,
+    "koreanSearch": 4,
+    "codeCopyDenied": true,
+    "selectableFallback": true,
+    "fixedAndLatest": true,
+    "missingAnchorFailClosed": true,
+    "historicalCurrentAcl": true,
+    "overflow": false,
+    "errors": [],
+    "browserVersion": "158.0.8127.18"
+  },
+  {
+    "width": 1440,
+    "theme": "dark",
+    "keyboard": true,
+    "distinctRepeatedHeadings": true,
+    "koreanSearch": 4,
+    "codeCopyDenied": true,
+    "selectableFallback": true,
+    "fixedAndLatest": true,
+    "missingAnchorFailClosed": true,
+    "historicalCurrentAcl": true,
+    "overflow": false,
+    "errors": [],
+    "browserVersion": "158.0.8127.18"
+  },
+  {
+    "width": 390,
+    "theme": "light",
+    "keyboard": true,
+    "distinctRepeatedHeadings": true,
+    "koreanSearch": 4,
+    "codeCopyDenied": true,
+    "selectableFallback": true,
+    "fixedAndLatest": true,
+    "missingAnchorFailClosed": true,
+    "historicalCurrentAcl": true,
+    "overflow": false,
+    "errors": [],
+    "browserVersion": "158.0.8127.18"
+  },
+  {
+    "width": 390,
+    "theme": "dark",
+    "keyboard": true,
+    "distinctRepeatedHeadings": true,
+    "koreanSearch": 4,
+    "codeCopyDenied": true,
+    "selectableFallback": true,
+    "fixedAndLatest": true,
+    "missingAnchorFailClosed": true,
+    "historicalCurrentAcl": true,
+    "overflow": false,
+    "errors": [],
+    "browserVersion": "158.0.8127.18"
+  }
+]
