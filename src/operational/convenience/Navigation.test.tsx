@@ -680,3 +680,13 @@ test("a current review qualification denial hides evaluation even with approval 
       .some((item) => item.id === "evaluation"),
   ).toBe(false);
 });
+test("global search route replaces its pending screen and opens keyboard quick search",async()=>{
+ const paths:string[]=[];
+ const container=await mount("/?app=1&space=team&section=search",path=>{paths.push(path);return {items:[],nextCursor:null,asof:"2026-11-01T00:00:00Z"};});
+ expect(container.querySelector('[aria-label="전역 키워드 검색"]')).not.toBeNull();
+ expect(container.textContent).not.toContain("이 화면은 아직 연결되지 않았습니다");
+ const trigger=Array.from(container.querySelectorAll("button")).find(b=>b.getAttribute("aria-haspopup")==="dialog" && b.textContent?.includes("검색"));
+ expect(trigger).toBeDefined();await act(async()=>trigger!.click());
+ expect(container.querySelector('[role="combobox"]')).not.toBeNull();
+ expect(paths).not.toContain("/questions/threads");
+});

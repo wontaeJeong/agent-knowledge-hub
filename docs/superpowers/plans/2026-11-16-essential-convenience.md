@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, React 19.3.1, Vite 8.3.5, Node `^22.12.0 || ^24.0.0`, npm `>=10`, PostgreSQL, existing marked/DOMPurify/Vitest. 기존 package-lock을 유지하고 의존성을 추가하기 전에 필요성을 확인한다.
 
-**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 로컬 구현·검증과 실제 화면 증거를 기록했으나 독립 리뷰·원격 CI·PR·main 병합은 대기다. 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
+**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 [PR #69](https://github.com/wontaeJeong/agent-knowledge-hub/pull/69), main `d4048bd`에 병합됐고 최종 소스 `d4bb97f`의 CI `44019161055` 필수 8개 검사와 독립 리뷰를 통과했다. C5 / Task 5는 로컬 구현·검증·커밋을 완료했으며 독립 리뷰·원격 CI·PR·main 병합은 대기다. 그 외 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
 
 ## Global Constraints
 
@@ -36,15 +36,17 @@
 | C1 / 1 | PR #30 통합 확인 | 호환 경로·권한별 사용자 메뉴 기반 | 전체 |
 | C2 / 2 | C1 | 전역 알림함과 안전한 읽음/보관/이벤트 | UXC-01 |
 | C3 / 3 | C1 | 즐겨찾기·최근·구독 목록 | UXC-02 |
-| C4 / 4 | C2,C3 | 위키 중심 개인 홈·내 작업함 | UXC-05 |
 | C5 / 5 | C1 | 전역 검색·빠른 열기 | UXC-03 |
 | C6 / 6 | C1,C5 | 새 개인 문서 작성부터 최초 검토/발행 | UXC-04 |
+| C4 / 4 | C2,C3,C6 | 위키 중심 개인 홈·내 작업함 | UXC-05 |
 | C7 / 7 | C3,C6 | 트리·경로·이동·복제 | UXC-06 |
 | C8 / 8 | C5,C6,C7 | 내부 링크 자동완성·백링크 | UXC-07 |
 | C9 / 9 | C1,C6 | 목차·본문 검색·부분 링크·코드 복사 | UXC-08 |
 | C10 / 10 | C6,C7 | 속성 폼·일괄 미리보기/실행 | UXC-09 |
 | C11 / 11 | C3,C5 | 개인 저장 보기 | UXC-10 |
 | C12 / 12 | C1~C11 | 모든 동선의 통합·권한·회귀 인수 기록 | 전체 |
+
+현재 실행 순서는 **C1 → C2 → C3 → C5 → C6 → C4 → C7 → C8 → C9 → C10 → C11 → C12**다. C4 홈의 compose·draft 정확한 이어가기는 C6 Composer와 pageId 없는 새 초안 복구가 필요하다. 현재 WorkflowPanel은 initialDraftId를 받지 않고 pageId 없는 resume도 비활성화하므로 C4는 C6에서 실제 새 초안 재개가 연결된 뒤 진행한다. 요구사항·251개 기준·North Star·작업 범위는 바꾸지 않는다.
 
 독립 단위의 진행 순서는 조정할 수 있지만 같은 파일을 동시 수정하지 않는다. 각 PR 종료 시 해당 요구사항·변경 파일·검증·남은 조건을 인계 문서에 기록한다. 이 문서는 병렬 실행을 자동 승인하거나 이미 실행했다고 선언하지 않는다.
 
@@ -82,17 +84,17 @@
 
 **Interfaces:** Consumes `WorkflowService.activity`, `favorite`, `subscribe`, authorized document reads and Task 1 route helpers. Produces `PersonalLibraryService.list(ctx,{kind,cursor,limit}):Promise<LibraryPage>`, `documentState(ctx,pageId):Promise<{favorite:boolean,subscribed:boolean}>`, `reorderFavorites(ctx,{pageIds,expectedRevision,mutationId})`. Extend existing `/workflows/favorites|recent` compatibly and add `/workflows/subscriptions`.
 
-- [ ] Add failures for pagination, duplicate visits, no visit on search rendering, access removal including hidden ancestors, current state toggles, reordered list conflict and account-switch response isolation.
-- [ ] Run `node scripts/test-server.mjs server/convenience/personal.test.ts` and `npx vitest run src/operational/convenience/personal.test.tsx` and verify intended failures.
-- [ ] Implement current-ACL list queries, 25-item cursors and favorite order CAS using existing activity/preferences storage. Wire sidebar/home-friendly lists and actual document-open visit recording.
-- [ ] Run focused tests plus workflow/API regressions. Verify keyboard reorder and mobile navigation, screenshots and no hidden title/count persistence.
-- [ ] Commit `feat: connect personal document lists` with evidence.
+- [x] Add failures for pagination, duplicate visits, no visit on search rendering, access removal including hidden ancestors, current state toggles, reordered list conflict and account-switch response isolation.
+- [x] Run `node scripts/test-server.mjs server/convenience/personal.test.ts` and `npx vitest run src/operational/convenience/personal.test.tsx` and verify intended failures.
+- [x] Implement current-ACL list queries, 25-item cursors and favorite order CAS using existing activity/preferences storage. Wire sidebar/home-friendly lists and actual document-open visit recording.
+- [x] Run focused tests plus workflow/API regressions. Verify keyboard reorder and mobile navigation, screenshots and no hidden title/count persistence.
+- [x] Commit `feat: connect personal document lists` with evidence.
 
 ## Task 4: 개인 홈·내 작업함
 
 **Files:** Create `server/convenience/home.ts`, `home.test.ts`, `src/operational/convenience/Home.tsx`, `MyTasks.tsx`, `home.test.tsx`; Modify `server/convenience/http.ts`, `src/operational/App.tsx`, `console.ts`, `Overview.tsx`.
 
-**Interfaces:** Consumes Tasks 1~3, existing workflow drafts/governance review inbox/changesets/jobs and PR #30 discovery links. Produces `HomeService.read(ctx:Context):Promise<HomeSummary>` where each widget has `status:'ready'|'error'`, `items`, `nextCursor`; successful empty differs from failed. GET `/convenience/home` uses only the authenticated person's permitted records.
+**Interfaces:** Consumes Tasks 1~3 and Task 6 exact Composer/page-less draft resume, existing workflow drafts/governance review inbox/changesets/jobs and PR #30 discovery links. Produces `HomeService.read(ctx:Context):Promise<HomeSummary>` where each widget has `status:'ready'|'error'`, `items`, `nextCursor`; successful empty differs from failed. GET `/convenience/home` uses only the authenticated person's permitted records.
 
 - [ ] Add failures for own vs other drafts/requests/jobs, assigned vs permitted review, capability changes, one widget error, exact resume links and read-not-equal-complete.
 - [ ] Run server `home.test.ts` and client `home.test.tsx` red checks.
@@ -106,11 +108,11 @@
 
 **Interfaces:** Consumes Task 1 and existing POST `/api/v1/questions/search`. Produces `normalizeSearchFilters(input:unknown):SearchFilters`, `searchDocuments(api,filters,{limit,cursor,signal}):Promise<SearchPage>` and `QuickOpen({api,onOpen,onClose})`; reuse one validated filter schema. Fast title results 10, detail results 25.
 
-- [ ] Add failures for IME composition, 200ms debounce, late old responses, cursor bound to principal/space/filter, denied snippets/counts, model disconnected, keyboard open/navigate/select/escape/focus return and default exclusion of past/non-current versions.
-- [ ] Run `npx vitest run src/operational/convenience/search.test.tsx` and focused search DB tests to establish red.
-- [ ] Implement common keyword search binding, safe snippets, combobox/listbox and filter UI. Keep explicit historical mode and do not auto-submit a model question.
-- [ ] Run search/service/API regressions plus a browser Korean IME and keyboard walkthrough at 1440/390. Record limitations of semantic quality separately.
-- [ ] Commit `feat: add global search and quick document opening`.
+- [x] Add failures for IME composition, 200ms debounce, late old responses, cursor bound to principal/space/filter, denied snippets/counts, model disconnected, keyboard open/navigate/select/escape/focus return and default exclusion of past/non-current versions.
+- [x] Run `npx vitest run src/operational/convenience/search.test.tsx` and focused search DB tests to establish red.
+- [x] Implement common keyword search binding, safe snippets, combobox/listbox and filter UI. Keep explicit historical mode and do not auto-submit a model question.
+- [x] Run search/service/API regressions plus a browser Korean IME and keyboard walkthrough at 1440/390. Record limitations of semantic quality separately.
+- [x] Commit `feat: add global search and quick document opening`.
 
 ## Task 6: 신규 문서와 작성기
 

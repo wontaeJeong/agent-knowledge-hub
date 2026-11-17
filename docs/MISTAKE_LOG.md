@@ -980,3 +980,23 @@
 - 조치: canonical move와 기존 reorder를 한 private primitive로 모으고 현재 authorized 인접 이웃/CAS/receipt와 fresh target cursor를 연결했다. 현재 전역 방향 flags만 노출하고 보호 이웃ID/옛cursor는 저장하지 않는다. C2 현재 DOM focus helper를 공용화/compat wrapper로 보존해 ordinary 제거·empty/error·outside intent와 이전 지연I1/I2를 함께 처리한다.141은 미변경이다.
 - 준비 실패: 확장 capture helper에서 기존 const down과 새 cross-page down을 같은 scope에 선언해 node --check SyntaxError가1회 났다. 제품/browser 시험 전 helper의 local 이름만 crossDown으로 바꾸어 syntax check를 통과했다. 행동 RED나 제품 실패로 바꾸지 않았다.
 - 검증: 집중5UI파일100pass(C2inbox31), 최종 onecheck363/48/16/41/251+types/build/smoke exit0, 영향native13파일162pass exit0. 실제4config24PNG에서26→25→26 persisted/focus, 실제ACL제거/empty/실제capacity409 error·외부intent, 기존지연/theme/nonvisit/no-storage 모두 pass.18-file manifest가 전체 변경 product 집합과 일치함을 비교했다. 현재 소스의 새로운 원격CI·ONE scoped 재리뷰·병합은 별도 미완료이며 이전47da8green을 대신 사용하지 않는다.
+
+### 2026-11-17 — C5 검색·빠른 열기의 경계와 합성 검증 가정 정정
+
+- 맥락/관련 PR: C5 / UXC-03, 격리 worktree `8ef7`, 기준 main `d4048bd`. 독립 리뷰·원격 CI·PR·병합은 별도 대기다.
+- 사실과 영향: 검색모드 `historical`을 실제 이전 버전 여부로 읽어 최신 결과도 과거라고 표시할 수 있었다. controller가 실제 `ScopedSearch` 할당을 지적했고 native/UI RED로 재현했다. additive `isCurrentVersion`과 권고 여부를 분리해 표시하고 기존 historical/currentRecommendation 의미를 보존한다. 신규 기간 UI의 ISO 직접 입력도 날짜·시각 선택과 명시적 현지 시각→UTC 변환으로 보완했다. API 필드/기본값/최대100은 유지하며 역전·잘못된 날짜는 오류다.
+- 조치 및 재발 방지: 제목 우선 정렬은 기존 전체 허용 후보에서 먼저 계산하고 동일 rank/time/id/version 키로 cursor를 이어간다. 페이지 뒤 재정렬을 하지 않는다. 새 검색의 즉시 무효화·AbortSignal·IME 200ms debounce·현재 DOM focus 복구와 외부 이동 no-steal을 추가했다. search/preview는 비방문이고 실제 현재/고정 본문 열기만 공통 recent upsert를 사용한다. applied SQL·권한·publication hook은 바꾸지 않았다.
+- 검증 중 setup 실패: 최초 앱 통합 fixture가 `/pages`에 `{items}` 대신 배열을 반환해 `pages.filter` 오류가 났다. 실제 DTO로 정정한 뒤 기대한 미연결 검색 RED를 확인했다. 브라우저 harness는 native select도 combobox라 최초 locator가3개를 잡았고, 현재 문서 heading의 `· v1`을 누락해 다음 실행이 timeout됐다. 선택자를 실제 이름/버전으로 한정했다. 빈 상태 wait의 부모 범위도 실제 검색 section으로 정정했다. 모두 합성 harness 문제이며 제품 성공으로 바꾸지 않는다.
+- 합성 runtime 최초 시작 실패: 이미 별도 트랜잭션에서 만들어진 fixture v1에 publication metadata hook을 호출해 `VERSION_METADATA_OUTSIDE_PUBLICATION`이 발생했다. 새 합성 history page를 같은 트랜잭션에서 insert/capture하는 정상 계약으로 수정했고 실패 시 자기 DB를 정리하는 catch를 추가했다. 실패 시작의 명시적 소유 DB `akh_c5_ui_cd81f743fa604e509afc01aa45fc2f5a`는 확인 후 삭제했다. 공유 DB/다른 서비스는 변경하지 않았다.
+- 실제 IME 관찰: Chromium CDP `Input.imeSetComposition`은 trusted compositionstart/update/input과 조합중 요청0을 만들었지만 `Input.insertText` 완료의 compositionend는 isTrusted=false였다. all-trusted 가정의 assertion은 실패했다. event를 JS로 꾸미지 않고 실제 관찰값을 보존하며 CDP 에뮬레이션/OS IME 미검증으로 한계를 표시한다. primary CDP/Playwright 문서와 설치된 protocol 타입을 확인했다.
+- 비제품 탐색 실수: 존재하지 않는 `vitest.config.*` glob, 잘못된 plan prefix/예상 파일명, 원본 cwd에서 worktree 로그를 조회한 miss를 묶어 기록한다. controller 준비 메모의 `server/questions/types.ts` 미존재 rg exit2는 실제 search.ts로 정정됐다. 이전 C3 CI jobs query의 empty 응답 raw가 남아 있지 않아 그 응답에서 성공을 추론하지 않았고 재조회 결과로만 확인한 이력도 보존한다. 제품 영향은 없다.
+- 검증: 의도한 기능 RED와 실제 setup 실패를 `.superpowers/sdd/2026-11-16-essential-convenience/logs/c5-*` 및 task-5-report에 구분해 기록한다. 최종 검사/브라우저 결과는 인계와 C5 화면 README를 따른다. 기존 Vite 큰 청크 경고는 범위 밖 부채로 유지한다.
+- 상태/후속 작업: 로컬 수정·검증 진행 중. 실제 IdP/사내 자료·OS/다른 브라우저 IME·운영 부하·의미 품질·지식/에이전트 성과는 미검증이다.
+
+- C5 최종 전체 검사 첫 실행은 앞선 테스트/요구사항/서버 타입 단계 이후 build의 tsc에서 새 history-label fixture의 metadataStatus:string 추론 때문에 TS2322로 실패했다. 실제 SearchItem 반환형을 fixture에 명시해 데이터 계약을 보존했다. 제품 타입/필드를 느슨하게 하지 않았다. 이 새 실패의 해소를 확인하기 위해 전체 check를 한 번 재실행하며 최초 exit1도 별도 보존한다.
+
+- C5 최종 artifact 대조에서 filters PNG가 없음을 확인했다. harness의 문맥 문자열 치환이 formatter 이후 줄과 맞지 않아 날짜 assertion 삽입이 적용되지 않았는데, 결과 상수 datetimeLocalToUtc는 먼저 추가되어 있었다. 이 결과를 날짜 브라우저 증거로 인수하지 않았다. 치환 대상 개수 assert와 실제 날짜 선택/정본 POST의 UTC 값 assertion·filters 캡처를 넣어 재수집한다. 제품 bytes는 동일하므로 native/전체 check를 반복하지 않는다. 최초 filters 이미지 조회 실패도 이 누락에 해당한다.
+
+- C5 self-review는 Ctrl/Cmd+K 제외 selector가 contenteditable="true"/role=dialog만 처리해 bare/plaintext-only editable·alertdialog·native dialog[open]의 입력 소유권을 가로챌 수 있음을 발견했다. 각 경우 RED4(21개 중4fail)로 재현하고 selector를 해당 현재 DOM 소유자까지 확장했다. backend bytes는 유지하며 UI 변경 뒤 집중 GREEN·최종 전체check와 실제 DOM 입력 소유권을 포함한 final3 캡처로 다시 검증한다. 이미 실행한 backend106 native는 반복하지 않는다.
+
+- C5 최종 상태: 집중21 GREEN, 최종 전체check exit0(frontend385/Node48/import16/evaluation41/251/servertypes/build/smoke), backend 동일 영향10파일106시험 exit0. source16 SHA12c71efcdae7809629aadabda5f019b50093755cde11516107bcb61660017bb3의 실제 final3 browser 네 조건28PNG/JSON이 exit0이다. 중간 commentary의 frontend380은 실제 최초 check/retry381 집계 오타이며 최종385로 대체 집계하지 않고 각각 구분한다. cleanup 때 sandbox ps 조회는 operation not permitted로 실패했고, 승인된 require_escalated 읽기로 자기 PID/명령을 확인한 뒤 자기 runtime/Vite만 종료했다. 소유 DB0개·4395/5195닫힘을 확인했다. 기존 chunk 경고와 운영/의미/OS IME 인수 한계는 그대로다.

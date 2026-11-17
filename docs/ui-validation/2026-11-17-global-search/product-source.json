@@ -1,0 +1,42 @@
+{
+  "sha256": "12c71efcdae7809629aadabda5f019b50093755cde11516107bcb61660017bb3",
+  "algorithm": "SHA256 of sorted relative path + NUL + bytes + NUL",
+  "base": "d4048bda1c93f1951b26a8e33c6d1e7737a4def7",
+  "files": [
+    "server/questions/search.ts",
+    "server/workflows/activity.ts",
+    "server/workflows/service.ts",
+    "server/workflows/versions/http.ts",
+    "server/workflows/versions/service.ts",
+    "src/domain/search-filters.ts",
+    "src/operational/App.tsx",
+    "src/operational/ConsoleShell.tsx",
+    "src/operational/api.ts",
+    "src/operational/convenience/DocumentSnapshot.tsx",
+    "src/operational/convenience/QuickOpen.tsx",
+    "src/operational/convenience/SearchPage.tsx",
+    "src/operational/convenience/SearchResults.tsx",
+    "src/operational/convenience/search-client.ts",
+    "src/operational/convenience/search.css",
+    "src/operational/questions.tsx"
+  ],
+  "fileHashes": {
+    "server/questions/search.ts": "f2a23f1f0832d15ddd539e2fca611773094a08d1220d1579189ce56988efbb71",
+    "server/workflows/activity.ts": "5114c361920f8ff83e5dddd4aa3c9fbbcc0cd2d28aa95c184f74878ef182ba1c",
+    "server/workflows/service.ts": "424f5516ec1932a9ced201e152e502f4e1b67c0f9d0d447f20dc091a06459046",
+    "server/workflows/versions/http.ts": "e0f141a852b87a2480b0a9f86996e63222bd103e51cc3b36f85ea171d8354487",
+    "server/workflows/versions/service.ts": "e7c9aa219b284022ea3aca98408f936e58eaefca21bc5cf9f7f6ff7357a65ebe",
+    "src/domain/search-filters.ts": "ca8aee6ae560267cca59dba3b121beac12c47609ff6a809e51792b307a799f03",
+    "src/operational/App.tsx": "b4045723132aef9d563902fe1305359ad178995a85ac8ec3c79c4758e8d57557",
+    "src/operational/ConsoleShell.tsx": "6e2b3f37fef4dd65d8cd911704cbdb04845bb6ec1dd0986c8c1a1e1968a639ae",
+    "src/operational/api.ts": "6dcbbdabf648a40cd9d49e2bfba17f34f580ccea2413ac44bd38a3fd8bf3e5fe",
+    "src/operational/convenience/DocumentSnapshot.tsx": "698256bbfbfed4f961fbd1e05b269c2b1a656e59ec26b26d9723e9e4743fa184",
+    "src/operational/convenience/QuickOpen.tsx": "046334624fa104f1d06d16eeefcee2448defe08b022bd2c818bca4ff00282ea5",
+    "src/operational/convenience/SearchPage.tsx": "93558e37c7441f78f155a67105f10cb8fce506703a8a3d0a0ac7f4f0a3a5d614",
+    "src/operational/convenience/SearchResults.tsx": "797c7a5adc59442d8e186e92c3059b3aaf77796728ba420b209f087a51942176",
+    "src/operational/convenience/search-client.ts": "36c97e6cfc90f2e36f786635c6fd9b920e7286dbe5159c3c57006f8ef50e5b62",
+    "src/operational/convenience/search.css": "3d7024872dfd51b81fe5e93f15bc981f49d1ca9607a200c55bbd5834c9db6897",
+    "src/operational/questions.tsx": "1331aaa015c74305973d5f783599e6e085b80cf0ce1f5c232e074d0b872222bb"
+  },
+  "captureHarnessSha256": "01dc47dad447ad7444b944ffd0bb6e8056ca0eacb01f7c5465ac59832fe2b61e"
+}

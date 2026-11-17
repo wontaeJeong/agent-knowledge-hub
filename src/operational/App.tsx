@@ -1,3 +1,7 @@
+import { DocumentSnapshot } from "./convenience/DocumentSnapshot";
+import { GlobalSearch } from "./convenience/QuickOpen";
+import { SearchPage } from "./convenience/SearchPage";
+import type { SearchItem } from "./convenience/search-client";
 import { PersonalLibrary } from "./convenience/PersonalLibrary";
 import { NotificationBell } from "./convenience/NotificationBell";
 import { NotificationInbox } from "./convenience/NotificationInbox";
@@ -374,6 +378,26 @@ function OperationalWorkspace({
       window.removeEventListener("popstate", onLocation);
     };
   }, [location, spaceId, onRestoreSpace, preview]);
+  const openSearchDocument = (item: SearchItem) => {
+    if (
+      !identity ||
+      !window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))
+    ) return false;
+    const next: ConvenienceLocation = {
+      kind: "document",
+      spaceId: identity.workspaceId,
+      document: item.pageId,
+      ...(item.historical ? { version: item.version } : {}),
+    };
+    setLocation(next);
+    setTab("workflows");
+    window.history.pushState(null, "", convenienceHref(next));
+    requestAnimationFrame(() => {
+      document.getElementById("op-main")?.focus();
+      window.scrollTo(0, 0);
+    });
+    return true;
+  };
   const target =
     location.kind === "section" &&
     location.section === "tasks" &&
@@ -381,9 +405,8 @@ function OperationalWorkspace({
       ? location
       : undefined;
   const pendingDestination =
-    (location.kind === "section" && !target && !["favorites","recent","subscriptions"].includes(location.section)) ||
-    (location.kind === "document" &&
-      (location.version !== undefined || !!location.anchor));
+    (location.kind === "section" && !target && !["favorites","recent","subscriptions","search"].includes(location.section)) ||
+    (location.kind === "document" && !!location.anchor);
   const [pages, setPages] = useState<PublishedPage[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<ChangeSet[]>([]);
@@ -801,6 +824,16 @@ function OperationalWorkspace({
       tab={tab}
       navigate={navigate}
       identity={identity}
+      globalSearch={
+        identity && !preview && dataReady ? (
+          <GlobalSearch
+            api={api}
+            identityKey={`${identity.workspaceId}:${identity.principalId}`}
+            onOpen={openSearchDocument}
+            onSearch={() => navigate("search")}
+          />
+        ) : undefined
+      }
       notificationBell={
         identity && !preview ? (
           <NotificationBell
@@ -921,6 +954,22 @@ function OperationalWorkspace({
                   onNavigate={() => window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))}
                 />
               )}
+            {location.kind === "section" && location.section === "search" && !preview && dataReady && (
+              <SearchPage
+                api={api}
+                identityKey={`${identity.workspaceId}:${identity.principalId}`}
+                onOpen={openSearchDocument}
+              />
+            )}
+            {location.kind === "document" && location.version !== undefined && !location.anchor && !preview && dataReady && (
+              <DocumentSnapshot
+                api={api}
+                identityKey={`${identity.workspaceId}:${identity.principalId}`}
+                pageId={location.document}
+                version={location.version}
+                readAttachment={readAttachment}
+              />
+            )}
             {pendingDestination && (
               <section className="op-panel">
                 <h2>
@@ -1396,7 +1445,7 @@ function OperationalWorkspace({
                     </p>
                   </section>
                 )}
-                {tab === "workflows" && !preview && dataReady && (
+                {tab === "workflows" && !preview && dataReady && !(location.kind === "document" && location.version !== undefined) && (
                   <WorkflowPanel
                     principalId={identity.principalId}
                     spaceId={identity.workspaceId}

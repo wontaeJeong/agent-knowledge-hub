@@ -9,7 +9,7 @@ export async function handleVersionRoute(input:{method:string;path:string;body:u
  if(method==="GET"){
   if(route==="/bundles")return reply(await service.bundles(ctx,offset));
   const p=route.match(/^\/pages\/([a-zA-Z0-9_-]{1,100})\/(history|metadata-events|\d+)$/);
-  if(p)return reply(p[2]==="history"?await service.history(ctx,p[1],offset):p[2]==="metadata-events"?await service.metadataHistory(ctx,p[1],offset):await service.version(ctx,p[1],z.coerce.number().int().positive().parse(p[2])));
+  if(p)return reply(p[2]==="history"?await service.history(ctx,p[1],offset):p[2]==="metadata-events"?await service.metadataHistory(ctx,p[1],offset):await service.version(ctx,p[1],z.coerce.number().int().positive().parse(p[2]),{recordVisit:z.array(z.literal("1")).max(1).parse(input.query?.getAll("visit")??[]).length===1}));
  }
  if(method==="POST"){
   const p=route.match(/^\/pages\/([a-zA-Z0-9_-]{1,100})\/compare$/);

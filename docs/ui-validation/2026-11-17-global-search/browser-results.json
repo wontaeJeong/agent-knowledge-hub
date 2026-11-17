@@ -1,0 +1,342 @@
+[
+  {
+    "width": 1440,
+    "theme": "light",
+    "browser": "158.0.8127.18",
+    "themeVerified": "light",
+    "quickCount": 10,
+    "detailCount": 25,
+    "imeNativeCompositionStartUpdate": true,
+    "commitEventTrusted": false,
+    "imeMethod": "Chromium CDP Input.imeSetComposition + Input.insertText; no OS IME",
+    "ime": [
+      {
+        "type": "compositionstart",
+        "data": "",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionend",
+        "data": "코드_retry",
+        "trusted": false,
+        "composing": null
+      }
+    ],
+    "keyboardTrap": true,
+    "escapeFocusReturn": true,
+    "activeResultVisible": true,
+    "datetimeLocalToUtc": true,
+    "shortcutOtherOwnerPreserved": true,
+    "historicalRows": {
+      "currentVersion": 2,
+      "oldVersion": 1
+    },
+    "timezone": "Asia/Seoul",
+    "exactCurrentOpen": true,
+    "exactHistoricalOpen": true,
+    "lateRealResponseBlocked": true,
+    "historicalDefaultExcluded": true,
+    "searchNonvisit": true,
+    "snapshotVisitOneRow": true,
+    "focusRefreshNonvisit": true,
+    "staleCursorCleared": true,
+    "sourceAclEmpty": true,
+    "noModelOrQuestionPosts": true,
+    "noExternalRequests": true,
+    "noSensitiveStorage": true,
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "theme": "dark",
+    "browser": "158.0.8127.18",
+    "themeVerified": "dark",
+    "quickCount": 10,
+    "detailCount": 25,
+    "imeNativeCompositionStartUpdate": true,
+    "commitEventTrusted": false,
+    "imeMethod": "Chromium CDP Input.imeSetComposition + Input.insertText; no OS IME",
+    "ime": [
+      {
+        "type": "compositionstart",
+        "data": "",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionend",
+        "data": "코드_retry",
+        "trusted": false,
+        "composing": null
+      }
+    ],
+    "keyboardTrap": true,
+    "escapeFocusReturn": true,
+    "activeResultVisible": true,
+    "datetimeLocalToUtc": true,
+    "shortcutOtherOwnerPreserved": true,
+    "historicalRows": {
+      "currentVersion": 2,
+      "oldVersion": 1
+    },
+    "timezone": "Asia/Seoul",
+    "exactCurrentOpen": true,
+    "exactHistoricalOpen": true,
+    "lateRealResponseBlocked": true,
+    "historicalDefaultExcluded": true,
+    "searchNonvisit": true,
+    "snapshotVisitOneRow": true,
+    "focusRefreshNonvisit": true,
+    "staleCursorCleared": true,
+    "sourceAclEmpty": true,
+    "noModelOrQuestionPosts": true,
+    "noExternalRequests": true,
+    "noSensitiveStorage": true,
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "theme": "light",
+    "browser": "158.0.8127.18",
+    "themeVerified": "light",
+    "quickCount": 10,
+    "detailCount": 25,
+    "imeNativeCompositionStartUpdate": true,
+    "commitEventTrusted": false,
+    "imeMethod": "Chromium CDP Input.imeSetComposition + Input.insertText; no OS IME",
+    "ime": [
+      {
+        "type": "compositionstart",
+        "data": "",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionend",
+        "data": "코드_retry",
+        "trusted": false,
+        "composing": null
+      }
+    ],
+    "keyboardTrap": true,
+    "escapeFocusReturn": true,
+    "activeResultVisible": true,
+    "datetimeLocalToUtc": true,
+    "shortcutOtherOwnerPreserved": true,
+    "historicalRows": {
+      "currentVersion": 2,
+      "oldVersion": 1
+    },
+    "timezone": "Asia/Seoul",
+    "exactCurrentOpen": true,
+    "exactHistoricalOpen": true,
+    "lateRealResponseBlocked": true,
+    "historicalDefaultExcluded": true,
+    "searchNonvisit": true,
+    "snapshotVisitOneRow": true,
+    "focusRefreshNonvisit": true,
+    "staleCursorCleared": true,
+    "sourceAclEmpty": true,
+    "noModelOrQuestionPosts": true,
+    "noExternalRequests": true,
+    "noSensitiveStorage": true,
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "theme": "dark",
+    "browser": "158.0.8127.18",
+    "themeVerified": "dark",
+    "quickCount": 10,
+    "detailCount": 25,
+    "imeNativeCompositionStartUpdate": true,
+    "commitEventTrusted": false,
+    "imeMethod": "Chromium CDP Input.imeSetComposition + Input.insertText; no OS IME",
+    "ime": [
+      {
+        "type": "compositionstart",
+        "data": "",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionupdate",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": null
+      },
+      {
+        "type": "input",
+        "data": "코드_retry",
+        "trusted": true,
+        "composing": true
+      },
+      {
+        "type": "compositionend",
+        "data": "코드_retry",
+        "trusted": false,
+        "composing": null
+      }
+    ],
+    "keyboardTrap": true,
+    "escapeFocusReturn": true,
+    "activeResultVisible": true,
+    "datetimeLocalToUtc": true,
+    "shortcutOtherOwnerPreserved": true,
+    "historicalRows": {
+      "currentVersion": 2,
+      "oldVersion": 1
+    },
+    "timezone": "Asia/Seoul",
+    "exactCurrentOpen": true,
+    "exactHistoricalOpen": true,
+    "lateRealResponseBlocked": true,
+    "historicalDefaultExcluded": true,
+    "searchNonvisit": true,
+    "snapshotVisitOneRow": true,
+    "focusRefreshNonvisit": true,
+    "staleCursorCleared": true,
+    "sourceAclEmpty": true,
+    "noModelOrQuestionPosts": true,
+    "noExternalRequests": true,
+    "noSensitiveStorage": true,
+    "overflow": false,
+    "errors": []
+  }
+]

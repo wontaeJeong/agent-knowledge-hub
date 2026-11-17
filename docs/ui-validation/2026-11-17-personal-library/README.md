@@ -13,7 +13,7 @@
 | 문서 상태 | `document-state-<width>-<theme>.png` | 실제 문서 열기 후 서버 현재 즐겨찾기 해제/추가 readback |
 | 권한 철회 | `revoked-<width>-<theme>.png` | 실제 원본 reader 철회 뒤 현재 목록에서 합성 제목 제거, local/sessionStorage 미보관 |
 
-[브라우저 assertion 결과](browser-results.json)는 네 조건 모두 `errors:[]`, overflow false, pagination25→3, 키보드/끝 초점·모바일 이동·토글·non-visit·현재 ACL·미보관 true다. 대표 desktop/light와 mobile/dark PNG를 실제로 열어 가독성·제어·초점을 확인했다. 이 캡처는 현재 viewport이며 25행 전체를 한 이미지에 축소하지 않았다. 로딩/오류와 account/space/API 교체 및 pending mutation 경합은 별도 UI/native 회귀로 검증했다.
+[브라우저 assertion 결과](browser-results.json)는 네 조건 모두 `errors:[]`, overflow false, pagination25→1, 키보드/끝 초점·모바일 이동·토글·non-visit·현재 ACL·미보관 true다. 대표 desktop/light와 mobile/dark PNG를 실제로 열어 가독성·제어·초점을 확인했다. 이 캡처는 현재 viewport이며 25행 전체를 한 이미지에 축소하지 않았다. 로딩/오류와 account/space/API 교체 및 pending mutation 경합은 별도 UI/native 회귀로 검증했다.
 
 재현(지원 Node24, 별도의 disposable `TEST_DATABASE_URL`을 설정):
 

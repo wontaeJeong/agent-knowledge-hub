@@ -38,35 +38,8 @@ export type MetadataReader = (
   pageId: string,
   version: number,
 ) => Promise<SearchMetadata | null>;
-const text = z.string().trim().min(1).max(200);
-export const searchFilters = z
-  .object({
-    query: z.string().trim().max(2000).default(""),
-    type: text.optional(),
-    businessOwner: text.optional(),
-    tags: z.array(text).max(20).default([]),
-    state: text.optional(),
-    reviewDateFrom: z.iso.datetime().optional(),
-    reviewDateTo: z.iso.datetime().optional(),
-    periodFrom: z.iso.datetime().optional(),
-    periodTo: z.iso.datetime().optional(),
-    project: text.optional(),
-    environment: text.optional(),
-    archived: z.boolean().optional(),
-    historical: z.boolean().default(false),
-    limit: z.number().int().min(1).max(100).default(25),
-    cursor: z.string().max(4000).nullable().optional(),
-  })
-  .strict()
-  .refine(
-    (f) =>
-      (!f.periodFrom ||
-        !f.periodTo ||
-        Date.parse(f.periodFrom) <= Date.parse(f.periodTo)) &&
-      (!f.reviewDateFrom ||
-        !f.reviewDateTo ||
-        f.reviewDateFrom <= f.reviewDateTo),
-  );
+export { searchFilters } from "../../src/domain/search-filters";
+import { searchFilters } from "../../src/domain/search-filters";
 type Item = {
   pageId: string;
   version: number;
@@ -79,12 +52,18 @@ type Item = {
   unknownMetadataKeys: string[];
   historical: boolean;
   currentRecommendation: boolean;
+  isCurrentVersion: boolean;
   href: string;
 };
-type Key = [string, string, number];
-const key = (item: Item): Key => [item.at, item.pageId, item.version];
+type Key = [number, string, string, number];
+// Rank the full authorized corpus before slicing. The same key drives continuation.
+const key = (item: Item, query: string, sort: string): Key => {
+  const title = item.title?.toLocaleLowerCase() ?? "";
+  const rank = sort !== "title" || !query ? 0 : title === query ? 0 : title.startsWith(query) ? 1 : title.includes(query) ? 2 : 3;
+  return [rank, item.at, item.pageId, item.version];
+};
 function compare(a: Key, b: Key) {
-  return b[0].localeCompare(a[0]) || a[1].localeCompare(b[1]) || b[2] - a[2];
+  return a[0] - b[0] || b[1].localeCompare(a[1]) || a[2].localeCompare(b[2]) || b[3] - a[3];
 }
 export class ScopedSearch {
   private readonly secret = randomBytes(32);
@@ -118,7 +97,7 @@ export class ScopedSearch {
           scope: z.string(),
           revision: z.string(),
           asof: z.iso.datetime(),
-          last: z.tuple([z.string(), z.string(), z.number()]),
+          last: z.tuple([z.number(), z.string(), z.string(), z.number()]),
           expires: z.number(),
         })
         .strict()
@@ -363,6 +342,7 @@ export class ScopedSearch {
                 metadata[k as keyof SearchMetadata] === null,
             ),
             historical: filters.historical,
+            isCurrentVersion: version.number === current(page).number,
             currentRecommendation: filters.historical ? false : recommendation,
             href: `/api/v1/pages/${encodeURIComponent(page.id)}/versions/${version.number}`,
           });
@@ -375,12 +355,13 @@ export class ScopedSearch {
           throw e;
       }
     }
-    items.sort((a, b) => compare(key(a), key(b)));
+    const itemKey = (item: Item) => key(item, foldedQuery, filters.sort);
+    items.sort((a, b) => compare(itemKey(a), itemKey(b)));
     revision = fingerprint({ base: revision, items });
     if (old && old.revision !== revision) throw Error("STALE_CURSOR");
     // Immutable snapshot metadata is part of the index revision, even when supplied by a host adapter.
     const accessible = old
-      ? items.filter((i) => compare(key(i), old.last) > 0)
+      ? items.filter((i) => compare(itemKey(i), old.last) > 0)
       : items;
     const page = all
       ? accessible
@@ -391,7 +372,7 @@ export class ScopedSearch {
             scope,
             revision,
             asof,
-            last: key(page[page.length - 1]),
+            last: itemKey(page[page.length - 1]),
             expires: old?.expires ?? Date.now() + 900000,
           })
         : null;

@@ -1,3 +1,4 @@
+import { normalizeSearchFilters } from "./convenience/search-client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError, OperationalApi, snapshotPath } from "./api";
 import { isJobReceipt, resolveJob } from "./jobs-client";
@@ -481,7 +482,7 @@ export function QuestionsWorkbench({
         ([k, v]) => k !== "tags" && k !== "archived" && v !== "",
       ),
     );
-    return {
+    return normalizeSearchFilters({
       ...entries,
       tags: search.tags
         .split(",")
@@ -490,7 +491,7 @@ export function QuestionsWorkbench({
       ...(search.archived ? { archived: search.archived === "true" } : {}),
       limit: 25,
       ...(cursor ? { cursor } : {}),
-    };
+    });
   }
   async function find(event?: FormEvent, cursor?: string | null) {
     event?.preventDefault();

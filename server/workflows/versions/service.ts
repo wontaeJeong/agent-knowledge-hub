@@ -1,3 +1,4 @@
+import {recordDocumentVisit} from "../activity";
 import {randomUUID} from "node:crypto";
 import type {Pool,PoolClient} from "pg";
 import {z} from "zod";
@@ -54,9 +55,9 @@ export class VersionService {
   const m=(await db.query("SELECT snapshot,snapshot_hash,anchors FROM version_metadata WHERE workspace_id=$1 AND page_id=$2 AND number=$3",[ctx.workspaceId,pageId,number])).rows[0];
   if(m)for(const source of m.snapshot.sources??[])await requireRead(db,ctx,"source",source.id);
   if(m?.snapshot.parentId)await this.permitted(db,ctx,"knowledge.read",{kind:"page",id:m.snapshot.parentId});
-  return {pageId,number,currentTitle:p.title,content:v.content,at:v.at,attribution:{author:v.author,producer:v.producer??{kind:"unknown"},proposedBy:v.proposedBy??null,publishedBy:v.publishedBy??null},metadata:m?{known:true as const,snapshot:m.snapshot as MetadataSnapshot,hash:m.snapshot_hash}:{known:false as const,snapshot:null,hash:null},anchors:m?.anchors??segmentAnchors(pageId,number,v.content)};
+  return {pageId,number,isCurrentVersion:number===current(p).number,currentTitle:p.title,content:v.content,at:v.at,attribution:{author:v.author,producer:v.producer??{kind:"unknown"},proposedBy:v.proposedBy??null,publishedBy:v.publishedBy??null},metadata:m?{known:true as const,snapshot:m.snapshot as MetadataSnapshot,hash:m.snapshot_hash}:{known:false as const,snapshot:null,hash:null},anchors:m?.anchors??segmentAnchors(pageId,number,v.content)};
  }
- async version(ctx:Context,pageId:string,number:number){positive.parse(number);return this.run(ctx,"knowledge.read",db=>this.versionDb(db,ctx,pageId,number));}
+ async version(ctx:Context,pageId:string,number:number,options:{recordVisit?:boolean}={}){positive.parse(number);return this.run(ctx,"knowledge.read",async db=>{const value=await this.versionDb(db,ctx,pageId,number);if(options.recordVisit)await recordDocumentVisit(db,ctx,pageId);return value;});}
  async bundles(ctx:Context,offset=0){return this.run(ctx,"knowledge.read",async db=>{
   const rows=(await db.query("SELECT batch_id,result FROM publications WHERE workspace_id=$1 ORDER BY batch_id LIMIT 2501",[ctx.workspaceId])).rows;if(rows.length>2500)throw Error("VERSION_QUERY_LIMIT");
   const visible=[];for(const row of rows)try{const pages=[];for(const [pageId,version] of Object.entries(row.result.versions as Record<string,number>)){const p=await this.page(db,ctx,pageId,version);pages.push({pageId,title:p.title,number:version});}visible.push({batchId:row.batch_id,pages});}catch(e){if(!(e instanceof Error)||e.message!=="NOT_FOUND")throw e;}
