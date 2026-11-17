@@ -1,0 +1,49 @@
+[1/5] server/agents/mcp.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  03:16:18
+   Duration  568ms (tests 78%, import 17%, transform 5%)
+
+[2/5] server/convenience/structure-final.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  03:16:19
+   Duration  8.23s (tests 98%, import 2%, transform 1%)
+
+[3/5] server/convenience/structure-http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  03:16:27
+   Duration  2.82s (tests 93%, import 5%, transform 2%)
+
+[4/5] server/runtime/runtime.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  03:16:30
+   Duration  2.13s (tests 91%, import 6%, transform 3%)
+
+[5/5] server/runtime/search-mcp.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  03:16:33
+   Duration  918ms (tests 85%, import 12%, transform 4%)
