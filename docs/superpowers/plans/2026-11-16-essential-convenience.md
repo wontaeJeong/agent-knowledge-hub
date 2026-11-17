@@ -152,7 +152,7 @@
 - [x] Run structure DB/UI tests red. Validate new order migration uniqueness/backfill before implementation.
 - [x] Implement paged authorized tree/path, deterministic ordering and audit/CAS mutation; duplicate only through Task 6 private draft creation, never independent-proof cloning.
 - [x] Run workflow/trash/access/version regressions. Verify mobile tree drawer focus and old-link navigation after move/rename with screenshots.
-- [ ] Commit `feat: add document tree navigation and safe organization`.
+- [x] Commit `feat: add document tree navigation and safe organization` (`5b36d3a4e04d2038a70d9abe3be14624bf515493`).
 
 **C7 로컬 결과:** final fullcheck479/48/16/41/251/types/build/smoke exit0. 최종 native2파일21개, 앞선 erasure/retention/C6 4파일106개 및 나머지11파일104개 carry로 고유17파일231개(단일 현재231 실행 아님). 실제 canonical HTTP/PG의 1440/390×light/dark4캡처와 키보드 이동·옛 링크/rename·철회·mobile focus를 확인하고 자기 자원만 정리했다. [증거](../../ui-validation/2026-11-18-document-structure/README.md), 상세 `.superpowers/sdd/2026-11-16-essential-convenience/task-7-report.md`.
 
