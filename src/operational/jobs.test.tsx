@@ -91,3 +91,14 @@ test("retention schedule pins approved policy revision and never accepts page or
  expect(body.job).toMatchObject({kind:'retention',payload:{policyRevision:4},pageIds:[],sourceIds:[],reservation:{tokens:0,costMicros:0}});
  expect(body.approvedPageIds).toEqual([]);expect(body.approvedSourceIds).toEqual([]);
 });
+
+test("monthly review schedule preserves explicit month-end policy and zero-model review scope",()=>{
+ const body=scheduleRequest({key:"monthly-review",cadence:"monthly",dayOfMonth:31,invalidDay:"clamp",time:"09:00",timezone:"Asia/Seoul",weekday:1,pageIds:["p"],sourceIds:["s"],tokens:0,costMicros:0,identity:{workspaceId:"w",principalId:"service",credentialId:"c"}});
+ expect(body).toMatchObject({cadence:"monthly",dayOfMonth:31,invalidDay:"clamp",job:{kind:"monthly",payload:{mode:"offline"}}});
+ expect(body).not.toHaveProperty("weekday");
+});
+
+test("weekly configured model selection binds requested model and explicit reservation",()=>{
+ const body=scheduleRequest({key:"weekly-model",cadence:"weekly",time:"09:00",timezone:"UTC",weekday:1,pageIds:["p"],sourceIds:["s"],tokens:70000,costMicros:100000,mode:"model",model:"configured-model",identity:{workspaceId:"w",principalId:"service",credentialId:"c"}});
+ expect(body.job).toMatchObject({kind:"weekly",payload:{mode:"model"},model:"configured-model",reservation:{tokens:70000,costMicros:100000}});
+});

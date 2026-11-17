@@ -1,4 +1,5 @@
 import { BulkEditor } from "./BulkEditor";
+import { NavigationProtection } from "./convenience/Navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ApiError, OperationalApi, pageItems, documentHref } from "./api";
 import { Markdown, type ImagePreview, presentationFormats } from "../ui/Markdown";
@@ -777,6 +778,7 @@ export function WorkflowPanel({
   };
   return (
     <section className="op-panel">
+      <NavigationProtection dirty={!!draft && content !== draft.content} />
       <h2>편집과 협업</h2>
       {manage && <BulkEditor api={api} pages={pages} scope={`${spaceId ?? ""}:${principalId ?? ""}`} onChanged={onChanged} onExpired={onExpired} />}
       <p>

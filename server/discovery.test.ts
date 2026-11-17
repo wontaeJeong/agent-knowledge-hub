@@ -325,19 +325,26 @@ test("queued cross-space discovery does not lock the waiting workspace", async (
     await expect(
       discoveryReport(f.pool, new RuntimeService(f.pool), f.reader, 7),
     ).rejects.toThrow("DISCOVERY_CAPACITY");
+    const waiting = await other.pool.connect();
     const second = discoveryReport(
-      other.pool,
-      new RuntimeService(other.pool),
-      other.reader,
-      7,
+      { connect: async () => waiting } as unknown as typeof other.pool,
+      new RuntimeService(other.pool), other.reader, 7,
     );
-    const regular = new RuntimeService(other.pool).pages(other.reader);
-    expect(
-      await Promise.race([
-        first.then(() => "first"),
-        regular.then(() => "regular"),
-      ]),
-    ).toBe("regular");
+    const deadline = Date.now() + 600;
+    let blocked = false;
+    while (Date.now() < deadline) {
+      blocked = (await f.pool.query("SELECT cardinality(pg_blocking_pids($1)) > 0 AS blocked", [(waiting as unknown as { processID: number }).processID])).rows[0].blocked;
+      if (blocked) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(blocked).toBe(true);
+    // The shared directory gate serializes protected transactions, but a
+    // queued discovery must not grab its workspace row before obtaining it.
+    const probe = await other.pool.connect();
+    try {
+      await probe.query("BEGIN");
+      await probe.query("SELECT id FROM workspaces WHERE id=$1 FOR UPDATE NOWAIT", [other.workspaceId]);
+    } finally { await probe.query("ROLLBACK"); probe.release(); }
     expect((await first).pages).toBe(1);
     expect((await second).pages).toBe(1);
   } finally {

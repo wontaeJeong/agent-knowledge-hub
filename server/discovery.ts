@@ -81,12 +81,14 @@ async function discoveryTransaction<T>(
   try {
     await db.query("BEGIN");
     await db.query("SET LOCAL lock_timeout = '5s'");
-    await acquireSharedMutationGate(db);
+    // Non-blocking admission precedes global directory serialization. No row
+    // locks or authorization effects occur until both mutation gates are held.
     const gate = await db.query(
       "SELECT pg_try_advisory_xact_lock(hashtextextended($1,0)) AS held",
       [`akh:discovery:${workspaceId}`],
     );
     if (!gate.rows[0].held) throw Error("DISCOVERY_CAPACITY");
+    await acquireSharedMutationGate(db);
     const workspace = await db.query(
       "SELECT id FROM workspaces WHERE id=$1 FOR UPDATE",
       [workspaceId],
