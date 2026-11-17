@@ -77,7 +77,7 @@ jobs:
   server:
     name: PostgreSQL server regression
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17.6-alpine

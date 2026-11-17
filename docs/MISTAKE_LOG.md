@@ -825,3 +825,10 @@
 - RED: 실제 approve→publish→scan/기존 목록 후 publish2건, 계속 허용된 source 내용/reader 변경 뒤 rejected 결정 cursor2건, 상태/유형별 늦은 POST 성공/실패4건, 미리보기 도착/빈 목록/조회 오류 초점3건. 기존 hidden-tab 시험의 visibility spy가 다음 시험까지 남아 첫 초점 재현을 막은 준비 오류는 afterEach restoreAllMocks로 격리하고 의도한 focus RED를 다시 확인했다.
 - 조치: 승인된 immutable 결정은 동일 batch/hash의 published 전이까지 인정하며 현재 철회/전체 ACL을 계속 확인한다. canonical exact read gate는 내부 fingerprint와 공개 detail을 분리한다. mutation 효과는 owner/query/API epoch와 operation에 바인딩하며 현재 listener만 재조회한다. 제거된 private row는 유지하지 않고 현재 인가된 렌더 항목의 같은 위치 또는 안전한 버튼으로 초점을 옮겨 안내한다.
 - 검증: 집중 native21/UI16, 최종 한 번 npm run check(frontend309/Node48/import16/evaluation41/251요구사항/types/build/smoke) 및 native13파일142시험 exit0. 실제 1440/390 light/dark18장, actual 댓글 도착/원본 reader 철회 및 Tab/Shift+Tab/Escape/초점 모두 통과했다. peer가 전달한 Navigation fixture의 일회성 실패는 이번 최종 검사에서 재현하지 않아 제품/fixture를 수정하지 않았다. 기존 Vite chunk 경고 M2는 deferred이며 별도 범위로 남긴다. 최종 exact-head CI와 독립 재리뷰는 부모 작업의 후속 gate다.
+
+
+### 2026-11-17 — PostgreSQL 전체 CI의 작업 시간 예산 종료
+
+- 컨트롤러가 이전 C2 head be613da의 run44000325932/job133762488115 로그를 진단했다. 서버 job은02:04:59에 시작해02:20:10에 명시적 operation canceled로 끝났다. 132파일 중131파일이 통과했고 FAIL 기록 없이 `[132/132] workflows.test.ts`에서 중단됐다. 취소된 실행은 전체 통과가 아니며 마지막 파일 성공도 확인할 수 없는 상태다.
+- 기존 `.github/workflows/ci.yml`의 server job timeout-minutes가15임을 직접 확인했다. 전체 suite가 job 예산을 초과한 것이 현재 증거에 맞는 가설이며 제품 assertion 실패나 마지막 파일 결함을 확인한 것은 아니다. 컨트롤러가8d1cb9a에서 정확한 마지막 파일을 전용 PG32769로 실행한 로그는36/36 pass,3.15초,exit0이다(`/private/tmp/akh-c2-ci-last-file.log`). 이 집중 결과를 취소된 전체 실행의 통과로 대체하지 않는다.
+- 조치: server job의 한 값만15→20분으로 조정했다. 개별 시험 예산/assertion, 제품 timeout, 다른 job, 실행 파일/단계는 유지했다. sharding/skip/새 인프라는 추가하지 않았다. YAML parse와 이전 커밋 대비 구조 비교에서 허용한 job 예산 이외의 차이가 없는지 확인했다. config/docs 변경에 전체 제품 검사를 반복하지 않았으며, 최종 새 HEAD의 CI가 전체132개 이상 파일을 끝까지 실행하고 필수 검사를 통과해야 한다.

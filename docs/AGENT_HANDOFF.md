@@ -731,3 +731,8 @@ Final feature validation (2026-11-17): `npm run check` passed after ancestry har
 FIX_BASE be613da의 I1/I2/I3/M1을 실제 실패로 확인한 뒤 수정했다. 승인→발행 뒤에도 immutable 승인 결과 알림을 유지하되 현재 철회·전체 계보 권한과 read-only 경계를 보존한다. 결정 커서는 현재 원본 내용/reader 해시를 내부에 포함하고 DTO에는 노출하지 않는다. 늦은 POST의 완료/오류/busy는 발생 당시 query epoch와 operation에 묶어 새 필터 화면을 덮지 않는다. 미리보기에서 제거된 항목의 초점은 현재 허용된 같은 위치 항목/안전한 버튼으로 옮기며 보호된 과거 행을 남기지 않는다.
 
 최종 한 번 `npm run check` exit0(frontend309/Node48/import16/evaluation41/요구사항251/types/build/smoke), 전용 PG17의 native13파일142시험 exit0. [18장과 실제 도착/철회·Tab 키보드 결과](ui-validation/2026-11-17-personal-inbox/README.md). 원시 RED/GREEN/final 로그는 local task report의 `c2-logs/akh-c2-r1-*`. 기존 Vite chunk 경고는 deferred; 최종 exact-head CI/독립 재리뷰/병합은 미완료이며 운영 인수·의미 품질 개선은 주장하지 않는다.
+
+
+## 2026-11-17 C2 후속 CI 작업 예산
+
+리뷰 수정8d1cb9a와 별도 커밋으로 `.github/workflows/ci.yml` server job만15→20분으로 조정했다. 이전 be613da의 run44000325932/job133762488115는 약15분 뒤 operation canceled로 종료되었고131/132파일 통과, FAIL 없이 마지막 workflows.test에서 중단됐다. 전체 성공으로 기록하지 않는다. 컨트롤러의 마지막 파일 별도 실행은8d1cb9a/전용 PG32769에서36/36,3.15초,exit0이다. YAML 파싱 및 변경 범위를 검사했으며 제품/시험 assertion/개별 timeout/다른 job은 변경하지 않았다. config/docs만 바뀌어 전체 제품 suite는 반복하지 않았고 exact new HEAD CI의132개 이상 전체 파일 완료와 모든 필수 gate가 병합 조건이다.
