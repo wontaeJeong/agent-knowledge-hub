@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import type { OperationalApi } from "../api";
+import { useLayoutEffect, useRef, useState } from "react";
+import { ApiError, type OperationalApi } from "../api";
 import { Button } from "../../ui/primitives";
 import {
   documentPropertiesSchema,
@@ -35,12 +35,16 @@ export function PropertiesForm({
   scope,
   canAssignOwner,
   onExpired,
+  onReadUnavailable,
+  recheckDocument,
 }: {
   api: OperationalApi;
   pageId: string;
   scope: string;
   canAssignOwner: boolean;
   onExpired: () => void;
+  onReadUnavailable: (error: ApiError) => void;
+  recheckDocument: (error: ApiError) => void;
 }) {
   const key = scope + ":" + pageId,
     epoch = useRef(0),
@@ -58,49 +62,84 @@ export function PropertiesForm({
     [owners, setOwners] = useState<string[]>([]),
     [owner, setOwner] = useState(""),
     [backup, setBackup] = useState("");
-  useEffect(() => {
-    const n = ++epoch.current;
+  function clearProtected() {
     setLoaded(null);
-    setError("");
-    setNotice("");
-    setBusy(false);
-    setReason("");
+    setValue(empty);
+    setTags("");
+    setAdvanced("{}");
+    setOwner("");
+    setBackup("");
     setOwners([]);
-    void api
-      .get<Detail>(`/workflows/pages/${pageId}/properties`)
-      .then(async (detail) => {
-        const eligible = canAssignOwner
-          ? await api.get<{ items: { id: string }[] }>(
-              `/governance/pages/${pageId}/eligible-owners`,
+    setReason("");
+    setNotice("");
+    mutation.current = crypto.randomUUID();
+  }
+  const path = `/workflows/pages/${encodeURIComponent(pageId)}/properties`;
+  async function readProperties(n: number) {
+    try {
+      let detail = await api.get<Detail>(path);
+      if (n !== epoch.current) return;
+      let eligible: { id: string }[] = [];
+      if (canAssignOwner) {
+        try {
+          eligible = (
+            await api.get<{ items: { id: string }[] }>(
+              `/governance/pages/${encodeURIComponent(pageId)}/eligible-owners`,
             )
-          : { items: [] };
-        if (n !== epoch.current) return;
-        const m = detail.metadata;
-        setValue({
-          category: m.category,
-          summary: m.summary,
-          tags: m.tags,
-          properties: m.properties,
-          environment: m.environment ?? m.properties.environment ?? "",
-          reviewDue: m.workflowData.reviewDue ?? null,
-        });
-        setTags(m.tags.join(", "));
-        setAdvanced(JSON.stringify(m.properties, null, 2));
-        setLoaded({ key, detail });
-        setOwners(eligible.items.map((x) => x.id));
-        setOwner(detail.owner?.owner_id ?? "");
-        setBackup(detail.owner?.backup_id ?? "");
-      })
-      .catch((e) => {
-        if (n === epoch.current) {
-          setError(
-            e instanceof Error ? e.message : "속성을 불러오지 못했습니다.",
-          );
-          if (e?.status === 401) onExpired();
+          ).items;
+        } catch (e) {
+          if (n !== epoch.current) return;
+          if (!(e instanceof ApiError) || ![403, 404].includes(e.status))
+            throw e;
+          // Owner assignment is a separate capability. Confirm the page read again.
+          detail = await api.get<Detail>(path);
         }
+      }
+      if (n !== epoch.current) return;
+      const m = detail.metadata;
+      const { environment: _legacyEnvironment, ...properties } = m.properties;
+      setValue({
+        category: m.category,
+        summary: m.summary,
+        tags: m.tags,
+        properties,
+        environment: Object.hasOwn(m, "environment")
+          ? m.environment
+          : (m.properties.environment ?? ""),
+        reviewDue: m.workflowData.reviewDue ?? null,
       });
+      setTags(m.tags.join(", "));
+      setAdvanced(JSON.stringify(properties, null, 2));
+      setOwners(eligible.map((x) => x.id));
+      setOwner(detail.owner?.owner_id ?? "");
+      setBackup(detail.owner?.backup_id ?? "");
+      setLoaded({ key, detail });
+      setError("");
+    } catch (e) {
+      if (n !== epoch.current) {
+        if (e instanceof ApiError && [403, 404].includes(e.status))
+          recheckDocument(e);
+        return;
+      }
+      ++epoch.current;
+      clearProtected();
+      setError(e instanceof Error ? e.message : "속성을 불러오지 못했습니다.");
+      if (e instanceof ApiError) {
+        if (e.status === 401) onExpired();
+        if ([403, 404].includes(e.status)) onReadUnavailable(e);
+      }
+    } finally {
+      if (n === epoch.current) setBusy(false);
+    }
+  }
+  useLayoutEffect(() => {
+    const n = ++epoch.current;
+    clearProtected();
+    setError("");
+    setBusy(false);
+    void readProperties(n);
     return () => {
-      epoch.current++;
+      ++epoch.current;
     };
   }, [api, key, canAssignOwner]);
   function edit(patch: Partial<DocumentProperties>) {
@@ -181,15 +220,22 @@ export function PropertiesForm({
           );
       }
     } catch (e) {
+      if (e instanceof ApiError && [403, 404].includes(e.status)) {
+        if (n === epoch.current) {
+          ++epoch.current;
+          clearProtected();
+        }
+        // The parent checks the captured identity/selection and owns sibling read ordering.
+        recheckDocument(e);
+        return;
+      }
       if (n !== epoch.current) return;
       setError(e instanceof Error ? e.message : "저장하지 못했습니다.");
-      if (
-        typeof e === "object" &&
-        e &&
-        "status" in e &&
-        Number(e.status) === 401
-      )
+      if (e instanceof ApiError && e.status === 401) {
+        ++epoch.current;
+        clearProtected();
         onExpired();
+      }
     } finally {
       if (n === epoch.current) setBusy(false);
     }

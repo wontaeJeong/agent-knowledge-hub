@@ -310,6 +310,70 @@ test("publication of metadata requires independent review and captures canonical
   ).toEqual(["guide", "한글"]);
 });
 
+test("structured environment survives block policy, independent approval and publication without a duplicate property", async () => {
+  const environment = { os: "linux", version: "17" };
+  await f.pool.query(
+    "INSERT INTO workflow_document_state(workspace_id,page_id,data) VALUES($1,'topic',$2)",
+    [f.workspaceId, { environment, properties: {} }],
+  );
+  await f.pool.query(
+    "INSERT INTO governance_type_policies VALUES($1,'기술 설계',1,ARRAY['environment'],'block',NULL)",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO resource_readers SELECT workspace_id,kind,resource_id,'fixture-owner' FROM resource_readers WHERE workspace_id=$1 AND principal_id='reviewer' ON CONFLICT DO NOTHING",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO access_reviewers VALUES($1,'fixture-owner')",
+    [f.workspaceId],
+  );
+  const service = new DocumentPropertiesService(workflows);
+  const { metadata } = await service.read(browser.ctx, "topic");
+  const input = {
+    category: "기술 설계",
+    summary: "업데이트",
+    tags: ["guide"],
+    reviewDue: null,
+    properties: metadata.properties,
+    environment: metadata.environment,
+    reason: "검토",
+    expectedVersion: metadata.number,
+    expectedRevision: metadata.settingsRevision,
+    mutationId: randomUUID(),
+  };
+  const accepted = await service.propose(browser.ctx, "topic", input);
+  const { KnowledgeService } = await import("../service");
+  const ks = new KnowledgeService(f.pool),
+    independent = { workspaceId: f.workspaceId, principalId: "fixture-owner" };
+  await expect(ks.approve(f.ctx, accepted.id, accepted.hash)).rejects.toThrow();
+  await ks.approve(independent, accepted.id, accepted.hash);
+  await ks.publish(independent, accepted.id, accepted.hash, randomUUID());
+  expect((await service.read(browser.ctx, "topic")).metadata).toMatchObject({
+    number: 2,
+    environment,
+    properties: {},
+  });
+  const snapshot = (
+    await f.pool.query(
+      "SELECT snapshot FROM version_metadata WHERE workspace_id=$1 AND page_id='topic' AND number=2",
+      [f.workspaceId],
+    )
+  ).rows[0].snapshot;
+  expect(snapshot.environment).toEqual(environment);
+  expect(snapshot.properties).not.toHaveProperty("environment");
+  await expect(
+    service.propose(browser.ctx, "topic", {
+      ...input,
+      expectedVersion: 2,
+      expectedRevision: metadata.settingsRevision + 1,
+      environment: { os: "  " },
+      properties: { environment: "obsolete" },
+      mutationId: randomUUID(),
+    }),
+  ).rejects.toThrow("PROPERTY_REQUIRED");
+});
+
 test("frozen patch tampering cannot reuse the accepted hash", async () => {
   const accepted = await bulk.execute(browser.ctx, {
     previewToken: (await preview()).previewToken,
@@ -344,6 +408,56 @@ async function clone(id: string) {
     [f.workspaceId, id],
   );
 }
+test("50 authorized pages receive mixed results and only the stale page needs renewed consent", async () => {
+  const pages = Array.from({ length: 51 }, (_, i) => "bulk-" + i);
+  for (const id of pages) await clone(id);
+  const request = { operation: { kind: "archive" }, reason: "정리" };
+  await expect(
+    bulk.preview(browser.ctx, { ...request, pageIds: pages }),
+  ).rejects.toThrow();
+  const selected = pages.slice(0, 50);
+  const first = await bulk.preview(browser.ctx, {
+    ...request,
+    pageIds: selected,
+  });
+  expect(first.items.map((i) => i.status)).toEqual(selected.map(() => "ready"));
+  const accepted = await bulk.execute(browser.ctx, {
+    previewToken: first.previewToken,
+    mutationId: randomUUID(),
+  });
+  await workflows.setDocumentState(browser.ctx, selected[0], {
+    expectedRevision: 0,
+    reason: "새 기준",
+    reviewDue: "2026-12-01T00:00:00Z",
+  });
+  await bridge.worker.tick();
+  const receipt = await bulk.read(browser.ctx, accepted.id);
+  expect(receipt.status).toBe("succeeded");
+  expect(receipt.items.filter((i) => i.status === "applied")).toHaveLength(49);
+  const retryIds = receipt.items
+    .filter((i) => i.status === "stale")
+    .map((i) => i.id);
+  expect(retryIds).toEqual([selected[0]]);
+  const retry = await bulk.preview(browser.ctx, {
+    ...request,
+    pageIds: retryIds,
+  });
+  const second = await bulk.execute(browser.ctx, {
+    previewToken: retry.previewToken,
+    mutationId: randomUUID(),
+  });
+  await bridge.worker.tick();
+  expect((await bulk.read(browser.ctx, second.id)).items).toMatchObject([
+    { id: selected[0], status: "applied" },
+  ]);
+  const rows = await f.pool.query(
+    "SELECT revision,state FROM workflow_document_state WHERE workspace_id=$1 AND page_id=ANY($2) ORDER BY revision",
+    [f.workspaceId, selected],
+  );
+  expect(rows.rows.map((r) => r.revision)).toEqual([...Array(49).fill(1), 2]);
+  expect(rows.rows.every((r) => r.state === "archived")).toBe(true);
+}, 120000);
+
 test("mixed ready, stale and inaccessible items retain separate receipts and current visibility", async () => {
   await clone("stale");
   await clone("denied");
@@ -400,6 +514,114 @@ test("destination parent revision and ancestry changes invalidate the frozen mov
     (await workflows.document(browser.ctx, "topic")).settings.parent_id,
   ).toBe(null);
 });
+test("a new bulk request invalidates retention consent; a later legal hold preserves accepted rows until release", async () => {
+  const { ContentRetentionService } = await import("../retention/service");
+  const { OperationsService } = await import("../operations/service");
+  const { previewErasure, executeErasure } =
+    await import("../operations/erasure");
+  const owner = { workspaceId: f.workspaceId, principalId: "fixture-owner" };
+  await f.pool.query(
+    "INSERT INTO resource_readers SELECT workspace_id,kind,resource_id,'fixture-owner' FROM resource_readers WHERE workspace_id=$1 AND principal_id='reviewer' ON CONFLICT DO NOTHING",
+    [f.workspaceId],
+  );
+  const retention = new ContentRetentionService(f.pool, authorizeInTransaction);
+  await retention.setPolicy(owner, {
+    expectedRevision: 0,
+    policy: {
+      enabled: true,
+      drafts: 1,
+      publishedVersions: null,
+      sourceVersions: null,
+      runtimeResults: null,
+    },
+  });
+  const old = await retention.previewRetention(owner);
+  const proposal = await preview("tags");
+  await expect(
+    retention.executeRetention(owner, {
+      previewHash: old.hash,
+      policyRevision: 1,
+    }),
+  ).rejects.toThrow("RETENTION_PREVIEW_STALE");
+  const accepted = await bulk.execute(browser.ctx, {
+    previewToken: proposal.previewToken,
+    mutationId: randomUUID(),
+  });
+  const ops = new OperationsService(f.pool, authorizeInTransaction);
+  const request = {
+    scope: "resource",
+    resource: { kind: "source", id: "source-a" },
+  };
+  const erase = async (previewHash: string) =>
+    executeErasure(ops, owner, {
+      ...request,
+      previewHash,
+      confirm: "ERASE_PREVIEWED_RESOURCE_LINEAGE",
+    });
+  const before = await previewErasure(ops, owner, request);
+  await f.pool.query(
+    "INSERT INTO operations_legal_holds(workspace_id,id,resource_kind,resource_id,placed_by) VALUES($1,'bulk-hold','source','source-a','fixture-owner')",
+    [f.workspaceId],
+  );
+  await expect(erase(before.previewHash)).rejects.toThrow(
+    "ERASURE_PREVIEW_STALE",
+  );
+  const held = await previewErasure(ops, owner, request);
+  expect(held.legalHold).toBe(true);
+  await expect(erase(held.previewHash)).rejects.toThrow("LEGAL_HOLD");
+  const heldReceipt = await bulk.read(browser.ctx, accepted.id);
+  expect(heldReceipt).toMatchObject({
+    status: "queued",
+    items: [{ id: "topic", status: "pending" }],
+  });
+  const row = await f.pool.query(
+    "SELECT patch FROM workflow_bulk_items WHERE workspace_id=$1 AND request_id=$2",
+    [f.workspaceId, accepted.id],
+  );
+  expect(row.rows[0].patch.tags).toEqual(["guide", "한글"]);
+  await f.pool.query(
+    "UPDATE operations_legal_holds SET active=false WHERE workspace_id=$1 AND id='bulk-hold'",
+    [f.workspaceId],
+  );
+  expect(
+    (await erase((await previewErasure(ops, owner, request)).previewHash))
+      .status,
+  ).toBe("completed");
+  await bridge.worker.tick();
+  expect(
+    (
+      await f.pool.query(
+        "SELECT count(*)::int n FROM version_restore_plans WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows[0].n,
+  ).toBe(0);
+}, 20000);
+
+test("persisted bulk execution blocks the 144 grant constraint and rollback preserves the queued receipt", async () => {
+  const applied = await bulk.execute(browser.ctx, {
+    previewToken: (await preview()).previewToken,
+    mutationId: randomUUID(),
+  });
+  const db = await f.pool.connect();
+  try {
+    await db.query("BEGIN");
+    await expect(
+      db.query(
+        "ALTER TABLE runtime_execution_grants ADD CONSTRAINT fixture_144_allowed_operations CHECK(operation IN ('ingest','query','lint','index'))",
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+  } finally {
+    await db.query("ROLLBACK");
+    db.release();
+  }
+  expect((await bulk.read(browser.ctx, applied.id)).status).toBe("queued");
+  await bridge.worker.tick();
+  expect((await bulk.read(browser.ctx, applied.id)).items).toMatchObject([
+    { id: "topic", status: "applied" },
+  ]);
+});
+
 test("erasure selects and redacts accepted bulk payload and cancels its job through source lineage", async () => {
   const { OperationsService } = await import("../operations/service"),
     { previewErasure, executeErasure } = await import("../operations/erasure");

@@ -1,7 +1,7 @@
 {
-  "startedAt": "2026-11-17T22:52:01.617Z",
-  "productionFingerprint": "32567056187ae489f3b75ebac85aac4f62d6d99eb8c8e7edbf4f98fdd86e0333",
-  "browser": "Chromium",
+  "startedAt": "2026-11-17T23:35:48.728Z",
+  "productionFingerprint": "15b61085b6725a050e0aa9f316a2b1f4316c1d50369a516fc9b2e32c5cbd0a01",
+  "browser": "158.0.8127.18",
   "results": [
     {
       "width": 1440,
@@ -13,9 +13,11 @@
         "queued acceptance",
         "partial applied/stale",
         "denied target filtered",
+        "expired pending selected for new consent",
+        "new receipt applied",
         "no horizontal overflow"
       ],
-      "requests": 74,
+      "requests": 49,
       "errors": []
     },
     {
@@ -28,9 +30,11 @@
         "queued acceptance",
         "partial applied/stale",
         "denied target filtered",
+        "expired pending selected for new consent",
+        "new receipt applied",
         "no horizontal overflow"
       ],
-      "requests": 74,
+      "requests": 49,
       "errors": []
     },
     {
@@ -43,9 +47,11 @@
         "queued acceptance",
         "partial applied/stale",
         "denied target filtered",
+        "expired pending selected for new consent",
+        "new receipt applied",
         "no horizontal overflow"
       ],
-      "requests": 74,
+      "requests": 49,
       "errors": []
     },
     {
@@ -58,10 +64,22 @@
         "queued acceptance",
         "partial applied/stale",
         "denied target filtered",
+        "expired pending selected for new consent",
+        "new receipt applied",
         "no horizontal overflow"
       ],
-      "requests": 74,
+      "requests": 158,
       "errors": []
     }
-  ]
+  ],
+  "rollback": {
+    "currentTagLabel": "검토 필요",
+    "publishedTagsAfterProposal": [],
+    "source": "29a892b06b1edc089ffab678835a46a936241306",
+    "schema": 145,
+    "archive": "applied",
+    "tags": "needs-review",
+    "oldTagLabel": "실패",
+    "pendingJobAfterSwitch": "applied"
+  }
 }

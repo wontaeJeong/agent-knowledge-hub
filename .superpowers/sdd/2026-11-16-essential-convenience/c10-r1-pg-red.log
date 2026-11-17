@@ -1,0 +1,27 @@
+[1/1] server/convenience/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ server/convenience/bulk.test.ts (18 tests | 1 failed) 9355ms
+   × structured environment survives block policy, independent approval and publication without a duplicate property 96ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 passed (18)
+   Start at  08:12:49
+   Duration  9.57s (tests 98%, import 1%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/bulk.test.ts > structured environment survives block policy, independent approval and publication without a duplicate property
+Error: PROPERTY_REQUIRED
+ ❯ validatePlannedMetadata server/workflows/versions/metadata.ts:107:487
+
+ ❯ validateVersionMetadataPlans server/workflows/versions/metadata.ts:113:27
+ ❯ principalId server/publication.ts:368:35
+ ❯ transaction server/database.ts:111:20
+ ❯ DocumentPropertiesService.propose server/convenience/properties.ts:163:20
+ ❯ server/convenience/bulk.test.ts:322:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

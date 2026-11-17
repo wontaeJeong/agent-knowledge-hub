@@ -1,0 +1,8 @@
+file:///Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub/docs/ui-validation/2026-11-18-properties-bulk/capture.mjs:66
+   const proposed=page.waitForResponse(r=>r.url().endsWith('/workflows/bulk/apply'));await oldApply.click();const legacy=(await (await proposed).json()).items[0];assert.equal(legacy.status,'needs-review');assert.ok(legacy.batchId);
+                                                                                                                                                              ^
+
+TypeError: Cannot read properties of undefined (reading '0')
+    at file:///Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub/docs/ui-validation/2026-11-18-properties-bulk/capture.mjs:66:159
+
+Node.js v24.22.2

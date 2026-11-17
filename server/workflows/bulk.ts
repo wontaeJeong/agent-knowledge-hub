@@ -198,7 +198,7 @@ export async function bulkApply(
             summary: m.summary,
             tags: i.patch.tags,
             properties: m.properties,
-            environment: m.environment ?? m.properties.environment ?? "",
+            environment: m.environment,
             reviewDue: m.workflowData.reviewDue ?? null,
             expectedVersion: i.expectedVersion ?? m.number,
             expectedRevision: i.expectedRevision,

@@ -1,0 +1,230 @@
+[1/23] server/access/legacy-compatibility.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  08:22:36
+   Duration  6.09s (tests 96%, import 2%, transform 1%)
+
+[2/23] server/access/roles.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  08:22:42
+   Duration  548ms (tests 91%, import 7%, transform 2%)
+
+[3/23] server/convenience/bulk-migration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  08:22:43
+   Duration  572ms (tests 89%, import 9%, transform 2%)
+
+[4/23] server/convenience/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  21 passed (21)
+   Start at  08:22:44
+   Duration  51.73s (tests 100%)
+
+[5/23] server/jobs/jobs.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  08:23:35
+   Duration  4.20s (tests 97%, import 2%, transform 1%)
+
+[6/23] server/jobs/maintenance-runtime.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  20 passed (20)
+   Start at  08:23:40
+   Duration  38.00s (tests 100%)
+
+[7/23] server/jobs/retention-runtime.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  08:24:18
+   Duration  2.75s (tests 95%, import 4%, transform 2%)
+
+[8/23] server/jobs/runtime.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  52 passed (52)
+   Start at  08:24:21
+   Duration  83.07s (tests 100%)
+
+[9/23] server/jobs/scheduled-publication.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  14 passed (14)
+   Start at  08:25:44
+   Duration  4.00s (tests 98%, import 2%, transform 1%)
+
+[10/23] server/operations/erasure-db.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  28 passed (28)
+   Start at  08:25:48
+   Duration  5.91s (tests 98%, import 1%, transform 1%)
+
+[11/23] server/operations/links-erasure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  08:25:55
+   Duration  913ms (tests 93%, import 5%, transform 2%)
+
+[12/23] server/retention/compat-controls.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  08:25:56
+   Duration  1.49s (tests 96%, import 3%, transform 1%)
+
+[13/23] server/retention/http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  08:25:57
+   Duration  1.50s (tests 86%, import 9%, transform 5%)
+
+[14/23] server/retention/recovery.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  08:25:59
+   Duration  1.49s (tests 93%, import 5%, transform 2%)
+
+[15/23] server/retention/retention.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  30 passed (30)
+   Start at  08:26:01
+   Duration  6.50s (tests 98%, import 1%, transform 1%)
+
+[16/23] server/runtime/errors.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  08:26:07
+   Duration  91ms (import 73%, transform 20%, worker 4%, tests 3%)
+
+[17/23] server/workflows/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  08:26:08
+   Duration  2.54s (tests 95%, import 3%, transform 1%)
+
+[18/23] server/workflows/governance/governance.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  14 passed (14)
+   Start at  08:26:10
+   Duration  3.63s (tests 97%, import 2%, transform 1%)
+
+[19/23] server/workflows/governance/maintenance.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  08:26:14
+   Duration  1.13s (tests 91%, import 7%, transform 3%)
+
+[20/23] server/workflows/governance/publication.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  08:26:15
+   Duration  1.05s (tests 92%, import 6%, transform 2%)
+
+[21/23] server/workflows/versions/publication-integration.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  08:26:17
+   Duration  8.49s (tests 99%, import 1%)
+
+[22/23] server/workflows/versions/versions.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  08:26:25
+   Duration  2.01s (tests 94%, import 4%, transform 2%)
+
+[23/23] server/workflows/versions/visit-http.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  08:26:28
+   Duration  88ms (import 68%, tests 15%, transform 11%, worker 5%)
+

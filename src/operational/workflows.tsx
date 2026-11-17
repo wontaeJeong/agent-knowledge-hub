@@ -1400,7 +1400,12 @@ export function WorkflowPanel({
                     ))}
                 </select>
               </label>
-              <PropertiesForm key={`${identityScope}:${selected}`} api={api} pageId={selected} scope={identityScope} canAssignOwner={can("space.admin")} onExpired={onExpired}/>
+              <PropertiesForm key={`${identityScope}:${selected}`} api={api} pageId={selected} scope={identityScope} canAssignOwner={can("space.admin")} onExpired={onExpired} onReadUnavailable={e => { if (mounted.current && selection.current === selectionNow) fail(e); }}
+                recheckDocument={e => {
+                  if (!mounted.current || selection.current !== selectionNow) return;
+                  setError(e.message);
+                  void refreshDocument(true);
+                }}/>
               <Button
                 disabled={busy || !reason.trim()}
                 onClick={() =>

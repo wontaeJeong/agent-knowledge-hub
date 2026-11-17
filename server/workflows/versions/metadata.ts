@@ -1,3 +1,4 @@
+import {canonicalEnvironment, missingRequiredProperty} from "../../../src/domain/document-properties";
 import {assertProductWritesNotErased} from "../../operations/product-erasure";
 import {randomUUID} from "node:crypto";
 import type {PoolClient} from "pg";
@@ -27,7 +28,7 @@ export async function currentMetadata(db:PoolClient,ctx:Context,pageId:string,nu
   const dependency=(await db.query("SELECT max(number)::integer AS number FROM versions WHERE workspace_id=$1 AND page_id=$2",[ctx.workspaceId,id])).rows[0];
   if(!dependency?.number)throw Error("NOT_FOUND");versions[id]=dependency.number;
  }
- const environment=w?.data&&Object.hasOwn(w.data,"environment")?w.data.environment:w?.data?.properties?.environment??null;
+ const environment=canonicalEnvironment(w?.data ?? {});
  const snapshot:MetadataSnapshot={pageId,number:v.number,title:p.title??"",summary:p.summary??"",category:p.category??"연결된 지식",tags:p.tags??[],properties:w?.data?.properties??{},environment,parentId:w?.parent_id??null,lifecycle:w?.state??"active",settingsRevision:w?.revision??0,workflowData:w?.data??{},sources,versions,relations:p.links??[],bodyHash:fingerprint(v.data.content),attribution:Object.fromEntries(["author","proposedBy","responsibleUserId","publishedBy","producer","batchId","at"].map(k=>[k,v.data[k]??null]))};
  if(Buffer.byteLength(JSON.stringify(snapshot))>1048576)throw Error("VERSION_METADATA_LIMIT");
  return snapshot;
@@ -104,7 +105,11 @@ export async function validatePlannedMetadata(db:PoolClient,ctx:Context,plan:Res
  }
  const policies=(await db.query("SELECT * FROM governance_type_policies WHERE workspace_id=$1 ORDER BY document_type",[ctx.workspaceId])).rows;
  const required=policies.find(p=>p.document_type===plan.next.category)??policies.find(p=>p.document_type==="*");
- if(required?.mode==="block")for(const key of required.required_keys){const owner=(await db.query("SELECT owner_id FROM governance_business_owners WHERE workspace_id=$1 AND page_id=$2",[ctx.workspaceId,plan.pageId])).rows[0];const value=key==="summary"?plan.next.summary:key==="tags"?plan.next.tags:key==="reviewDue"?plan.next.workflowData.reviewDue:key==="businessOwner"?owner?.owner_id:plan.next.properties[key];if(value==null||value===""||(Array.isArray(value)&&!value.length))throw Error("PROPERTY_REQUIRED");}
+ if(required?.mode==="block"){
+  const owner=required.required_keys.includes("businessOwner")?(await db.query("SELECT owner_id FROM governance_business_owners WHERE workspace_id=$1 AND page_id=$2",[ctx.workspaceId,plan.pageId])).rows[0]:null;
+  const fields={...plan.next,reviewDue:plan.next.workflowData.reviewDue,businessOwner:owner?.owner_id};
+  if(required.required_keys.some((key:string)=>missingRequiredProperty(key,fields)))throw Error("PROPERTY_REQUIRED");
+ }
 }
 /** Trusted pre-proposal projection for C's required-property checks. Never parse this from a DTO. */
 export async function validateVersionMetadataPlans(db:PoolClient,ctx:Context,plans:RestorePlan[]) {

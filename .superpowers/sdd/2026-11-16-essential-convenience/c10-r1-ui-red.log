@@ -1,0 +1,54 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ src/operational/convenience/bulk.test.tsx (8 tests | 4 failed) 58ms
+   × accepted request replays with its own ID and terminal dead pending targets get fresh consent 22ms
+   × accepted request replays with its own ID and terminal cancelled pending targets get fresh consent 7ms
+   × denied property save gets current read authority (readable true) 4ms
+   × denied property save gets current read authority (readable false) 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/bulk.test.tsx > accepted request replays with its own ID and terminal dead pending targets get fresh consent
+ FAIL  src/operational/convenience/bulk.test.tsx > accepted request replays with its own ID and terminal cancelled pending targets get fresh consent
+AssertionError: expected [ false, false, false ] to deeply equal [ true, false, false ]
+
+- Expected
++ Received
+
+  [
+-   true,
++   false,
+    false,
+    false,
+  ]
+
+ ❯ src/operational/convenience/bulk.test.tsx:130:35
+    128|   expect(results.textContent).toContain("대기");
+    129|   await click("실패 대상 다시 미리보기");
+    130|   expect(boxes.map(x=>x.checked)).toEqual([true,false,false]);
+       |                                   ^
+    131|   await click("변경 미리보기");
+    132|   await click("미리보기 내용 적용");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/operational/convenience/bulk.test.tsx > denied property save gets current read authority (readable true)
+ FAIL  src/operational/convenience/bulk.test.tsx > denied property save gets current read authority (readable false)
+AssertionError: expected "vi.fn()" to be called 2 times, but got 1 times
+ ❯ src/operational/convenience/bulk.test.tsx:151:15
+    149|   await fill([...host.querySelectorAll("label")].find(l=>l.textContent…
+    150|   await act(async()=>button(host,"속성 검토 요청").click());
+    151|   expect(get).toHaveBeenCalledTimes(2);
+       |               ^
+    152|   if(readable){
+    153|     expect(host.querySelector("textarea")?.value).toBe("갱신된 요약");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 4 passed (8)
+   Start at  08:12:48
+   Duration  614ms (environment 69%, import 16%, tests 10%, transform 5%)
+

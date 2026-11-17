@@ -200,6 +200,10 @@ C9 Round1: 새 token capture는 standalone CR과 LF의 줄 경계를 renderer와
 
 ## C10 문서 속성과 일괄 작업 (2026-11-18)
 
+각 미리보기는 고유 mutationId를 사용한다. 접수 응답을 받지 못한 경우 원래 previewToken·mutationId로 재생한다. 종료된 영수증에 남은 pending과 재시도 가능한 실패를 새 미리보기로 다시 확인한다. 적용 또는 검토 요청이 끝난 문서는 자동으로 재선택하지 않는다.
+
+환경 정책은 정식 environment 필드가 있으면 해당 값을 사용하고, 이전 형식의 데이터에서는 properties.environment를 읽는다. 공백뿐인 문자열, 빈 객체, 모든 값이 공백인 객체와 null은 필수 환경 미입력으로 처리한다. 속성 제안을 발행하면 환경은 정식 필드 한 곳에 저장된다. 이전 클라이언트로 화면만 전환할 때는 현행 서버와 스키마 145를 유지한다. main 29a892b 클라이언트는 needs-review를 ‘실패’로 표시하지만 실제 검토 제안은 생성된다. 구버전의 고정된 상태 매핑은 서버 응답만으로 ‘검토 필요’를 표시할 수 없다. 새 자산을 미리 준비한 뒤 현행 서버·UI를 함께 활성화하거나 원자적으로 전환한다. 29a892b 서버에는 새 속성 읽기 경로가 없고 태그 독립 검토 계약도 도입되기 전이다. 새 UI만 먼저 활성화하는 전체 앱 배포는 확인되지 않았다. 구 UI로 돌아간 동안 태그 변경 결과는 현행 UI나 정식 영수증·검토 목록에서 확인한다. 영속 bulk grant가 있는 스키마 145에 스키마 144의 허용 작업 제약을 복원하면 PostgreSQL이 거부한다.
+
 `GET /api/v1/workflows/pages/:id/properties`는 현재 canonical metadata, 문서 유형별 required-key 정책, 업무 담당자/대체자 attribution을 반환한다. `POST`는 `{category,summary,tags,properties,environment,reviewDue,expectedVersion,expectedRevision,reason,mutationId}`를 받아 독립 검토할 변경안 `{id,hash,status:'needs-review'}`를 생성한다. environment는 기존 문자열/문자열 맵을 보존한다. owner 변경은 기존 governance owner API/권한을 사용하며 접근 권한을 부여하지 않는다. 새 저장소에 metadata를 복제하지 않는다.
 
 기존 `POST /api/v1/workflows/bulk/preview`의 최대 50개·10분 계약을 유지한다. 작업자가 연결된 사람 세션에는 기존 HMAC `token`과 추가 opaque `previewToken`을 함께 반환한다. 현재 허가된 항목에만 정규화한 `before`/`patch`를 제공한다. `POST /workflows/bulk/apply`의 `{previewToken,mutationId}` (또는 `{token:previewToken,mutationId}`)는 durable job를 접수하고 HTTP 202 `{id,status:'queued'}`를 반환한다. `GET /workflows/bulk/:id`는 원래 사람 세션과 현재 항목 권한으로 재검사한 receipt다. 항목 상태는 pending/applied/needs-review/denied/stale/failed이고 queued는 완료를 뜻하지 않는다. 숨겨진 항목은 ID/제목/총수/숨겨진 수 없이 제외한다. generic jobs API는 동일 원래 세션의 queue 상태만 제공하며 bulk result/checkpoint는 null이다.

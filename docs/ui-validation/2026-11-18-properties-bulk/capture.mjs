@@ -7,7 +7,7 @@ const f=JSON.parse(await readFile('/private/tmp/akh_c10_browser.json','utf8'));
 assert.equal((await sourceHashes()).productionFingerprint,f.productionFingerprint);
 const url=new URL(process.env.TEST_DATABASE_URL);url.pathname='/'+f.database;
 const db=new Pool({connectionString:url.href}),out='docs/ui-validation/2026-11-18-properties-bulk',results=[];
-let index=0;const browser=await chromium.launch({headless:true});
+let index=0,rollback;const browser=await chromium.launch({headless:true});
 try{for(const width of [1440,390])for(const theme of ['light','dark']){
  const scenario=f.scenarios[index++],context=await browser.newContext({viewport:{width,height:width===1440?1000:844},timezoneId:'Asia/Seoul'}),errors=[],requests=[];
  try{
@@ -31,7 +31,54 @@ try{for(const width of [1440,390])for(const theme of ['light','dark']){
  await db.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='denied' AND principal_id='fixture-owner'",[scenario.spaceId]);
  await fetch('http://127.0.0.1:4400/__synthetic_tick',{method:'POST'});await bulk.getByRole('button',{name:'처리 결과 새로고침',exact:true}).click();
  const receipt=bulk.getByRole('region',{name:'일괄 변경 결과'});await receipt.getByText(/기준 변경 · 다시 미리보기/).waitFor();assert.equal(await bulk.getByText('접근 변경 대상',{exact:true}).count(),0);assert.equal(await bulk.getByLabel('접근 변경 대상',{exact:true}).count(),0);await bulk.getByText('현재 접근하거나 변경할 수 없는 선택을 제거했습니다. 필요한 문서는 권한을 확인한 뒤 다시 선택하세요.',{exact:true}).waitFor();await receipt.scrollIntoViewIfNeeded();await bulk.screenshot({path:`${out}/${width}-${theme}-partial.png`});
- assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);results.push({width,theme,checks:['canonical property policy','keyboard Tab','reviewed metadata no direct publish','queued acceptance','partial applied/stale','denied target filtered','no horizontal overflow'],requests:requests.length,errors});
- }finally{await context.close();}
+ const retryButton=bulk.getByRole('button',{name:'실패 대상 다시 미리보기',exact:true});
+ const previewButton=bulk.getByRole('button',{name:'변경 미리보기',exact:true});
+ const acceptButton=bulk.getByRole('button',{name:'미리보기 내용 적용',exact:true});
+ const refreshButton=bulk.getByRole('button',{name:'처리 결과 새로고침',exact:true});
+ const clickAccept=async()=>{
+   const received=page.waitForResponse(r=>r.url().endsWith('/workflows/bulk/apply') && r.request().method()==='POST');
+   await acceptButton.click();const response=await received;assert.equal(response.status(),202);const data=await response.json();assert.equal(typeof data.id,"string");return data.id;
+ };
+ const tick=()=>fetch('http://127.0.0.1:4400/__synthetic_tick',{method:'POST'});
+ await retryButton.click();assert.equal(await bulk.getByLabel('정리 대상',{exact:true}).isChecked(),false);assert.ok(await bulk.getByLabel('기준 변경 대상',{exact:true}).isChecked());
+ await previewButton.click();const expiredId=await clickAccept();await bulk.getByText('접수됨 · 작업자 처리 대기',{exact:true}).waitFor();
+ await db.query("UPDATE runtime_execution_grants SET created_at=now()-interval '2 minutes',expires_at=now()-interval '1 second' WHERE credential_id=(SELECT credential_id FROM durable_jobs WHERE id=(SELECT job_id FROM workflow_bulk_requests WHERE workspace_id=$1 AND id=$2))",[scenario.spaceId,expiredId]);
+ await tick();await refreshButton.click();await bulk.getByText('작업 중단 · 결과와 사유 확인',{exact:true}).waitFor();
+ assert.equal((await api('/workflows/bulk/'+expiredId)).items[0].status,'pending');
+ await bulk.screenshot({path:`${out}/${width}-${theme}-expired.png`});
+ await retryButton.click();assert.ok(await bulk.getByLabel('기준 변경 대상',{exact:true}).isChecked());await previewButton.click();const replacement=await clickAccept();
+ assert.notEqual(replacement,expiredId);await bulk.getByText("접수됨 · 작업자 처리 대기",{exact:true}).waitFor();await tick();await refreshButton.click();await receipt.getByText(/기준 변경 대상 · 적용됨/).waitFor();
+ if(index===4 && process.env.C10_ROLLBACK_ORIGIN){
+   const oldOrigin=process.env.C10_ROLLBACK_ORIGIN;
+   assert.equal(oldOrigin,'http://127.0.0.1:5201');
+   const fresh=await api('/workflows/bulk/preview',{pageIds:['topic'],operation:{kind:'archive'},reason:'rollback fixture'});
+   const queued=await api('/workflows/bulk/apply',{previewToken:fresh.previewToken,mutationId:crypto.randomUUID()});
+   await page.goto(oldOrigin+'/?app=1&space='+scenario.spaceId+'&document=topic');
+   const oldBulk=page.getByText('여러 문서의 태그·위치·보관 변경',{exact:true}).locator('..');await oldBulk.locator('summary').click();
+   const target=oldBulk.getByLabel('이전 화면 보관 문서',{exact:true});await target.check();
+   await oldBulk.getByLabel('변경 종류').selectOption('archive');await oldBulk.getByLabel('변경 이유',{exact:true}).fill('기존 화면 보관');
+   await oldBulk.getByRole('button',{name:'변경 미리보기',exact:true}).click();
+   const oldApply=oldBulk.getByRole('button',{name:'미리보기 내용 적용',exact:true});
+   const received=page.waitForResponse(r=>r.url().endsWith('/workflows/bulk/apply'));await oldApply.click();const response=await received;
+   assert.deepEqual(Object.keys(response.request().postDataJSON()),['token']);assert.equal((await response.json()).items[0].status,'applied');
+   await oldBulk.getByText(/· 적용됨/).waitFor();assert.equal((await api('/workflows/bulk/'+queued.id)).status,'queued');
+   await target.uncheck();await oldBulk.getByLabel('이전 화면 검증 문서',{exact:true}).check();
+   await oldBulk.getByLabel('변경 종류').selectOption('tags');await oldBulk.getByLabel('새 태그 (쉼표 구분)').fill('이전 화면');await oldBulk.getByRole('button',{name:'변경 미리보기',exact:true}).click();
+   const proposed=page.waitForResponse(r=>r.url().endsWith('/workflows/bulk/apply'));await oldApply.click();const legacyResponse=await proposed;assert.equal(legacyResponse.status(),200);const legacy=(await legacyResponse.json()).items[0];assert.equal(legacy.status,'needs-review');assert.ok(legacy.batchId);
+   await oldBulk.getByText(/· 실패/).waitFor();await oldBulk.screenshot({path:out+'/390-dark-legacy-client.png'});
+   await tick();const recovered=await api('/workflows/bulk/'+queued.id);
+   assert.equal(recovered.status,'succeeded');assert.equal(recovered.items[0].status,'applied');
+   await page.goto('http://127.0.0.1:5200/?app=1&space='+scenario.spaceId+'&document=current-review');await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+   const currentBulk=page.getByText('여러 문서의 태그·위치·보관 변경',{exact:true}).locator('..');await currentBulk.locator('summary').click();
+   await currentBulk.getByLabel('현행 화면 검토 문서',{exact:true}).check();await currentBulk.getByLabel('새 태그 (쉼표 구분)',{exact:true}).fill('현행 화면');await currentBulk.getByLabel('변경 이유',{exact:true}).fill('태그 검토');
+   await currentBulk.getByRole('button',{name:'변경 미리보기',exact:true}).click();const currentId=await clickAccept();
+   await currentBulk.getByText('접수됨 · 작업자 처리 대기',{exact:true}).waitFor();await tick();await currentBulk.getByRole('button',{name:'처리 결과 새로고침',exact:true}).click();
+   await currentBulk.getByRole('region',{name:'일괄 변경 결과'}).getByText(/현행 화면 검토 문서 · 검토 필요/).waitFor();
+   const item=(await api('/workflows/bulk/'+currentId)).items[0];assert.equal(item.status,'needs-review');assert.ok(item.batchId);assert.deepEqual((await api('/workflows/pages/current-review/properties')).metadata.tags,[]);
+   await currentBulk.screenshot({path:out+'/390-dark-current-reviewed.png'});
+   rollback={currentTagLabel:'검토 필요',publishedTagsAfterProposal:[],source:process.env.C10_ROLLBACK_COMMIT,schema:145,archive:'applied',tags:legacy.status,oldTagLabel:'실패',pendingJobAfterSwitch:recovered.items[0].status};
+ }
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);results.push({width,theme,checks:['canonical property policy','keyboard Tab','reviewed metadata no direct publish','queued acceptance','partial applied/stale','denied target filtered','expired pending selected for new consent','new receipt applied','no horizontal overflow'],requests:requests.length,errors});
+ }finally{await context.unrouteAll({behavior:'wait'});await context.close();}
  }}finally{await browser.close();await db.end();}
-await writeFile(out+'/browser-results.json',JSON.stringify({startedAt:f.startedAt,productionFingerprint:f.productionFingerprint,browser:'Chromium',results},null,2));
+await writeFile(out+'/browser-results.json',JSON.stringify({startedAt:f.startedAt,productionFingerprint:f.productionFingerprint,browser:browser.version(),results,rollback},null,2));

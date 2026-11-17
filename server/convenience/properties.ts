@@ -113,17 +113,13 @@ export class DocumentPropertiesService {
           )
         ).rows[0];
         if (!policy) throw Error("NOT_FOUND");
+        const { environment: _legacyEnvironment, ...properties } = d.properties;
         const next = {
           ...metadata,
           category: d.category,
           summary: d.summary,
           tags: d.tags,
-          properties: {
-            ...d.properties,
-            ...(typeof d.environment === "string"
-              ? { environment: d.environment }
-              : {}),
-          },
+          properties,
           environment: d.environment,
           workflowData: { ...metadata.workflowData, reviewDue: d.reviewDue },
         };

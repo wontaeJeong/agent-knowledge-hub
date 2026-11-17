@@ -1,14 +1,21 @@
 {
-  "checkedAt": "2026-11-17T22:55:46.927Z",
+  "checkedAt": "2026-11-17T23:37:25.636Z",
+  "ownedBrowserDatabasesChecked": 6,
   "ownedDatabasesRemaining": 0,
   "portsListening": {
     "4400": false,
-    "5200": false
+    "5200": false,
+    "5201": false
   },
   "parentPostgreSQLPreserved": true,
   "stoppedPids": [
-    89399,
-    82643
+    11607,
+    11645,
+    13727,
+    15062,
+    15107,
+    15142,
+    16130
   ],
-  "note": "Runtime signal handler dropped its exact random database; exact ad-hoc knowledge_c10_20261118 dropped. Parent PG and other worktrees untouched."
+  "nativeSuiteDatabases": "23 suite-owned databases dropped by the native wrapper on exit 0"
 }

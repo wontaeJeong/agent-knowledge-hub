@@ -1,0 +1,20 @@
+[1/2] server/convenience/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  21 passed (21)
+   Start at  08:18:01
+   Duration  51.91s (tests 100%)
+
+[2/2] server/jobs/maintenance-runtime.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  20 passed (20)
+   Start at  08:18:53
+   Duration  37.19s (tests 100%)
+

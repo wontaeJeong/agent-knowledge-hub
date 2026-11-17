@@ -1,0 +1,62 @@
+{
+  "browser": "158.0.8127.18",
+  "productionFingerprint": "15b61085b6725a050e0aa9f316a2b1f4316c1d50369a516fc9b2e32c5cbd0a01",
+  "configs": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "requests": 49,
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "requests": 49,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "requests": 49,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "requests": 158,
+      "errors": []
+    }
+  ],
+  "rollback": {
+    "currentTagLabel": "검토 필요",
+    "publishedTagsAfterProposal": [],
+    "source": "29a892b06b1edc089ffab678835a46a936241306",
+    "schema": 145,
+    "archive": "applied",
+    "tags": "needs-review",
+    "oldTagLabel": "실패",
+    "pendingJobAfterSwitch": "applied"
+  },
+  "screenshots": 18,
+  "cleanup": {
+    "checkedAt": "2026-11-17T23:37:25.636Z",
+    "ownedBrowserDatabasesChecked": 6,
+    "ownedDatabasesRemaining": 0,
+    "portsListening": {
+      "4400": false,
+      "5200": false,
+      "5201": false
+    },
+    "parentPostgreSQLPreserved": true,
+    "stoppedPids": [
+      11607,
+      11645,
+      13727,
+      15062,
+      15107,
+      15142,
+      16130
+    ],
+    "nativeSuiteDatabases": "23 suite-owned databases dropped by the native wrapper on exit 0"
+  }
+}

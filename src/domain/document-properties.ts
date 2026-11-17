@@ -24,6 +24,50 @@ export type PropertyPolicy = {
   required_keys: string[];
   mode: "warn" | "block";
 };
+type PolicyFields = {
+  environment?: unknown;
+  properties: Record<string, unknown>;
+  tags?: unknown;
+  summary?: unknown;
+  reviewDue?: unknown;
+  businessOwner?: unknown;
+};
+
+export function canonicalEnvironment(data: {
+  environment?: unknown;
+  properties?: Record<string, unknown>;
+}) {
+  return Object.hasOwn(data, "environment")
+    ? data.environment
+    : (data.properties?.environment ?? null);
+}
+
+export function missingRequiredProperty(key: string, fields: PolicyFields) {
+  if (key === "environment") {
+    const env = canonicalEnvironment(fields);
+    return typeof env === "string"
+      ? !env.trim()
+      : !env ||
+          typeof env !== "object" ||
+          Array.isArray(env) ||
+          !Object.values(env).some(
+            (value) => typeof value === "string" && value.trim(),
+          );
+  }
+  const value =
+    key === "businessOwner" ||
+    key === "reviewDue" ||
+    key === "tags" ||
+    key === "summary"
+      ? fields[key]
+      : fields.properties[key];
+  return (
+    value == null ||
+    (typeof value === "string" && !value.trim()) ||
+    (Array.isArray(value) && !value.length)
+  );
+}
+
 export function propertyWarnings(
   value: DocumentProperties,
   policies: PropertyPolicy[],
@@ -33,24 +77,8 @@ export function propertyWarnings(
     policies.find((p) => p.document_type === value.category) ??
     policies.find((p) => p.document_type === "*");
   return (p?.required_keys ?? [])
-    .filter((key) => {
-      const v =
-        key === "businessOwner"
-          ? ownerId
-          : key === "tags"
-            ? value.tags
-            : key === "summary"
-              ? value.summary
-              : key === "reviewDue"
-                ? value.reviewDue
-                : key === "environment"
-                  ? value.environment
-                  : value.properties[key];
-      return (
-        v == null ||
-        (typeof v === "string" && !v.trim()) ||
-        (Array.isArray(v) && !v.length)
-      );
-    })
+    .filter((key) =>
+      missingRequiredProperty(key, { ...value, businessOwner: ownerId }),
+    )
     .map((key) => ({ key, mode: p!.mode }));
 }

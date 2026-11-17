@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { OperationalApi } from "./api";
 import { Button } from "../ui/primitives";
 type Preview = {
+  mutationId?: string;
   token: string;
   previewToken?: string;
   expiresAt: string;
@@ -37,8 +38,7 @@ export function BulkEditor({
     [results, setResults] = useState<Outcome[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const epoch = useRef(0),
-    mutation = useRef(crypto.randomUUID());
+  const epoch = useRef(0);
   const [receipt, setReceipt] = useState<string | null>(null),
     [jobStatus, setJobStatus] = useState("");
   async function readReceipt(id: string, request: number) {
@@ -53,7 +53,12 @@ export function BulkEditor({
       (id) => !visible.has(id),
     );
     setHiddenIds((old) => [...new Set([...old, ...omitted])]);
-    setIds((old) => old.filter((id) => visible.has(id)));
+    const unfinished = new Set(
+      r.items
+        .filter((i) => i.status !== "applied" && i.status !== "needs-review")
+        .map((i) => i.id),
+    );
+    setIds((old) => old.filter((id) => unfinished.has(id)));
     setResults(r.items);
     setJobStatus(r.status);
     if (r.error) setError(r.error);
@@ -75,7 +80,6 @@ export function BulkEditor({
     };
   }, [scope, api]);
   function change() {
-    mutation.current = crypto.randomUUID();
     setReceipt(null);
     setJobStatus("");
     epoch.current++;
@@ -89,7 +93,13 @@ export function BulkEditor({
     const request = ++epoch.current;
     setBusy(true);
     setError("");
-    if (!apply) setPreview(null);
+    if (!apply) {
+      setPreview(null);
+      setRecovery(null);
+      setReceipt(null);
+      setJobStatus("");
+      setResults([]);
+    }
     try {
       const chosen = preview ?? recovery;
       if (apply && chosen) {
@@ -102,7 +112,7 @@ export function BulkEditor({
           chosen.previewToken
             ? {
                 previewToken: chosen.previewToken,
-                mutationId: mutation.current,
+                mutationId: chosen.mutationId,
               }
             : { token: chosen.token },
         );
@@ -149,6 +159,7 @@ export function BulkEditor({
           setIds((old) => old.filter((id) => !unavailable.includes(id)));
           setPreview({
             ...r,
+            mutationId: crypto.randomUUID(),
             items: r.items.filter((i) => i.status === "ready"),
           });
         }
@@ -178,6 +189,15 @@ export function BulkEditor({
       if (request === epoch.current) setBusy(false);
     }
   }
+  const terminal = ["dead", "cancelled", "succeeded"].includes(jobStatus);
+  const retryIds = results
+    .filter(
+      (r) =>
+        ["stale", "denied", "failed", "unconfirmed"].includes(r.status) ||
+        r.code === "NOT_PROCESSED" ||
+        (r.status === "pending" && terminal),
+    )
+    .map((r) => r.id);
   return (
     <details>
       <summary>여러 문서의 태그·위치·보관 변경</summary>
@@ -282,7 +302,9 @@ export function BulkEditor({
         />
       </label>
       <Button
-        disabled={busy || !ids.length || !reason.trim()}
+        disabled={
+          busy || !ids.length || !reason.trim() || (!!receipt && !terminal)
+        }
         onClick={() => void run()}
       >
         변경 미리보기
@@ -398,20 +420,10 @@ export function BulkEditor({
             ))}
           </ul>
           <Button
+            disabled={busy || !retryIds.length || (!!receipt && !terminal)}
             onClick={() => {
               change();
-              setIds(
-                results
-                  .filter(
-                    (r) =>
-                      r.status === "stale" ||
-                      r.status === "denied" ||
-                      r.status === "failed" ||
-                      r.status === "unconfirmed" ||
-                      r.code === "NOT_PROCESSED",
-                  )
-                  .map((r) => r.id),
-              );
+              setIds(retryIds);
             }}
           >
             실패 대상 다시 미리보기

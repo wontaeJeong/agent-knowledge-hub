@@ -1,0 +1,31 @@
+[1/1] server/jobs/maintenance-runtime.test.ts
+
+ RUN  v5.0.5 /private/tmp/akh-c10-maint-base.nje1Nc1g
+
+ ❯ server/jobs/maintenance-runtime.test.ts (20 tests | 1 failed) 36616ms
+   × weekly retry after proposal commit reuses the exact proposal and cached model response 2643ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed (20)
+   Start at  08:14:59
+   Duration  37.03s (tests 99%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/jobs/maintenance-runtime.test.ts > weekly retry after proposal commit reuses the exact proposal and cached model response
+AssertionError: {"status":"queued","result":null,"error_code":"DB_UNAVAILABLE"}: expected 'queued' to be 'succeeded' // Object.is equality
+
+Expected: "succeeded"
+Received: "queued"
+
+ ❯ server/jobs/maintenance-runtime.test.ts:466:43
+    464|     )
+    465|   ).rows[0];
+    466|   expect(row.status, JSON.stringify(row)).toBe("succeeded");
+       |                                           ^
+    467|   expect(m.calls()).toBe(1);
+    468|   expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
