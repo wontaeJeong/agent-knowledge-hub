@@ -194,3 +194,5 @@ C8 erasure/retention recognizes targetPageId only at versions.data.linkReference
 - URL은 C1 codec의 `space`, `document`, 선택 `version`, 선택 `anchor`를 사용한다. 문서 위치에 hash를 쓰지 않으며 기존 댓글·공유 hash와 혼합을 거부한다. 로그인 복귀에서도 동일 URL을 보존한다.
 - 새 발행 metadata는 기존 `segmentAnchors`의 identity/중복 거부 규칙으로 Markdown top-level 토큰 경계를 저장한다. 최대 1000블록, 끝 범위는 불안정으로 표시한다. 원래 coarse metadata와 metadata가 없는 과거 버전의 legacy fallback은 재작성하지 않는다. 같은 블록은 ID를 유지하고 변경·삭제·모호한 위치는 이동하지 않는다.
 - 새 내부 관계 추출은 표시 renderer와 동일하게 원시 HTML을 제외한다. 일반 Markdown·query/absolute/network 링크의 신뢰 Origin 규칙과 현재 권한 상한은 유지한다. 이미 발행된 `linkReferences`, `Page.links`, provenance, 승인과 버전은 이 변경으로 재작성하지 않는다.
+
+C9 Round1: 새 token capture는 standalone CR과 LF의 줄 경계를 renderer와 일치시키며 CRLF 원래 해시 bytes와 legacy coarse fallback을 보존한다. 기존 저장 본문/metadata는 재작성하지 않는다. Clipboard 안내는 현재 문서와 가장 최근 복사 요청의 응답만 반영한다.

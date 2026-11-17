@@ -37,6 +37,7 @@ export function DocumentReader({
   } | null>(null);
   const [anchorMissing, setAnchorMissing] = useState(false);
   const generation = useRef(0);
+  const copySequence = useRef(0);
   useEffect(() => {
     generation.current++;
     setShareBlock(null);
@@ -47,12 +48,14 @@ export function DocumentReader({
   }, [content, doc.id, doc.spaceId, version, blocks]);
   const copy = async (value: string) => {
     const current = generation.current;
+    const request = ++copySequence.current;
+    setCopyResult(null);
     try {
       await navigator.clipboard.writeText(value);
-      if (current === generation.current)
+      if (current === generation.current && request === copySequence.current)
         setCopyResult({ status: "복사했습니다." });
     } catch {
-      if (current === generation.current)
+      if (current === generation.current && request === copySequence.current)
         setCopyResult({
           status: "복사하지 못했습니다. 아래 내용을 선택해 직접 복사하세요.",
           fallback: value,

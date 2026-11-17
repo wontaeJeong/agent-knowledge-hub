@@ -12,4 +12,14 @@
 
 `capture.mjs`는 실제 HTTP 응답만 전달하고 UI 응답을 꾸며내지 않는다. 인증 adapter만 명시 합성 주체다. `reader-runtime.ts`는 자체 생성한 `akh_c9_test_ui_*` DB만 종료 시 삭제한다. 부모 PG를 보존했다. `cleanup.json`에 DB/profile 0·4399/5199 닫힘·부모 생존을 기록했다. OS IME·실기기·스크린리더 전체 검증은 아니다.
 
-`source-manifest.json`은 실제 runtime/frontend 시작과 최종 source fingerprint, 회귀 파일, harness, PNG16개·JSON, 실행 로그의 SHA-256을 고정한다. `node docs/ui-validation/2026-11-18-document-reader/manifest.mjs --verify`로 재확인한다. 실행에는 `AKH_C9_SYNTHETIC_CAPTURE=1`, loopback `TEST_DATABASE_URL`, `PLAYWRIGHT_MODULE`이 필요하다.
+`source-manifest.json`은 실제 runtime/frontend 시작과 최종 source fingerprint, 회귀 파일, harness, PNG24개·JSON, 실행 로그의 SHA-256을 고정한다. `node docs/ui-validation/2026-11-18-document-reader/manifest.mjs --verify`로 재확인한다. 실행에는 `AKH_C9_SYNTHETIC_CAPTURE=1`, loopback `TEST_DATABASE_URL`, `PLAYWRIGHT_MODULE`이 필요하다.
+
+
+## Round 1 — CR 줄바꿈과 복사 요청 순서
+
+FIX_BASE `2199d7082ae79bf1e831091b17a9f629840655a6`의 독립 리뷰 I1/I2를 수정한 제품 소스로 전체 네 조건을 새로 실행했다. 현재 top-level 캡처24개(기존4상태+추가2상태 ×4조건)는 모두 이 소스다. 이전16개 증거는 FIX_BASE 커밋에 보존되어 있다.
+
+- `*-copy-race.png`: 최신 링크 복사를 pending으로 둔 뒤 고정 링크가 실패하고, 앞선 성공 응답을 뒤늦게 완료해도 고정 링크 실패와 정확한 선택 URL이 유지된다.
+- `*-newline-unavailable.png`: 실제 검토·승인·발행한 CR-only 문단을 mixed CR/LF로 이동하면 정확한 문단으로 이동하고, 변경·삭제하면 최신 링크의 위치 부재를 표시한다. 고정 v4의 원문 위치는 유지된다.
+- 자동 회귀는 CR/LF/CRLF/mixed 네 종류의 발행 capture와 실제 Reader DOM을 함께 검사한다. LF/CRLF 기존 해시와 legacy coarse 기본 모드는 변경하지 않는다. 저장한 문서/버전 metadata를 다시 쓰지 않는다.
+- UI Clipboard는 명시적인 거부·지연 promise fixture다. 실제 OS 클립보드/회사SSO 인수라는 주장이 아니다. 정본 HTTP/PG·승인/발행·현재 ACL·브라우저 keyboard는 실제 실행했다.

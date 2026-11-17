@@ -1190,3 +1190,13 @@ Ruling: update only those four expected names, retaining strict full-list equali
 - 최종 검증: check src501/Node48/import16/eval41/251/types/build/smoke exit0, focused58, native15files115, 실제 Chromium 네조건16PNG/errors[] 및 cleanup 통과. 실패 로그는 C9 report/source manifest에 보존한다. 실제회사IdP/품질/운영·전체접근성은 미검증, 번들 크기 경고 유지. 독립 리뷰/정확headCI 대기.
 
 - 포장 단계의 캡처 숫자를 20으로 잘못 합산한 보고를 manifest의 실제 16PNG(4조건×4상태)·18 artifacts에 맞춰 수정했다. controller에게 즉시 정정했으며 이미지를 만들거나 중복 계수하지 않았다.
+
+
+### 2026-11-18 — C9 Round1 CR 좌표 불일치와 Clipboard 늦은 성공
+
+- 맥락/관련 PR: [draft #75](https://github.com/wontaeJeong/agent-knowledge-hub/pull/75), FIX_BASE2199d70, 독립 task review I1/I2.
+- 확인된 영향: marked는 standalone CR을 newline으로 보지만 새 capture는 원래 `split("\n")` 배열로 해시를 만들었다. 실제 문단에 빈 hash가 붙어 교체된 문단에도 stable ID가 유지될 수 있었다. Clipboard는 문서 세대만 검사해 최신 고정 링크의 실패 이후 앞선 최신 링크 성공이 도착하면 실패/fallback을 지웠다. 두 경우 모두 명시된 UX 불변식 위반이며 최초 C9 완료 주장을 이 사례까지 확장하지 않는다.
+- 조치: 새 token mode만 standalone CR 경계를 맞추고 원래 CRLF hash/legacy fallback을 보존했다. 과거 body/metadata를 재작성하지 않는다. copy마다 request sequence와 시작 시 feedback 초기화를 추가하고 문서 generation과 함께 현재 응답만 표시한다.
+- 시험 실패/분리: 초기 native RED4fail/9pass에는 제품CR/mixed2개 외에 fixture의 trailing whitespace가 기존 edit schema trim을 거쳐 달라진 LF/CRLF control2개가 섞였다. 고정 종단 문단을 둬 불필요한 delimiter 변화를 제거한 후 **수정 전 clean RED2fail/11pass**를 재확인했다. reader clean RED5fail/9pass는 실제 DOM 미이동/오이동·두블록 교체·copy race/feedback을 각각 재현했다. 기대조건을 삭제하거나 normalization으로 원문을 덮지 않았다.
+- 검증: focused3files28, native initial2files19 GREEN; 최종 check508/48/16/41/251/types/build/smoke와 native15files120 exit0. fresh actual HTTP/PG Chromium 네조건24PNG(errors[])에서 CR/mixed 실제 발행과 복사 out-of-order까지 확인하고 own resources를 정리했다. 별도 source manifest와 RED/GREEN 로그 보존.
+- 상태/후속: 구현·로컬 증거 완료, controller scoped re-review/정확headCI 대기. inherited chunk warning은 별도 nonblocking debt이며 운영·품질·전체접근성 미검증은 그대로다.

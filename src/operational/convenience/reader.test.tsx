@@ -208,3 +208,152 @@ test("latest/fixed copy uses the selected stable block and denied Clipboard expo
   expect(host.textContent).not.toContain("복사했습니다.");
   await act(async () => root.unmount());
 });
+
+for (const [label, endings] of [
+  ["CR", ["\r\r", "\r\r", "\r\r"]],
+  ["mixed", ["\r\r", "\n\n", "\r\n\r\n"]],
+  ["LF", ["\n\n", "\n\n", "\n\n"]],
+  ["CRLF", ["\r\n\r\n", "\r\n\r\n", "\r\n\r\n"]],
+] as const)
+  test(`${label} actual reader keeps moved identity and never maps changed/deleted content to its old anchor`, async () => {
+    const heading = "# 시작" + endings[0],
+      original = "원래 문단" + endings[1],
+      last = "마지막" + endings[2];
+    const oldText = heading + original + last + "# 끝";
+    const old = segmentAnchors("doc", 2, oldText, [], true).anchors;
+    const target = old[1].id;
+    const { host, root } = await mount(oldText, old, target);
+    expect(document.activeElement?.textContent).toContain("원래 문단");
+    const movedText = last + heading + original + "# 끝",
+      moved = segmentAnchors("doc", 3, movedText, old, true).anchors;
+    await act(async () =>
+      root.render(
+        <DocumentReader
+          document={{ id: "doc", spaceId: "space", content: movedText }}
+          version={3}
+          blocks={moved}
+          targetAnchor={target}
+        />,
+      ),
+    );
+    expect(document.activeElement?.textContent).toContain("원래 문단");
+    expect(document.activeElement?.getAttribute("data-block-id")).toBe(target);
+    const changedText = last + heading + "전혀 다른 문단" + endings[1] + "# 끝",
+      changed = segmentAnchors("doc", 4, changedText, moved, true).anchors;
+    await act(async () =>
+      root.render(
+        <DocumentReader
+          document={{ id: "doc", spaceId: "space", content: changedText }}
+          version={4}
+          blocks={changed}
+          targetAnchor={target}
+        />,
+      ),
+    );
+    expect(host.textContent).toContain("위치가 변경되었거나 사라졌습니다");
+    expect(host.querySelector(`[data-block-id="${target}"]`)).toBeNull();
+    const deletedText = last + heading + "# 끝",
+      deleted = segmentAnchors("doc", 5, deletedText, changed, true).anchors;
+    await act(async () =>
+      root.render(
+        <DocumentReader
+          document={{ id: "doc", spaceId: "space", content: deletedText }}
+          version={5}
+          blocks={deleted}
+          targetAnchor={target}
+        />,
+      ),
+    );
+    expect(host.textContent).toContain("위치가 변경되었거나 사라졌습니다");
+    expect(host.querySelector(`[data-block-id="${target}"]`)).toBeNull();
+    await act(async () =>
+      root.render(
+        <DocumentReader
+          document={{ id: "doc", spaceId: "space", content: oldText }}
+          version={2}
+          blocks={old}
+          targetAnchor={target}
+        />,
+      ),
+    );
+    expect(document.activeElement?.textContent).toContain("원래 문단");
+    await act(async () => root.unmount());
+  });
+
+test("a late successful latest copy cannot replace the newer failed fixed-copy fallback", async () => {
+  let finishFirst!: () => void;
+  const writeText = vi
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishFirst = resolve;
+        }),
+    )
+    .mockRejectedValueOnce(Error("fixed denied"));
+  vi.stubGlobal("navigator", { clipboard: { writeText } });
+  const { host, root } = await mount();
+  await click(host, "최신 문서 링크 복사");
+  await click(host, "v2 고정 링크 복사");
+  expect(host.textContent).toContain("복사하지 못했습니다");
+  const fallback = host.querySelector("textarea")!.value;
+  expect(fallback).toContain("version=2");
+  await act(async () => finishFirst());
+  expect(host.textContent).toContain("복사하지 못했습니다");
+  expect(host.querySelector("textarea")?.value).toBe(fallback);
+  expect(host.textContent).not.toContain("복사했습니다.");
+  await act(async () => root.unmount());
+});
+
+test("new copy clears stale feedback; pending completion cannot cross a document switch or unmount", async () => {
+  let finishSecond!: () => void, finishThird!: () => void;
+  const writeText = vi
+    .fn()
+    .mockRejectedValueOnce(Error("denied"))
+    .mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSecond = resolve;
+        }),
+    )
+    .mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishThird = resolve;
+        }),
+    );
+  vi.stubGlobal("navigator", { clipboard: { writeText } });
+  const { host, root } = await mount();
+  await click(host, "v2 고정 링크 복사");
+  expect(host.querySelector("textarea")).not.toBeNull();
+  await click(host, "최신 문서 링크 복사");
+  expect(host.querySelector("textarea")).toBeNull();
+  expect(host.textContent).not.toContain("복사하지 못했습니다");
+  await act(async () =>
+    root.render(
+      <DocumentReader
+        document={{ id: "other", spaceId: "space", content: "새 문서" }}
+        version={1}
+      />,
+    ),
+  );
+  await act(async () => finishSecond());
+  expect(host.textContent).not.toContain("복사했습니다.");
+  expect(host.querySelector("textarea")).toBeNull();
+  await click(host, "최신 문서 링크 복사");
+  await act(async () => root.unmount());
+  await act(async () => finishThird());
+  expect(host.textContent).toBe("");
+});
+
+test("the CR-only two-block replacement reproduction never reuses the original latest anchor", async () => {
+  const before = "# Heading\r\rOriginal paragraph",
+    after = "# Heading\r\rUnrelated replacement";
+  const old = segmentAnchors("doc", 2, before, [], true).anchors,
+    next = segmentAnchors("doc", 3, after, old, true).anchors;
+  const { host, root } = await mount(after, next, old[1].id);
+  expect(host.textContent).toContain("위치가 변경되었거나 사라졌습니다");
+  expect(host.querySelector(`[data-block-id="${old[1].id}"]`)).toBeNull();
+  expect(document.activeElement?.textContent).not.toBe("Unrelated replacement");
+  await act(async () => root.unmount());
+});

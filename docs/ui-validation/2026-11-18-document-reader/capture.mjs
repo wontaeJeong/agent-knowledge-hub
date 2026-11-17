@@ -15,11 +15,11 @@ try{
   const f=fixture.scenarios[index++],profile=await mkdtemp('/private/tmp/akh_c9_profile_');
   const context=await chromium.launchPersistentContext(profile,{headless:true,viewport:{width,height:width===1440?1000:844},timezoneId:'Asia/Seoul'});
   try{
-   context.setDefaultTimeout(20000);const errors=[],requests=[];
-   await context.addInitScript(t=>{localStorage.setItem('agent-knowledge-hub.theme',t);Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{throw Error('Synthetic Clipboard denial');}},configurable:true});},theme);
+   context.setDefaultTimeout(20000);const errors=[],requests=[];let mutation=0;
+   await context.addInitScript(t=>{localStorage.setItem('agent-knowledge-hub.theme',t);Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{if(window.__c9CopyMode==='hold-first'){window.__c9CopyMode='deny';return new Promise(resolve=>{window.__c9FinishCopy=resolve;});}throw Error('Synthetic Clipboard denial');}},configurable:true});},theme);
    await context.route('**/api/**',async route=>{const req=route.request(),u=new URL(req.url());requests.push({path:u.pathname+u.search,method:req.method()});try{const response=await route.fetch({url:`http://127.0.0.1:4399${u.pathname}${u.search}`,headers:{...req.headers(),cookie:'synthetic-editor',origin:'http://127.0.0.1:5199'}});await route.fulfill({response});}catch(e){if(!/closed|cancel|disposed/i.test(e.message))throw e;}});
    const page=context.pages()[0]??await context.newPage();page.on('pageerror',e=>errors.push(e.message));
-   const canonical=async(path,body,actor='editor')=>{const response=await fetch(`http://127.0.0.1:4399/api/v1${path}`,{method:body===undefined?'GET':'POST',headers:{cookie:'synthetic-'+actor,origin:'http://127.0.0.1:5199','X-Space-Id':f.spaceId,'X-CSRF-Token':'test-only-csrf','Content-Type':'application/json','Idempotency-Key':'c9-'+width+'-'+theme+'-'+path},...(body===undefined?{}:{body:JSON.stringify(body)})});const data=await response.json();assert.ok(response.ok,JSON.stringify({path,status:response.status,data}));return data;};
+   const canonical=async(path,body,actor='editor')=>{const response=await fetch(`http://127.0.0.1:4399/api/v1${path}`,{method:body===undefined?'GET':'POST',headers:{cookie:'synthetic-'+actor,origin:'http://127.0.0.1:5199','X-Space-Id':f.spaceId,'X-CSRF-Token':'test-only-csrf','Content-Type':'application/json','Idempotency-Key':'c9-'+width+'-'+theme+'-'+(++mutation)},...(body===undefined?{}:{body:JSON.stringify(body)})});const data=await response.json();assert.ok(response.ok,JSON.stringify({path,status:response.status,data}));return data;};
    const snapshot=await canonical('/versions/pages/topic/latest'),anchor=snapshot.anchors.anchors.find(a=>a.startLine===5).id;
    const go=async(query='')=>{await page.goto(`http://127.0.0.1:5199/?app=1&space=${f.spaceId}&document=topic${query}`);await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.getByRole('region',{name:'문서 읽기',exact:true}).waitFor();};
    await go();assert.equal(await page.locator('[data-document-heading]').count(),1);
@@ -33,6 +33,14 @@ try{
    await search.focus();await page.keyboard.press('Shift+Enter');await reader.getByText('1 / 4',{exact:true}).waitFor();
    assert.equal(await reader.locator('script').count(),0);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    await reader.scrollIntoViewIfNeeded();await page.screenshot({path:`${output}/${width}-${theme}-reader.png`,fullPage:true});
+   // I2: an older successful latest copy must not erase a newer fixed-copy failure.
+   await page.evaluate(()=>window.__c9CopyMode='hold-first');
+   await reader.getByRole('button',{name:'최신 문서 링크 복사',exact:true}).click();
+   await reader.getByRole('button',{name:'v2 고정 링크 복사',exact:true}).click();
+   const raceFallback=reader.getByLabel('직접 복사할 내용');const failedFixed=await raceFallback.inputValue();assert.ok(failedFixed.includes('version=2'));
+   await page.evaluate(async()=>{window.__c9FinishCopy();await new Promise(requestAnimationFrame);});
+   assert.equal(await raceFallback.inputValue(),failedFixed);assert.equal(await reader.getByText('복사했습니다.',{exact:true}).count(),0);
+   await raceFallback.scrollIntoViewIfNeeded();await page.screenshot({path:`${output}/${width}-${theme}-copy-race.png`,fullPage:true});
    await reader.getByRole('button',{name:'코드 복사',exact:true}).click();const fallback=reader.getByLabel('직접 복사할 내용');assert.match(await fallback.inputValue(),/const 한글 = "<script>안전한 예제<\/script>";/);assert.equal(await reader.getByText('복사했습니다.',{exact:true}).count(),0);
    await fallback.focus();assert.equal(await fallback.evaluate(el=>el.selectionEnd-el.selectionStart), (await fallback.inputValue()).length);
    await fallback.scrollIntoViewIfNeeded();await page.screenshot({path:`${output}/${width}-${theme}-copy-fallback.png`,fullPage:true});
@@ -50,8 +58,22 @@ try{
    await go();await reader.getByText('위치가 바뀐 새 문단',{exact:true}).waitFor();
    await db.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id='source-a' AND principal_id='editor'",[f.spaceId]);
    await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForFunction(()=>!document.body.textContent.includes('위치가 바뀐 새 문단'));assert.equal(await reader.count(),0);
+   // I1: actual approved publication with CR-only and mixed CR/LF source text.
+   await db.query("INSERT INTO resource_readers VALUES($1,'source','source-a','editor')",[f.spaceId]);
+   const publish=async(content,baseVersion)=>{const b=await canonical('/workflows/pages/topic/edit',{baseVersion,content,reason:'C9 CR 위치 회귀'});await canonical(`/changesets/${b.id}/approve`,{hash:b.hash},'reviewer');await canonical(`/changesets/${b.id}/publish`,{hash:b.hash},'reviewer');};
+   await publish('# 줄바꿈\r\r원래 문단',3);
+   const cr=await canonical('/versions/pages/topic/latest'),crAnchor=cr.anchors.anchors[1].id;
+   await go('&anchor='+crAnchor);await page.waitForFunction(a=>document.activeElement?.getAttribute('data-block-id')===a,crAnchor);assert.ok((await page.evaluate(()=>document.activeElement?.textContent)).includes('원래 문단'));
+   await publish('앞 문단\n\n# 줄바꿈\r\r원래 문단',4);
+   await go('&anchor='+crAnchor);await page.waitForFunction(a=>document.activeElement?.getAttribute('data-block-id')===a,crAnchor);assert.ok((await page.evaluate(()=>document.activeElement?.textContent)).includes('원래 문단'));
+   await publish('앞 문단\n\n# 줄바꿈\r\r대체 문단',5);
+   await go('&anchor='+crAnchor);await reader.getByText('위치가 변경되었거나 사라졌습니다. 다른 문단으로 이동하지 않았습니다.',{exact:true}).waitFor();assert.equal(await reader.locator(`[data-block-id="${crAnchor}"]`).count(),0);
+   await reader.scrollIntoViewIfNeeded();await page.screenshot({path:`${output}/${width}-${theme}-newline-unavailable.png`,fullPage:true});
+   await go('&version=4&anchor='+crAnchor);await page.waitForFunction(a=>document.activeElement?.getAttribute('data-block-id')===a,crAnchor);assert.ok((await page.evaluate(()=>document.activeElement?.textContent)).includes('원래 문단'));
+   await publish('앞 문단\n\n# 줄바꿈',6);
+   await go('&anchor='+crAnchor);await reader.getByText('위치가 변경되었거나 사라졌습니다. 다른 문단으로 이동하지 않았습니다.',{exact:true}).waitFor();assert.equal(await reader.locator(`[data-block-id="${crAnchor}"]`).count(),0);
    assert.deepEqual(errors,[]);
-   results.push({width,theme,keyboard:true,distinctRepeatedHeadings:true,koreanSearch:4,codeCopyDenied:true,selectableFallback:true,fixedAndLatest:true,missingAnchorFailClosed:true,historicalCurrentAcl:true,overflow:false,errors,requests,browserVersion:context.browser()?.version()});
+   results.push({width,theme,copyOutOfOrder:true,crMixedMovedChangedDeleted:true,keyboard:true,distinctRepeatedHeadings:true,koreanSearch:4,codeCopyDenied:true,selectableFallback:true,fixedAndLatest:true,missingAnchorFailClosed:true,historicalCurrentAcl:true,overflow:false,errors,requests,browserVersion:context.browser()?.version()});
   }finally{await context.close();await rm(profile,{recursive:true,force:true});}
  }
  await writeFile(output+'/browser-results.json',JSON.stringify({startedAt:fixture.startedAt,finishedAt:new Date().toISOString(),productionFingerprint:fixture.productionFingerprint,frontendStartedAt:frontend.startedAt,synthetic:true,results},null,2));console.log(JSON.stringify(results.map(({requests,...r})=>r),null,2));

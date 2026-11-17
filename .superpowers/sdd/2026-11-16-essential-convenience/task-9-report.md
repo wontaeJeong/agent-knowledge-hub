@@ -82,3 +82,48 @@ Final source fingerprint: `41b26860c702219d80d27ef603b884e579d546dfdedd1a4332314
 Runtime started `2026-11-17T20:51:47.188Z`; frontend started `2026-11-17T20:51:40.386Z`.
 Final manifest: **336 production / 3 harness / 4 regression / 18 artifacts / 26 logs**, all SHA-256 verified. Artifact count is16 PNG plus browser/cleanup JSON; the earlier progress count20 was a summation error corrected in MISTAKE_LOG and controller messages.
 This metadata-only follow-up records commit/PR evidence; production, tests, harness, logs and artifacts are unchanged. Root checked clean on main. Independent reviews and final-head CI remain controller work; do not treat draft creation as review acceptance.
+
+# Round 1/5 — I1 CR anchor identity and I2 overlapping Clipboard feedback
+
+FIX_BASE: `2199d7082ae79bf1e831091b17a9f629840655a6`. Original task review read in full from `/private/tmp/akh-c9-task-review.md`; preserved as `task-9-review-round1.md`. Applied receiving-code-review and the SDD fix-loop contract; no helpers, controller fixes, root edits or merge.
+
+Status: both reproduced Important findings fixed and locally verified; independent scoped re-review remains pending. Minor1 inherited >500kB chunk warning remains acknowledged/deferred.
+
+## I1 — cause, ruling, compatibility
+
+Confirmed that marked counts standalone CR as newline while the opt-in token segmenter sliced `content.split("\n")`, allowing a real second CR-only paragraph to receive SHA256(empty). An unrelated replacement could keep the stable ID, and actual DocumentReader then mapped it to replacement content. Mixed newline order also produced wrong target movement.
+
+Ruling: only the new token-mode hash source replaces standalone CR (`/\r(?!\n)/g`) with LF before splitting into lines. This gives the same line count/coordinates as marked while retaining the original CR bytes of CRLF inputs. Default legacy segmentation is byte-for-byte unchanged; stored metadata and historical version content are untouched. The bounded tail uses the same corrected line array. This fixes the coordinate mismatch without globally normalizing stored content or changing LF/CRLF hashes. Newline-style-only changes may conservatively lose identity, as before; no guessed jump is introduced.
+
+Covering tests:
+- `src/operational/convenience/reader.test.tsx`: CR, mixed, LF, CRLF actual Reader mapping across moved/changed/deleted blocks and fixed-old restoration; exact two-block CR replacement reproduction must show unavailable and have no DOM node bearing the original ID.
+- `server/convenience/anchors.test.ts`: actual approved publication capture for the same four newline formats, preserved IDs only for moved original content, changed/deleted unresolved, SHA256(empty) forbidden for the real original paragraph, immutable historical body/anchors. Golden pre-fix legacy CRLF IDs/hash values plus original CR coarse single-block fallback preserve compatibility.
+
+## I2 — cause and fix
+
+Confirmed two copy operations in the same document shared only the document-generation check. A pending latest-link copy could resolve after a newer fixed-link rejection and replace its error/textarea with false success.
+
+Ruling: each copy increments a `copySequence`, clears old feedback immediately, and writes result only when both its document generation and copy sequence are current. Existing document switch/unmount generation remains. Tests hold first/latest promise, reject second/fixed, then resolve first: the exact failed fixed URL and error stay visible, with no success message. Further tests assert new-request feedback clearing and that a pending completion cannot cross document switch or unmount.
+
+## RED → GREEN and failure accounting
+
+Commands used Node24.22.2 via the same supplied PATH and loopback test database as the initial report.
+
+1. `vitest run src/operational/convenience/reader.test.tsx` → `c9-r1-reader-red.log`: **4 failed/9 passed** (before exact two-block case added). `node scripts/test-server.mjs server/convenience/anchors.test.ts` → `c9-r1-native-red.log`: **4 failed/9 passed**; two CR/mixed product failures plus two LF/CRLF fixture-control failures.
+2. Investigated control failures: existing edit schema trims trailing whitespace, so moving a paragraph to the final position removed its delimiter. Added a fixed terminal heading so all compared blocks remain internal with unchanged delimiters; historical byte assertion now observes exact accepted content. No product change had been made. Added exact reviewer two-block reproduction.
+3. Same RED commands → `c9-r1-reader-red-controls.log`: **5 failed/9 passed**; `c9-r1-native-red-controls.log`: **2 failed/11 passed**. Only CR/mixed and copy defects fail; LF/CRLF and legacy golden controls pass. These are the clean before-fix baselines.
+4. Implemented only two production files (`server/workflows/versions/diff.ts`, `src/operational/convenience/DocumentReader.tsx`). `vitest run src/operational/convenience/reader.test.tsx src/operational/document-navigation.test.tsx src/ui/Markdown.test.tsx` → `c9-r1-reader-green.log`: **3 files/28 passed**. `node scripts/test-server.mjs server/convenience/anchors.test.ts server/workflows/versions/versions.test.ts` → `c9-r1-native-green.log`: **2 files/19 passed**.
+5. `npm run check` → `c9-r1-check.log`, exit0: **71 src files/508 tests + Node48 + imports16 + evaluation41 +251 criteria + server types + build + static HTTP smoke**. Inherited chunk warning retained.
+6. `node scripts/test-server.mjs server/convenience/anchors.test.ts server/convenience/links.test.ts server/convenience/links-http.test.ts server/convenience/structure.test.ts server/convenience/structure-final.test.ts server/convenience/structure-http.test.ts server/workflows/versions/versions.test.ts server/workflows/versions/publication-integration.test.ts server/workflows/versions/visit-http.test.ts server/workflows/lineage-closure.test.ts server/workflows/navigation-http.test.ts server/runtime/versions-host.test.ts server/runtime/search-mcp.test.ts server/agents/mcp.test.ts server/operations/links-erasure.test.ts` → `c9-r1-native-final.log`, exit0: **15 files/120 tests** (anchor13, all other prior file counts unchanged). Not a full-server-suite claim.
+
+## Fresh browser and cleanup
+
+Started a new owned runtime/database and frontend after the production fix; used the same exact runtime/frontend/capture commands listed earlier, logs `c9-r1-runtime.log`, `c9-r1-frontend.log`, `c9-r1-browser.log`. Harness-only changes use distinct idempotency keys for distinct added publication requests.
+
+Chromium158.0.8127.18, 1440×1000/390×844 × light/dark: all four passed with errors[]. Existing 16 screenshot states were recaptured, plus 8 new captures = **24 PNG**. New assertions execute actual HTTP approval/publication of CR-only v4 → mixed moved v5 → replacement v6 → deleted v7, verify exact current focus, missing-location/no misdirection and frozen v4 original position. New controlled Clipboard promises simulate older latest success after fixed-copy failure, preserving the failed URL and no success. Screenshot `390-dark-copy-race.png` and `1440-light-newline-unavailable.png` visually inspected.
+
+These are canonical HTTP/PG paths with synthetic identities and controlled browser Clipboard promises, not OS Clipboard/company IdP/full accessibility/real device acceptance. Old and new provenance/source/ancestor/erasure checks remain; North Star and251 criteria unchanged. Current unknown review/official metadata and bundle warning limitations remain.
+
+Owned runtime/frontend commands verified by PID then terminated. `cleanup.json` records round1 own DB/profile0,4399/5199closed,parent knowledge_test alive. Previous16PNG and old source manifest remain immutable in FIX_BASE; top-level current24PNG all match the new source fingerprint. No pending product changes during packaging; scoped review/CI are controller work.
+
+Round1 production fingerprint: `a88bf15d089d600138896abec34ce5d2215744c0901e54702e8b5c9f10a7a07a`; runtime `2026-11-17T21:10:12.347Z`; frontend `2026-11-17T21:10:13.089Z`; capture finished `2026-11-17T21:11:28.840Z`.

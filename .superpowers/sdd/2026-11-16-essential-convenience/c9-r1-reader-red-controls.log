@@ -1,0 +1,134 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/2fb2/agent-knowledge-hub
+
+ ❯ src/operational/convenience/reader.test.tsx (14 tests | 5 failed) 193ms
+   × CR actual reader keeps moved identity and never maps changed/deleted content to its old anchor 6ms
+   × mixed actual reader keeps moved identity and never maps changed/deleted content to its old anchor 7ms
+   × a late successful latest copy cannot replace the newer failed fixed-copy fallback 6ms
+   × new copy clears stale feedback; pending completion cannot cross a document switch or unmount 7ms
+   × the CR-only two-block replacement reproduction never reuses the original latest anchor 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > CR actual reader keeps moved identity and never maps changed/deleted content to its old anchor
+AssertionError: expected null to be 'a-260977771801b673c80f71cf0c38290f' // Object.is equality
+
+- Expected:
+"a-260977771801b673c80f71cf0c38290f"
+
++ Received:
+null
+
+ ❯ src/operational/convenience/reader.test.tsx:227:65
+    225|   await act(async()=>root.render(<DocumentReader document={{id:'doc',s…
+    226|   expect(document.activeElement?.textContent).toContain('원래 문단');
+    227|   expect(document.activeElement?.getAttribute('data-block-id')).toBe(t…
+       |                                                                 ^
+    228|   const changedText=last+heading+'전혀 다른 문단'+endings[1]+'# 끝',changed=s…
+    229|   await act(async()=>root.render(<DocumentReader document={{id:'doc',s…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > mixed actual reader keeps moved identity and never maps changed/deleted content to its old anchor
+AssertionError: expected '마지막\n부분 링크' to contain '원래 문단'
+
+- Expected
++ Received
+
+- 원래 문단
++ 마지막
++ 부분 링크
+
+ ❯ src/operational/convenience/reader.test.tsx:226:47
+    224|   const movedText=last+heading+original+"# 끝",moved=segmentAnchors('do…
+    225|   await act(async()=>root.render(<DocumentReader document={{id:'doc',s…
+    226|   expect(document.activeElement?.textContent).toContain('원래 문단');
+       |                                               ^
+    227|   expect(document.activeElement?.getAttribute('data-block-id')).toBe(t…
+    228|   const changedText=last+heading+'전혀 다른 문단'+endings[1]+'# 끝',changed=s…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > a late successful latest copy cannot replace the newer failed fixed-copy fallback
+AssertionError: expected '최신 문서 링크 복사v2 고정 링크 복사발행 시점미확인검토 시점미확…' to contain '복사하지 못했습니다'
+
+- Expected
++ Received
+
+- 복사하지 못했습니다
++ 최신 문서 링크 복사v2 고정 링크 복사발행 시점미확인검토 시점미확인공식 문서 여부미확인복사했습니다.목차설치설치문서 내 검색일치 0건이전 일치다음 일치현재 위치로 이동설치
++ 부분 링크첫 한글 문단
++ 부분 링크설치
++ 부분 링크const 한글 = "<script>bad()</script>";
++ 코드 복사부분 링크
++
++
++ 값
++
++
++
++ 한글
++
++
++ 부분 링크
+
+ ❯ src/operational/convenience/reader.test.tsx:252:27
+    250|  expect(fallback).toContain('version=2');
+    251|  await act(async()=>finishFirst());
+    252|  expect(host.textContent).toContain('복사하지 못했습니다');
+       |                           ^
+    253|  expect(host.querySelector('textarea')?.value).toBe(fallback);
+    254|  expect(host.textContent).not.toContain('복사했습니다.');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > new copy clears stale feedback; pending completion cannot cross a document switch or unmount
+AssertionError: expected <textarea readonly></textarea> to be null
+
+- Expected:
+null
+
++ Received:
+<textarea
+  readonly=""
+>
+  http://localhost:3000/?app=1&space=space&document=doc&version=2
+</textarea>
+
+ ❯ src/operational/convenience/reader.test.tsx:264:73
+    262|  const {host,root}=await mount();
+    263|  await click(host,'v2 고정 링크 복사');expect(host.querySelector('textarea')…
+    264|  await click(host,'최신 문서 링크 복사');expect(host.querySelector('textarea')…
+       |                                                                         ^
+    265|  await act(async()=>root.render(<DocumentReader document={{id:'other',…
+    266|  await act(async()=>finishSecond());expect(host.textContent).not.toCon…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  src/operational/convenience/reader.test.tsx > the CR-only two-block replacement reproduction never reuses the original latest anchor
+AssertionError: expected '최신 문서 링크 복사v2 고정 링크 복사발행 시점미확인검토 시점미확…' to contain '위치가 변경되었거나 사라졌습니다'
+
+- Expected
++ Received
+
+- 위치가 변경되었거나 사라졌습니다
++ 최신 문서 링크 복사v2 고정 링크 복사발행 시점미확인검토 시점미확인공식 문서 여부미확인목차Heading문서 내 검색일치 0건이전 일치다음 일치현재 위치로 이동Heading
++ 부분 링크Unrelated replacement
++ 부분 링크
+
+ ❯ src/operational/convenience/reader.test.tsx:274:27
+    272|  const old=segmentAnchors('doc',2,before,[],true).anchors,next=segment…
+    273|  const {host,root}=await mount(after,next,old[1].id);
+    274|  expect(host.textContent).toContain('위치가 변경되었거나 사라졌습니다');
+       |                           ^
+    275|  expect(host.querySelector(`[data-block-id="${old[1].id}"]`)).toBeNull…
+    276|  expect(document.activeElement?.textContent).not.toBe('Unrelated repla…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 9 passed (14)
+   Start at  06:07:33
+   Duration  529ms (tests 41%, environment 39%, import 15%, transform 5%)
+

@@ -1058,3 +1058,13 @@ Final combined F1/F2 fix/evidence commit: `4a9e24c286fea3d1654bf904a7ebe4cbb03ca
 - 상세 명령·판단·실패·보고서는 `.superpowers/sdd/2026-11-16-essential-convenience/task-9-report.md`, 변경 파일/해시는 UI source manifest를 따른다.
 
 - C9 implementation/evidence commit `4c67586d11738a40ecbe23ddb6c008a9abe95011`, [draft PR #75](https://github.com/wontaeJeong/agent-knowledge-hub/pull/75). Final source fingerprint `41b26860c702219d80d27ef603b884e579d546dfdedd1a43323149aab826dce6`; manifest336production/3harness/4regression/18artifacts(16PNG+2JSON)/26logs 검증. 이 후속 변경은 commit/PR 기록만 추가하며 제품·테스트·캡처 바이트는 동일하다. 독립 리뷰/정확headCI 대기, 병합하지 않음.
+
+
+### C9 Round1 — I1 CR 좌표/해시, I2 복사 응답 순서
+
+- FIX_BASE `2199d7082ae79bf1e831091b17a9f629840655a6`. 독립 리뷰가 CR-only/mixed의 marked 좌표와 원문 split 차이로 빈 해시 ID가 바뀐 문단에 재사용되고, 앞선 Clipboard 성공이 최신 실패를 덮는 두 Important를 재현했다. 제품 수정은 segmentAnchors token mode와 DocumentReader copy의 두 파일이다.
+- Ruling I1: 새 token mode만 standalone CR을 줄 경계로 정규화하고 CRLF의 원래 CR bytes를 hash에 보존한다. 렌더러와 source line 개수를 일치시키면서 이미 저장한 LF/CRLF identity와 legacy fallback/역사 버전을 재작성하지 않기 위해서다. 비용은 줄바꿈 표기 변경만으로 identity가 사라질 수 있는 기존 보수적 동작이며 잘못된 이동보다 명시 부재를 택한다.
+- Ruling I2: 문서 세대에 copy request sequence를 추가하고 새 복사 시작 시 이전 feedback을 지운다. 현재 문서·현재 요청 둘 다 일치해야 결과를 반영한다. 선택 가능한 최신 실패 URL과 기존 document switch/unmount 폐기 규칙을 보존한다.
+- Clean RED reader5fail/9pass, native2fail/11pass 후 focused3files28, native anchors13+versions6=19 GREEN. 최종 full check508/48/import16/eval41/251/types/build/smoke exit0, affected native15files120 pass. 최초 RED fixture는 edit schema의 끝 공백 trim 때문에 LF/CRLF control에도 실패했으며 고정 종단 문단으로 실제 delimiter 변경을 제거한 clean RED를 수정 전에 다시 기록했다.
+- Fresh Chromium158 네조건24PNG: 기존 동작에 실제 CR-only→mixed 승인 발행/이동/변경/삭제·고정 위치와 늦은 복사 성공/최신 실패 보존을 추가해 모두 통과(errors[]). runtime/frontend/source fingerprint를 새로 고정했다. ownDB/profile0·4399/5199닫힘·parent PG생존. 이전16PNG는 FIX_BASE에 보존된다.
+- North Star/251기준/현재 ACL·계보·삭제/과거 immutable bytes는 그대로다. 기존 큰 번들 경고, 미확인 review/official metadata, 실제IdP/전체접근성/운영·의미 품질 미검증은 유지한다. 상세 명령/실패/증거는 task-9-report Round1, 독립 scoped re-review와 최종CI는 controller 후속이다.

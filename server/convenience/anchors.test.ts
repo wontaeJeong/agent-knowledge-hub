@@ -229,3 +229,68 @@ test("source erasure removes permission to fixed and latest block snapshots", as
   await expect(v.version(f.reader, "topic", 2)).rejects.toThrow();
   await expect(v.latestVersion(f.reader, "topic")).rejects.toThrow();
 });
+
+for (const [label, endings] of [
+  ["CR", ["\r\r", "\r\r", "\r\r"]],
+  ["mixed", ["\r\r", "\n\n", "\r\n\r\n"]],
+  ["LF", ["\n\n", "\n\n", "\n\n"]],
+  ["CRLF", ["\r\n\r\n", "\r\n\r\n", "\r\n\r\n"]],
+] as const)
+  test(`${label} publication capture binds changed, moved and deleted blocks without rewriting historical bytes`, async () => {
+    const heading = "# 시작" + endings[0],
+      original = "원래 문단" + endings[1],
+      last = "마지막" + endings[2];
+    const oldText = heading + original + last + "# 끝";
+    await publish(oldText, 1);
+    const old = await v.version(f.reader, "topic", 2),
+      target = old.anchors.anchors[1];
+    expect(target.hash).not.toBe(
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    );
+    await publish(last + heading + original + "# 끝", 2);
+    const moved = await v.version(f.reader, "topic", 3);
+    expect(resolveAnchor(target, moved.anchors.anchors)).toMatchObject({
+      resolved: true,
+      status: "moved",
+    });
+    await publish(last + heading + "전혀 다른 문단" + endings[1] + "# 끝", 3);
+    const changed = await v.version(f.reader, "topic", 4);
+    expect(resolveAnchor(target, changed.anchors.anchors).resolved).toBe(false);
+    expect(
+      changed.anchors.anchors.some(
+        (anchor: { id: string }) => anchor.id === target.id,
+      ),
+    ).toBe(false);
+    await publish(last + heading + "# 끝", 4);
+    const deleted = await v.version(f.reader, "topic", 5);
+    expect(resolveAnchor(target, deleted.anchors.anchors).resolved).toBe(false);
+    const frozen = await v.version(f.reader, "topic", 2);
+    expect(frozen.content).toBe(oldText);
+    expect(frozen.anchors).toEqual(old.anchors);
+  });
+
+test("legacy CRLF and CR coarse fallback hashes and IDs remain byte-compatible", () => {
+  const refs = segmentAnchors("doc", 1, "# H\r\n\r\nBody").anchors;
+  expect(
+    refs.map((a) => ({
+      id: a.id,
+      hash: a.hash,
+      startLine: a.startLine,
+      endLine: a.endLine,
+    })),
+  ).toEqual([
+    {
+      id: "a-02795509965443509646ba221efadb90",
+      hash: "95ed6f3c0b222b6e402d3f40e5a4fc0af26258de9244b51ad28c4e8e08577d9e",
+      startLine: 1,
+      endLine: 1,
+    },
+    {
+      id: "a-82efbef6c07ff1e45d70e65cdfe761af",
+      hash: "6ccaa6415b5ee449e3c5c716f57b4608ebe3b780f5aa6b077bc5d8eee5d961f9",
+      startLine: 3,
+      endLine: 3,
+    },
+  ]);
+  expect(segmentAnchors("doc", 1, "# H\r\rBody").anchors).toHaveLength(1);
+});

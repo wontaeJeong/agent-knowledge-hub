@@ -4,13 +4,17 @@ const hash=(text:string)=>createHash("sha256").update(text).digest("hex");
 export interface Anchor {id:string;hash:string;startLine:number;endLine:number;beforeHash:string|null;afterHash:string|null;stable:boolean;kind:"paragraph"|"code"|"table"|"bounded-tail"}
 export function segmentAnchors(pageId:string,number:number,content:string,previous:Anchor[]=[],tokenBoundaries=false):{mode:"exact"|"bounded";anchors:Anchor[]} {
  const lines=content.split("\n"),parts:{hash:string;startLine:number;endLine:number;kind:Anchor["kind"]}[]=[];
+ // marked counts standalone CR as a newline. Use those same line boundaries
+ // for new token captures, but retain CRLF's original CR bytes in hashes so
+ // existing LF/CRLF identities and the untouched legacy fallback stay compatible.
+ const tokenLines=tokenBoundaries?content.replace(/\r(?!\n)/g,"\n").split("\n"):lines;
  let line=1;
  if(tokenBoundaries)for(const token of marked.lexer(content)){
   const start=line;line+=(token.raw.match(/\n/g)??[]).length;
   if(!token.raw.trim())continue;
   const end=line-(token.raw.endsWith("\n")?1:0);
-  if(parts.length>=999){parts.push({hash:hash(lines.slice(start-1).join("\n")),startLine:start,endLine:lines.length,kind:"bounded-tail"});break;}
-  parts.push({hash:hash(lines.slice(start-1,end).join("\n")),startLine:start,endLine:end,kind:token.type==="code"?"code":token.type==="table"?"table":"paragraph"});
+  if(parts.length>=999){parts.push({hash:hash(tokenLines.slice(start-1).join("\n")),startLine:start,endLine:tokenLines.length,kind:"bounded-tail"});break;}
+  parts.push({hash:hash(tokenLines.slice(start-1,end).join("\n")),startLine:start,endLine:end,kind:token.type==="code"?"code":token.type==="table"?"table":"paragraph"});
  }
  else for(let i=0;i<lines.length;){if(!lines[i].trim()){i++;continue;}const start=i;let kind:Anchor["kind"]="paragraph";
   if(parts.length>=999){i=lines.length;kind="bounded-tail";}
