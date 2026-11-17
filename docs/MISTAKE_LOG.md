@@ -767,6 +767,20 @@
 - 조치/후속 작업: 권한 확정 전 capture/projection을 지연하고 staged scan→승인 release→재scan에서 정확히1건, 승인 실패에서는0건인 회귀가 필요하다. 내부 링크 계보 수정과 별도이며 이번 변경에 이벤트 수정은 포함하지 않았다.
 - 상태: 미해결. 원격 PR 리뷰에 경로를 기록했으며 통합 main 발행 전 해결·독립 재검증이 필요하다.
 
+### 2026-11-16 — 누적 native HTTP 회귀 사례의 기본 시간 초과
+
+- 맥락/사실: 부모가 제공한 PR #56 CI `43890549626` 로그에서 `15:03:25 Error: Test timed out in 5000ms`가 `navigation-http.test.ts:9`에 발생했다. 119파일 PostgreSQL suite의 유일한 실패였고 assertion/product 실패는 없었다. 로컬에서도 이전 파일 시간이 5.20초였다.
+- 원인: 하나의 현재 권한/철회 시나리오에 fixture 초기화와 34건의 순차 HTTP 검사가 누적됐지만 기본 5초 상한을 유지했다. 요청별 fresh OIDC·현재 ACL을 생략해 시간을 줄이는 것은 검증 범위를 약화한다.
+- 조치/검증: peer native HTTP 사례와 같은 명시적 20초 상한을 해당 사례에만 적용하고 이유를 주석으로 남겼다. 기존 assertion·제품·전역 CI gate는 그대로다. 임의 sleep/retry 없이 해당 파일 native PostgreSQL 1/1(파일 5.46초) 및 서버 typecheck를 통과했다. 전체 광역 suite는 지시대로 반복하지 않았으며 최종 원격 확인은 부모 작업이 담당한다.
+### 2026-11-16 — 통합 검증의 의존성 캐시와 파일 필터 수정
+
+- 관찰: 새 렌더링 의존성을 offline 설치할 때 zod-to-json-schema tarball 캐시가 없어 ENOTCACHED로 중단됐다. 공용 node_modules 링크는 대상 폴더를 변경하지 않고 제거했으며, 독립 작업 트리에 정상 `npm ci --ignore-scripts`로334패키지를 설치했다.
+- 관찰/조치: 추가 presentation HTTP 필터를 `server/workflows`로 잘못 적어 runner가 실행 전에 INVALID_SERVER_TEST_FILTER로 거절했다. 실제 `server/storage/presentation-http.test.ts`로 고쳐13파일155시험을 통과했다. 제품/권한 검사는 변경하지 않았다.
+- 검증: 렌더링 통합175ed7a와 링크 수정의 전체 `npm run check`(프런트213) 및 위 native PostgreSQL155회귀 통과. 최종 원격 통합 검사는 별도 확인한다.
+
+### 2026-11-16 - Semantic search integration MCP inventory
+- Native integration runtime tools/list correctly advertised knowledge_semantic_search but the pre-existing exact tool inventory expectation omitted it. This caused one assertion failure; the13 semantic provider tests passed. Updated the authenticated inventory expectation to the connected reviewed feature, preserving the explicit prohibition on approval tools. No production behavior changed.
+
 ### 2026-11-17 — Task7 통합된 모델 후보 계약 누락
 
 - 맥락/사실: PR60 독립 리뷰 A에서 이미 통합된 모든-ingest `candidates` 계약과 Weekly strict 출력 스키마가 달라, 유효한 비어 있는 후보까지 실패함을 확인했다. Weekly는 후보/변경 이유를 canonical `propose`에 전달하지도 않았다. 이전 기록에서 통합 위험을 적은 것은 연결 구현·검증을 대신하지 못했다. 실제 회사 자료에 적용한 사실은 없다.
@@ -783,6 +797,15 @@
 - 호스트 Node의 discovery 15시험 중 4개(별도 재실행 3개)가 최근 answer를 집계하지 못했다. 읽기 전용 측정에서 호스트 `16:30:58.176Z`, DB `16:30:58.123Z`, 응답 직후 호스트 `.184Z`로 약61ms 차이가 확인됐다. 서버의 JS answer 시각이 DB report cutoff보다 미래가 되는 환경 경계다. 실패를 성공 처리하거나 제품/시험 assertion을 변경하지 않았다.
 - 동일 소스의 별도 임시 복사본을 Node24.22.0 Alpine 컨테이너에 복사하고 소유한 PG17 테스트 컨테이너의 네트워크/시계에서 실행했다. lockfile npm ci 후 discovery15/auth-lock2/navigation1 전부 통과했다. 호스트와 컨테이너 간 시계 차이를 제거한 검증이며 임의의 다중 호스트 clock skew 대응을 증명하지 않는다. 원격 필수 CI와 실제 운영 시계 동기화 인수는 별도다.
 - 첫 bind mount는 Docker 데몬 호스트에 로컬 경로가 없어 실행 전 거부됐다. 기존 컨테이너를 변경하지 않고 새 소유 컨테이너에 docker cp로 복사했다. 실제 DB 시험은 파일별 UUID 생성/정리 runner를 사용했고 공유 base DB에는 자료를 쓰지 않았다.
+- Independent integration re-review found pending Mermaid source was marked as text then asynchronously replaced by SVG, leaving a stale find count. Controlled deferred-Mermaid regression reproduced marks0/status1. Excluded the entire pending/resolved diagram container, matching the existing SVG exclusion; regular code/table search remains supported.
+
+### 2026-11-17 — 유지관리 native 시험의 기본 5초 예산과 재개 환경 복원
+
+- PR #59 `6d74a36` 최종 CI job133444826151에서 maintenance-runtime의 weekly retry 사례가5000ms 한도를 넘겼다. 나머지128서버 파일과 플랫폼/Docker/K8s 검사는 통과했다. 첫 원본 로컬20시험은35.67초에 통과했지만, 병렬 검증 부하에서 empty-candidates/invalid-quote와 protected-target/retry 사례도5000ms에 실패했다. 실패를 권한·주장 assertion 실패로 바꾸지 않았다.
+- 재시도 단계의 별도 시각 계측: setup590ms, model fixture618ms, schedule/run1190ms, 첫worker4919ms, 재시도worker5025ms(시작 후 누적). 따라서 assertion 종료 전 기본 예산을 넘는 비용을 관찰했다. 실제 PG·정책/모델 admission·지속 worker 호출의 제한된 통합 예산을 명시하며 제품 timeout·작업 제한·assertion은 바꾸지 않는다. 같은 파일의 기본 예산을 사용하던 async 통합14선언/그룹만20초로 지정했고, 기존15초 사례와 순수 달력 사례는 유지한다. 진단 import/log/file-write는 최종 제품/시험에 없다.
+- 검증 준비 실수: 첫 문자열 변환의 경계 assertion, 이어 설치 TypeScript의 API 차이 및 없는 Babel parser 때문에 자동 변환이 쓰기 전에 실패했다. 각 실패 때 변경 완료를 잘못 전달한 내부 검토 요청을 정정했다. 최종은 읽고 확인한 선언 경계를 사용했고 원본 대비 timeout/comment 차이만 검증했다. 진단 상태에서 실행된 두 회귀 로그는 최종 검증으로 취급하지 않는다.
+- 재개 시 이전 임시 캐시/보고서와 일부 worktree가 없어졌다. 커밋된 원격 기능 브랜치를 native worktree로 복원하고 원본 main/남은 미커밋 변경을 보존했다. 기존 테스트 컨테이너를 시작한 뒤 동적 host port가32777에서32768로 바뀌었다. 첫 연결 실패 후 실제 포트를 확인했고 UUID별 DB runner로만 재실행했다. 사라진 의존성의 소유 untracked 링크는 현재 lockfile의 독립 설치로 교체했다.
+- 최종 계측 없는 코드의 Node24 전체 npm run check 및 maintenance HTTP1/runtime20 회귀가 모두 통과했다. 독립 검토와 최종 원격 CI는 후속 기록을 따른다.
 
 
 ### 2026-11-17 — C2 개인 알림함 구현·검증 경계
