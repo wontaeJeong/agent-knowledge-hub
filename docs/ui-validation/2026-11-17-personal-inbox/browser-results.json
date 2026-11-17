@@ -7,7 +7,10 @@
     "previewItems": 5,
     "escapeFocusReturn": true,
     "refreshFocusAndScroll": true,
-    "firstHref": "/?app=1&space=84efdc6f-eb2c-40ec-bca4-16667af1230f&section=tasks&targetKind=review&targetId=1442e955-26df-4501-9a06-e2921fb29ea0",
+    "arrivalFifthFocus": true,
+    "revokedSafeFocus": true,
+    "tabCycle": true,
+    "firstHref": "/?app=1&space=42592932-b3bb-49f8-9277-290466e997e8&document=topic#comment-84712bb0-c903-49b9-94b9-3fd8060cd69f",
     "errors": []
   },
   {
@@ -18,7 +21,10 @@
     "previewItems": 5,
     "escapeFocusReturn": true,
     "refreshFocusAndScroll": true,
-    "firstHref": "/?app=1&space=84efdc6f-eb2c-40ec-bca4-16667af1230f&section=tasks&targetKind=review&targetId=1442e955-26df-4501-9a06-e2921fb29ea0",
+    "arrivalFifthFocus": true,
+    "revokedSafeFocus": true,
+    "tabCycle": true,
+    "firstHref": "/?app=1&space=42592932-b3bb-49f8-9277-290466e997e8&document=topic#comment-c63544f1-ef01-4ed2-a7af-d7ff8d34d31c",
     "errors": []
   },
   {
@@ -29,7 +35,10 @@
     "previewItems": 5,
     "escapeFocusReturn": true,
     "refreshFocusAndScroll": true,
-    "firstHref": "/?app=1&space=84efdc6f-eb2c-40ec-bca4-16667af1230f&section=tasks&targetKind=review&targetId=1442e955-26df-4501-9a06-e2921fb29ea0",
+    "arrivalFifthFocus": true,
+    "revokedSafeFocus": true,
+    "tabCycle": true,
+    "firstHref": "/?app=1&space=42592932-b3bb-49f8-9277-290466e997e8&document=topic#comment-0583cc54-cab1-4c85-abb8-444893fde86f",
     "errors": []
   },
   {
@@ -40,7 +49,10 @@
     "previewItems": 5,
     "escapeFocusReturn": true,
     "refreshFocusAndScroll": true,
-    "firstHref": "/?app=1&space=84efdc6f-eb2c-40ec-bca4-16667af1230f&section=tasks&targetKind=review&targetId=1442e955-26df-4501-9a06-e2921fb29ea0",
+    "arrivalFifthFocus": true,
+    "revokedSafeFocus": true,
+    "tabCycle": true,
+    "firstHref": "/?app=1&space=42592932-b3bb-49f8-9277-290466e997e8&document=topic#comment-204182c1-f2f1-4f17-97bf-704624ba52ed",
     "errors": []
   }
 ]

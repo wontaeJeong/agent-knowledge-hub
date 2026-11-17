@@ -817,3 +817,11 @@
 - UI 검증: 실제 runtime/PG 합성 fixture를 쓰는 캡처 harness 종료에서 중복 signal에 따른 pool.end 재호출 및 진행 중 route.fetch의 context 폐기 오류가 있었다. harness 종료 guard와 unrouteAll(wait)를 추가하고 네 화면 조합을 재실행했다. 제품 오류로 숨기거나 이전 실패 캡처를 최종 성공으로 집계하지 않았다.
 - 포맷 실수/자동 승인 거절: App.tsx에 formatter를 실행해 기능과 무관한 넓은 공백 변경을 만들었다. HEAD를 재구성하여 덮어쓰는 정리 명령은 실행 전에 자동 승인 검토에서 거절됐다. 정확한 이유: “The command reconstructs App.tsx from HEAD and overwrites its current worktree contents, risking irreversible loss of existing uncommitted implementation; that destructive replacement is not specifically authorized.” 해당 명령은 실행되지 않았다. 컨트롤러 지시에 따라 cosmetic 정리를 중단하고 현재 구현을 보존했다. 후속 제품 작업은 최소 문맥 변경으로 계속했다. 이 포맷 차이는 검토 부담으로 남는다.
 - 검증 상태: 위 기능 RED 뒤 GREEN을 확인했다. 최종 소스의 전체/native 결과와 화면은 [C2 인계](AGENT_HANDOFF.md#2026-11-17-c2-개인-알림함-uxc-01) 및 로컬 task-2-report를 따른다. 이전299/136 및 중간301/137 결과는 이후 수정의 최종 증거가 아니다. 기존 Vite500kB chunk 경고는 남아 있으며 독립 리뷰·최종 CI·main 통합·운영 인수는 별도다.
+
+
+### 2026-11-17 — C2 리뷰 Round1 이벤트 생명주기·비동기 화면·초점 회귀
+
+- 독립 task 리뷰의 I1~I3 및 Important로 재분류한 M1을 실제 경로로 재현했다. 승인 이벤트 revision을 현재 published 상태와 단순 비교해 승인 후 발행 이전/이후 전달 알림이 사라졌다. exact review gate의 현재 계보 검사는 수행했지만 커서 해시에는 그 결과를 빠뜨렸다. 변경 중인 필터를 이전 POST 완료/실패 closure가 덮었으며, 새 알림 또는 철회로 다섯 번째 미리보기 링크가 제거되면 초점이 body로 이동했다.
+- RED: 실제 approve→publish→scan/기존 목록 후 publish2건, 계속 허용된 source 내용/reader 변경 뒤 rejected 결정 cursor2건, 상태/유형별 늦은 POST 성공/실패4건, 미리보기 도착/빈 목록/조회 오류 초점3건. 기존 hidden-tab 시험의 visibility spy가 다음 시험까지 남아 첫 초점 재현을 막은 준비 오류는 afterEach restoreAllMocks로 격리하고 의도한 focus RED를 다시 확인했다.
+- 조치: 승인된 immutable 결정은 동일 batch/hash의 published 전이까지 인정하며 현재 철회/전체 ACL을 계속 확인한다. canonical exact read gate는 내부 fingerprint와 공개 detail을 분리한다. mutation 효과는 owner/query/API epoch와 operation에 바인딩하며 현재 listener만 재조회한다. 제거된 private row는 유지하지 않고 현재 인가된 렌더 항목의 같은 위치 또는 안전한 버튼으로 초점을 옮겨 안내한다.
+- 검증: 집중 native21/UI16, 최종 한 번 npm run check(frontend309/Node48/import16/evaluation41/251요구사항/types/build/smoke) 및 native13파일142시험 exit0. 실제 1440/390 light/dark18장, actual 댓글 도착/원본 reader 철회 및 Tab/Shift+Tab/Escape/초점 모두 통과했다. peer가 전달한 Navigation fixture의 일회성 실패는 이번 최종 검사에서 재현하지 않아 제품/fixture를 수정하지 않았다. 기존 Vite chunk 경고 M2는 deferred이며 별도 범위로 남긴다. 최종 exact-head CI와 독립 재리뷰는 부모 작업의 후속 gate다.

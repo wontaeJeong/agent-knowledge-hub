@@ -81,3 +81,6 @@ InboxItem은 `{id,sequence,revision,type,createdAt,readAt,archivedAt,target,titl
 목록 제목·개수·커서는 현재 대상/상위 위치/원본/입력 계보와 세션 인가를 사용한다. 커서는 주체·공간·필터·현재 정책 및 인가된 데이터 해시에 바인딩된다. 보호 대상 변경 시 오래된 커서를 재사용하지 않는다. 현재 조회 후보가 10,000건을 넘으면 부분 개수나 0건으로 위장하지 않고 INBOX_QUERY_LIMIT(413)을 반환한다. INVALID_BOUNDARY는400, STALE_CURSOR·STALE_VERSION·MUTATION_CONFLICT는409다. 권한·삭제에 의한 unavailable은 보호 내용을 포함하지 않는다.
 
 서명 키 설정/재시작 동작과 메타데이터 보존은 [운영 설정](OPERATIONAL_SETUP.md#개인-알림함-설정-c2)을 따른다. 읽음은 검토 완료가 아니며 보관은 업무 취소가 아니다.
+
+
+C2 리뷰 보완(2026-11-17): immutable approved 결정 이벤트는 동일 batch/hash의 canonical published 전이 뒤에도 검토 결정 알림으로 남는다. 이것은 현재 승인 권한을 부여하지 않으며 현재 철회·작성자/reviewer·전체 계보 ACL 검사를 계속 적용한다. 결정 이벤트 커서의 내부 인가 fingerprint에 현재 전체 페이지/원본 내용과 reader 집합을 포함하고, 공개 exact-detail/InboxItem DTO에는 해당 fingerprint 또는 계보 envelope를 넣지 않는다.

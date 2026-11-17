@@ -83,30 +83,38 @@ export function useInbox(
   const [page, setPage] = useState<InboxPage | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const key = `${spaceId}:${principalId}`;
   const generation = useRef(0),
-    owner = useRef(`${spaceId}:${principalId}`),
+    mutationSequence = useRef(0),
+    active = useRef(false),
+    scope = useRef({ key, query, api, epoch: 0 }),
     expired = useRef(onExpired);
   expired.current = onExpired;
-  const key = `${spaceId}:${principalId}`;
-  if (owner.current !== key) {
-    owner.current = key;
+  if (scope.current.key !== key || scope.current.query !== query || scope.current.api !== api) {
+    scope.current = { key, query, api, epoch: scope.current.epoch + 1 };
     generation.current++;
   }
+  const epoch = scope.current.epoch;
   const refresh = useCallback(async () => {
+    if (!active.current || scope.current.epoch !== epoch) return;
     const request = ++generation.current;
     try {
       const result = await api.get<InboxPage>(`/collaboration/inbox?${query}`);
-      if (request !== generation.current) return;
+      if (!active.current || scope.current.epoch !== epoch || request !== generation.current) return;
       setPage(result);
       setError("");
     } catch (e) {
-      if (request !== generation.current) return;
+      if (!active.current || scope.current.epoch !== epoch || request !== generation.current) return;
       setPage(null);
       setError(inboxFailure(e));
       if (e instanceof ApiError && e.status === 401) expired.current?.();
     }
-  }, [api, query, key]);
+  }, [api, query, epoch]);
+  const currentRefresh = useRef(refresh);
+  currentRefresh.current = refresh;
   useEffect(() => {
+    active.current = true;
+    setBusy(false);
     setPage(null);
     setError("");
     void refresh();
@@ -134,6 +142,7 @@ export function useInbox(
         : null;
     if (channel) channel.onmessage = changed;
     return () => {
+      active.current = false;
       generation.current++;
       if (timer) clearInterval(timer);
       channel?.close();
@@ -143,18 +152,24 @@ export function useInbox(
     };
   }, [refresh]);
   const mutate = async (path: string, body: unknown) => {
+    const operation = ++mutationSequence.current;
+    const current = () => active.current && scope.current.epoch === epoch && mutationSequence.current === operation;
     generation.current++;
     setBusy(true);
     try {
       await api.post(path, body);
-      await refresh();
+      // Event listeners always read the currently mounted query, never this closure's filter.
       notify();
     } catch (e) {
+      if (!current()) {
+        if (active.current && scope.current.key === key) void currentRefresh.current();
+        return;
+      }
       setPage(null);
       setError(inboxFailure(e));
       if (e instanceof ApiError && e.status === 401) expired.current?.();
     } finally {
-      setBusy(false);
+      if (current()) setBusy(false);
     }
   };
   return {

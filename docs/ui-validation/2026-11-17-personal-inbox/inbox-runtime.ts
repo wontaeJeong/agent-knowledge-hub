@@ -19,6 +19,6 @@ await collaboration.subscribe(f.ctx,{scope:"space",enabled:true});
 for(let n=1;n<=6;n++)await workflow.addComment(f.editor,"topic",{version:1,content:`알림 확인용 합성 댓글 ${n}`,mentions:["reviewer"]});
 await core.propose(f.editor,[{id:"topic",title:"변경 검토 예시",summary:"합성 검토",content:"검토할 변경",sourceIds:["source-a"],baseVersion:1,scope:"team",links:[],facts:[]}],["source-a"]);
 await collaboration.scanEvents();
-const auth={authenticate:async()=>({...f.ctx,csrfToken:"test-only-csrf"}),requestGuard:()=>({revalidate:async()=>{},assertSession:async()=>{}})};
+const auth={authenticate:async(req: {headers: {cookie?: string}})=>({...((req.headers.cookie === "synthetic-editor") ? f.editor : f.ctx),csrfToken:"test-only-csrf"}),requestGuard:()=>({revalidate:async()=>{},assertSession:async()=>{}})};
 const server=createServer(createRuntimeHandler({pool:f.pool,service:runtime,origin:"http://127.0.0.1:5192",workspaceId:f.workspaceId,auth,collaboration} as any));await new Promise<void>(r=>server.listen(4392,"127.0.0.1",r));await writeFile(process.env.AKH_C2_CAPTURE_FIXTURE ?? "/tmp/akh-c2-browser.json",JSON.stringify({workspaceId:f.workspaceId,port:4392,database:name}));
 let stopping=false;const stop=async()=>{if(stopping)return;stopping=true;await new Promise<void>(r=>server.close(()=>r()));await f.pool.end();await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);await admin.end();process.exit(0);};process.on("SIGTERM",()=>void stop());process.on("SIGINT",()=>void stop());console.log("C2 synthetic runtime ready on4392");

@@ -4,7 +4,7 @@ import type { PoolClient } from "pg";
 import type { Context } from "../service";
 import { loadState } from "../repository";
 import { captureEnvelope, visiblePageIds, fingerprint } from "../provenance";
-import { reviewNotificationDb, changesetDetailDb } from "../publication";
+import { reviewNotificationDb, authorizedChangesetDetailDb } from "../publication";
 import type { CollaborationHooks } from "./types";
 type Row = Record<string, any>;
 export const eventDenied = (e: unknown) =>
@@ -123,13 +123,16 @@ export async function eventContentDb(
     };
   }
   if (event.kind === "change-review-decision") {
-    const batch = await changesetDetailDb(db, ctx, event.resource_id);
-    if (`${batch.hash}:${batch.status}` !== event.revision) return null;
+    const { detail: batch, authorizationHash } = await authorizedChangesetDetailDb(db, ctx, event.resource_id);
+    // The immutable approval decision remains an outcome after canonical publication.
+    // Admission above still checks current ownership/reviewer, withdrawal and full ACL.
+    const decision = batch.status === "published" ? "approved" : batch.status;
+    if (!["approved", "rejected"].includes(decision) || `${batch.hash}:${decision}` !== event.revision) return null;
     return {
       pageId: `batch:${batch.id}`,
       title: "변경 검토 결정",
       url: `${base}&section=tasks&targetKind=review&targetId=${encodeURIComponent(batch.id)}`,
-      envelope: { batchId: batch.id, hash: batch.hash, status: batch.status },
+      envelope: { batchId: batch.id, hash: batch.hash, status: batch.status, authorizationHash },
     };
   }
   if (event.kind === "job-failure" || event.kind === "job-success") {

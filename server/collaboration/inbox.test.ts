@@ -494,3 +494,54 @@ test("pagination cursor changes when an authorized source revision changes", asy
     f.inbox.list(f.reader, { limit: 1, cursor: first.nextCursor }),
   ).rejects.toThrow("STALE_CURSOR");
 });
+
+async function proposeDecisionFixture(f: Awaited<ReturnType<typeof setup>>, content: string) {
+  const { KnowledgeService } = await import("../service");
+  const core = new KnowledgeService(f.pool);
+  const batch = await core.propose(f.editor, [{ id: "topic", title: "검토 대상", summary: "요약", content, sourceIds: ["source-a"], baseVersion: 1, scope: "team", links: [], facts: [] }], ["source-a"]);
+  return { core, batch };
+}
+test.each([false, true])("approved outcome survives canonical publication with prior projection=$0", async (projectBeforePublish) => {
+  const f = await setup();
+  const { core, batch } = await proposeDecisionFixture(f, "승인 후 발행");
+  await core.approve(f.ctx, batch.id, batch.hash);
+  let projectedId: string | undefined;
+  if (projectBeforePublish) {
+    await f.service.scanEvents();
+    const listed = await f.inbox.list(f.editor, { type: "review-decided" });
+    expect(listed.items).toHaveLength(1);
+    projectedId = listed.items[0].id;
+  }
+  await core.publish(f.ctx, batch.id, batch.hash, "publish-approved-decision");
+  await f.service.scanEvents();
+  await f.service.scanEvents();
+  const listed = await f.inbox.list(f.editor, { type: "review-decided" });
+  expect(listed.items).toHaveLength(1);
+  expect(listed.items[0].target).toEqual({ kind: "review", id: batch.id });
+  if (projectedId) expect(listed.items[0].id).toBe(projectedId);
+  const { RuntimeService } = await import("../runtime/knowledge");
+  expect(await new RuntimeService(f.pool).changeset(f.editor, batch.id)).toMatchObject({ status: "published", readOnly: true });
+  await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='editor'", [f.workspaceId]);
+  expect(await f.inbox.list(f.editor, {})).toMatchObject({ items: [], unreadCount: 0 });
+});
+test.each(["content", "readers"])("rejected decision cursor binds current authorized source %s without exposing lineage", async (change) => {
+  const f = await setup();
+  const { RuntimeService } = await import("../runtime/knowledge");
+  const runtime = new RuntimeService(f.pool);
+  for (const content of ["첫 반려", "다음 반려"]) {
+    const { batch } = await proposeDecisionFixture(f, content);
+    await runtime.reject(f.ctx, batch.id, batch.hash, "수정 필요");
+    const detail = await runtime.changeset(f.editor, batch.id);
+    expect(detail).not.toHaveProperty("authorizationHash");
+    expect(detail).not.toHaveProperty("envelope");
+  }
+  await f.service.scanEvents();
+  const first = await f.inbox.list(f.editor, { type: "review-decided", limit: 1 });
+  expect(first.nextCursor).toBeTruthy();
+  expect(first.items[0]).not.toHaveProperty("authorizationHash");
+  expect(first.items[0]).not.toHaveProperty("envelope");
+  if (change === "content") await f.pool.query("UPDATE sources SET data=jsonb_set(data,'{content}','\"정정된 원문\"') WHERE workspace_id=$1 AND id='source-a'", [f.workspaceId]);
+  else await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reader'", [f.workspaceId]);
+  expect((await f.inbox.list(f.editor, { type: "review-decided" })).items).toHaveLength(2);
+  await expect(f.inbox.list(f.editor, { type: "review-decided", limit: 1, cursor: first.nextCursor })).rejects.toThrow("STALE_CURSOR");
+});

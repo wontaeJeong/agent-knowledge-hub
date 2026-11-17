@@ -824,7 +824,12 @@ async function reviewQualification(
  * whole changeset/source/approval checks used by approval. Does not approve. */
 /** Outcome read shares canonical author/reviewer admission and all retained input ACLs.
  * It grants no approval capability and does not require obsolete base hashes to match. */
-export async function changesetDetailDb(
+export async function changesetDetailDb(db: PoolClient, ctx: Context, id: string) {
+  return (await authorizedChangesetDetailDb(db, ctx, id)).detail;
+}
+
+/** Internal gate result: authorization fingerprint must never enter the public DTO. */
+export async function authorizedChangesetDetailDb(
   db: PoolClient,
   ctx: Context,
   id: string,
@@ -880,13 +885,16 @@ export async function changesetDetailDb(
   for (const id of envelope.sourceIds)
     await authorizeActionDb(db, ctx, "knowledge.read", { kind: "source", id });
   return {
-    id: row.id,
-    hash: row.hash,
-    status: batch.status,
-    updates: batch.updates,
-    proposedBy: row.author_id ?? batch.proposedBy,
-    readOnly: own || !["pending", "approved"].includes(batch.status),
-    ...(batch.reviewFeedback ? { reviewFeedback: batch.reviewFeedback } : {}),
+    authorizationHash: digest(envelope),
+    detail: {
+      id: row.id,
+      hash: row.hash,
+      status: batch.status,
+      updates: batch.updates,
+      proposedBy: row.author_id ?? batch.proposedBy,
+      readOnly: own || !["pending", "approved"].includes(batch.status),
+      ...(batch.reviewFeedback ? { reviewFeedback: batch.reviewFeedback } : {}),
+    },
   };
 }
 

@@ -1,7 +1,11 @@
 // Evidence-only browser capture; API requests go to the real synthetic runtime on loopback.
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright');
 import {readFile,writeFile} from 'node:fs/promises';
+import { Pool } from 'pg';
 const fixture=JSON.parse(await readFile(process.env.AKH_C2_CAPTURE_FIXTURE ?? '/tmp/akh-c2-browser.json','utf8'));
+if (process.env.AKH_C2_SYNTHETIC_CAPTURE !== '1' || !process.env.TEST_DATABASE_URL || !/^akh_c2_ui_\d+$/.test(fixture.database)) throw Error('Dedicated synthetic capture fixture is required');
+const fixtureUrl = new URL(process.env.TEST_DATABASE_URL); fixtureUrl.pathname = `/${fixture.database}`;
+const fixtureDb = new Pool({ connectionString: fixtureUrl.toString() });
 const browser=await chromium.launch({headless:true});const results=[];
 try{for(const width of [1440,390])for(const theme of ['light','dark']){
  const context=await browser.newContext({viewport:{width,height:width===1440?1000:844}});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -11,6 +15,16 @@ try{for(const width of [1440,390])for(const theme of ['light','dark']){
  if(width===390){await page.locator('.personal-inbox').scrollIntoViewIfNeeded();await page.screenshot({path:`docs/ui-validation/2026-11-17-personal-inbox/inbox-list-${width}-${theme}.png`});await page.evaluate(()=>scrollTo(0,0));}
  const bell=page.locator('.inbox-bell>button');await bell.focus();await page.keyboard.press('Enter');await page.getByRole('dialog',{name:'최근 알림'}).waitFor();const count=await page.locator('.inbox-preview li').count();if(count!==5)throw Error(`preview ${count}`);await page.screenshot({path:`docs/ui-validation/2026-11-17-personal-inbox/bell-${width}-${theme}.png`});
  const focused=page.locator('.inbox-preview a').nth(1);await focused.focus();const focusHref=await focused.getAttribute('href');const scrollBefore=await page.locator('.inbox-preview').evaluate(e=>{e.scrollTop=25;return e.scrollTop;});const refresh=page.waitForResponse(r=>r.url().includes('/collaboration/inbox'));await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await refresh;await page.waitForTimeout(100);if(await focused.evaluate(e=>document.activeElement!==e))throw Error('Refresh changed focus');if(await page.locator('.inbox-preview').evaluate(e=>e.scrollTop)!==scrollBefore)throw Error('Refresh changed scroll');
- const href=await page.locator('.inbox-preview a').first().getAttribute('href');await page.keyboard.press('Escape');if(await bell.evaluate(e=>document.activeElement!==e))throw Error('Escape focus did not return');if(await page.getByRole('dialog',{name:'최근 알림'}).count())throw Error('Preview did not close');
- results.push({browserVersion:browser.version(),width,theme,overflow,previewItems:count,escapeFocusReturn:true,refreshFocusAndScroll:true,firstHref:href,errors});await page.unrouteAll({behavior:"wait"});await context.close();
-}await writeFile('docs/ui-validation/2026-11-17-personal-inbox/browser-results.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results));}finally{await browser.close();}
+ const fifth=page.locator('.inbox-preview a').nth(4);await fifth.focus();const removedHref=await fifth.getAttribute('href');
+ const arrival=await fetch('http://127.0.0.1:4392/api/v1/workflows/pages/topic/comments',{method:'POST',headers:{cookie:'synthetic-editor',origin:'http://127.0.0.1:5192','x-csrf-token':'test-only-csrf','content-type':'application/json'},body:JSON.stringify({version:1,content:`새 알림 ${width} ${theme}`,mentions:['reviewer']})});if(arrival.status!==201)throw Error(`Actual comment failed: ${arrival.status} ${await arrival.text()}`);
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForFunction(old=>{const links=[...document.querySelectorAll('.inbox-preview a')];return links.length===5&&!links.some(a=>a.getAttribute('href')===old)&&document.activeElement===links[4];},removedHref);
+ await page.screenshot({path:`docs/ui-validation/2026-11-17-personal-inbox/bell-arrival-${width}-${theme}.png`});
+ const controls=page.locator('.inbox-preview a,.inbox-preview button');await controls.last().focus();await page.keyboard.press('Tab');if(!await controls.first().evaluate(e=>document.activeElement===e))throw Error('Tab wrap failed');await page.keyboard.press('Shift+Tab');if(!await controls.last().evaluate(e=>document.activeElement===e))throw Error('Reverse Tab wrap failed');
+ const href=await page.locator('.inbox-preview a').first().getAttribute('href');await page.locator('.inbox-preview a').nth(4).focus();
+ await fixtureDb.query("DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id='source-a' AND principal_id='reviewer'",[fixture.workspaceId]);
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForFunction(()=>document.querySelectorAll('.inbox-preview a').length===0&&document.activeElement?.tagName==='BUTTON'&&document.querySelector('.inbox-preview')?.contains(document.activeElement));
+ await page.screenshot({path:`docs/ui-validation/2026-11-17-personal-inbox/bell-revoked-${width}-${theme}.png`});
+ await fixtureDb.query("INSERT INTO resource_readers(workspace_id,kind,resource_id,principal_id) VALUES($1,'source','source-a','reviewer') ON CONFLICT DO NOTHING",[fixture.workspaceId]);
+ await page.keyboard.press('Escape');if(await bell.evaluate(e=>document.activeElement!==e))throw Error('Escape focus did not return');if(await page.getByRole('dialog',{name:'최근 알림'}).count())throw Error('Preview did not close');
+ results.push({browserVersion:browser.version(),width,theme,overflow,previewItems:count,escapeFocusReturn:true,refreshFocusAndScroll:true,arrivalFifthFocus:true,revokedSafeFocus:true,tabCycle:true,firstHref:href,errors});await page.unrouteAll({behavior:"wait"});await context.close();
+}await writeFile('docs/ui-validation/2026-11-17-personal-inbox/browser-results.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results));}finally{await fixtureDb.end();await browser.close();}

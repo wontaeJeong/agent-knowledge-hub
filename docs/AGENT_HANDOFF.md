@@ -724,3 +724,10 @@ Final feature validation (2026-11-17): `npm run check` passed after ancestry har
 - UI: bell5/전체25, 상태·유형 필터, 읽음/미읽음·보관/복원·관찰 경계 일괄 읽음, 활성30초/재초점 갱신과 숨김 정지, 계정/공간 전환·늦은 응답 보호. 기존 구독·전달·기한 검토·설정 화면은 유지하고 중복 알림 목록만 숨겼다. [실제1440/390 light/dark10장·키보드 검증](ui-validation/2026-11-17-personal-inbox/README.md).
 - 최종 검사: FINAL2 코드 기준 Node24.22.2, PostgreSQL17.11에서 `npm run check` exit0(frontend301, Node48, imports16, evaluation41, 요구사항251, 서버 typecheck/build/static HTTP smoke). 파일별 disposable PG를 사용하는 native13파일138시험도 exit0. 최종 로컬 로그는 `.superpowers/sdd/2026-11-16-essential-convenience/c2-logs/akh-c2-{check,regression}-final2.log`. 이는 독립 리뷰·CI·main 통합 완료를 뜻하지 않는다.
 - 한계/남은 조건: 조회 후보10,000건 초과는 명시적413; 기본 임시 키는 재시작/교체 시 토큰 무효(선택적32~4096자 서버 키로 유지 가능). 실제 IdP/메일/운영 키 배포/대량 부하 및 의미 품질은 검증하지 않았다. App 기존 파일의 formatter 공백 차이를 보존했으며 자동 승인 거절과 환경 실패는 MISTAKE_LOG에 남겼다. 로컬 구현·검증과 독립 리뷰·최종 CI·main 병합은 구분한다.
+
+
+## 2026-11-17 C2 리뷰 Round1 수정
+
+FIX_BASE be613da의 I1/I2/I3/M1을 실제 실패로 확인한 뒤 수정했다. 승인→발행 뒤에도 immutable 승인 결과 알림을 유지하되 현재 철회·전체 계보 권한과 read-only 경계를 보존한다. 결정 커서는 현재 원본 내용/reader 해시를 내부에 포함하고 DTO에는 노출하지 않는다. 늦은 POST의 완료/오류/busy는 발생 당시 query epoch와 operation에 묶어 새 필터 화면을 덮지 않는다. 미리보기에서 제거된 항목의 초점은 현재 허용된 같은 위치 항목/안전한 버튼으로 옮기며 보호된 과거 행을 남기지 않는다.
+
+최종 한 번 `npm run check` exit0(frontend309/Node48/import16/evaluation41/요구사항251/types/build/smoke), 전용 PG17의 native13파일142시험 exit0. [18장과 실제 도착/철회·Tab 키보드 결과](ui-validation/2026-11-17-personal-inbox/README.md). 원시 RED/GREEN/final 로그는 local task report의 `c2-logs/akh-c2-r1-*`. 기존 Vite chunk 경고는 deferred; 최종 exact-head CI/독립 재리뷰/병합은 미완료이며 운영 인수·의미 품질 개선은 주장하지 않는다.
