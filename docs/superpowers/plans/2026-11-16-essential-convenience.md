@@ -239,3 +239,5 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 ## 완성 판정과 후속 실행
 
 설계·플랜 문서를 작성하고 검토하는 현재 작업은 후속 C1~C12 실행과 별개다. 구현 시 체크박스는 해당 결과·최종 커밋 증거를 확보한 후에만 바꾼다. 실제 UI 변경 PR은 1440/390 화면 캡처, 라이트/다크·키보드 검증과 필요한 DB 회귀를 포함하고, 원본 정책·독자·발행 불변식을 통과해야 한다. 모든 C 단위를 한 대형 PR로 합치지 않는다.
+
+Final combined F1/F2 fix/evidence commit: `4a9e24c286fea3d1654bf904a7ebe4cbb03caa14`. This metadata-only follow-up records the verified commit; production/test/harness/artifact/log bytes remain unchanged. Controller scoped final re-review, exact-head CI and merge remain pending.
