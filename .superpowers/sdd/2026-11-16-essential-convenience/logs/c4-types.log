@@ -1,0 +1,4 @@
+
+> agent-knowledge-hub@0.2.0-demo check:server
+> tsc -p tsconfig.server.json
+

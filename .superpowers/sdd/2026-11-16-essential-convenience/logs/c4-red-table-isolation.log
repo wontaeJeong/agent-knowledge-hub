@@ -1,0 +1,32 @@
+[1/1] server/convenience/home.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ server/convenience/home.test.ts (10 tests | 1 failed) 5896ms
+   × unavailable own-access/disclosure data stays local while common authority unavailability fails closed 72ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  21:01:43
+   Duration  6.07s (tests 98%, import 1%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/home.test.ts > unavailable own-access/disclosure data stays local while common authority unavailability fails closed
+error: relation "workflow_access_requests" does not exist
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ listRevision server/workflows/manual-disclosure.ts:133:11
+    131|     )
+    132|     .join(" UNION ALL ");
+    133|   return (await db.query(sql, [ctx.workspaceId])).rows;
+       |           ^
+    134| }
+    135| const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
+ ❯ server/convenience/home.ts:77:19
+ ❯ transaction server/database.ts:111:20
+ ❯ HomeService.read server/convenience/home.ts:202:5
+ ❯ server/convenience/home.test.ts:306:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

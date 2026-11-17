@@ -1,3 +1,8 @@
+import type {
+  ManualDraftDisclosureService,
+  DisclosureRow,
+} from "../manual-disclosure";
+import { changesetDetailDb } from "../../publication";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Pool } from "pg";
@@ -550,6 +555,99 @@ export class GovernanceService {
       accessRequestDetailDb(db, ctx, requestId),
     );
   }
+  /** Applicant feed exposes decision metadata only; no hidden resource IDs/titles. */
+  async ownAccessRequests(ctx: Context, after: string | null = null) {
+    return this.run(ctx, "knowledge.read", async (db) => {
+      const rows = (
+        await db.query(
+          "SELECT id FROM workflow_access_requests WHERE workspace_id=$1 AND principal_id=$2 AND ($3::text IS NULL OR id>$3) ORDER BY id LIMIT 26",
+          [ctx.workspaceId, ctx.principalId, after],
+        )
+      ).rows;
+      const items = [];
+      for (const row of rows.slice(0, 25)) {
+        try {
+          items.push(await accessRequestDetailDb(db, ctx, row.id));
+        } catch (e) {
+          deniedOnly(e);
+        }
+      }
+      return {
+        items,
+        nextAfter: rows.length > 25 ? (rows[24].id as string) : null,
+      };
+    });
+  }
+  /** Own pre-publication stages share one bounded scan; disclosure content stays server-side. */
+  async ownRequests(
+    ctx: Context,
+    manual: ManualDraftDisclosureService,
+    after: string | null = null,
+    revisionsOnly = false,
+  ) {
+    return this.run(ctx, "knowledge.read", async (db) => {
+      const rows = (
+        await db.query(
+          `SELECT * FROM (
+        SELECT 'batch:'||b.id AS key,b.id,'batch' AS kind FROM batches b JOIN access_batch_authors a ON a.workspace_id=b.workspace_id AND a.batch_id=b.id
+          WHERE b.workspace_id=$1 AND a.principal_id=$2 AND ($4::boolean=false OR (b.data->>'status'='rejected' AND b.data ? 'reviewFeedback'))
+        UNION ALL SELECT 'disclosure:'||id AS key,id,'disclosure' AS kind FROM workflow_draft_disclosures WHERE workspace_id=$1 AND owner_id=$2 AND ($4::boolean=false OR status='rejected')
+      ) candidates WHERE ($3::text IS NULL OR key>$3) ORDER BY key LIMIT 26`,
+          [ctx.workspaceId, ctx.principalId, after, revisionsOnly],
+        )
+      ).rows;
+      const items: {
+        id: string;
+        title: string;
+        state: string;
+        kind: "batch" | "disclosure";
+        draftId?: string;
+      }[] = [];
+      for (const row of rows.slice(0, 25)) {
+        try {
+          if (row.kind === "batch") {
+            const detail = await changesetDetailDb(db, ctx, row.id);
+            items.push({
+              id: detail.id,
+              title: detail.updates[0]?.title ?? "검토 요청",
+              state: detail.status,
+              kind: "batch",
+            });
+          } else {
+            const disclosure = (
+              await db.query(
+                "SELECT * FROM workflow_draft_disclosures WHERE workspace_id=$1 AND owner_id=$2 AND id=$3",
+                [ctx.workspaceId, ctx.principalId, row.id],
+              )
+            ).rows[0] as DisclosureRow | undefined;
+            if (!disclosure) continue;
+            await manual.current(db, ctx, disclosure);
+            items.push({
+              id: disclosure.id,
+              title: disclosure.snapshot.title,
+              state: disclosure.submission
+                ? "disclosure-submitted"
+                : "disclosure-" + disclosure.status,
+              kind: "disclosure",
+              draftId: disclosure.draft_id,
+            });
+          }
+        } catch (e) {
+          if (!(
+            e instanceof Error &&
+            ["SOURCE_SCOPE_CONFLICT", "ERASURE_PRODUCT_WRITES_FENCED"].includes(
+              e.message,
+            )
+          ))
+            deniedOnly(e);
+        }
+      }
+      return {
+        items,
+        nextAfter: rows.length > 25 ? (rows[24].key as string) : null,
+      };
+    });
+  }
   async accessInbox(ctx: Context) {
     return this.run(ctx, "space.admin", async (db) => {
       const items = [];
@@ -862,15 +960,16 @@ export class GovernanceService {
       return { batchId, revision: next };
     });
   }
-  async reviewInbox(ctx: Context) {
+  async reviewInbox(ctx: Context, page?: { after: string | null }) {
     return this.run(ctx, "knowledge.read", async (db) => {
       const items = [];
-      for (const r of (
+      const candidates = (
         await db.query(
-          "SELECT b.id,b.hash,b.data->>'status' AS status,a.revision,a.assignee_ids,a.backup_id,a.deadline,a.absent_ids,a.batch_hash FROM batches b LEFT JOIN governance_review_assignments a ON a.workspace_id=b.workspace_id AND a.batch_id=b.id WHERE b.workspace_id=$1 AND b.data->>'status' IN ('pending','approved') ORDER BY b.id",
-          [ctx.workspaceId],
+          "SELECT b.id,b.hash,b.data->>'status' AS status,a.revision,a.assignee_ids,a.backup_id,a.deadline,a.absent_ids,a.batch_hash FROM batches b LEFT JOIN governance_review_assignments a ON a.workspace_id=b.workspace_id AND a.batch_id=b.id WHERE b.workspace_id=$1 AND b.data->>'status' IN ('pending','approved') AND ($2::text IS NULL OR b.id>$2) ORDER BY b.id LIMIT $3",
+          [ctx.workspaceId, page?.after ?? null, page ? 26 : null],
         )
-      ).rows) {
+      ).rows;
+      for (const r of page ? candidates.slice(0, 25) : candidates) {
         try {
           await this.reviewer(db, ctx, r.id);
           const batch = await this.batch(db, ctx, r.id);
@@ -895,7 +994,15 @@ export class GovernanceService {
           /* Never expose inaccessible batch IDs, titles, or private imports. */
         }
       }
-      return { items };
+      return {
+        items,
+        ...(page
+          ? {
+              nextAfter:
+                candidates.length > 25 ? (candidates[24].id as string) : null,
+            }
+          : {}),
+      };
     });
   }
 }

@@ -1,0 +1,103 @@
+{
+  "capturedAt": "2026-11-17T12:01:04.272Z",
+  "runtimeStartedAt": "2026-11-17T11:58:42.908Z",
+  "frontendStartedAt": "2026-11-17T11:53:47.404Z",
+  "productionFingerprint": "bdefb3f48e447b3f27a6b4e1fb98dd5450754ac08e610b0efa216af378be3089",
+  "origin": "http://127.0.0.1:5194",
+  "backend": "http://127.0.0.1:4394",
+  "authentication": "Explicit synthetic loopback actor adapter; production canonical APIs/current ACL; no fabricated DTO",
+  "results": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "space": "5d097828-176b-4cc8-9aab-fb2fe3abbef9",
+      "checks": [
+        "empty",
+        "actual-response-loading",
+        "own-only",
+        "bounded25-continuation",
+        "read-not-visit",
+        "partial-error-real-server",
+        "individual-retry",
+        "my-tasks",
+        "keyboard-exact-older-page-draft",
+        "exact-new-draft",
+        "other-owner-denied",
+        "current-source-ACL",
+        "focus-fallback",
+        "account-switch"
+      ],
+      "requestCount": 131,
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "space": "d92cb1e2-9a42-4cd4-974c-47628d8449ef",
+      "checks": [
+        "empty",
+        "actual-response-loading",
+        "own-only",
+        "bounded25-continuation",
+        "read-not-visit",
+        "partial-error-real-server",
+        "individual-retry",
+        "my-tasks",
+        "keyboard-exact-older-page-draft",
+        "exact-new-draft",
+        "other-owner-denied",
+        "current-source-ACL",
+        "focus-fallback",
+        "account-switch"
+      ],
+      "requestCount": 131,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "space": "deefa6cd-f633-403a-bdc4-827ec3e25bde",
+      "checks": [
+        "empty",
+        "actual-response-loading",
+        "own-only",
+        "bounded25-continuation",
+        "read-not-visit",
+        "partial-error-real-server",
+        "individual-retry",
+        "my-tasks",
+        "keyboard-exact-older-page-draft",
+        "exact-new-draft",
+        "other-owner-denied",
+        "current-source-ACL",
+        "focus-fallback",
+        "account-switch"
+      ],
+      "requestCount": 131,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "space": "7053cdaa-4811-436b-aba8-c05dd394d1b0",
+      "checks": [
+        "empty",
+        "actual-response-loading",
+        "own-only",
+        "bounded25-continuation",
+        "read-not-visit",
+        "partial-error-real-server",
+        "individual-retry",
+        "my-tasks",
+        "keyboard-exact-older-page-draft",
+        "exact-new-draft",
+        "other-owner-denied",
+        "current-source-ACL",
+        "focus-fallback",
+        "account-switch"
+      ],
+      "requestCount": 131,
+      "errors": []
+    }
+  ]
+}

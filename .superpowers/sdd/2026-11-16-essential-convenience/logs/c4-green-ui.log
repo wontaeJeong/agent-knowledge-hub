@@ -1,0 +1,48 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ src/operational/console.test.ts (4 tests | 1 failed) 15ms
+   × console deep links normalize unknown and malformed routes 3ms
+ ❯ src/operational/convenience/Navigation.test.tsx (32 tests | 1 failed) 372ms
+   × invalid locations show an explicit error and do not select a document 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/console.test.ts > console deep links normalize unknown and malformed routes
+AssertionError: expected 'home' to be 'overview' // Object.is equality
+
+Expected: "overview"
+Received: "home"
+
+ ❯ src/operational/console.test.ts:21:34
+     19|   expect(readConsoleTab("#access")).toBe("access");
+     20|   expect(readConsoleTab("#boards")).toBe("boards");
+     21|   expect(readConsoleTab("#%ZZ")).toBe("overview");
+       |                                  ^
+     22|   expect(readConsoleTab("")).toBe("overview");
+     23| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/operational/convenience/Navigation.test.tsx > invalid locations show an explicit error and do not select a document
+TypeError: Cannot read properties of undefined (reading 'status')
+ ❯ HomeWidget src/operational/convenience/Home.tsx:28:275
+
+ ❯ Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:20
+ ❯ renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:22
+ ❯ updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:19
+ ❯ beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:18
+ ❯ runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1048:13
+ ❯ performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:22
+ ❯ workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:41
+ ❯ renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:11
+ ❯ performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:35
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 2 passed (4)
+      Tests  2 failed | 38 passed (40)
+   Start at  20:32:01
+   Duration  1.15s (environment 49%, tests 27%, import 16%, transform 7%)
+

@@ -85,7 +85,7 @@ export function readConsoleTab(hash: string): ConsoleTab {
   const id = hash.replace(/^#/, "");
   return consoleItems.some((x) => x.id === id)
     ? (id as ConsoleTab)
-    : "overview";
+    : hash ? "overview" : "home";
 }
 export function summarizeConsole(data: {
   pages: Pick<PublishedPage, "id">[];

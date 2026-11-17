@@ -1,0 +1,33 @@
+[1/1] server/convenience/home.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ server/convenience/home.test.ts (5 tests | 1 failed) 4499ms
+   × own disclosure requests resume exact draft as a distinct pre-knowledge review stage without bodies 332ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  20:34:12
+   Duration  4.66s (tests 98%, import 2%, transform 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/home.test.ts > own disclosure requests resume exact draft as a distinct pre-knowledge review stage without bodies
+AssertionError: expected [] to deep equally contain ObjectContaining{…}
+
+- Expected:
+ObjectContaining {
+  "href": "/?app=1&space=3e6f568b-0e1f-471f-b8d3-f20970828838&section=compose&draft=manual",
+  "id": "78bb08ea-68f8-45ce-beca-ecdd0a437d04",
+  "state": "disclosure-pending",
+}
+
++ Received:
+[]
+
+ ❯ server/convenience/home.test.ts:68:63
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

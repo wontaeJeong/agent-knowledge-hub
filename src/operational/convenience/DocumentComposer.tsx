@@ -71,22 +71,27 @@ const templates: Record<string, string> = {
 export function DocumentComposer(props: Props) {
   const key = usePersonalKey(
     props.api,
-    `${props.spaceId}:${props.principalId}:${props.mode}`,
+    `${props.spaceId}:${props.principalId}:${props.mode}:${props.capabilities.join(",")}`,
   );
   const route = useRef({
     requested: props.initialDraftId,
     active: props.initialDraftId,
     revision: 0,
+    exact: !!props.initialDraftId,
   });
   if (route.current.requested !== props.initialDraftId) {
-    if (route.current.active !== props.initialDraftId) route.current.revision++;
+    if (route.current.active !== props.initialDraftId) {
+      route.current.revision++;
+      route.current.exact = !!props.initialDraftId;
+    }
     route.current.requested = props.initialDraftId;
   }
   return props.mode === "edit" ? (
     <WorkflowPanel {...props} />
   ) : (
-    <NewDocument
+    <DraftDestination
       key={`${key}:${route.current.revision}`}
+      exact={route.current.exact}
       {...props}
       onDraftBound={(id) => {
         route.current.active = id;
@@ -94,6 +99,65 @@ export function DocumentComposer(props: Props) {
       }}
     />
   );
+}
+/** Resolve the exact own ID before choosing the existing page editor or new-document composer. */
+function DraftDestination({ exact, ...props }: Props & { exact: boolean }) {
+  const [resolved, setResolved] = useState<
+    { draft: Draft } | { error: string } | null
+  >(null);
+  useEffect(() => {
+    if (!exact) return;
+    let live = true;
+    void props.api
+      .get<{ items: Draft[] }>("/workflows/drafts")
+      .then((result) => {
+        if (!live) return;
+        const draft = result.items.find((x) => x.id === props.initialDraftId);
+        if (!draft)
+          throw new ApiError(
+            "요청한 초안이 없거나 현재 접근할 수 없습니다.",
+            404,
+            "NOT_FOUND",
+          );
+        setResolved({ draft });
+      })
+      .catch((e) => {
+        if (live) {
+          if (e instanceof ApiError && [401, 403, 404].includes(e.status)) {
+            try {
+              new RecoveryCache(window.localStorage).clear(
+                props.principalId!,
+                props.spaceId!,
+                "draft:" + props.initialDraftId,
+              );
+            } catch {
+              /* Optional storage cleanup. */
+            }
+          }
+          setResolved({
+            error:
+              e instanceof Error ? e.message : "초안을 불러오지 못했습니다.",
+          });
+          if (e instanceof ApiError && [401, 403].includes(e.status))
+            props.onExpired();
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [exact, props.api, props.initialDraftId]);
+  if (!exact) return <NewDocument {...props} />;
+  if (!resolved) return <p role="status">요청한 개인 초안을 확인하는 중…</p>;
+  if ("error" in resolved) return <p role="alert">{resolved.error}</p>;
+  if (resolved.draft.pageId)
+    return (
+      <WorkflowPanel
+        {...props}
+        initialPageId={resolved.draft.pageId}
+        initialDraftId={resolved.draft.id}
+      />
+    );
+  return <NewDocument {...props} resolvedDraft={resolved.draft} />;
 }
 function NewDocument({
   api,
@@ -106,7 +170,8 @@ function NewDocument({
   onChanged,
   onExpired,
   onDraftBound,
-}: Props) {
+  resolvedDraft,
+}: Props & { resolvedDraft?: Draft }) {
   const [draft, setDraft] = useState<Draft | null>(null),
     [title, setTitle] = useState(""),
     [content, setContent] = useState(""),
@@ -402,7 +467,9 @@ function NewDocument({
     const init = async () => {
       try {
         const [saved, ts, config, requests, owned] = await Promise.all([
-          api.get<{ items: Draft[] }>("/workflows/drafts"),
+          resolvedDraft
+            ? Promise.resolve({ items: [resolvedDraft] })
+            : api.get<{ items: Draft[] }>("/workflows/drafts"),
           api.get<{ items: Template[] }>("/workflows/templates"),
           api.get<{ personal: boolean; reviewers: string[] }>(
             "/imports/config",

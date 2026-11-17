@@ -19,7 +19,7 @@ test("console deep links normalize unknown and malformed routes", () => {
   expect(readConsoleTab("#access")).toBe("access");
   expect(readConsoleTab("#boards")).toBe("boards");
   expect(readConsoleTab("#%ZZ")).toBe("overview");
-  expect(readConsoleTab("")).toBe("overview");
+  expect(readConsoleTab("")).toBe("home");
 });
 test("console shell retains workflow navigation alongside existing management tabs", () => {
   const html = renderToStaticMarkup(createElement(ConsoleShell, {

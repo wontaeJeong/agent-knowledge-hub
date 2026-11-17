@@ -1,5 +1,19 @@
 # 에이전트 인계
 
+## 2026-11-17 #49 C4 — 개인 홈·내 작업
+
+- UXC-05 / UX-001/003/004, REV-001/002, SRH-009. 빈 성공과 위젯 오류, 읽음과 업무 완료, 초안 공개 승인·지식 검토 승인·실제 발행을 구별한다. 기존251개 수용 기준/분류/North Star와 SQL142까지의 migration은 변경하지 않았다.
+- `server/convenience/home.ts`, `http.ts` 및 runtime adapter가 현재 인증 주체의 recent/favorites/초안/요청·수정 요청/현재 담당·검토 가능 변경/실패 작업/접근 요청을 조합한다. canonical drafts/review inbox의 선택적25후보 paging, own request/access metadata, JobService own failure filter와 C6 암호화 cursor helper를 확장했다. 공통 ACL·원본·삭제 fence는 failclosed이며 feed별 실제 테이블 장애는 다른 위젯에 전파하지 않는다. 관리자 집계를 받아 client에서 거르지 않는다.
+- `Home.tsx`, `MyTasks.tsx`, Home 전용 CSS와 `App.tsx`/`console.ts`가 기본 진입을 개인 홈으로 바꾸며 `/...?section=tasks`와 기존 `#overview` 운영 개요를 유지한다. Home은 미조회 운영 count/model bootstrap에 의존하거나 거짓0건 운영 aggregate를 표시하지 않는다. C6 `compose&draft`는 own exact ID로 분기하고 page-bound 초안은 기존 WorkflowPanel의 CAS/복구 editor에 위임한다. 계정·공간/API 세대/미저장 경고를 유지하며 foreign/missing exact ID는 오류다.
+- native 최신4파일50(Home10/HTTP1/C6 manual9/new-document30) exit0, 이전 corrected governance14/workflows36 및 unchanged 협업·개인 목록·jobs80의 green130을 carry한다. 고유10파일180 범위이며 단일 현재180 실행은 아니다. 최종 Node24 `npm run check` exit0: frontend436/Node48/import16/evaluation41/requirements251/server types/build/smoke.
+- 새 backend4394/frontend5194, 전체 production fingerprint `2339ac55d3eb86a5d3c9d5a4915d0031fe9143276a59a235acbc729599d43f98`의 실제 Chromium 네 조건44PNG가 exit0. 실제 access 요청 테이블 장애와 개별 재시도, current source ACL, own/other, older page-bound/page-less resume, Tab으로25번째 항목→continuation→위젯 밖 이동을 확인했다. [화면·소스·정리 근거](ui-validation/2026-11-17-personal-home/README.md). 소유 DB/profile0 및 포트 해제, 부모PG 유지.
+- Ruling: C6 공개 요청을 기존 own-request 위젯에 metadata로 포함하고 독립 지식 검토와 구분했다. exact page-bound resume만 기존 editor에 추가했다. 예정 `Overview.tsx`는 무수정 예외다: 기존 컴포넌트/URL을 유지하고 실제 default/운영 chrome 경계는 App/console에 연결했으므로 cosmetic hunk를 만들지 않았다. Home-only native scroll은25개/진짜 cursor를 보존하는 비용으로 nested scroll을 갖는다.
+- North Star: 기존 지식의 수정·검토·실패 작업으로 정확히 복귀하여 사람의 검토→발행 순환을 돕는다. 본문·근거·발행 결정을 Home 읽기로 바꾸지 않고 source/current ACL 상한·독립 승인·현재 버전/CAS를 보존한다. 탐색 편의의 실제 업무/지식 품질 효과는 EVALUATION 대조 실험 전까지 목표이며 측정 결과가 아니다. DB digest scan 비용/10,000 personal cap/process-local cursor/기존 wrapping-label·큰 chunk/실제 IdP·OS 접근성·운영·의미 품질 인수는 후속 한계다. 독립 review/정확 head CI/PR·병합은 controller 소유이며 구현자는 push/PR/merge하지 않았다.
+
+## 2026-11-17 C6 — 병합 완료 기록 정정
+
+- controller 전달 완료 근거: [PR71](https://github.com/wontaeJeong/agent-knowledge-hub/pull/71), main `0def475457b54d50b38c2b61655e1987234da8f3`, 최종 source `1bd418a580fa1edac1098291afd8b76490f033f0`, [CI44068230799](https://github.com/wontaeJeong/agent-knowledge-hub/actions/runs/44068230799)8개 job 성공. C4는 이 merge를 기준으로 시작했다. 아래 C6의 당시 pending 문구는 과거 시점 기록이며 이 완료 상태를 뒤집지 않는다. 이 구현자가 원격 CI를 독립 재실행했다는 뜻은 아니다.
+
 ## 2026-11-17 #49 C6 — 최종 통합 수정 F1/F2
 
 - 같은 UXC-04 / EDT-001~003/006, REV-001~009, UX-002 범위다. F1은 현재 권한 필터 전25행 제한으로 오래된 독립 검토/승인 재개를 막던 문제다. 기존 GET의 deterministic keyset·암호화 cursor·raw100/visible25·truthful partial과 exact draft query로 해결한다. Composer owner 상태와 assigned-pending queue를 분리하고 다음/처음/새로고침, 현재 DOM keyboard focus를 연결했다.

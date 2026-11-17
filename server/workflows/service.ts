@@ -250,14 +250,14 @@ export class WorkflowService {
   bulkApply(ctx: Context, input: unknown) {
     return bulkApply(this, ctx, input);
   }
-  async drafts(ctx: Context) {
+  async drafts(ctx: Context, page?: { after: string | null }) {
     return this.run(ctx, "draft.write", undefined, async (db) => {
       const rows = await db.query(
-        "SELECT id,revision,data,updated_at FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 ORDER BY updated_at DESC",
-        [ctx.workspaceId, ctx.principalId],
+        page ? "SELECT id,revision,data,updated_at FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 AND ($3::text IS NULL OR id>$3) ORDER BY id LIMIT 26" : "SELECT id,revision,data,updated_at FROM workflow_drafts WHERE workspace_id=$1 AND owner_id=$2 ORDER BY updated_at DESC",
+        page ? [ctx.workspaceId, ctx.principalId, page.after] : [ctx.workspaceId, ctx.principalId],
       );
       const items = [];
-      for (const row of rows.rows) {
+      for (const row of (page ? rows.rows.slice(0,25) : rows.rows)) {
         try {
           if (await isDraftRetired(db, ctx, row.id)) continue;
           const lineage = await this.draftHistoryAccess(db, ctx, row.id);
@@ -285,7 +285,7 @@ export class WorkflowService {
             throw e;
         }
       }
-      return { items };
+      return { items, ...(page ? {nextAfter: rows.rows.length>25 ? rows.rows[24].id as string : null} : {}) };
     });
   }
   async draftHistoryAccess(

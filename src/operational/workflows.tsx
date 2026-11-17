@@ -332,6 +332,7 @@ export function WorkflowPanel({
   principalId,
   spaceId,
   initialPageId,
+  initialDraftId,
 }: {
   api: OperationalApi;
   pages: { id: string; title: string }[];
@@ -341,8 +342,10 @@ export function WorkflowPanel({
   principalId?: string;
   spaceId?: string;
   initialPageId?: string;
+  initialDraftId?: string;
 }) {
   const readAttachment = useCallback((blobId: string) => api.get<ImagePreview>(`/storage/blobs/${blobId}/preview`), [api]);
+  const initialResume=useRef(initialDraftId);
   const [selected, setSelected] = useState(initialPageId ?? "");
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -692,9 +695,15 @@ export function WorkflowPanel({
         api.get<{ items: Comment[] }>(
           `/workflows/pages/${encodeURIComponent(selected)}/comments`,
         ),
+        initialResume.current ? api.get<{items:PrivateDraft[]}>("/workflows/drafts") : Promise.resolve(null),
       ])
-        .then(([d, c]) => {
+        .then(([d, c, saved]) => {
           if (!active) return;
+          if(initialResume.current){
+            const exact=saved?.items.find(x=>x.id===initialResume.current&&x.pageId===selected);
+            if(!write||!exact)throw new ApiError("요청한 초안이 없거나 현재 접근할 수 없습니다.",404,"NOT_FOUND");
+            initialResume.current=undefined;setDraft(exact);setContent(exact.content);
+          }
           setDetail(d);
           setComments(c.items);
           const commentId = window.location.hash.match(

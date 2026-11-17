@@ -1,0 +1,30 @@
+[1/3] server/convenience/home.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  20:52:18
+   Duration  5.81s (tests 98%, import 1%, transform 1%)
+
+[2/3] server/workflows/governance/governance.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  14 passed (14)
+   Start at  20:52:24
+   Duration  3.23s (tests 98%, import 1%, transform 1%)
+
+[3/3] server/workflows/workflows.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  36 passed (36)
+   Start at  20:52:27
+   Duration  3.32s (tests 97%, import 2%, transform 1%)
+

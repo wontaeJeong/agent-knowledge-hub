@@ -1,0 +1,25 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/9cab/agent-knowledge-hub
+
+ ❯ src/operational/convenience/Navigation.test.tsx (33 tests | 1 failed) 300ms
+   × default personal landing does not depend on legacy administration bootstrap and operations overview remains explicit 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/Navigation.test.tsx > default personal landing does not depend on legacy administration bootstrap and operations overview remains explicit
+AssertionError: expected '본문으로 이동agent-knowledge-hubAgent-nativ…' not to contain '서버 정본 ·'
+
+Expected: "서버 정본 ·"
+Received: "본문으로 이동agent-knowledge-hubAgent-native knowledge platform현재 지식 공간접근 범위는 서버에서 확인 메뉴 · 홈지식 공간홈지식 탐색 · 트렌드발행 지식검색내 작업새 문서자료 넣기 · 자동 정리내 문서즐겨찾기최근 방문구독저장 보기지식 도구편집 · 협업버전 비교 · 복원내 알림 · 검토함질문 · 재편입공지 · VOC · 내부 검토정련 · 경험평가 · 성과 환류원본 · 편입변경 검토내 도구에이전트 · 토큰연동 · 자동화관리·운영내 작업 이력운영 개요공간 · 접근알림 · 감사 · 운영전체 기능 점검Pperson검토자지식 환경홈검색 ⌘/Ctrl K새 문서알림서버 연결 모드홈읽음은 업무 완료를 뜻하지 않습니다. 검토 승인과 실제 발행은 별도 단계입니다.최근 문서항목이 없습니다.새로 고침즐겨찾기항목이 없습니다.새로 고침내 초안항목이 없습니다.새로 고침내가 요청한 검토항목이 없습니다.새로 고침수정 요청항목이 없습니다.새로 고침담당 · 검토 가능한 변경항목이 없습니다.새로 고침실패 작업항목이 없습니다.새로 고침내 접근 요청항목이 없습니다.새로 고침서버 정본 · 0개 접근 가능 발행본모델: 미연결실행 방식 실제 모델구조 검사·발췌 (모델 미사용)서버 저장 · 현재 권한 재검사 · 검토 후 발행실제 모델 품질과 운영 인수 결과는 별도 검증 기록을 따릅니다."
+
+ ❯ src/operational/convenience/Navigation.test.tsx:722:223
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 32 passed (33)
+   Start at  20:53:01
+   Duration  735ms (tests 44%, environment 27%, import 17%, transform 12%)
+

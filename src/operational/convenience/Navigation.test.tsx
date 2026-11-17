@@ -715,3 +715,10 @@ test("cancelled detail navigation keeps the prior detail query and does not hand
  const cancel=(event:Event)=>event.preventDefault();window.addEventListener("akh:before-navigate",cancel);
  try{await act(async()=>Array.from(container.querySelectorAll<HTMLButtonElement>('.quick-open button')).find(b=>b.textContent==="상세 검색")!.click());expect(container.querySelector('.quick-open')).not.toBeNull();expect(container.querySelector<HTMLInputElement>('.search-page input')?.value).toBe("prior query");}finally{window.removeEventListener("akh:before-navigate",cancel);}
 });
+
+test("default personal landing does not depend on legacy administration bootstrap and operations overview remains explicit", async()=>{
+ const calls:string[]=[];const h=Object.fromEntries(["recent","favorites","drafts","requests","revisions","reviews","failedJobs","accessRequests"].map(k=>[k,{status:"ready",items:[],nextCursor:null}]));
+ const container=await mount("/?app=1&space=team",path=>{calls.push(path);if(path==="/convenience/home")return h;if(path==="/spaces")return {items:[]};throw Error("unrelated aggregate must not load");});
+ expect(container.querySelector("h1")?.textContent).toBe("홈");expect(container.textContent).toContain("내 초안");expect(calls).not.toContain("/pages");expect(calls).not.toContain("/members");expect(container.textContent).not.toContain("서버 정본 ·");
+ const overview=Array.from(container.querySelectorAll<HTMLAnchorElement>("a")).find(a=>a.textContent==="운영 개요");expect(overview?.href).toContain("#overview");
+});
