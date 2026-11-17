@@ -1,10 +1,11 @@
+import {assertDocumentOrderSchema} from "../convenience/structure-schema";
 import type { PoolClient } from "pg";
 import type { ProductRow } from "../operations/erasure";
 import { releasedImportTables, releasedImportProjection } from "../operations/released-imports";
 // The same storage/product graph classes as operations erasure, including immutable
 // histories and released private imports. Unknown/new classes are never deleted.
 const productTables = new Set([
-  "scheduled_publications","sources","pages","versions","batches","requests","publications","approvals",
+  "workflow_document_order","scheduled_publications","sources","pages","versions","batches","requests","publications","approvals",
   "workflow_access_requests","workflow_activity","workflow_comments","workflow_document_state","workflow_draft_disclosures","workflow_draft_recovery_grants","workflow_draft_revision_history","workflow_draft_save_mutations","workflow_drafts","workflow_events","workflow_notifications","workflow_preferences","workflow_source_state","workflow_subscriptions","workflow_templates",
   "runtime_answers","runtime_execution_grants","runtime_jobs","runtime_lints","runtime_request_traces",
   "agent_api_keys","agent_device_clients","agent_device_grants","agent_key_audit","agent_key_requests","agent_outcomes","agent_personal_pages","agent_personal_revisions","agent_requests","agent_review_signals",
@@ -63,6 +64,7 @@ export async function inventory(
   db: PoolClient,
   workspaceId: string,
 ): Promise<ProductRow[]> {
+  await assertDocumentOrderSchema(db,"RETENTION_GRAPH_UNSUPPORTED");
   const columns = (
     await db.query(
       "SELECT table_name,column_name,data_type,is_nullable FROM information_schema.columns WHERE table_schema='public' ORDER BY table_name,column_name",

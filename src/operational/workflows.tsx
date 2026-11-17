@@ -1,3 +1,5 @@
+import { Breadcrumbs } from "./convenience/Breadcrumbs";
+import { DocumentTreeNavigation, DocumentStructureControls } from "./convenience/PageTree";
 import { DocumentPersonalControls } from "./convenience/PersonalLibrary";
 import { BulkEditor } from "./BulkEditor";
 import { NavigationProtection } from "./convenience/Navigation";
@@ -915,6 +917,7 @@ export function WorkflowPanel({
           onError={fail}
         />
       )}
+      {spaceId && <DocumentTreeNavigation key={`tree:${identityScope}`} api={api} spaceId={spaceId} principalId={principalId ?? ""} pageId={selected} refreshKey={`${selected}:${notice}:${detail?.settings.revision}`} onSelect={id=>{if(draft && content!==draft.content && !window.confirm("저장하지 않은 입력을 닫을까요?"))return false;setSelected(id);return true;}}/>}
       <label>
         문서 선택
         <select
@@ -940,12 +943,14 @@ export function WorkflowPanel({
       </label>
       {detail && latest && (
         <>
-          <h3>
+          {spaceId && <Breadcrumbs api={api} spaceId={spaceId} principalId={principalId ?? ""} pageId={selected} refreshKey={String(detail.settings.revision)}/> }
+          <h3 tabIndex={-1} data-document-heading>
             {detail.page.title} · v{latest.number}
           </h3>
           {spaceId && (
             <a href={documentHref(spaceId, detail.page.id)}>문서 고유 링크</a>
           )}
+          {spaceId && <DocumentStructureControls api={api} spaceId={spaceId} principalId={principalId ?? ""} pageId={selected} version={latest.number} revision={detail.settings.revision} capabilities={capabilities} canLeave={()=>!(draft && content!==draft.content) || window.confirm("저장하지 않은 입력을 닫을까요?")} onChanged={async()=>{const next=await api.get<DocumentDetail>(`/workflows/pages/${selected}`);setDetail(next);await onChanged();}}/>}
           <details open>
             <summary>현재 발행본 본문 · v{latest.number}</summary>
             <DocumentBody

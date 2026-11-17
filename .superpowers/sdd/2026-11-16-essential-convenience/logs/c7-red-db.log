@@ -1,0 +1,20 @@
+[1/1] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure.test.ts (0 test)
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  00:55:41
+   Duration  330ms (worker 97%, environment 3%)
+
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure.test.ts [ server/convenience/structure.test.ts ]
+Error: Cannot find module './structure' imported from /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub/server/convenience/structure.test.ts
+ ❯ server/convenience/structure.test.ts:7:1
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

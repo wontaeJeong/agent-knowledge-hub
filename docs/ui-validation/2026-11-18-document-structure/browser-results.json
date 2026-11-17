@@ -1,0 +1,66 @@
+{
+  "capturedAt": "2026-11-17T16:28:43.006Z",
+  "browser": "Chromium headless",
+  "actorAdapter": "explicit synthetic loopback; canonical HTTP/PG responses unchanged",
+  "runtimeStartedAt": "2026-11-17T16:26:11.367Z",
+  "frontendStartedAt": "2026-11-17T16:26:10.083Z",
+  "productionFingerprint": "42e9eec1ce202ce7bfe859968d3e7089a0ed9652e5ab9611f2eac497d5284860",
+  "results": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "spaceId": "3aafda49-fc62-452e-b0e0-c13964ac7eaf",
+      "threeLevelPath": true,
+      "hiddenTitleAbsent": true,
+      "keyboardMove": true,
+      "mobileFocus": "not-applicable",
+      "oldLinkAfterMoveAndRename": true,
+      "privateDuplicate": true,
+      "sourceRevocation": true,
+      "requests": 174,
+      "pageErrors": []
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "spaceId": "ce596c8d-5040-4581-9de3-e81576f8fdf2",
+      "threeLevelPath": true,
+      "hiddenTitleAbsent": true,
+      "keyboardMove": true,
+      "mobileFocus": "not-applicable",
+      "oldLinkAfterMoveAndRename": true,
+      "privateDuplicate": true,
+      "sourceRevocation": true,
+      "requests": 174,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "spaceId": "4e7b97b5-2a8e-410f-b13a-ec2474dba422",
+      "threeLevelPath": true,
+      "hiddenTitleAbsent": true,
+      "keyboardMove": true,
+      "mobileFocus": "verified",
+      "oldLinkAfterMoveAndRename": true,
+      "privateDuplicate": true,
+      "sourceRevocation": true,
+      "requests": 176,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "spaceId": "3e50c8d8-fd21-4c7e-97fc-3e5874f148bb",
+      "threeLevelPath": true,
+      "hiddenTitleAbsent": true,
+      "keyboardMove": true,
+      "mobileFocus": "verified",
+      "oldLinkAfterMoveAndRename": true,
+      "privateDuplicate": true,
+      "sourceRevocation": true,
+      "requests": 176,
+      "pageErrors": []
+    }
+  ]
+}

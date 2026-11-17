@@ -1,0 +1,37 @@
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+TargetClosedError2: "route.fetch: Request context disposed.
+Call log:
+  - → GET http://127.0.0.1:4397/api/v1/workflows/favorites?limit=25
+    - user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.8127.18 Safari/537.36
+    - accept: */*
+    - accept-encoding: gzip,deflate,br
+    - referer: http://127.0.0.1:5197/?app=1&space=cba99b42-4056-4b18-98ca-730d2f1ff3a4&document=leaf
+    - x-space-id: cba99b42-4056-4b18-98ca-730d2f1ff3a4
+    - sec-ch-ua: "Chromium";v="158", "Not.A/Brand";v="24", "HeadlessChrome";v="158"
+    - sec-ch-ua-mobile: ?0
+    - sec-ch-ua-platform: "macOS"
+    - cookie: synthetic-reviewer
+    - origin: http://127.0.0.1:5197
+" while running route callback.
+Consider awaiting `await page.unrouteAll({ behavior: 'ignoreErrors' })`
+before the end of the test to ignore remaining routes in flight.
+    at /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub/docs/ui-validation/2026-11-18-document-structure/capture.mjs:53:38 {
+  log: [
+    '  - → GET http://127.0.0.1:4397/api/v1/workflows/favorites?limit=25',
+    '    - user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.8127.18 Safari/537.36',
+    '    - accept: */*',
+    '    - accept-encoding: gzip,deflate,br',
+    '    - referer: http://127.0.0.1:5197/?app=1&space=cba99b42-4056-4b18-98ca-730d2f1ff3a4&document=leaf',
+    '    - x-space-id: cba99b42-4056-4b18-98ca-730d2f1ff3a4',
+    '    - sec-ch-ua: "Chromium";v="158", "Not.A/Brand";v="24", "HeadlessChrome";v="158"',
+    '    - sec-ch-ua-mobile: ?0',
+    '    - sec-ch-ua-platform: "macOS"',
+    '    - cookie: synthetic-reviewer',
+    '    - origin: http://127.0.0.1:5197'
+  ]
+}
+
+Node.js v24.22.2

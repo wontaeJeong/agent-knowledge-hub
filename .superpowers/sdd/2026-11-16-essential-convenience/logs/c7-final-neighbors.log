@@ -1,0 +1,9 @@
+[1/1] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  01:18:01
+   Duration  4.18s (tests 95%, import 2%, transform 2%)

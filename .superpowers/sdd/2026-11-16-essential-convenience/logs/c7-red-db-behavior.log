@@ -1,0 +1,102 @@
+[1/1] server/convenience/structure.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ server/convenience/structure.test.ts (6 tests | 6 failed) 571ms
+   × three-level current tree and path omit restricted children, ancestors and counts 359ms
+   × paged continuation rejects changed data, authority, actor and parent 55ms
+   × move and order are atomic, CAS/idempotent and stable ID links survive 43ms
+   × cycles, self, trash parent and moved neighbor reject without partial writes 45ms
+   × moving from a restricted ancestor rejects audience widening and rolls back metadata/order/audit 36ms
+   × duplicate is a private page-less draft retaining exact original version and source dependencies with durable retry 33ms
+
+ Test Files  1 failed (1)
+      Tests  6 failed (6)
+   Start at  00:56:30
+   Duration  730ms (tests 84%, import 10%, transform 5%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/structure.test.ts > three-level current tree and path omit restricted children, ancestors and counts
+error: null value in column "data" of relation "pages" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ node server/convenience/structure.test.ts:15:2
+     13|  await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)",[f.wo…
+     14|  await f.pool.query("INSERT INTO resource_readers SELECT $1,'page',$2,…
+     15|  await f.pool.query("INSERT INTO pages VALUES($1,$2,$3)",[f.workspaceI…
+       |  ^
+     16|  await f.pool.query("INSERT INTO versions VALUES($1,$2,1,$3)",[f.works…
+     17|  if(parentId) await workflows.setDocumentState(f.ctx,id,{expectedRevis…
+ ❯ server/convenience/structure.test.ts:21:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  server/convenience/structure.test.ts > paged continuation rejects changed data, authority, actor and parent
+error: null value in column "data" of relation "pages" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ node server/convenience/structure.test.ts:15:2
+     13|  await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)",[f.wo…
+     14|  await f.pool.query("INSERT INTO resource_readers SELECT $1,'page',$2,…
+     15|  await f.pool.query("INSERT INTO pages VALUES($1,$2,$3)",[f.workspaceI…
+       |  ^
+     16|  await f.pool.query("INSERT INTO versions VALUES($1,$2,1,$3)",[f.works…
+     17|  if(parentId) await workflows.setDocumentState(f.ctx,id,{expectedRevis…
+ ❯ server/convenience/structure.test.ts:30:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  server/convenience/structure.test.ts > move and order are atomic, CAS/idempotent and stable ID links survive
+error: null value in column "data" of relation "pages" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ node server/convenience/structure.test.ts:15:2
+     13|  await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)",[f.wo…
+     14|  await f.pool.query("INSERT INTO resource_readers SELECT $1,'page',$2,…
+     15|  await f.pool.query("INSERT INTO pages VALUES($1,$2,$3)",[f.workspaceI…
+       |  ^
+     16|  await f.pool.query("INSERT INTO versions VALUES($1,$2,1,$3)",[f.works…
+     17|  if(parentId) await workflows.setDocumentState(f.ctx,id,{expectedRevis…
+ ❯ server/convenience/structure.test.ts:39:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  server/convenience/structure.test.ts > cycles, self, trash parent and moved neighbor reject without partial writes
+error: null value in column "data" of relation "pages" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ node server/convenience/structure.test.ts:15:2
+     13|  await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)",[f.wo…
+     14|  await f.pool.query("INSERT INTO resource_readers SELECT $1,'page',$2,…
+     15|  await f.pool.query("INSERT INTO pages VALUES($1,$2,$3)",[f.workspaceI…
+       |  ^
+     16|  await f.pool.query("INSERT INTO versions VALUES($1,$2,1,$3)",[f.works…
+     17|  if(parentId) await workflows.setDocumentState(f.ctx,id,{expectedRevis…
+ ❯ server/convenience/structure.test.ts:48:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  server/convenience/structure.test.ts > moving from a restricted ancestor rejects audience widening and rolls back metadata/order/audit
+error: null value in column "data" of relation "pages" violates not-null constraint
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ node server/convenience/structure.test.ts:15:2
+     13|  await f.pool.query("INSERT INTO resources VALUES($1,'page',$2)",[f.wo…
+     14|  await f.pool.query("INSERT INTO resource_readers SELECT $1,'page',$2,…
+     15|  await f.pool.query("INSERT INTO pages VALUES($1,$2,$3)",[f.workspaceI…
+       |  ^
+     16|  await f.pool.query("INSERT INTO versions VALUES($1,$2,1,$3)",[f.works…
+     17|  if(parentId) await workflows.setDocumentState(f.ctx,id,{expectedRevis…
+ ❯ server/convenience/structure.test.ts:55:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  server/convenience/structure.test.ts > duplicate is a private page-less draft retaining exact original version and source dependencies with durable retry
+Error: NOT_IMPLEMENTED
+ ❯ DocumentStructureService.duplicateToDraft server/convenience/structure.ts:8:73
+      6|  async path(_ctx:Context,_pageId:string):Promise<{items:{id:string}[]}…
+      7|  async move(_ctx:Context,_input:unknown):Promise<unknown>{throw Error(…
+      8|  async duplicateToDraft(_ctx:Context,_input:unknown):Promise<any>{thro…
+       |                                                                         ^
+      9| }
+     10|
+ ❯ server/convenience/structure.test.ts:64:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯

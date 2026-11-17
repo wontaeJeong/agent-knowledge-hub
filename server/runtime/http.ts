@@ -1,3 +1,5 @@
+import {DocumentStructureService} from "../convenience/structure";
+import {handleStructureRoute} from "../convenience/http";
 import { HomeService } from "../convenience/home";
 import { handleHomeRoute } from "../convenience/http";
 import { ScheduledPublicationService } from "../jobs/scheduled-publication";
@@ -578,6 +580,7 @@ export function createRuntimeHandler(options: {
         )
       )
         return;
+      if(await handleStructureRoute({method:req.method??"GET",path,query:url.searchParams,body,ctx,send},new DocumentStructureService(new WorkflowService(options.pool,service,authorizeInTransaction,options.origin))))return;
       if (await handleHomeRoute({method:req.method??"GET",path,query:url.searchParams,ctx,send},new HomeService(options.pool,new WorkflowService(options.pool,service,authorizeInTransaction,options.origin),new GovernanceService(options.pool,authorizeInTransaction),options.jobs?.jobs))) return;
       if (
         await handleGovernanceRoute(

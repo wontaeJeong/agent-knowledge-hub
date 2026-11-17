@@ -1098,3 +1098,15 @@ Final fresh-runtime four-condition capture passed. Its intentional12 HTTP503 res
 - 상태/후속: I1 local 수정·검증 완료, controller exact-head 재리뷰/CI/merge 대기. 기존 accessibility/digest scan/운영 IdP/큰 bundle·의미 품질 제한은 유지한다.
 
 - I1 packaging 관찰: 일반 git add가 tracked report를 stage하면서도 ignored `.superpowers` 부모 경고로 exit1을 반환했다. check=True가 commit 진행을 중단했다. 소유 report/new I1 logs만 명시적 `-f`로 stage하고 diff/manifest gates 후 commit한다. 기존 작업이나 ignored baseline/brief는 stage하지 않는다.
+
+### 2026-11-18 — C7 구조·삭제 통합과 화면 검증에서 발견한 실패
+- 맥락: 문서 트리·이동·복제, 격리 branch `feat/convenience-document-structure-20261118`. C4 PR72 병합 후 작업. 요구한 기능 부재 RED와 아래 실제 구현/검증 실수를 구분한다.
+- 사실/원인: migration143의 page-linked order table을 retention graph에 분류하지 않아 기존 C6 actual source-erasure 회귀가 `RETENTION_GRAPH_UNSUPPORTED`로 실패했다. fail-closed는 정상이며 이를 우회하지 않는다. 정확한 3열 schema 검사와 product lineage 분류를 추가했고 승인된 page/workspace erasure에서 order row를 같은 트랜잭션으로 제거한다. legal hold는 제거를 막는다.
+- 사실/원인: duplicate receipt의 원본 제목을 매번 재생성해 제목 변경 후 같은 mutationId retry가 IDEMPOTENCY_CONFLICT였다. 원래 normalized 요청 hash와 원래 private-save 입력을 재사용하고 현재 계보/삭제 검사 뒤 정본 save receipt를 재생한다. 또 workflow_events의 raw UUID가 다른 actor의 UUID 재사용과 충돌했다. workspace/actor/operation으로 receipt ID를 파생했고 원래 mutationId의 private owner scope는 유지한다.
+- 사실/원인: 이동 form의 다음 위치 조회가 늦게 끝나면 새 parent 목록을 덮었다. parent/request generation으로 늦은 결과를 폐기한다. 오류 시 성공으로 표시하지 않고 같은 의도 재시도는 같은 mutationId를 쓴다.
+- 사실/원인: 실제 screenshot에서 없는 sr-only CSS 때문에 펼치기 설명이 세로로 노출되고 .button 우선순위 때문에 desktop에 mobile toggle이 나타났다. 접근 가능한 aria-label만 남기고 selector specificity를 고쳤다. runtime console에서 새 tree와 기존 PersonalDocuments가 동일 sibling key를 써 개인 목록이 중복됨을 확인했다. tree key에 고유 prefix를 추가했다. 해당 RED/GREEN 및 수정 전 화면을 보존한다.
+- 검증 도구 실수: 첫 fixture pages positional INSERT가 현재 kind 열에 잘못 매핑되어 explicit columns로 수정했다. source revoke 후 canonical drafts 목록은 throw가 아닌 빈 items라는 기존 계약에 맞춰 assertion을 수정했다. focus cleanup callback의 boolean 반환은 tsc로 발견해 void cleanup으로 수정했다. capture가 async breadcrumb 완료 전에 count를 단언했고 기존 composer의 `문서 제목` 대신 `제목`을 찾았다. 종료 중 route.fetch disposed가 첫 failure를 가렸으므로 종료 오류만 분리하고 원래 failure DOM/원인을 기록했다. 이 수정들은 성공 DTO를 합성하지 않는다.
+- 조치/검증: 보존된 c7-red/green 로그, native structure19+HTTP/MCP2, actual erasure/retention/C6 회귀, 최종 fullcheck와 새 runtime/frontend fingerprint의 네 조건 실제 화면을 `docs/ui-validation/2026-11-18-document-structure/` 및 task-7-report.md에 기록한다. 이전 check477/478/479와 첫 기능상 성공 캡처는 이후 변경의 최종 증거로 승격하지 않는다.
+- 상태/후속: 위 실제 결함은 scoped 회귀로 수정 확인. 독립 리뷰/정확 head CI/PR/병합은 controller 소유다. 기존 큰 chunk·전체 ACL/digest scan 비용·scoped-agent C7 미지원·실제 IdP/기기/의미 품질/운영 인수는 남는다.
+
+- C7 cleanup 검증: 첫 확인에서 종료된 브라우저의 소유 profile1개가 남아 있었다(DB0/port닫힘). 정확한 `akh_c7_profile_pUS4Rg`만 지운 뒤 두 번째 확인은 ps 문자열 필터가 자기 shell command를 Chromium으로 오인했다. executable/PID를 먼저 검사하도록 검증 명령을 바로잡아 최종 DB/profile/Chromium0·4397/5197닫힘·부모PG생존을 cleanup.json에 기록했다. 제품 문제가 아닌 정리/검증 가정 실패이며 최초 시도들을 성공으로 표시하지 않는다.

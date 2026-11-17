@@ -1,0 +1,32 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/31d9/agent-knowledge-hub
+
+ ❯ src/operational/convenience/structure.test.tsx (8 tests | 1 failed) 111ms
+   × existing personal documents and new tree keep distinct React identities while the panel refreshes 36ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/structure.test.tsx > existing personal documents and new tree keep distinct React identities while the panel refreshes
+AssertionError: expected [ [ …(2) ], [ …(2) ], [ …(2) ], …(1) ] to have a length of +0 but got 4
+
+- Expected
++ Received
+
+- 0
++ 4
+
+ ❯ src/operational/convenience/structure.test.tsx:244:79
+    242|  await mount(<WorkflowPanel {...props}/>);
+    243|  await act(async()=>root.render(<WorkflowPanel {...props}/>));
+    244|  expect(errors.mock.calls.filter(args=>String(args[0]).includes('same …
+       |                                                                               ^
+    245|  expect(document.querySelectorAll('.op-personal-documents')).toHaveLen…
+    246| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  01:23:13
+   Duration  494ms (environment 54%, tests 26%, import 15%, transform 5%)

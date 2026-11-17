@@ -121,7 +121,8 @@ export type CursorFeedTable =
   | "workflow_access_requests"
   | "workflow_activity"
   | "workflow_personal_library_state"
-  | "durable_jobs";
+  | "durable_jobs"
+  | "workflow_document_order";
 export async function listRevision(
   db: PoolClient,
   ctx: Context,

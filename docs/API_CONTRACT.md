@@ -149,3 +149,13 @@ C6 등록된 파생 사본의 삭제는 disclosure의 정본 `source_id`까지 �
 최종 리뷰 F1: 목록은 `(created_at DESC,id DESC)` keyset으로 한 요청에서 raw100까지 검사한다. `partial:true`는 탐색 미완료이며 숨은 수/ID나 전체0을 뜻하지 않는다. `nextCursor`로 이어 조회하고 `null`일 때만 완료다. cursor는 서버 프로세스 AES-GCM 키로 암호화하며 principal/credential/session/workspace/filter/고정25 한도, 현재 effective capability·검토자 설정, SQL 데이터/권한 hash 및 시간 만료를 바인딩한다. 변경·위조·15분 경과·프로세스 재시작은 `STALE_CURSOR`409로 처음부터 재조회한다. cursor·owner lookup 상태는 브라우저 메모리에만 두며 본문/제목/검색어를 URL/storage에 넣지 않는다. SQL hash는 비공개 corpus를 애플리케이션으로 반환하지 않지만 공간 데이터 크기에 비례한 DB 비용과 보수적인 무관 변경 invalidation이 있다. 운영 규모 성능 인수는 별도다.
 
 최종 리뷰 F2: template insert/CAS도 동일 트랜잭션·mutation gate의 기존 product-write fence를 먼저 적용한다. 완료 workspace receipt와 물리 purge 대기 blocked receipt는 새 제목/본문을 저장하지 않는다. provenance/current ACL 검사는 별도로 유지한다.
+
+## C7 문서 구조 (2026-11-18)
+
+현재 인증 주체/공간의 `GET /api/v1/convenience/tree`는 `parentId?`, `cursor?`, `limit?`(기본/최대25)를 받는다. 현재 허용 노드의 `{id,title,version,revision,hasChildren}`와 opaque `revision`, `nextCursor`, `partial`을 반환한다. raw 후보 scan은100건이고 숨긴 위치는 암호화 cursor 안에만 남는다. 실제 빈 목록과 partial scan을 구분한다. `GET /api/v1/convenience/pages/:id/path`는 현재 허용된 경로만 반환하며 기존 정본 ancestor ACL을 우회하지 않는다.
+
+`POST /api/v1/convenience/pages/move`는 `{pageId,parentId,beforeId?,expectedRevision,expectedStructureRevision?,mutationId,reason}`다. `mutationId`는 UUID이며 actor/space별로 바인딩한다. `beforeId`가 있으면 destination tree의 opaque `revision`을 `expectedStructureRevision`으로 반드시 보낸다. append도 token을 보낼 수 있다. 현재 권한 검사 후 동일 요청 receipt를 먼저 재생하므로 성공 응답 유실 재시도는 stale CAS로 바뀌지 않는다. 다른 payload의 key 재사용, 순환, self/trash parent, 옮겨진 이웃, stale revision, 유효 독자 확대는 전체 transaction rollback이다. 기존 `/workflows/pages/:id/state`의 clamp 계약은 유지한다.
+
+`POST /api/v1/convenience/pages/duplicate`는 `{pageId,version,parentId,mutationId}`로 원본 고정 버전/source/dependency를 유지한 새 page-less 개인 초안을 정본 private save 흐름으로 만든다. 공개·발행·독립 증거 생성이 아니다. 현재 원본/계보/상위 권한과 삭제 fence는 재시도에서도 확인한다. child 작성은 같은 private save에 parentId를 고정한 뒤 C6 compose/draft URL을 연다. 기존 문서·댓글·공유 URL은 바뀌지 않는다.
+
+쿠키/세션 MCP의 `knowledge_tree`, `knowledge_path`, `knowledge_move`, `knowledge_duplicate`는 같은 서비스를 사용한다. 기존 `agent-credentials` read/write key 및 별도 agent MCP `wiki_*`의 도구 allowlist에는 추가하지 않았다. 현재 발급 schema는 C7 개별 tool admission을 지원하지 않으므로 범위형 agent C7 호출은 명시적으로 미지원이다. 관리·보호 capability를 기존 machine key에 자동 추가하지 않는다.

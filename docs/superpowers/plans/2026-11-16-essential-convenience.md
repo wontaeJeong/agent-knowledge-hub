@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, React 19.3.1, Vite 8.3.5, Node `^22.12.0 || ^24.0.0`, npm `>=10`, PostgreSQL, existing marked/DOMPurify/Vitest. 기존 package-lock을 유지하고 의존성을 추가하기 전에 필요성을 확인한다.
 
-**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 [PR #69](https://github.com/wontaeJeong/agent-knowledge-hub/pull/69), main `d4048bd`에 병합됐고 최종 소스 `d4bb97f`의 CI `44019161055` 필수 8개 검사와 독립 리뷰를 통과했다. C5 / Task 5는 [PR #70](https://github.com/wontaeJeong/agent-knowledge-hub/pull/70), main `83b00f4`에 병합됐고 최종 소스 `629c9c6`의 CI `44036706074` 필수 8개 검사와 독립 리뷰를 통과했다. C6 / Task 6은 [PR #71](https://github.com/wontaeJeong/agent-knowledge-hub/pull/71), main `0def475457b54d50b38c2b61655e1987234da8f3`에 병합됐고 최종 소스 `1bd418a580fa1edac1098291afd8b76490f033f0`의 CI `44068230799` 필수8개 검사와 controller 독립 리뷰를 통과했다. C4 / Task 4는 이 merge 뒤 로컬 구현·검증을 완료했으며 feature commit `cb0d42f2e8ffcd7a115db3b3e3b505a9efa94fdb`까지 완료했으며 독립 리뷰·정확 head 원격 CI·PR/main 병합은 아직 controller 인계 단계다. 그 외 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
+**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 [PR #69](https://github.com/wontaeJeong/agent-knowledge-hub/pull/69), main `d4048bd`에 병합됐고 최종 소스 `d4bb97f`의 CI `44019161055` 필수 8개 검사와 독립 리뷰를 통과했다. C5 / Task 5는 [PR #70](https://github.com/wontaeJeong/agent-knowledge-hub/pull/70), main `83b00f4`에 병합됐고 최종 소스 `629c9c6`의 CI `44036706074` 필수 8개 검사와 독립 리뷰를 통과했다. C6 / Task 6은 [PR #71](https://github.com/wontaeJeong/agent-knowledge-hub/pull/71), main `0def475457b54d50b38c2b61655e1987234da8f3`에 병합됐고 최종 소스 `1bd418a580fa1edac1098291afd8b76490f033f0`의 CI `44068230799` 필수8개 검사와 controller 독립 리뷰를 통과했다. C4 / Task 4는 [PR #72](https://github.com/wontaeJeong/agent-knowledge-hub/pull/72), main `de4e150b7a37003ec23a885fb32205b49d107a7f`에 병합됐고 최종 소스 `5f4d593`의 CI `44115841741` 필수8개 검사와 controller 독립 리뷰를 통과했다. C7 / Task 7은 그 병합 뒤 로컬 구현·검증을 완료했으며 아래 명시한 scoped-agent MCP 제약을 독립 검토에 인계한다. C7 리뷰·원격 CI·PR·병합 및 이후 Task는 미완료다. 전체 제품 운영 인수를 뜻하지 않는다.
 
 ## Global Constraints
 
@@ -102,11 +102,11 @@
 - [x] Run focused tests, existing overview/navigation tests and actual resume flows. Capture empty/loading/partial-error and both viewport/theme combinations.
 - [x] Commit `feat: add wiki home and personal work queue` (`cb0d42f2e8ffcd7a115db3b3e3b505a9efa94fdb`).
 
-**로컬 검증/범위 명확화:** 최종 fullcheck436/48/16/41/251/types/build/smoke exit0, 최신 native4파일50개와 이전 green130개 carry(고유10파일180, 단일 현재180 실행 아님), 새 runtime/전체 source fingerprint의 Chromium 네 조건44PNG exit0. [증거](../../ui-validation/2026-11-17-personal-home/README.md). C4의 독립 review/정확 head CI/PR·병합은 아직 대기다.
+**초기 로컬 검증/범위 명확화(이후 리뷰 수정 전):** 당시 fullcheck436/48/16/41/251/types/build/smoke exit0, 최신 native4파일50개와 이전 green130개 carry(고유10파일180, 단일 현재180 실행 아님), 새 runtime/전체 source fingerprint의 Chromium 네 조건44PNG exit0. [증거](../../ui-validation/2026-11-17-personal-home/README.md). 당시 대기였던 C4 review/CI/병합은 최종 PR72에서 완료했다. 이 초기 수치는 최종 head 증거를 대신하지 않는다.
 
 **승인된 계획 예외/확장:** `Overview.tsx`는 무수정이다. 기존 컴포넌트/`#overview` URL을 그대로 명시적 운영 목적지로 보존하고 default/미조회 aggregate chrome 경계를 App/console에 연결했으므로 cosmetic hunk를 만들지 않는다. 작은 canonical own 요청·접근 feed, drafts/review 선택적 paging, JobService own failure filter, C6 cursor helper의 서버 고정 feed 선택, 기존 Composer/WorkflowPanel의 own exact page-bound 분기와 Home-only CSS/HTTP 회귀를 추가했다. 공개 요청은 별도 새 위젯 대신 own-request metadata에 합치며 body를 내려받거나 foreign draft 일반 권한을 부여하지 않는다. Home native scroll은25개와 true cursor/키보드를 보존하며 nested scroll 비용이 있다. 공통 ACL/source/erasure fence는 유지하고 대규모 DB digest scan 비용은 미검증이다.
 
-**C4 task review I1 수정:** FIX_BASE d8dfa94에서 default Home 직렬화/실제 공간 변경 및 bare preview 렌더링 회귀를 RED9/95로 확인했다. 기존 entryMode·codec의 no-hash Home/preview Overview 구별로 수정하고 focused121/fullcheck447/48/16/41/251/types/build/smoke 및 새 네 조건52캡처를 통과했다. backend 동일 바이트의 native50+130을 carry하며 재실행으로 표시하지 않는다. 새 fingerprint `ec5dfbbab8d29cc2e4bdb90e12960f1da6442451c264440cd116279ff071eb76`; 이전44캡처/hash는 과거 근거이고 PR72 controller 재리뷰/CI/병합은 대기다.
+**C4 task review I1 수정:** FIX_BASE d8dfa94에서 default Home 직렬화/실제 공간 변경 및 bare preview 렌더링 회귀를 RED9/95로 확인했다. 기존 entryMode·codec의 no-hash Home/preview Overview 구별로 수정하고 focused121/fullcheck447/48/16/41/251/types/build/smoke 및 새 네 조건52캡처를 통과했다. backend 동일 바이트의 native50+130을 carry하며 재실행으로 표시하지 않는다. 새 fingerprint `ec5dfbbab8d29cc2e4bdb90e12960f1da6442451c264440cd116279ff071eb76`; 이전44캡처/hash와 이 I1 수치는 해당 시점 근거다. 이후 최종 `5f4d593`/CI `44115841741` 필수8개 통과와 PR72/main `de4e150` 병합을 controller가 확인했다.
 
 ## Task 5: 전역 검색과 Quick Open
 
@@ -144,15 +144,21 @@
 
 ## Task 7: 문서 트리·이동·복제
 
-**Files:** Create `server/migrations/119-document-order.sql`, `server/convenience/structure.ts`, `structure.test.ts`, `src/operational/convenience/PageTree.tsx`, `Breadcrumbs.tsx`, `structure.test.tsx`; Modify `server/workflows/service.ts`, `server/convenience/http.ts`, `src/operational/App.tsx`, `workflows.tsx`.
+**Files:** Create `server/migrations/143-document-order.sql`, `server/convenience/structure.ts`, `structure.test.ts`, `src/operational/convenience/PageTree.tsx`, `Breadcrumbs.tsx`, `structure.test.tsx`; Modify `server/workflows/service.ts`, `server/convenience/http.ts`, `src/operational/workflows.tsx`; existing App routing is reused unchanged.
 
-**Interfaces:** Consumes Tasks 1/3/6 and existing parent/state/history ACLs. Produces `DocumentStructureService.children(ctx,{parentId,cursor,limit})`, `path(ctx,pageId)`, `move(ctx,{pageId,parentId,beforeId,expectedRevision,mutationId,reason})`, `duplicateToDraft(ctx,{pageId,version,parentId,mutationId})` using spec UXC-06; duplicate returns a new private draft reference retaining source/version dependencies.
+**Interfaces:** Consumes Tasks 1/3/6 and existing parent/state/history ACLs. Produces `DocumentStructureService.children(ctx,{parentId,cursor,limit})`, `path(ctx,pageId)`, `move(ctx,{pageId,parentId,beforeId,expectedRevision,expectedStructureRevision?,mutationId,reason})`, `duplicateToDraft(ctx,{pageId,version,parentId,mutationId})` using spec UXC-06; duplicate returns a new private draft reference retaining source/version dependencies.
 
-- [ ] Add failures for 3-level navigation, hidden ancestor/child counts, cycles, stale neighbor, ACL-broadening move, concurrent trash/retention, duplicate lineage, old stable links and keyboard equivalent of drag.
-- [ ] Run structure DB/UI tests red. Validate new order migration uniqueness/backfill before implementation.
-- [ ] Implement paged authorized tree/path, deterministic ordering and audit/CAS mutation; duplicate only through Task 6 private draft creation, never independent-proof cloning.
-- [ ] Run workflow/trash/access/version regressions. Verify mobile tree drawer focus and old-link navigation after move/rename with screenshots.
+- [x] Add failures for 3-level navigation, hidden ancestor/child counts, cycles, stale neighbor, ACL-broadening move, concurrent trash/retention, duplicate lineage, old stable links and keyboard equivalent of drag.
+- [x] Run structure DB/UI tests red. Validate new order migration uniqueness/backfill before implementation.
+- [x] Implement paged authorized tree/path, deterministic ordering and audit/CAS mutation; duplicate only through Task 6 private draft creation, never independent-proof cloning.
+- [x] Run workflow/trash/access/version regressions. Verify mobile tree drawer focus and old-link navigation after move/rename with screenshots.
 - [ ] Commit `feat: add document tree navigation and safe organization`.
+
+**C7 로컬 결과:** final fullcheck479/48/16/41/251/types/build/smoke exit0. 최종 native2파일21개, 앞선 erasure/retention/C6 4파일106개 및 나머지11파일104개 carry로 고유17파일231개(단일 현재231 실행 아님). 실제 canonical HTTP/PG의 1440/390×light/dark4캡처와 키보드 이동·옛 링크/rename·철회·mobile focus를 확인하고 자기 자원만 정리했다. [증거](../../ui-validation/2026-11-18-document-structure/README.md), 상세 `.superpowers/sdd/2026-11-16-essential-convenience/task-7-report.md`.
+
+**Ruling — 계약/비용:** beforeId가 있으면 승인된 opaque `expectedStructureRevision`을 요구한다. 이웃 순서/현재 권한 경합을 같은 잠금에서 막기 위한 확장이며 클라이언트 재조회 비용이 있다. 같은 mutation 재시도는 현재 인가 후 stale 검사보다 먼저 원래 결과를 반환한다. 정본 state/saveDraft transaction primitive를 공유하고 기존 state API의 clamp는 보존한다. C7만 effective reader 확대를 원자적으로 거절한다. migration143의 rollback/backfill/restart 회귀는 구현 후 보강 검증이며 모든 migration 검증이 구현 전 RED였다고 주장하지 않는다.
+
+**Ruling — 남은 MCP 계약:** 쿠키/세션 MCP는 동일 구조 서비스를 호출한다. 기존 read/write machine credential 발급 schema는 개별 C7 permission을 발급할 수 없고 기존 allowlist에도 C7가 없다. 별도 agent MCP의 wiki_* 계약 역시 C7가 없다. 기존 키의 권한을 묵시적으로 넓히지 않기 위해 그대로 거절하며 agent MCP 완료로 표시하지 않는다. 독립 spec review 대상이고 요구사항 면제가 아니다. 전체 ACL/digest 계산·sibling rank 갱신의 대규모 비용과 운영 IdP/접근성/품질 검증은 남는다.
 
 ## Task 8: 내부 연결·백링크
 
