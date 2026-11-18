@@ -89,7 +89,16 @@ export class OperationalApi {
   constructor(
     private readonly origin = "",
     private readonly spaceId = "",
-  ) {}
+    private readonly personalBinding?: Readonly<Pick<Identity, "principalId" | "csrfToken">>,
+  ) {
+    if (personalBinding) this.csrf = personalBinding.csrfToken;
+  }
+  forSavedViews(identity: Pick<Identity, "workspaceId" | "principalId" | "csrfToken">) {
+    return new OperationalApi(this.origin, identity.workspaceId, {
+      principalId: identity.principalId,
+      csrfToken: identity.csrfToken,
+    });
+  }
   private async fetchResponse(
     path: string,
     init: RequestInit,
@@ -127,6 +136,10 @@ export class OperationalApi {
       redirect: "error",
       headers: {
         ...extraHeaders,
+        ...(this.personalBinding ? {
+          "X-Expected-Principal": encodeURIComponent(this.personalBinding.principalId),
+          "X-CSRF-Token": this.personalBinding.csrfToken,
+        } : {}),
         ...(this.spaceId ? { "X-Space-Id": this.spaceId } : {}),
         ...(body !== undefined
           ? { "Content-Type": "application/json", "X-CSRF-Token": this.csrf }
@@ -142,8 +155,14 @@ export class OperationalApi {
         ? AbortSignal.any([signal, AbortSignal.timeout(120_000)])
         : AbortSignal.timeout(120_000),
     });
+    if (this.personalBinding && res.ok && res.headers.get("X-Personal-Scope-Verified") !== "1") {
+      await res.body?.cancel();
+      this.sessionExpired();
+      throw new ApiError("현재 세션을 다시 확인하세요.",409,"SESSION_CHANGED");
+    }
     const data = await res.json();
     if (!res.ok) {
+      if (this.personalBinding && data.code === "SESSION_CHANGED") this.sessionExpired();
       if (res.status === 401) this.sessionExpired();
       const code =
         typeof data.code === "string" && /^[A-Z_]{1,80}$/.test(data.code)
@@ -234,6 +253,16 @@ export class OperationalApi {
         code,
         requestId,
       );
+    }
+    if (this.personalBinding && path !== "/me") {
+      // A different tab can replace the cookie while this response is in flight.
+      // Validate again with the current cookie before releasing private data.
+      const me = await this.get<Identity>("/me");
+      if (me.workspaceId !== this.spaceId || me.principalId !== this.personalBinding.principalId ||
+          me.csrfToken !== this.personalBinding.csrfToken) {
+        this.sessionExpired();
+        throw new ApiError("현재 세션을 다시 확인하세요.", 409, "SESSION_CHANGED");
+      }
     }
     return data;
   }

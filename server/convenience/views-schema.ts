@@ -1,6 +1,8 @@
 import type { PoolClient } from "pg";
 
-export const savedViewProjection = `jsonb_build_object('workspace_id',t.workspace_id,'id',t.id,
+export const isPersonalViewTable = (table: string) =>
+  table === "personal_saved_views" || table === "personal_saved_view_mutations";
+export const savedViewProjection = `jsonb_build_object('workspace_id',t.workspace_id,
   'private_payload_sha256',encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex'))`;
 
 export async function assertSavedViewsSchema(db: PoolClient, error: string) {
@@ -38,12 +40,42 @@ export async function assertSavedViewsSchema(db: PoolClient, error: string) {
       throw Error(error);
     return;
   }
+  const audited = !!(
+    await db.query("SELECT 1 FROM schema_migrations WHERE version=147")
+  ).rowCount;
+  if (audited)
+    expected.personal_saved_view_mutations.push(
+      "applied_at:timestamp with time zone",
+      "operation:text",
+    );
   for (const table of tables) {
     const actual = columns.filter((row) => row.table_name === table);
     if (
-      actual.some((row) => row.is_nullable !== "NO") ||
+      actual.some(
+        (row) =>
+          row.is_nullable !==
+          (table === "personal_saved_view_mutations" &&
+          ["applied_at", "operation"].includes(row.column_name)
+            ? "YES"
+            : "NO"),
+      ) ||
       actual.map((row) => row.column_name + ":" + row.data_type).join() !==
-        expected[table].join()
+        expected[table].sort().join()
+    )
+      throw Error(error);
+  }
+  if (
+    (await db.query("SELECT 1 FROM schema_migrations WHERE version=148"))
+      .rowCount
+  ) {
+    const guard = (
+      await db.query(
+        "SELECT pg_get_expr(conbin,conrelid) AS expression FROM pg_constraint WHERE conrelid='personal_saved_view_mutations'::regclass AND contype='c' AND conname='personal_saved_view_audit_required'",
+      )
+    ).rows[0];
+    if (
+      guard?.expression !==
+      "((operation IS NOT NULL) AND (applied_at IS NOT NULL))"
     )
       throw Error(error);
   }

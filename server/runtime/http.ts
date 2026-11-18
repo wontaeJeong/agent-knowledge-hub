@@ -282,6 +282,16 @@ export function createRuntimeHandler(options: {
           : await (options.auth?.authenticate(req) ?? Promise.resolve(null));
       if (!session && !agent)
         return send(401, { code: "UNAUTHENTICATED", requestId });
+      // Optional UI precondition pinned to the /me that rendered the tab. It
+      // narrows the authenticated cookie, including for empty GET responses.
+      if (req.headers["x-expected-principal"] !== undefined) {
+        if (!session || agent || credential ||
+            req.headers["x-expected-principal"] !== encodeURIComponent(session.principalId) ||
+            req.headers["x-space-id"] !== session.workspaceId ||
+            !session.csrfToken || req.headers["x-csrf-token"] !== session.csrfToken)
+          return send(409,{code:"SESSION_CHANGED",requestId});
+        res.setHeader("X-Personal-Scope-Verified","1");
+      }
       const actor = agent ?? session!;
       const ctx: Context = {
         requestId,

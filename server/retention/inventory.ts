@@ -1,4 +1,4 @@
-import {assertSavedViewsSchema,savedViewProjection} from "../convenience/views-schema";
+import {assertSavedViewsSchema,isPersonalViewTable,savedViewProjection} from "../convenience/views-schema";
 import {assertPublishedLinksSchema} from "../convenience/links";
 import {assertDocumentOrderSchema} from "../convenience/structure-schema";
 import type { PoolClient } from "pg";
@@ -35,7 +35,7 @@ export function contains(value: unknown, target: string): boolean {
 /** Keep private bodies/titles inside PostgreSQL. Hash changes into the preview
  * without materializing them in the service or exposing them in a receipt. */
 function privateProjection(table:string):string | undefined {
-  if(table === "personal_saved_views")return savedViewProjection;
+  if(isPersonalViewTable(table))return savedViewProjection;
   if(table === "workflow_bulk_requests" || table === "workflow_bulk_items") return `(to_jsonb(t)-'reason'-'patch'-'result'-'session_id'-'token_hash') || jsonb_build_object('private_payload_sha256',encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex'))`;
   if (table === "batches") return `(to_jsonb(t)-'data') || jsonb_build_object('sourceIds',(SELECT jsonb_agg(s->'id') FROM jsonb_array_elements(t.data->'snapshots') s),'pageIds',(SELECT jsonb_agg(u->'id') FROM jsonb_array_elements(t.data->'updates') u),'private_payload_sha256',encode(sha256(convert_to(t.data::text,'UTF8')),'hex'))`;
   if (table === "scheduled_publications") return `(to_jsonb(t)-'session_id'-'request_key'-'result') || jsonb_build_object('private_payload_sha256',encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex'))`;

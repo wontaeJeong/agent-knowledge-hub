@@ -234,7 +234,7 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 - [x] Run search/personal/route regressions and fresh-account/space-switch browser flows. A saved view never grants document access or becomes team-shared by default.
 - [x] Capture keyboard/mobile evidence and commit `feat: add personal saved search views`.
 
-실행 근거는 [C11 PostgreSQL·Chromium 검증](../../ui-validation/2026-11-18-saved-views/README.md)에 있다. 145 이후의 다음 번호 146을 사용했다. 사내 인증 및 운영 인수는 별도다.
+실행 근거는 [C11 PostgreSQL·Chromium 검증](../../ui-validation/2026-11-18-saved-views/README.md)에 있다. 146이 개인 정의를 추가했다. 독립 리뷰에서 현재 세션과 화면 신원의 결합, 정상 재확인 시 미저장 입력 복원, 권한 철회 후 예시 결과 폐기, 개인 업무 감사의 검증을 보강했다. 후속 147·148은 원래 마이그레이션과 과거 영수증을 보존한다. 새 쓰기는 작업 종류와 시각을 요구하며 구버전 쓰기 프로세스 교체가 필요하다. 사내 인증 및 운영 인수는 별도다.
 
 ## Task 12: 연결 인수·현재 현황 정리
 

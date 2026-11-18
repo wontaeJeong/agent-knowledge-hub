@@ -178,8 +178,17 @@ export class SavedViewService {
         }
       }
       await db.query(
-        "INSERT INTO personal_saved_view_mutations VALUES($1,$2,$3,$4,$5,$6)",
-        [...scope, data.mutationId, hash, viewId, nextRevision],
+        `INSERT INTO personal_saved_view_mutations
+          (workspace_id,owner_id,mutation_id,payload_hash,view_id,revision,operation,applied_at)
+          VALUES($1,$2,$3,$4,$5,$6,$7,clock_timestamp())`,
+        [
+          ...scope,
+          data.mutationId,
+          hash,
+          viewId,
+          nextRevision,
+          command.kind === "move" ? "move" : operation,
+        ],
       );
       return { id: viewId, revision: nextRevision };
     });

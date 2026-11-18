@@ -16,7 +16,8 @@ test("personal saved views persist across sessions, authorize runs afresh and se
       req.headers.cookie
         ? {
             ...(req.headers.cookie === "editor" ? f.editor : f.reader),
-            csrfToken: "csrf",
+            csrfToken:
+              req.headers.cookie === "reader-session-2" ? "csrf-new" : "csrf",
           }
         : null,
     requestGuard: () => ({
@@ -97,6 +98,28 @@ test("personal saved views persist across sessions, authorize runs afresh and se
     expect(saved).toMatchObject({ id: expect.any(String), revision: 1 });
     expect(await (await call(path, "POST", create)).json()).toEqual(saved);
     const item = path + "/" + saved.id;
+    const bound = async (cookie: string, csrf: string, url = path) =>
+      fetch(origin + url, {
+        headers: {
+          cookie,
+          "x-expected-principal": "reader",
+          "x-csrf-token": csrf,
+          "x-space-id": f.workspaceId,
+        },
+      });
+    const verified = await bound("reader", "csrf");
+    expect(verified.headers.get("X-Personal-Scope-Verified")).toBe("1");
+    for (const response of [
+      await bound("editor", "csrf"),
+      await bound("reader-session-2", "csrf", item),
+    ]) {
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ code: "SESSION_CHANGED" });
+      expect(response.headers.has("X-Personal-Scope-Verified")).toBe(false);
+    }
+    expect((await bound("reader-session-2", "csrf-new", item)).status).toBe(
+      200,
+    );
     expect((await call(item, "GET", undefined, "editor")).status).toBe(404);
     expect(
       (await (await call(path, "GET", undefined, "editor")).json()).items,
@@ -286,6 +309,100 @@ test("adjacent reorder racing a delete has exactly one winner and preserves the 
     expect((await service.list(f.reader)).items.map((view) => view.id)).toEqual(
       attempts[0].status === "fulfilled" ? [b.id, a.id] : [b.id],
     );
+  } finally {
+    await f.pool.end();
+  }
+});
+
+test("private audit records exactly one operation and timestamp per committed nonce", async () => {
+  const { SavedViewService } = await import("./views"),
+    f = await fixture();
+  try {
+    await adoptFixture(f.pool, f.workspaceId);
+    const s = new SavedViewService(f.pool),
+      d = {
+        name: "private fixture",
+        filters: { query: "private query" },
+        sort: "title",
+        expectedRevision: 0,
+        mutationId: randomUUID(),
+      };
+    const [a, replay] = await Promise.all([
+      s.save(f.reader, d),
+      s.save(f.reader, d),
+    ]);
+    expect(replay).toEqual(a);
+    await s.save(f.editor, d);
+    const failed = randomUUID(),
+      guard = "c11_guard_" + failed.replaceAll("-", "");
+    await f.pool.query(
+      "ALTER TABLE personal_saved_view_mutations ADD CONSTRAINT " +
+        guard +
+        " CHECK(mutation_id <> '" +
+        failed +
+        "'::uuid) NOT VALID",
+    );
+    try {
+      await expect(
+        s.save(f.reader, {
+          ...d,
+          id: a.id,
+          name: "rolled back",
+          expectedRevision: 1,
+          mutationId: failed,
+        }),
+      ).rejects.toThrow();
+      expect(await s.read(f.reader, a.id)).toMatchObject({
+        name: d.name,
+        revision: 1,
+      });
+    } finally {
+      await f.pool.query(
+        "ALTER TABLE personal_saved_view_mutations DROP CONSTRAINT " + guard,
+      );
+    }
+
+    await expect(s.save(f.reader, { ...d, name: "another" })).rejects.toThrow(
+      "STALE_VERSION",
+    );
+    const b = await s.save(f.reader, { ...d, mutationId: randomUUID() });
+    const edit = {
+      ...d,
+      expectedRevision: 1,
+      id: a.id,
+      mutationId: randomUUID(),
+    };
+    expect(await s.save(f.reader, edit)).toEqual(await s.save(f.reader, edit));
+    const move = {
+      id: b.id,
+      direction: "up",
+      neighborId: a.id,
+      neighborRevision: 2,
+      expectedRevision: 1,
+      mutationId: randomUUID(),
+    };
+    expect(await s.save(f.reader, move)).toEqual(await s.save(f.reader, move));
+    const del = { expectedRevision: 2, mutationId: randomUUID() };
+    await s.remove(f.reader, b.id, del);
+    await s.remove(f.reader, b.id, del);
+    const audit = (
+      await f.pool.query(
+        "SELECT owner_id,operation,applied_at,view_id FROM personal_saved_view_mutations WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows;
+    expect(
+      audit
+        .filter((r) => r.owner_id === "reader")
+        .map((r) => r.operation)
+        .sort(),
+    ).toEqual(["create", "create", "delete", "edit", "move"]);
+    expect(
+      audit.filter((r) => r.owner_id === "editor").map((r) => r.operation),
+    ).toEqual(["create"]);
+    expect(audit.every((r) => r.applied_at instanceof Date)).toBe(true);
+    expect(JSON.stringify(audit)).not.toContain("private");
+    expect(await s.list(f.ctx)).toEqual({ items: [] });
   } finally {
     await f.pool.end();
   }

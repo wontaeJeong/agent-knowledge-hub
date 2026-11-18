@@ -96,8 +96,9 @@ export function useDocumentSearch(
   filters: SearchFilters,
   composing: boolean,
   quick = false,
+  verification?: { epoch: number; onDenied: (e: unknown) => void },
 ) {
-  const signature = JSON.stringify(filters);
+  const signature = JSON.stringify([filters, verification?.epoch]);
   const [inputRevision, setInputRevision] = useState(0);
   const [result, setResult] = useState<{
     api: OperationalApi;
@@ -143,13 +144,16 @@ export function useDocumentSearch(
         request === generation.current &&
         current.current.api === api &&
         current.current.signature === signature
-      )
+      ) {
+        if (e instanceof ApiError && [401, 403, 404].includes(e.status))
+          verification?.onDenied(e);
         setResult({
           ...bound,
           page: null,
           error: searchFailure(e),
           busy: false,
         });
+      }
     }
   }
   useEffect(() => {
@@ -166,6 +170,7 @@ export function useDocumentSearch(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, signature, composing, quick, inputRevision]);
   useEffect(() => {
+    if (verification) return; // The saved view first revalidates its definition.
     const refresh = () => {
       invalidate(false); // This refresh supplies its own immediate request.
       if (!composing && (!quick || filters.query)) void run();

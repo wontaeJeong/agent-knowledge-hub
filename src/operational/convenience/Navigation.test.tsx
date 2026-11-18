@@ -95,7 +95,7 @@ async function mount(
             : data(path);
     return result instanceof Response
       ? result
-      : new Response(JSON.stringify(result));
+      : new Response(JSON.stringify(result),{headers:{"X-Personal-Scope-Verified":"1"}});
   });
   const container = document.createElement("div");
   document.body.append(container);

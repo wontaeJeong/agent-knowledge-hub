@@ -1,4 +1,4 @@
-import {assertSavedViewsSchema,savedViewProjection} from "../convenience/views-schema";
+import {assertSavedViewsSchema,isPersonalViewTable,savedViewProjection} from "../convenience/views-schema";
 import {assertPublishedLinksSchema} from "../convenience/links";
 import {assertDocumentOrderSchema} from "../convenience/structure-schema";
 import { createHash, randomUUID } from "node:crypto";
@@ -403,10 +403,13 @@ export function scrubProductValue(
 }
 /** A private question may contain short copied text even if its own ID and
  * thread ID are known. Those identifiers do not establish resource lineage. */
+// An operator may need a generic incomplete outcome, but private definitions
+// must never contribute a disclosed table name, identifier or count.
+const unresolvedPersonalInput=(rows:ProductRow[],selected:ProductRow[])=>rows.some(row=>row.table==="personal_saved_views"&&!selected.includes(row));
 function unresolvedProductRows(rows: ProductRow[], selected: ProductRow[]) {
   return rows.filter((row) => {
     if (selected.includes(row)) return false;
-    if (row.table === "personal_saved_views") return true;
+    if (isPersonalViewTable(row.table)) return false;
     if (row.table.startsWith("agent_")) {
       const hasContent = Object.entries(row.data).some(([key, value]) =>
         !identityColumns.test(key) && !(row.table === "agent_outcomes" && key === "result") &&
@@ -529,7 +532,7 @@ async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
     let offset = 0;
     for (;;) {
       const result = await db.query(
-        `SELECT t.ctid::text AS locator,${(table==="personal_saved_views" ? savedViewProjection : releasedImportProjection(table)) ?? "to_jsonb(t)"} AS data FROM "${table}" t WHERE ${scoped ? "t.workspace_id=$1" : jobScoped ? "t.job_id IN(SELECT id FROM durable_jobs WHERE workspace_id=$1)" : keyScoped ? "t.key_id IN(SELECT id FROM agent_api_keys WHERE workspace_id=$1)" : "t.delivery_id IN(SELECT id FROM collaboration_digest_outbox WHERE workspace_id=$1)"} ORDER BY t.ctid LIMIT 1000 OFFSET $2 FOR UPDATE OF t`,
+        `SELECT t.ctid::text AS locator,${(isPersonalViewTable(table) ? savedViewProjection : releasedImportProjection(table)) ?? "to_jsonb(t)"} AS data FROM "${table}" t WHERE ${scoped ? "t.workspace_id=$1" : jobScoped ? "t.job_id IN(SELECT id FROM durable_jobs WHERE workspace_id=$1)" : keyScoped ? "t.key_id IN(SELECT id FROM agent_api_keys WHERE workspace_id=$1)" : "t.delivery_id IN(SELECT id FROM collaboration_digest_outbox WHERE workspace_id=$1)"} ORDER BY t.ctid LIMIT 1000 OFFSET $2 FOR UPDATE OF t`,
         [ctx.workspaceId, offset],
       );
       for (const r of result.rows)
@@ -611,7 +614,7 @@ export async function replayProductErasure(
   );
   for (const row of selected) {
     if (await eraseSelectedMetadata(db,row) || await eraseScheduledPublication(db,row) || await eraseCollaborationSubscription(db,row) || await redactReleasedImportRow(db, row)) {
-      counts[row.table] = (counts[row.table] ?? 0) + 1;
+      if(!isPersonalViewTable(row.table))counts[row.table] = (counts[row.table] ?? 0) + 1;
       continue;
     }
     const replacements: Record<string, unknown> = {};
@@ -636,7 +639,7 @@ export async function replayProductErasure(
   }
   if (entireWorkspace) await retireErasedCredentials(db, workspaceId);
   const opaque = entireWorkspace ? 0 : unresolvedProductRows(all.rows, selected);
-  if (opaque || storage.shared) throw Error("RECOVERY_ERASURE_INCOMPLETE");
+  if (opaque || (!entireWorkspace && unresolvedPersonalInput(all.rows,selected)) || storage.shared) throw Error("RECOVERY_ERASURE_INCOMPLETE");
   counts.unresolved_unlineaged_rows = opaque;
   counts.shared_live_blob_hashes = storage.shared;
   await db.query(
@@ -664,7 +667,7 @@ async function calculate(db: PoolClient, ctx: Context, input: unknown) {
     all = await inventory(db, ctx),
     selected = selectErasureRows(all.rows, d.resource),
     counts: Record<string, number> = {};
-  for (const r of selected) counts[r.table] = (counts[r.table] ?? 0) + 1;
+  for (const r of selected) if(!isPersonalViewTable(r.table))counts[r.table] = (counts[r.table] ?? 0) + 1;
   const held = (
     await db.query(
       "SELECT resource_kind,resource_id FROM operations_legal_holds WHERE workspace_id=$1 AND active",
@@ -714,7 +717,7 @@ async function calculate(db: PoolClient, ctx: Context, input: unknown) {
     held,
     storageReferences: graph.filter((r) => ownHashes.has(r.sha256)),
   });
-  return { d, all, selected, counts, blocked, opaque, previewHash };
+  return { d, all, selected, counts, blocked, opaque, incomplete:!!opaque || (d.scope==="resource" && unresolvedPersonalInput(all.rows,selected)), previewHash };
 }
 export async function previewErasure(
   service: OperationsService,
@@ -736,7 +739,7 @@ export async function previewErasure(
       resource: p.d.resource,
       previewHash: p.previewHash,
       counts: p.counts,
-      total: p.selected.length,
+      total: p.selected.filter(row=>!isPersonalViewTable(row.table)).length,
       legalHold: p.blocked,
       unresolvedUnlineagedRows: p.opaque,
       agentDataUnsupported: d.scope !== "workspace" && await hasAgentData(db, ctx.workspaceId),
@@ -869,12 +872,12 @@ export async function executeErasure(
         counts.pending_blob_hashes = storage.hashes.length;
         counts.unresolved_unlineaged_rows = p.opaque;
         status =
-          (p.opaque && d.scope === "resource") || storage.hashes.length
+          (p.incomplete && d.scope === "resource") || storage.hashes.length
             ? "blocked"
             : "completed";
         code =
           status === "blocked"
-            ? p.opaque && d.scope === "resource"
+            ? p.incomplete && d.scope === "resource"
               ? "UNLINEAGED_CONTENT_REQUIRES_SEPARATE_PREVIEW"
               : storage.shared
                 ? "SHARED_LIVE_BLOB_RETAINED"

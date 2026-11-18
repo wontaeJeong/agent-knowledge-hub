@@ -1,11 +1,14 @@
 {
-  "productionFingerprint": "11159a5aadb52d1bf24088a0adbf152e13bfcda532c4c63cc9101ea25c1c45b9",
+  "productionFingerprint": "e3a046789a1cc1d625611d8762f38e5627c8a476e30a5e469c31dfba4fea0a2b",
   "browser": "158.0.8127.18",
   "postgres": "17.11",
   "results": [
     {
       "width": 1440,
       "theme": "light",
+      "preservedDraftFocus": true,
+      "cookieChangedBeforeRelease": true,
+      "ownerDelete404": true,
       "keyboardSave": true,
       "keyboardReopen": true,
       "keyboardReorder": true,
@@ -20,6 +23,9 @@
     {
       "width": 1440,
       "theme": "dark",
+      "preservedDraftFocus": true,
+      "cookieChangedBeforeRelease": true,
+      "ownerDelete404": true,
       "keyboardSave": true,
       "keyboardReopen": true,
       "keyboardReorder": true,
@@ -34,6 +40,9 @@
     {
       "width": 390,
       "theme": "light",
+      "preservedDraftFocus": true,
+      "cookieChangedBeforeRelease": true,
+      "ownerDelete404": true,
       "keyboardSave": true,
       "keyboardReopen": true,
       "keyboardReorder": true,
@@ -48,6 +57,9 @@
     {
       "width": 390,
       "theme": "dark",
+      "preservedDraftFocus": true,
+      "cookieChangedBeforeRelease": true,
+      "ownerDelete404": true,
       "keyboardSave": true,
       "keyboardReopen": true,
       "keyboardReorder": true,
@@ -61,13 +73,13 @@
     }
   ],
   "artifacts": {
-    "1440-dark-list.png": "2f0031cfa48a6f2935f76b2c6c63a9bc5e75aff3a7514e26d9de273cf84f1282",
+    "1440-dark-list.png": "bdb465bce4bfdf4018385ec7c3842add65774d719abfa90607631aa6a99d8a05",
     "1440-dark-view.png": "9b680ab4eb600d19077f1b1d1fe9d45ba2807b7978010576a815d63a6036321f",
-    "1440-light-list.png": "ef5245700f9bb75a97d67a14c6b07711d5cbb20c03924e18e00e6efb02035d86",
+    "1440-light-list.png": "8db9d1660a105038646a48631dc69c551295462466151ba5d08521ad7841fb37",
     "1440-light-view.png": "dbde2f8dea774e470c7979a142329a4746150dc32067d9b3bb709d559bbd1a7a",
-    "390-dark-list.png": "27a677df65d2a704aa96b3e667c78c7d756817edb20ebabe46150c9e8c691403",
+    "390-dark-list.png": "a587358b32a798488ef424bb730a95c767cc9206ed3c9279169cefde2e2466e9",
     "390-dark-view.png": "e55ee1c19c3c9062f28132925a980f7f2abf24bdf489aacb1c474edb25d59eba",
-    "390-light-list.png": "f7bd81a0c601d1328c27a956638531790450a4b9f406635698b86e8e1ce2f21e",
+    "390-light-list.png": "7ad453385791c0efdb4e0a4e6079845ceb7defe1043e0d82a3a2067e695fc149",
     "390-light-view.png": "72000acb8a6ad0af2cf7fcce2c7513021bd624255c7fb365906075778cb6d7d7"
   }
 }

@@ -291,6 +291,8 @@ function OperationalWorkspace({
     }[]
   >([]);
   const [identity, setIdentity] = useState<Identity | null>(null);
+  const savedApi=useMemo(()=>identity && !preview ? api.forSavedViews(identity) : null,
+    [api,preview,identity?.workspaceId,identity?.principalId,identity?.csrfToken]);
   const [searchHandoff, setSearchHandoff] = useState<SearchHandoff | null>(null);
   const searchHandoffRevision = useRef(0);
   const [loading, setLoading] = useState(true);
@@ -711,6 +713,11 @@ function OperationalWorkspace({
       active = false;
     };
   }, [api, load, clearProtected]);
+  const recheckViewIdentity=useCallback(()=>{
+    clearProtected("로그인 세션이 변경되어 현재 사용자를 다시 확인합니다.");
+    void load();
+  },[clearProtected,load]);
+  useEffect(()=>{savedApi?.onExpired(recheckViewIdentity);return()=>savedApi?.onExpired(undefined);},[savedApi,recheckViewIdentity]);
   const perform = async (action: () => Promise<void>) => {
     const epoch = requestEpoch.current;
     setBusy(true);
@@ -996,8 +1003,8 @@ function OperationalWorkspace({
                   onNavigate={() => window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))}
                 />
               )}
-            {location.kind==="section" && location.section==="saved-views" && !preview && dataReady && (
-              <PersonalLibrary kind="saved-views" key={requestEpoch.current} api={api} spaceId={identity.workspaceId} principalId={identity.principalId}
+            {location.kind==="section" && location.section==="saved-views" && savedApi && dataReady && (
+              <PersonalLibrary kind="saved-views" key={requestEpoch.current} api={savedApi} onIdentityChanged={recheckViewIdentity} spaceId={identity.workspaceId} principalId={identity.principalId}
                 viewId={location.view} onView={openSavedView} onOpen={openSearchDocument}/>
             )}
             {location.kind === "section" && location.section === "search" && !preview && dataReady && (
@@ -1006,7 +1013,7 @@ function OperationalWorkspace({
                 api={api}
                 identityKey={`${identity.workspaceId}:${identity.principalId}`}
                 handoff={searchHandoff ?? undefined}
-                renderSave={(filters,disabled)=><SaveViewForm api={api} filters={filters} disabled={disabled} onSaved={openSavedView}/>}
+                renderSave={(filters,disabled)=>savedApi&&<SaveViewForm api={savedApi} filters={filters} disabled={disabled} onSaved={openSavedView}/>}
                 onOpen={openSearchDocument}
               />
             )}

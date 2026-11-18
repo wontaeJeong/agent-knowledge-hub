@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import type { Pool } from "pg";
 import { expect, test } from "vitest";
 import { fixture, adoptFixture } from "../test-support";
 import {
@@ -6,11 +8,43 @@ import {
   previewErasure,
   replayProductErasure,
 } from "../operations/erasure";
+import { operationsAuthorizer } from "../operations/authorization";
 import { OperationsService } from "../operations/service";
 import { authorizeInTransaction } from "../access";
 import { inventory, unknownPrivateReference } from "../retention/inventory";
+import { ContentRetentionService } from "../retention/service";
 import { SavedViewService } from "./views";
 import { transaction } from "../database";
+
+// Reconstruct a v146 receipt using its original six columns. The exclusive DDL lock
+// keeps this short fixture transaction isolated from concurrent test workspaces.
+async function restoreLegacyReceipt(
+  pool: Pool,
+  workspaceId: string,
+  mutationId: string,
+) {
+  await transaction(pool, workspaceId, async (db) => {
+    await db.query(
+      "ALTER TABLE personal_saved_view_mutations DROP CONSTRAINT personal_saved_view_audit_required",
+    );
+    await db.query(
+      `WITH previous AS (
+      DELETE FROM personal_saved_view_mutations WHERE workspace_id=$1 AND mutation_id=$2 RETURNING *
+    ) INSERT INTO personal_saved_view_mutations(workspace_id,owner_id,mutation_id,payload_hash,view_id,revision)
+      SELECT workspace_id,owner_id,mutation_id,payload_hash,view_id,revision FROM previous`,
+      [workspaceId, mutationId],
+    );
+    await db.query(
+      await readFile(
+        new URL(
+          "../migrations/148-private-view-audit-writes.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+  });
+}
 
 test("private definitions participate in held, resource, workspace and recovery erasure without exporting text", async () => {
   const f = await fixture();
@@ -22,7 +56,12 @@ test("private definitions participate in held, resource, workspace and recovery 
     );
     const owner = { workspaceId: f.workspaceId, principalId: "fixture-owner" },
       views = new SavedViewService(f.pool),
-      ops = new OperationsService(f.pool, authorizeInTransaction);
+      ops = new OperationsService(
+        f.pool,
+        operationsAuthorizer(authorizeInTransaction, {
+          adminAuditMetadataExport: true,
+        }),
+      );
     const draft = {
       name: "synthetic-sensitive-name",
       filters: { query: "synthetic-sensitive-query" },
@@ -30,7 +69,48 @@ test("private definitions participate in held, resource, workspace and recovery 
       expectedRevision: 0,
       mutationId: randomUUID(),
     };
+    const retention = new ContentRetentionService(
+      f.pool,
+      authorizeInTransaction,
+    );
+    await f.pool.query(
+      "INSERT INTO workflow_drafts(workspace_id,owner_id,id,revision,data) VALUES($1,'editor','private-fixture-draft',1,'{}')",
+      [f.workspaceId],
+    );
+    await expect(ops.auditRows(f.reader)).rejects.toThrow("FORBIDDEN");
+    const auditBefore = await ops.auditRows(owner);
+    const baseline = await previewErasure(ops, owner, { scope: "workspace" });
+    const targeted = {
+      scope: "resource",
+      resource: { kind: "source" as const, id: "source-a" },
+    };
+    const beforeResource = await previewErasure(ops, owner, targeted);
     const first = await views.save(f.reader, draft);
+    await restoreLegacyReceipt(f.pool, f.workspaceId, draft.mutationId);
+    expect(await views.save(f.reader, draft)).toEqual(first);
+    for (let count = 1; count <= 2; count++) {
+      if (count === 2)
+        await views.save(f.reader, { ...draft, mutationId: randomUUID() });
+      const retained = await retention.previewRetention(owner);
+      expect(JSON.stringify(retained)).not.toContain("personal_saved_view");
+      expect(JSON.stringify(retained)).not.toContain(first.id);
+      expect(
+        retained.records.find((r) => r.id === "private-fixture-draft")?.reasons,
+      ).toContain("RETAINED_REFERENCE");
+      expect(await ops.auditRows(owner)).toEqual(auditBefore);
+      for (const [query, prior] of [
+        [{ scope: "workspace" }, baseline],
+        [targeted, beforeResource],
+      ] as const) {
+        const current = await previewErasure(ops, owner, query);
+        const { previewHash: currentHash, ...disclosed } = current;
+        const { previewHash: priorHash, ...priorDisclosed } = prior;
+        expect(disclosed).toEqual(priorDisclosed);
+        expect(JSON.stringify(disclosed)).not.toContain(first.id);
+        if (query.scope === "workspace")
+          expect(currentHash).not.toBe(priorHash);
+      }
+    }
     const rows = await transaction(f.pool, f.workspaceId, (db) =>
       inventory(db, f.workspaceId),
     );
@@ -38,9 +118,10 @@ test("private definitions participate in held, resource, workspace and recovery 
     expect(unknownPrivateReference(priv)).toBe(true);
     expect(JSON.stringify(rows)).not.toContain("synthetic-sensitive");
     const resource = { kind: "source" as const, id: "source-a" };
-    const targeted = { scope: "resource", resource };
     const partial = await previewErasure(ops, owner, targeted);
-    expect(partial.unresolvedUnlineagedRows).toBeGreaterThan(0);
+    expect(partial.unresolvedUnlineagedRows).toBe(
+      beforeResource.unresolvedUnlineagedRows,
+    );
     expect(JSON.stringify(partial)).not.toContain("synthetic-sensitive");
     const result = await executeErasure(ops, owner, {
       ...targeted,
@@ -65,6 +146,15 @@ test("private definitions participate in held, resource, workspace and recovery 
       [f.workspaceId],
     );
     const held = await previewErasure(ops, owner, full);
+    expect(await views.save(f.reader, draft)).toEqual(first);
+    const legacy = () =>
+      f.pool.query(
+        "SELECT operation,applied_at FROM personal_saved_view_mutations WHERE workspace_id=$1 AND mutation_id=$2",
+        [f.workspaceId, draft.mutationId],
+      );
+    expect((await legacy()).rows).toEqual([
+      { operation: null, applied_at: null },
+    ]);
     await expect(
       executeErasure(ops, owner, {
         ...full,
@@ -82,6 +172,13 @@ test("private definitions participate in held, resource, workspace and recovery 
       "UPDATE operations_legal_holds SET active=false WHERE workspace_id=$1",
       [f.workspaceId],
     );
+    await views.remove(f.reader, first.id, {
+      expectedRevision: 1,
+      mutationId: randomUUID(),
+    });
+    expect((await legacy()).rows).toEqual([
+      { operation: null, applied_at: null },
+    ]);
     const whole = await previewErasure(ops, owner, full);
     await executeErasure(ops, owner, {
       ...full,
@@ -122,7 +219,9 @@ test("approved full-workspace recovery erases only the restored space's private 
       expectedRevision: 0,
       mutationId: randomUUID(),
     };
-    await views.save(a.reader, data);
+    const restored = await views.save(a.reader, data);
+    await restoreLegacyReceipt(a.pool, a.workspaceId, data.mutationId);
+    expect(await views.save(a.reader, data)).toEqual(restored);
     const unaffected = await views.save(b.reader, data);
     await transaction(a.pool, a.workspaceId, (db) =>
       replayProductErasure(db, a.workspaceId, [], true),

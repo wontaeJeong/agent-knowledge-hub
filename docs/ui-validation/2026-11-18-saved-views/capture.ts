@@ -187,6 +187,34 @@ try {
             ),
             false,
           );
+        const draftField = saved.getByLabel("제목·본문 키워드");
+        await saved.getByLabel("보기 이름").fill(name + " 임시");
+        await draftField.fill("미저장 조건");
+        await draftField.focus();
+        await draftField.evaluate((el: HTMLInputElement) =>
+          el.setSelectionRange(1, 4),
+        );
+        const rechecked = page.waitForResponse(
+          (response: any) =>
+            response.url().endsWith("/api/v1/me") &&
+            response.request().headers()["x-expected-principal"],
+        );
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await rechecked;
+        await saved.getByLabel("보기 이름").waitFor();
+        assert.equal(
+          await saved.getByLabel("보기 이름").inputValue(),
+          name + " 임시",
+        );
+        assert.equal(await draftField.inputValue(), "미저장 조건");
+        assert.deepEqual(
+          await draftField.evaluate((el: HTMLInputElement) => [
+            document.activeElement === el,
+            el.selectionStart,
+            el.selectionEnd,
+          ]),
+          [true, 1, 4],
+        );
         await saved.getByRole("link", { name: "목록으로" }).click();
         const link = saved.getByRole("link", { name, exact: true });
         await link.waitFor();
@@ -247,11 +275,36 @@ try {
           },
           { a: extra, b: name },
         );
+        const extraId = new URL(
+          await saved
+            .getByRole("link", { name: extra, exact: true })
+            .getAttribute("href"),
+          origin,
+        ).searchParams.get("view");
+        const deleted = page.waitForResponse(
+          (r: any) =>
+            r.url().endsWith("/convenience/views/" + extraId) &&
+            r.request().method() === "DELETE",
+        );
         await saved.getByRole("button", { name: extra + " 삭제" }).click();
         await saved.getByRole("button", { name: "삭제 확인" }).click();
         await saved
           .getByRole("link", { name: extra, exact: true })
           .waitFor({ state: "detached" });
+        assert.equal((await deleted).status(), 200);
+        await saved.getByRole("link", { name, exact: true }).waitFor();
+        assert.equal(
+          await saved.getByRole("link", { name: extra, exact: true }).count(),
+          0,
+        );
+        assert.equal(
+          (
+            await context.request.get(
+              origin + "/api/v1/convenience/views/" + extraId,
+            )
+          ).status(),
+          404,
+        );
         // A replacement cookie is a real second runtime session with the same owner.
         await context.addCookies([await session("reader", f.workspaceId)]);
         await page.goto(exact);
@@ -274,6 +327,42 @@ try {
           "INSERT INTO resource_readers VALUES($1,'source','source-a','reader')",
           [f.workspaceId],
         );
+        // Delay delivery of a real A response; the post-read identity check
+        // must consult the replacement cookie before releasing the result.
+        let ready!: () => void, release!: () => void;
+        const acquired = new Promise<void>((r) => {
+            ready = r;
+          }),
+          deliver = new Promise<void>((r) => {
+            release = r;
+          });
+        await page.route(
+          "**/api/v1/convenience/views/" + id,
+          async (route: any) => {
+            const response = await route.fetch();
+            assert.equal(response.status(), 200);
+            ready();
+            await deliver;
+            await route.fulfill({ response });
+          },
+          { times: 1 },
+        );
+        await saved.getByRole("button", { name: "다시 불러오기" }).click();
+        await acquired;
+        assert.equal(await saved.getByLabel("보기 이름").count(), 0);
+        await context.addCookies([await session("editor", f.workspaceId)]);
+        const mismatch = page.waitForResponse(
+          (r: any) => r.url().endsWith("/me") && r.status() === 409,
+        );
+        release();
+        await mismatch;
+        await page.waitForFunction(
+          () => !location.search.includes("section=saved-views"),
+        );
+        assert.equal(
+          await page.getByRole("region", { name: "개인 저장 보기" }).count(),
+          0,
+        );
         await context.addCookies([await session("editor", f.workspaceId)]);
         await page.goto(exact);
         await saved.getByRole("alert").waitFor();
@@ -288,6 +377,9 @@ try {
         results.push({
           width,
           theme,
+          preservedDraftFocus: true,
+          cookieChangedBeforeRelease: true,
+          ownerDelete404: true,
           keyboardSave: true,
           keyboardReopen: true,
           keyboardReorder: true,

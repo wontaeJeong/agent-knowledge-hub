@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { OperationalApi } from "../api";
+import { ApiError, type OperationalApi } from "../api";
 import { usePersonalKey, personalFailure } from "./personal-client";
 import { SearchPage } from "./SearchPage";
 import {
@@ -30,6 +30,7 @@ export type SavedViewsProps = {
   spaceId: string;
   principalId: string;
   viewId?: string;
+  onIdentityChanged?: () => void;
   onOpen: (item: SearchItem) => boolean | void;
   onView: (id?: string) => void;
 };
@@ -38,12 +39,18 @@ export const viewHref = (spaceId: string, view?: string) =>
   convenienceHref({ kind: "section", section: "saved-views", spaceId, view });
 
 // Bind retries to the exact draft and reuse the key only while the outcome is unknown.
-function useViewMutation(api: OperationalApi) {
+type RetryKey = { key: string; id: string };
+function useViewMutation(
+  api: OperationalApi,
+  onDenied?: (e: unknown) => void,
+  retained?: React.RefObject<RetryKey | null>,
+) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const active = useRef(false),
     locked = useRef(false),
-    retry = useRef<{ key: string; id: string } | null>(null);
+    localRetry = useRef<RetryKey | null>(null);
+  const retry = retained ?? localRetry;
   useLayoutEffect(() => {
     active.current = true;
     return () => {
@@ -75,7 +82,11 @@ function useViewMutation(api: OperationalApi) {
         done(result.id);
       }
     } catch (e) {
-      if (active.current) setError(personalFailure(e));
+      if (active.current) {
+        if (e instanceof ApiError && [401, 403, 404].includes(e.status))
+          onDenied?.(e);
+        setError(personalFailure(e));
+      }
     } finally {
       locked.current = false;
       if (active.current) setBusy(false);
@@ -90,15 +101,21 @@ export function SaveViewForm({
   disabled,
   view,
   onSaved,
+  draftName,
+  retainedRetry,
+  onDenied,
 }: {
+  draftName?: React.RefObject<string | undefined>;
+  retainedRetry?: React.RefObject<RetryKey | null>;
+  onDenied?: (e: unknown) => void;
   api: OperationalApi;
   filters: SearchFilters;
   disabled: boolean;
   view?: View;
   onSaved: (id: string) => void;
 }) {
-  const [name, setName] = useState(view?.name ?? "");
-  const mutation = useViewMutation(api);
+  const [name, setName] = useState(draftName?.current ?? view?.name ?? "");
+  const mutation = useViewMutation(api, onDenied, retainedRetry);
   return (
     <form
       className="saved-view-form"
@@ -123,7 +140,11 @@ export function SaveViewForm({
         보기 이름
         <input
           value={name}
-          onChange={(event) => setName(event.target.value)}
+          data-search-field="view-name"
+          onChange={(event) => {
+            if (draftName) draftName.current = event.target.value;
+            setName(event.target.value);
+          }}
           required
         />
       </label>
@@ -158,45 +179,147 @@ function ViewsSession({
   viewId,
   onOpen,
   onView,
+  onIdentityChanged,
 }: SavedViewsProps) {
   const [rows, setRows] = useState<View[] | null>(null),
     [error, setError] = useState(""),
-    [example, setExample] = useState<SearchFilters | null>(null);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
+    [example, setExample] = useState<SearchFilters | null>(null),
+    [confirmId, setConfirmId] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true),
+    [epoch, setEpoch] = useState(0),
+    [conflict, setConflict] = useState(false);
   const sequence = useRef(0),
-    mutation = useViewMutation(api);
-  const refresh = useCallback(async () => {
-    const seq = ++sequence.current;
-    setError("");
+    base = useRef<View | null>(null),
+    draftName = useRef<string | undefined>(undefined),
+    retainedRetry = useRef<RetryKey | null>(null),
+    dirty = useRef(false),
+    focusRestore = useRef<{
+      key: string;
+      start: number | null;
+      end: number | null;
+      direction: "forward" | "backward" | "none" | null;
+    } | null>(null);
+  const focus = useCurrentListFocus<HTMLElement>({
+    enabled: !viewId && !example,
+    rowSelector: "[data-view-row]",
+    fallbackSelector: "[data-view-fallback]",
+    message: "보기 목록이 변경되었습니다.",
+  });
+  const mismatch = useRef(onIdentityChanged);
+  mismatch.current = onIdentityChanged;
+  const discard = useCallback((e: unknown) => {
+    sequence.current++;
+    base.current = null;
+    draftName.current = undefined;
+    retainedRetry.current = null;
+    dirty.current = false;
+    focusRestore.current = null;
+    setEpoch((n) => n + 1);
     setRows(null);
+    setExample(null);
+    setConflict(false);
+    setChecking(false);
     setConfirmId(null);
-    try {
-      const data = viewId
-        ? [await api.get<View>(root + "/" + viewId)]
-        : (await api.get<{ items: View[] }>(root)).items;
-      if (seq === sequence.current) setRows(data);
-    } catch (e) {
-      if (seq === sequence.current) setError(personalFailure(e));
+    setError(personalFailure(e));
+  }, []);
+  const mutation = useViewMutation(api, discard);
+  const suspend = useCallback(() => {
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      focus.container.current?.contains(active)
+    ) {
+      const key = active.dataset.searchField;
+      focusRestore.current = key
+        ? {
+            key,
+            start:
+              active instanceof HTMLInputElement ? active.selectionStart : null,
+            end:
+              active instanceof HTMLInputElement ? active.selectionEnd : null,
+            direction:
+              active instanceof HTMLInputElement
+                ? active.selectionDirection
+                : null,
+          }
+        : null;
     }
-  }, [api, viewId]);
+    setChecking(true);
+    setEpoch((n) => n + 1);
+    setError("");
+    setConfirmId(null);
+    return ++sequence.current;
+  }, [focus.container]);
+  const refresh = useCallback(
+    async (replace = false) => {
+      const seq = suspend();
+      try {
+        const data = viewId
+          ? [await api.get<View>(root + "/" + viewId)]
+          : (await api.get<{ items: View[] }>(root)).items;
+        if (seq !== sequence.current) return;
+        if (
+          data.some(
+            (view) =>
+              view.ownerId !== principalId ||
+              view.workspaceId !== spaceId ||
+              (viewId && view.id !== viewId),
+          )
+        ) {
+          discard(new Error("사용자 또는 공간이 변경되었습니다."));
+          mismatch.current?.();
+          return;
+        }
+        if (viewId && data[0]?.revision !== base.current?.revision) {
+          if (base.current && dirty.current && !replace) setConflict(true);
+          else {
+            base.current = data[0];
+            draftName.current = undefined;
+            retainedRetry.current = null;
+            dirty.current = false;
+            setConflict(false);
+          }
+        }
+        setRows(data);
+        setChecking(false);
+      } catch (e) {
+        if (seq !== sequence.current) return;
+        discard(e);
+      }
+    },
+    [api, principalId, spaceId, viewId, discard, suspend],
+  );
   useEffect(() => {
     void refresh();
     const onFocus = () => {
       if (document.visibilityState !== "hidden") void refresh();
     };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") suspend();
+      else void refresh();
+    };
     window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       sequence.current++;
       window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [refresh]);
-  const focus = useCurrentListFocus<HTMLElement>({
-    rowSelector: "[data-view-row]",
-    fallbackSelector: "[data-view-fallback]",
-    message: "보기 목록이 변경되었습니다.",
-  });
+  }, [refresh, suspend]);
+  useLayoutEffect(() => {
+    if (checking || !rows || !focusRestore.current) return;
+    const { key, start, end, direction } = focusRestore.current;
+    focusRestore.current = null;
+    if (document.activeElement !== document.body) return;
+    const control = Array.from(
+      focus.container.current?.querySelectorAll<HTMLElement>(
+        "[data-search-field]",
+      ) ?? [],
+    ).find((node) => node.dataset.searchField === key);
+    control?.focus({ preventScroll: true });
+    if (control instanceof HTMLInputElement && start !== null && end !== null)
+      control.setSelectionRange(start, end, direction ?? undefined);
+  }, [checking, rows, focus.container]);
   const link = (id?: string) => ({
     href: viewHref(spaceId, id),
     onClick: (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -212,20 +335,27 @@ function ViewsSession({
       onView(id);
     },
   });
-  const selected = viewId ? rows?.[0] : undefined;
+  const selected = viewId ? base.current : null;
   return (
     <section
       className="op-panel saved-views"
       aria-label="개인 저장 보기"
       ref={focus.container}
       onFocusCapture={focus.onFocusCapture}
+      onChangeCapture={() => {
+        dirty.current = true;
+      }}
     >
       <h2 data-view-fallback tabIndex={-1}>
-        {viewId ? (selected?.name ?? "저장 보기") : "내 저장 보기"}
+        {viewId
+          ? !checking && selected
+            ? selected.name
+            : "저장 보기"
+          : "내 저장 보기"}
       </h2>
       {viewId && <a {...link()}>목록으로</a>}
       {error && <p role="alert">{error}</p>}
-      {!rows && !error && <p role="status">불러오는 중…</p>}
+      {checking && !error && <p role="status">불러오는 중…</p>}
       <button
         type="button"
         onClick={() => void refresh()}
@@ -235,7 +365,7 @@ function ViewsSession({
       </button>
       {mutation.error && <p role="alert">{mutation.error}</p>}
       <span role="status">{focus.notice}</span>
-      {rows && !viewId && (
+      {rows && !checking && !viewId && (
         <>
           {!rows.length && (
             <p>
@@ -311,7 +441,10 @@ function ViewsSession({
               <button
                 type="button"
                 key={label}
-                onClick={() =>
+                onClick={() => {
+                  draftName.current = undefined;
+                  retainedRetry.current = null;
+                  dirty.current = false;
                   setExample(
                     normalizeSearchFilters(
                       index === 0
@@ -320,8 +453,8 @@ function ViewsSession({
                           ? { reviewDateTo: new Date().toISOString() }
                           : { sort: "recent" },
                     ),
-                  )
-                }
+                  );
+                }}
               >
                 {label}
               </button>
@@ -329,20 +462,32 @@ function ViewsSession({
           )}
         </>
       )}
-      {(selected || (!viewId && example)) && (
+      {conflict && !checking && (
+        <div role="alert">
+          서버의 보기가 변경되었습니다. 입력을 확인한 뒤 최신 정의를 선택하세요.
+          <button onClick={() => void refresh(true)}>
+            미저장 입력을 버리고 최신 정의 사용
+          </button>
+        </div>
+      )}
+      {(selected || (rows && !viewId && example)) && (
         <SearchPage
           key={selected?.revision ?? JSON.stringify(example)}
           api={api}
           identityKey={spaceId + ":" + principalId}
+          verification={{ checking, epoch, onDenied: discard }}
           initialFilters={selected?.filters ?? example!}
           onOpen={onOpen}
           renderSave={(filters, disabled) => (
             <SaveViewForm
               api={api}
               filters={filters}
-              disabled={disabled}
-              view={selected}
-              onSaved={(id) => (viewId ? void refresh() : onView(id))}
+              disabled={disabled || conflict}
+              draftName={draftName}
+              retainedRetry={retainedRetry}
+              onDenied={discard}
+              view={selected ?? undefined}
+              onSaved={(id) => (viewId ? void refresh(true) : onView(id))}
             />
           )}
         />

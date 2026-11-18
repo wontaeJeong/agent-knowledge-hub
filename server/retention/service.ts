@@ -9,6 +9,7 @@ import { membership } from "../repository";
 import { fingerprint } from "../provenance";
 import { appendOperationalAudit } from "../operations/service";
 import { selectErasureRows } from "../operations/erasure";
+import { isPersonalViewTable } from "../convenience/views-schema";
 import { contains, inventory, unknownPrivateReference } from "./inventory";
 import { allContentReferences } from "../../scripts/k8s/operations-storage-graph.mjs";
 import { draftRetirementId, replayRetentionTombstones } from "./drafts";
@@ -257,7 +258,7 @@ export class ContentRetentionService {
           : {}),
         eligible: reasons.length === 0,
         reasons,
-        retainedBy: dependencies.map((r) => ({
+        retainedBy: dependencies.filter(r=>!isPersonalViewTable(r.table)).map((r) => ({
           table: r.table,
           id: String(r.data.id ?? r.data.page_id ?? r.locator),
         })),

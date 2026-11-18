@@ -30,6 +30,11 @@ export type SearchHandoff = {
   revision: number;
   query: string;
 };
+type ViewCheck = {
+  checking: boolean;
+  epoch: number;
+  onDenied: (e: unknown) => void;
+};
 type SaveControls = (filters: SearchFilters, disabled: boolean) => ReactNode;
 const dateKeys = new Set([
   "periodFrom",
@@ -38,6 +43,7 @@ const dateKeys = new Set([
   "reviewDateTo",
 ]);
 export function SearchPage(props: {
+  verification?: ViewCheck;
   initialFilters?: SearchFilters;
   renderSave?: SaveControls;
   api: OperationalApi;
@@ -60,6 +66,7 @@ export function SearchPage(props: {
         props.initialFilters ??
         normalizeSearchFilters({ query: handoff?.query ?? "" })
       }
+      verification={props.verification}
       renderSave={props.renderSave}
     />
   );
@@ -68,11 +75,13 @@ function SearchSession({
   api,
   onOpen,
   initial,
+  verification,
   renderSave,
 }: {
   api: OperationalApi;
   onOpen: (item: SearchItem) => boolean | void;
   initial: SearchFilters;
+  verification?: ViewCheck;
   renderSave?: SaveControls;
 }) {
   const [query, setQuery] = useState(initial.query),
@@ -140,8 +149,16 @@ function SearchSession({
     validation =
       "조건 형식이나 기간 순서를 확인하세요. 날짜와 시각은 이 기기의 현지 시각을 사용합니다.";
   }
-  const search = useDocumentSearch(api, filters, composing || !!validation);
+  const [expanded, setExpanded] = useState(false);
+  const search = useDocumentSearch(
+    api,
+    filters,
+    composing || !!validation || !!verification?.checking,
+    false,
+    verification,
+  );
   const focus = useCurrentListFocus<HTMLElement>({
+    enabled: !verification?.checking,
     rowSelector: ".search-results li",
     fallbackSelector: "[data-search-fallback]",
     message: "검색 결과가 변경되어 현재 검색 입력으로 초점을 옮겼습니다.",
@@ -150,6 +167,7 @@ function SearchSession({
     search.invalidate();
     action();
   };
+  if (verification?.checking) return null;
   return (
     <section
       ref={focus.container}
@@ -199,7 +217,10 @@ function SearchSession({
             onChange={(e) => change(() => setQuery(e.target.value))}
           />
         </label>
-        <details>
+        <details
+          open={expanded}
+          onToggle={(e) => setExpanded(e.currentTarget.open)}
+        >
           <summary>유형·태그·담당자·환경·상태·기간 조건</summary>
           <p>
             기간은 이 기기의 현지 시각(
@@ -226,6 +247,7 @@ function SearchSession({
             <label>
               결과 정렬
               <select
+                data-search-field="sort"
                 value={sort}
                 onChange={(e) =>
                   change(() => setSort(e.target.value as SearchFilters["sort"]))
@@ -238,6 +260,7 @@ function SearchSession({
             <label>
               보관 여부
               <select
+                data-search-field="archived"
                 value={archived}
                 onChange={(e) => change(() => setArchived(e.target.value))}
               >
@@ -251,6 +274,7 @@ function SearchSession({
         <label>
           <input
             type="checkbox"
+            data-search-field="historical"
             checked={historical}
             onChange={(e) => change(() => setHistorical(e.target.checked))}
           />
