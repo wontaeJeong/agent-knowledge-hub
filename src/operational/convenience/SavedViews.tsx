@@ -248,7 +248,10 @@ function ViewsSession({
 }: SavedViewsProps) {
   const [rows, setRows] = useState<View[] | null>(null),
     [error, setError] = useState(""),
-    [example, setExample] = useState<SearchFilters | null>(null),
+    [example, setExample] = useState<{
+      filters: SearchFilters;
+      selection: number;
+    } | null>(null),
     [confirmId, setConfirmId] = useState<string | null>(null);
   const [checking, setChecking] = useState(true),
     [epoch, setEpoch] = useState(0),
@@ -653,15 +656,17 @@ function ViewsSession({
                   draftName.current = undefined;
                   retainedRetry.current = null;
                   dirty.current = false;
-                  setExample(
-                    normalizeSearchFilters(
-                      index === 0
-                        ? { businessOwner: principalId }
-                        : index === 2
-                          ? { reviewDateTo: new Date().toISOString() }
-                          : { sort: "recent" },
-                    ),
+                  const filters = normalizeSearchFilters(
+                    index === 0
+                      ? { businessOwner: principalId }
+                      : index === 2
+                        ? { reviewDateTo: new Date().toISOString() }
+                        : { sort: "recent" },
                   );
+                  setExample((previous) => ({
+                    filters,
+                    selection: (previous?.selection ?? 0) + 1,
+                  }));
                 }}
               >
                 {label}
@@ -680,7 +685,7 @@ function ViewsSession({
       )}
       {(selected || (rows && (searchEntry || (!viewId && example)))) && (
         <SearchPage
-          key={selected?.revision ?? JSON.stringify(example)}
+          key={selected?.revision ?? example?.selection}
           api={api}
           identityKey={spaceId + ":" + principalId}
           verification={{
@@ -693,7 +698,7 @@ function ViewsSession({
               dirty.current = true;
             },
           }}
-          initialFilters={selected?.filters ?? example ?? undefined}
+          initialFilters={selected?.filters ?? example?.filters}
           handoff={entryHandoff.current}
           onOpen={onOpen}
           renderSave={(filters, disabled, composition) => (

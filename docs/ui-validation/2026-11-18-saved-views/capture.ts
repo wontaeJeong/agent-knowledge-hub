@@ -383,9 +383,44 @@ try {
         await saved.getByRole("button", { name: "보기 변경 저장" }).click();
         await saved.getByRole("heading", { name, exact: true }).waitFor();
         await saved.getByRole("link", { name: "목록으로" }).click();
-        await saved
-          .getByRole("button", { name: "최근 변경", exact: true })
-          .click();
+        const recent = saved.getByRole("button", {
+          name: "최근 변경",
+          exact: true,
+        });
+        const exampleName = saved.getByLabel("보기 이름");
+        const exampleQuery = saved.getByLabel("제목·본문 키워드");
+        await recent.press("Enter");
+        await exampleName.fill("예시 편집");
+        await exampleQuery.fill("작성 중인 조건");
+        for (const decision of ["cancel", "discard"]) {
+          let prompts = 0;
+          page.once("dialog", async (dialog: any) => {
+            prompts++;
+            assert.equal(dialog.type(), "confirm");
+            if (decision === "cancel") await dialog.dismiss();
+            else await dialog.accept();
+          });
+          await recent.press("Enter");
+          assert.equal(prompts, 1);
+          assert.equal(
+            await exampleName.inputValue(),
+            decision === "cancel" ? "예시 편집" : "",
+          );
+          assert.equal(
+            await exampleQuery.inputValue(),
+            decision === "cancel" ? "작성 중인 조건" : "",
+          );
+          assert.equal(
+            await saved.getByLabel("결과 정렬").inputValue(),
+            "recent",
+          );
+          await exampleName.evaluate((el: HTMLElement) =>
+            el.scrollIntoView({ block: "center" }),
+          );
+          await page.screenshot({
+            path: out + "/" + width + "-" + theme + "-" + decision + ".png",
+          });
+        }
         const extra = name + " 순서 확인";
         await saved.getByLabel("보기 이름").fill(extra);
         await saved.getByRole("button", { name: "개인 보기 저장" }).click();
@@ -673,6 +708,7 @@ try {
           preservedDraftFocus: true,
           cookieChangedBeforeRelease: true,
           ownerDelete404: true,
+          keyboardExampleCancelAndDiscard: true,
           keyboardSave: true,
           keyboardReopen: true,
           keyboardReorder: true,
