@@ -34,8 +34,18 @@ type ViewCheck = {
   checking: boolean;
   epoch: number;
   onFailure: (e: unknown) => void;
+  pendingComposition: React.RefObject<(() => boolean) | null>;
+  onDraftChanged: () => void;
 };
-type SaveControls = (filters: SearchFilters, disabled: boolean) => ReactNode;
+export type SearchComposition = {
+  start: (control: HTMLInputElement, commit: (value: string) => void) => void;
+  end: () => void;
+};
+type SaveControls = (
+  filters: SearchFilters,
+  disabled: boolean,
+  composition: SearchComposition,
+) => ReactNode;
 const dateKeys = new Set([
   "periodFrom",
   "periodTo",
@@ -149,18 +159,15 @@ function SearchSession({
     validation =
       "조건 형식이나 기간 순서를 확인하세요. 날짜와 시각은 이 기기의 현지 시각을 사용합니다.";
   }
-  const compositionControl = useRef<HTMLInputElement | null>(null);
-  useLayoutEffect(() => {
-    const control = compositionControl.current;
-    if (!verification?.checking || !control) return;
-    const field = control.dataset.searchField,
-      value = control.value;
-    if (field === "query") setQuery(value);
-    else if (field && fields.some(([key]) => key === field))
-      setRaw((values) => ({ ...values, [field]: value }));
-    compositionControl.current = null;
-    setComposing(false);
-  }, [verification?.checking]);
+  const localComposition = useRef<(() => boolean) | null>(null);
+  const pendingComposition =
+    verification?.pendingComposition ?? localComposition;
+  useLayoutEffect(
+    () => () => {
+      pendingComposition.current = null;
+    },
+    [pendingComposition],
+  );
   const [expanded, setExpanded] = useState(false);
   const search = useDocumentSearch(
     api,
@@ -179,6 +186,22 @@ function SearchSession({
     search.invalidate();
     action();
   };
+  const composition: SearchComposition = {
+    start(control, commit) {
+      const initial = control.value;
+      pendingComposition.current = () => {
+        const value = control.value;
+        pendingComposition.current = null;
+        commit(value);
+        setComposing(false);
+        return value !== initial;
+      };
+      change(() => setComposing(true));
+    },
+    end() {
+      if (pendingComposition.current?.()) verification?.onDraftChanged();
+    },
+  };
   if (verification?.checking) return null;
   return (
     <section
@@ -194,28 +217,17 @@ function SearchSession({
       </p>
       <form
         onCompositionStart={(event) => {
-          if (
-            event.target instanceof HTMLInputElement &&
-            event.target.type === "text"
-          ) {
-            compositionControl.current = event.target;
-            change(() => setComposing(true));
-          }
-        }}
-        onCompositionEnd={(event) => {
           const control = event.target;
           if (!(control instanceof HTMLInputElement) || control.type !== "text")
             return;
-          compositionControl.current = null;
           const field = control.dataset.searchField;
-          const value = control.value;
-          change(() => {
-            if (field === "query") setQuery(value);
-            else if (field && fields.some(([key]) => key === field))
-              setRaw((values) => ({ ...values, [field]: value }));
-            setComposing(false);
-          });
+          if (field === "query") composition.start(control, setQuery);
+          else if (field && fields.some(([key]) => key === field))
+            composition.start(control, (value) =>
+              setRaw((values) => ({ ...values, [field]: value })),
+            );
         }}
+        onCompositionEnd={composition.end}
         onSubmit={(e) => {
           e.preventDefault();
           if (!composing && !validation) void search.run();
@@ -299,7 +311,7 @@ function SearchSession({
           검색
         </button>
       </form>
-      {renderSave?.(filters, composing || !!validation)}
+      {renderSave?.(filters, composing || !!validation, composition)}
       {(validation || search.error) && (
         <p role="alert">{validation || search.error}</p>
       )}

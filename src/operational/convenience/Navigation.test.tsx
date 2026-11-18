@@ -764,3 +764,27 @@ test.each(["search","save"])("personal search entry binds requests and clears bo
  expect(container.querySelector(".saved-view-form input")).toBeNull();
  expect(container.querySelector("[data-search-field=query]")).toBeNull();
 });
+
+test("clearing a denied quick-search handoff keeps the error and issues no empty query until explicit retry",async()=>{
+ vi.spyOn(window,"scrollTo").mockImplementation(()=>{});
+ const searches:string[]=[];
+ const container=await mount("/?app=1&space=team&section=saved-views",(path,options)=>{
+   if(path==="/questions/search")searches.push(JSON.parse(String(options?.body)).query);
+   if(path==="/convenience/views" && options?.method==="POST")return new Response(JSON.stringify({code:"FORBIDDEN"}),{status:403});
+   return {items:[],nextCursor:null};
+ });
+ await act(async()=>container.querySelector<HTMLButtonElement>('.global-search > button')!.click());
+ await writeSearchInput(container.querySelector('.quick-open input')!,"handoff private");
+ await act(async()=>Array.from(container.querySelectorAll<HTMLButtonElement>('.quick-open button')).find(b=>b.textContent==="상세 검색")!.click());
+ await act(async()=>new Promise(r=>setTimeout(r,220)));
+ await writeSearchInput(container.querySelector('.saved-view-form input')!,"unsaved private name");
+ await act(async()=>container.querySelector<HTMLButtonElement>('.saved-view-form button')!.click());
+ await act(async()=>window.dispatchEvent(new Event("focus")));
+ await act(async()=>document.dispatchEvent(new Event("visibilitychange")));
+ await act(async()=>new Promise(r=>setTimeout(r,220)));
+ expect(container.textContent).toContain("FORBIDDEN");expect(container.querySelector('.saved-view-form')).toBeNull();
+ expect(searches).toEqual(["handoff private"]);
+ await act(async()=>container.querySelector<HTMLButtonElement>('[data-view-retry]')!.click());
+ expect(container.querySelector<HTMLInputElement>('[data-search-field=query]')?.value).toBe("");
+ expect(container.querySelector<HTMLInputElement>('.saved-view-form input')?.value).toBe("");
+});

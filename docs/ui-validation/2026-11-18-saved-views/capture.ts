@@ -188,7 +188,35 @@ try {
             false,
           );
         const draftField = saved.getByLabel("제목·본문 키워드");
-        await saved.getByLabel("보기 이름").fill(name + " 임시");
+        const nameField = saved.getByLabel("보기 이름");
+        async function composeNative(field: any, value: string) {
+          await field.focus();
+          await field.dispatchEvent("compositionstart", { data: "한" });
+          await field.evaluate((el: HTMLInputElement, pending: string) => {
+            Object.getOwnPropertyDescriptor(
+              HTMLInputElement.prototype,
+              "value",
+            )!.set!.call(el, pending);
+          }, value);
+        }
+        await composeNative(nameField, name + " 임시");
+        assert.equal(
+          await saved
+            .getByRole("button", { name: "보기 변경 저장", exact: true })
+            .isDisabled(),
+          true,
+        );
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await page.waitForFunction(
+          (expected: string) =>
+            document.querySelector<HTMLInputElement>(
+              "[data-search-field=view-name]",
+            )?.value === expected &&
+            !document.querySelector<HTMLButtonElement>(
+              ".saved-view-form button",
+            )?.disabled,
+          name + " 임시",
+        );
         await draftField.fill("미저장 조건");
         await draftField.focus();
         await draftField.evaluate((el: HTMLInputElement) =>
@@ -271,7 +299,20 @@ try {
         assert.equal(competing.status(), 200);
         await saved.getByRole("button", { name: "보기 변경 저장" }).click();
         await saved.getByText(/목록이 변경되었습니다/).waitFor();
-        await saved.getByRole("button", { name: "다시 불러오기" }).click();
+        await composeNative(draftField, "조합 중 변경된 조건");
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        const accept = saved.getByRole("button", {
+          name: "미저장 입력을 버리고 최신 정의 사용",
+        });
+        await accept.waitFor();
+        assert.equal(await draftField.inputValue(), "조합 중 변경된 조건");
+        assert.equal(
+          await saved
+            .getByRole("button", { name: "보기 변경 저장" })
+            .isDisabled(),
+          true,
+        );
+        await accept.click();
         await saved
           .getByRole("heading", { name: name + " 수정", exact: true })
           .waitFor();
@@ -425,10 +466,78 @@ try {
         );
         assert.equal(await entryName.count(), 0);
         assert.equal(await page.getByLabel("제목·본문 키워드").count(), 0);
+        // A single incorrect Origin on the save request makes the real local
+        // runtime reject the write. Subsequent ordinary reads are still allowed.
+        await page.goto(
+          origin + "/?app=1&space=" + f.workspaceId + "&section=saved-views",
+        );
+        await page.locator(".global-search > button").click();
+        await page.locator(".quick-open input").fill("전달한 개인 조건");
+        await page
+          .locator(".quick-open")
+          .getByRole("button", { name: "상세 검색" })
+          .click();
+        assert.equal(
+          await page.getByLabel("제목·본문 키워드").inputValue(),
+          "전달한 개인 조건",
+        );
+        await entryName.fill("거부 전 이름");
+        await page.route(
+          "**/api/v1/convenience/views",
+          async (route: any) => {
+            const response = await route.fetch({
+              headers: {
+                ...route.request().headers(),
+                origin: "https://mismatch.invalid",
+              },
+            });
+            assert.equal(response.status(), 403);
+            await route.fulfill({ response });
+          },
+          { times: 1 },
+        );
+        await page
+          .getByRole("button", { name: "개인 보기 저장", exact: true })
+          .click();
+        const rejection = page
+          .getByRole("alert")
+          .filter({ hasText: "CSRF_FAILED" });
+        await rejection.waitFor();
+        let emptySearches = 0;
+        const countEmpty = (req: any) => {
+          if (
+            req.url().endsWith("/questions/search") &&
+            req.postDataJSON()?.query === ""
+          )
+            emptySearches++;
+        };
+        page.on("request", countEmpty);
+        await page.evaluate(() => {
+          window.dispatchEvent(new Event("focus"));
+          document.dispatchEvent(new Event("visibilitychange"));
+        });
+        // Observe one full 200ms debounce period after the passive events.
+        await page.waitForTimeout(260);
+        page.off("request", countEmpty);
+        assert.equal(emptySearches, 0);
+        assert.equal(await rejection.isVisible(), true);
+        assert.equal(await entryName.count(), 0);
+        await page
+          .getByRole("button", { name: "다시 불러오기", exact: true })
+          .click();
+        await entryName.waitFor();
+        assert.equal(await entryName.inputValue(), "");
+        assert.equal(
+          await page.getByLabel("제목·본문 키워드").inputValue(),
+          "",
+        );
         assert.deepEqual(errors, []);
         results.push({
           width,
           theme,
+          handoffDenialHeld: true,
+          composingNameRestored: true,
+          composingQueryConflict: true,
           entrySessionChecked: true,
           transientDraftRestored: true,
           compositionReleased: true,

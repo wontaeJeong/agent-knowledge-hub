@@ -7,7 +7,11 @@ import {
 } from "react";
 import { ApiError, type Identity, type OperationalApi } from "../api";
 import { usePersonalKey, personalFailure } from "./personal-client";
-import { SearchPage, type SearchHandoff } from "./SearchPage";
+import {
+  SearchPage,
+  type SearchHandoff,
+  type SearchComposition,
+} from "./SearchPage";
 import {
   normalizeSearchFilters,
   type SearchFilters,
@@ -103,10 +107,12 @@ export function SaveViewForm({
   disabled,
   view,
   onSaved,
+  composition,
   draftName,
   retainedRetry,
   onFailure,
 }: {
+  composition?: SearchComposition;
   draftName?: React.RefObject<string | undefined>;
   retainedRetry?: React.RefObject<RetryKey | null>;
   onFailure?: (e: unknown) => void;
@@ -117,13 +123,23 @@ export function SaveViewForm({
   onSaved: (id: string) => void;
 }) {
   const [name, setName] = useState(draftName?.current ?? view?.name ?? "");
+  const [composingName, setComposingName] = useState(false);
+  const updateName = (value: string) => {
+    if (draftName) draftName.current = value;
+    setName(value);
+  };
   const mutation = useViewMutation(api, onFailure, retainedRetry);
   return (
     <form
       className="saved-view-form"
       onSubmit={(event) => {
         event.preventDefault();
-        if (disabled || !name.trim() || Array.from(name.trim()).length > 100)
+        if (
+          disabled ||
+          composingName ||
+          !name.trim() ||
+          Array.from(name.trim()).length > 100
+        )
           return;
         void mutation.submit(
           view ? root + "/" + view.id : root,
@@ -143,9 +159,20 @@ export function SaveViewForm({
         <input
           value={name}
           data-search-field="view-name"
-          onChange={(event) => {
-            if (draftName) draftName.current = event.target.value;
-            setName(event.target.value);
+          onChange={(event) => updateName(event.target.value)}
+          onCompositionStart={(event) => {
+            setComposingName(true);
+            composition?.start(event.currentTarget, (value) => {
+              updateName(value);
+              setComposingName(false);
+            });
+          }}
+          onCompositionEnd={(event) => {
+            if (composition) composition.end();
+            else {
+              updateName(event.currentTarget.value);
+              setComposingName(false);
+            }
           }}
           required
         />
@@ -153,6 +180,7 @@ export function SaveViewForm({
       <button
         disabled={
           disabled ||
+          composingName ||
           mutation.busy ||
           !name.trim() ||
           Array.from(name.trim()).length > 100
@@ -168,6 +196,15 @@ export function SaveViewForm({
   );
 }
 export function SavedViews(props: SavedViewsProps) {
+  // Erasing sensitive handoff data does not start another search. Only an
+  // explicitly delivered search revision should replace this session.
+  const deliveredRevision = useRef<number | undefined>(undefined);
+  if (
+    props.handoff &&
+    props.handoff.api === props.api &&
+    props.handoff.identityKey === props.spaceId + ":" + props.principalId
+  )
+    deliveredRevision.current = props.handoff.revision;
   const generation = usePersonalKey(
     props.api,
     JSON.stringify([
@@ -175,7 +212,7 @@ export function SavedViews(props: SavedViewsProps) {
       props.principalId,
       props.viewId,
       props.searchEntry,
-      props.handoff?.revision,
+      deliveredRevision.current,
     ]),
   );
   return <ViewsSession key={generation} {...props} />;
@@ -205,6 +242,8 @@ function ViewsSession({
     draftName = useRef<string | undefined>(undefined),
     retainedRetry = useRef<RetryKey | null>(null),
     dirty = useRef(false),
+    denied = useRef(false),
+    pendingComposition = useRef<(() => boolean) | null>(null),
     focusRestore = useRef<{
       key: string;
       start: number | null;
@@ -223,6 +262,8 @@ function ViewsSession({
   clearHandoff.current = onDiscardHandoff;
   const discard = useCallback((e: unknown) => {
     sequence.current++;
+    denied.current = true;
+    pendingComposition.current = null;
     base.current = null;
     entryHandoff.current = undefined;
     clearHandoff.current?.();
@@ -239,6 +280,9 @@ function ViewsSession({
     setError(personalFailure(e));
   }, []);
   const suspend = useCallback(() => {
+    // Read the native IME buffer before detaching either form and before a
+    // fast server response can replace its base revision.
+    if (pendingComposition.current?.()) dirty.current = true;
     const active = document.activeElement;
     if (
       active instanceof HTMLElement &&
@@ -287,6 +331,7 @@ function ViewsSession({
   const mutation = useViewMutation(api, onVerificationError);
   const refresh = useCallback(
     async (replace = false) => {
+      denied.current = false;
       const seq = suspend();
       try {
         let data: View[];
@@ -356,9 +401,11 @@ function ViewsSession({
   useEffect(() => {
     void refresh();
     const onFocus = () => {
-      if (document.visibilityState !== "hidden") void refresh();
+      if (!denied.current && document.visibilityState !== "hidden")
+        void refresh();
     };
     const onVisibility = () => {
+      if (denied.current) return;
       if (document.visibilityState === "hidden") suspend();
       else void refresh();
     };
@@ -548,15 +595,24 @@ function ViewsSession({
           key={selected?.revision ?? JSON.stringify(example)}
           api={api}
           identityKey={spaceId + ":" + principalId}
-          verification={{ checking, epoch, onFailure: onVerificationError }}
+          verification={{
+            checking,
+            epoch,
+            onFailure: onVerificationError,
+            pendingComposition,
+            onDraftChanged: () => {
+              dirty.current = true;
+            },
+          }}
           initialFilters={selected?.filters ?? example ?? undefined}
           handoff={entryHandoff.current}
           onOpen={onOpen}
-          renderSave={(filters, disabled) => (
+          renderSave={(filters, disabled, composition) => (
             <SaveViewForm
               api={api}
               filters={filters}
               disabled={disabled || conflict}
+              composition={composition}
               draftName={draftName}
               retainedRetry={retainedRetry}
               onFailure={onVerificationError}

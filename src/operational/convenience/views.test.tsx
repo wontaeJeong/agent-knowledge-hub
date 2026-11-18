@@ -396,3 +396,120 @@ test("a recheck detaching the active composition control releases IME and preser
       .disabled,
   ).toBe(false);
 });
+
+test.each(["view-name", "query"])(
+  "an uncommitted %s composition survives matching and conflicting revisions and clears on denial",
+  async (field) => {
+    const { element, render } = mount(),
+      v = definition("space");
+    let current = v;
+    const get = vi.fn(async () => current),
+      request = vi.fn();
+    const api = {
+      get,
+      request,
+      post: async () => result(),
+    } as unknown as OperationalApi;
+    await render(<SavedViews {...props} api={api} viewId="v" />);
+    const editor = () =>
+      element.querySelector<HTMLInputElement>(
+        '[data-search-field="' + field + '"]',
+      )!;
+    async function compose(value: string) {
+      await act(async () => {
+        editor().focus();
+        editor().dispatchEvent(
+          new CompositionEvent("compositionstart", { bubbles: true }),
+        );
+      });
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(editor(), value);
+    }
+    const save = () =>
+      element.querySelector<HTMLButtonElement>(".saved-view-form button")!;
+    await compose("한글 임시");
+    expect(save().disabled).toBe(true);
+    expect(
+      element.querySelector<HTMLButtonElement>(".search-page form button")!
+        .disabled,
+    ).toBe(true);
+    await act(async () =>
+      save().form!.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      ),
+    );
+    expect(request).not.toHaveBeenCalled();
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(editor().value).toBe("한글 임시");
+    expect(save().disabled).toBe(false);
+    // A fresh editing session makes the second native edit the only dirty input.
+    await render(<SavedViews {...props} api={api} />);
+    await render(<SavedViews {...props} api={api} viewId="v" />);
+    await compose("다른 한글 임시");
+    current = {
+      ...v,
+      name: "동료 이름",
+      filters: normalizeSearchFilters({ query: "동료 조건" }),
+      revision: 2,
+    };
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(element.textContent).toContain("미저장 입력을 버리고");
+    expect(editor().value).toBe("다른 한글 임시");
+    expect(save().disabled).toBe(true);
+    await act(async () =>
+      [...element.querySelectorAll("button")]
+        .find((b) => b.textContent?.includes("최신 정의 사용"))!
+        .click(),
+    );
+    expect(editor().value).toBe(
+      field === "view-name" ? current.name : current.filters.query,
+    );
+    for (const status of [401, 403, 404]) {
+      await compose("비공개 조합");
+      get.mockRejectedValueOnce(new ApiError("권한 없음", status, "FORBIDDEN"));
+      await act(async () => window.dispatchEvent(new Event("focus")));
+      expect(editor()).toBeNull();
+      await act(async () =>
+        element.querySelector<HTMLButtonElement>("[data-view-retry]")!.click(),
+      );
+      expect(editor().value).toBe(
+        field === "view-name" ? current.name : current.filters.query,
+      );
+    }
+    await compose("이전 사용자의 보류 입력");
+    let release!: (v: typeof current) => void;
+    get.mockImplementationOnce(() => new Promise((r) => (release = r)));
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    const switched =
+      field === "view-name"
+        ? { ...current, ownerId: "another", name: "다른 사용자 이름" }
+        : {
+            ...current,
+            workspaceId: "elsewhere",
+            filters: normalizeSearchFilters({ query: "다른 공간 검색" }),
+          };
+    const otherApi = {
+      get: async () => switched,
+      post: async () => result(),
+    } as unknown as OperationalApi;
+    await render(
+      <SavedViews
+        {...props}
+        spaceId={switched.workspaceId}
+        principalId={switched.ownerId}
+        api={otherApi}
+        viewId="v"
+      />,
+    );
+    await act(async () => release(current));
+    expect(editor().value).toBe(
+      field === "view-name" ? switched.name : switched.filters.query,
+    );
+    await render(<SavedViews {...props} api={api} viewId="v" />);
+    expect(editor().value).toBe(
+      field === "view-name" ? current.name : current.filters.query,
+    );
+  },
+);

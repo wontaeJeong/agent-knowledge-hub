@@ -15,10 +15,12 @@ PostgreSQL 17.11, Node 24, Chromium 158.0.8127.18에서 합성 사용자와 자�
 
 2차 검증에서 저장 보기의 확인 요청 한 건에 503을 주고 보호 입력이 사라짐을 확인했다. 실제 서버 복구 후 조합 중이던 검색어와 이름, 포커스·선택 범위가 복원되고 저장 버튼이 활성화됐다. 일반 검색 화면에서도 다른 계정의 쿠키로 교체한 뒤 접근 재확인으로 이전 개인 입력이 사라졌다. PostgreSQL에서 자료 단위 미리보기 이후 개인 정의의 생성·삭제로 승인이 만료됐고, 영수증만 남아도 기존 공개 항목·건수는 유지됐다.
 
-배포 소스 지문은 `579b92998f41294c6b276468a056ca9859e18d92b9367db454b6eb92ea5b4f46`이다. 각 화면의 SHA-256 해시와 브라우저 흐름 결과는 [browser-results.json](browser-results.json)에 있다. 저장소 루트에서 `node docs/ui-validation/2026-11-18-saved-views/verify.mjs`로 검증한다.
+3차 검증에서는 빠른 검색에서 상세 화면으로 전달한 뒤 저장 요청 하나의 Origin을 바꿔 실제 로컬 런타임의 403 응답을 받았다. 거부 안내와 폼 부재가 초점·가시성 이벤트 뒤에도 유지됐고 명시적 재조회 전 빈 검색 요청은 0건이었다. 이름 및 검색 조건의 compositionstart 후 입력 이벤트 없이 native input.value를 바꿔 같은 revision의 이름 복원과 다른 세션에서 변경한 revision의 검색 조건 충돌을 확인했다. 실제 운영체제 IME는 별도 검증 대상이다.
+
+배포 소스 지문은 `5300d3d83e2f79ca73ca5469296963cd8e85de0f40f9059771e41aaf072a53e7`이다. 각 화면의 SHA-256 해시와 브라우저 흐름 결과는 [browser-results.json](browser-results.json)에 있다. 저장소 루트에서 `node docs/ui-validation/2026-11-18-saved-views/verify.mjs`로 검증한다.
 
 재현하려면 먼저 `npm run build`를 실행한다. `TEST_DATABASE_URL`에는 CREATE DATABASE가 가능한 루프백 테스트 인스턴스를 지정한다. `PLAYWRIGHT_MODULE`은 Chromium이 설치된 Playwright 모듈 경로이며, `AKH_C11_SYNTHETIC=1`로 `node_modules/.bin/tsx docs/ui-validation/2026-11-18-saved-views/capture.ts`를 실행한다.
 
-- 전체 `npm run check`에서 프런트엔드 564, Node 48, 수집 16, 평가 41, 요구사항 251개 및 타입 검사, 빌드, 정적 HTTP smoke가 통과했다. [실행 로그](checks.txt)
+- 전체 `npm run check`에서 프런트엔드 567, Node 48, 수집 16, 평가 41, 요구사항 251개 및 타입 검사, 빌드, 정적 HTTP smoke가 통과했다. [실행 로그](checks.txt)
 - PostgreSQL 회귀 15개 파일, 150개 시험이 파일별 독립 DB에서 통과했다. C11 DB 시험 8개를 포함한다. 과거 영수증 재생·법정 보류·정상 및 복구 삭제, 구버전 쓰기 거부, 업무 감사 원자성·운영 응답의 개인 건수 비노출, 146~148 마이그레이션 롤백·재시작·드리프트와 계정별 100개 경계, CAS 충돌, 재시도, 계보·법정 보류·복구를 확인했다. [실행 로그](postgres.txt)
 - 실제 사내 IdP·배포·백업 물리 삭제 시점·운영체제별 보조기기와 IME·검색 품질 및 에이전트 업무 효과는 별도 검증 대상이다.
