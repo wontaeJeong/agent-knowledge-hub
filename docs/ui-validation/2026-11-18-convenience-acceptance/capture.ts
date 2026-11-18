@@ -2,12 +2,21 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { randomUUID } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
-import { resolve, extname } from "node:path";
+import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import {
+  cleanResources,
+  dropOwnedDatabase,
+  jsonText,
+  publishRun,
+} from "./capture-support.mjs";
+import { resolve, extname, join } from "node:path";
 import { Pool } from "pg";
 import * as oidc from "openid-client";
 import { validateBaseUrl } from "../../../scripts/test-server.mjs";
-import { adoptFixture, fixture } from "../../../server/test-support";
+import { adoptFixture } from "../../../server/test-support";
 import { RuntimeService } from "../../../server/runtime/knowledge";
 import { createRuntimeHandler } from "../../../server/runtime/http";
 import { OidcAuth, sessionHash } from "../../../server/runtime/auth";
@@ -28,12 +37,20 @@ process.env.IMPORT_DISCLOSURE_REVIEWERS = "reviewer";
 const { chromium } = await import(
   process.env.PLAYWRIGHT_MODULE ?? "playwright"
 );
-const out = new URL("./", import.meta.url);
-const database = "akh_c12_test_" + randomUUID().replaceAll("-", "");
+const root = fileURLToPath(new URL("./", import.meta.url));
+const runId = randomUUID();
+const database = "akh_c12_test_" + runId.replaceAll("-", "");
+const fault = process.argv[2];
+assert(
+  [undefined, "--test-fixture-failure", "--test-partial-capture"].includes(
+    fault,
+  ),
+);
+const stage = await mkdtemp(join(tmpdir(), "akh-c12-capture-"));
 const admin = new Pool({ connectionString: base.href });
-await admin.query('CREATE DATABASE "' + database + '"');
-base.pathname = "/" + database;
-process.env.TEST_DATABASE_URL = base.href;
+let created = false,
+  databaseDropped = false;
+const errors: { phase: string; message: string }[] = [];
 const results: { step: string; observed: unknown }[] = [];
 const mark = (step: string, observed: unknown) => {
   results.push({ step, observed });
@@ -66,7 +83,9 @@ const start = async (s: typeof app) => {
 const stop = async (s: typeof app) => {
   if (s.listening) {
     s.closeAllConnections();
-    await new Promise<void>((r) => s.close(() => r()));
+    await new Promise<void>((done, fail) =>
+      s.close((error) => (error ? fail(error) : done())),
+    );
   }
 };
 let pool: Pool | undefined,
@@ -75,8 +94,31 @@ let pool: Pool | undefined,
   phase = "fixture",
   page: any;
 try {
-  const f = await fixture();
-  pool = f.pool;
+  await admin.query('CREATE DATABASE "' + database + '"');
+  created = true;
+  base.pathname = "/" + database;
+  pool = new Pool({
+    connectionString: base.href,
+    max: 6,
+    connectionTimeoutMillis: 3000,
+  });
+  if (fault === "--test-fixture-failure") {
+    // Only the freshly created UUID database is in scope.
+    await pool.query(
+      "CREATE TABLE schema_migrations (intentional_fixture_error text)",
+    );
+  }
+  const setup = await promisify(execFile)(
+    process.execPath,
+    ["--import", "tsx", join(root, "capture-seed.ts")],
+    {
+      env: { ...process.env, TEST_DATABASE_URL: base.href },
+      timeout: 60000,
+    },
+  );
+  const workspaceId = setup.stdout.trim();
+  assert.match(workspaceId, /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/);
+  const f = { workspaceId, pool };
   await adoptFixture(pool, f.workspaceId);
   await pool.query(
     "INSERT INTO access_source_policy(workspace_id,source_id,local_copy_allowed,export_allowed) VALUES($1,'source-a',true,false)",
@@ -291,8 +333,10 @@ try {
   const recovery = button(page, "이전 입력 복구");
   await recovery.waitFor();
   await page.screenshot({
-    path: fileURLToPath(new URL("390-recovery.png", out)),
+    path: join(stage, "390-recovery.png"),
   });
+  if (fault === "--test-partial-capture")
+    throw new Error("Injected failure after staged recovery screenshot");
   await recovery.click();
   assert.equal(await label(page, "Markdown 본문").inputValue(), body);
   await button(page, "개인 초안 저장").click();
@@ -486,7 +530,7 @@ try {
   const recipientOpened = await openedDocument(review.p, pageId);
   assert((await review.p.locator(fragment).innerText()).includes(note));
   await review.p.screenshot({
-    path: fileURLToPath(new URL("390-comment.png", out)),
+    path: join(stage, "390-comment.png"),
   });
   mark("comment and recipient inbox", {
     pageId,
@@ -555,7 +599,7 @@ try {
   await denial.scrollIntoViewIfNeeded();
   await heading.waitFor({ state: "hidden" });
   await reader.p.screenshot({
-    path: fileURLToPath(new URL("390-source-withdrawn.png", out)),
+    path: join(stage, "390-source-withdrawn.png"),
   });
   mark("source withdrawal", {
     pageId,
@@ -585,35 +629,74 @@ try {
     expired: 401,
     inactive: 401,
   });
-} catch (e) {
-  console.error("phase", phase, e instanceof Error ? e.message : e);
-  process.exitCode = 1;
-} finally {
-  if (browser) await browser.close();
-  if (jobs) await jobs.stop();
-  await stop(app);
-  await stop(issuer);
-  await stop(model);
-  await pool?.end();
-  await admin.query('DROP DATABASE "' + database + '"');
-  const owned = (
-    await admin.query("SELECT datname FROM pg_database WHERE datname=$1", [
-      database,
-    ])
-  ).rowCount;
-  assert.equal(owned, 0);
-  await admin.end();
-  await writeFile(
-    new URL("journey.json", out),
-    JSON.stringify(
-      {
-        results,
-        lastPhase: phase,
-        exitCode: process.exitCode ?? 0,
-        ownedDatabaseDropped: true,
-      },
-      null,
-      2,
-    ) + "\n",
+} catch (error) {
+  errors.push({
+    phase,
+    message: error instanceof Error ? error.message : String(error),
+  });
+}
+const cleanup = await cleanResources([
+  ["browser", browser && (() => browser.close())],
+  ["jobs", jobs && (() => jobs!.stop())],
+  ["app", () => stop(app)],
+  ["issuer", () => stop(issuer)],
+  ["model", () => stop(model)],
+  ["pool", pool && (() => pool!.end())],
+  [
+    "database",
+    created &&
+      (async () => {
+        await dropOwnedDatabase(admin, database);
+        databaseDropped = true;
+      }),
+  ],
+  ["admin", () => admin.end()],
+]);
+for (const entry of cleanup)
+  if (!entry.ok)
+    errors.push({ phase: "cleanup:" + entry.resource, message: entry.error });
+if (!errors.length) {
+  try {
+    await publishRun(stage, root, runId, {
+      results,
+      lastPhase: phase,
+      exitCode: 0,
+      ownedDatabaseDropped: databaseDropped,
+      cleanup,
+    });
+    console.log("PUBLISHED", runId);
+  } catch (error) {
+    errors.push({
+      phase: "publish",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+if (errors.length) {
+  // If publishing failed after staging cleanup, reserve a new diagnostics directory.
+  let diagnostics = stage;
+  try {
+    await access(stage);
+  } catch {
+    diagnostics = await mkdtemp(join(tmpdir(), "akh-c12-failed-"));
+  }
+  const path = join(diagnostics, "failure.json");
+  const failure = {
+    runId,
+    database: created ? database : null,
+    ownedDatabaseDropped: databaseDropped,
+    results,
+    errors,
+    cleanup,
+  };
+  console.error(
+    jsonText({
+      database: failure.database,
+      ownedDatabaseDropped: databaseDropped,
+      errors,
+    }),
   );
+  await writeFile(path, jsonText(failure), { flag: "wx" });
+  console.error("FAILED_RECORD", path);
+  process.exitCode = 1;
 }

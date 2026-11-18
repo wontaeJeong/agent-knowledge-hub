@@ -1,0 +1,10 @@
+2026-11-18 · 성공 세트 게시 후 node --test capture-lifecycle.test.mjs 원출력 발췌
+✔ a failed fixture-failure closes its UUID database and leaves published bytes intact (912.726792ms)
+✔ a failed partial-capture closes its UUID database and leaves published bytes intact (12707.112958ms)
+Observed owned DROP refusal akh_c12_test_5d5fd4a92c1648e18456ff6ac0b79e32: database "akh_c12_test_5d5fd4a92c1648e18456ff6ac0b79e32" is being accessed by other users
+✔ a cleanup error and an occupied owned database still close later resources and identify the exact failed DROP (5397.645042ms)
+✔ a generation collision preserves the previous selected generation and index (22.070417ms)
+ℹ tests 4
+ℹ pass 4
+ℹ fail 0
+ℹ skipped 0

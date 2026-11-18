@@ -14,11 +14,13 @@
 | 홈·내 작업함 | 홈과 내 작업함의 초안 링크로 각각 이동했다. 재개 URL의 draft ID가 처음 저장한 값과 같고, 내 작업함에서 Enter로 연 제목이 저장한 제목과 일치했다. |
 | 권한·기간 만료 | 같은 reader의 ‘주제’ 백링크 조회에서 새 문서 ID를 먼저 확인했다. 해당 원본의 reader ACL 한 행을 삭제하자 같은 조회의 200 응답에서 그 ID가 빠졌다. 새 문서 탐색은 404였고 로딩 후 거절 안내가 표시됐으며 발행 제목 heading은 보이지 않았다. 별도로 만료한 작성자 세션과 비활성화한 reviewer의 실제 `/me` 응답은 각각 401이었다. |
 
-Chromium 158.0.8127.18, 390×844, 밝은 테마, PostgreSQL 17.11, 임시 포트와 UUID 전용 DB를 사용했다. 실제 OidcAuth와 합성 UserInfo를 사용했고 브라우저 세션은 fixture로 발급했다. 검사 후 전용 DB 무존재를 조회했다. 실행별 ID와 결과, 세 화면, 재현 코드를 함께 제공한다. [실행 결과](journey.json) · [입력 복구](390-recovery.png) · [댓글 위치](390-comment.png) · [철회 후 접근 안내](390-source-withdrawn.png) · [실행 코드](capture.ts)
+Chromium 158.0.8127.18, 390×844, 밝은 테마, PostgreSQL 17.11, 임시 포트와 UUID 전용 DB를 사용했다. 실제 OidcAuth와 합성 UserInfo를 사용했고 브라우저 세션은 fixture로 발급했다. 검사 후 전용 DB 무존재를 조회했다. 실행별 ID와 결과, 세 화면, 재현 코드를 함께 제공한다. [최근 성공 실행의 JSON·화면·SHA-256](latest.md) · [실행 코드](capture.ts)
 
 <details><summary>같은 범위 재실행</summary>
 
-지원 Node 24와 의존성을 설치하고 Chromium이 설치된 Playwright 모듈 경로, CREATE DATABASE 가능한 루프백 전용 테스트 DB를 제공한다. 실행 때마다 새 UUID DB를 만들고 종료 시 그 DB를 삭제한다. 빌드와 결과 파일은 현재 worktree 기준이다.
+지원 Node 24와 의존성을 설치하고 Chromium이 설치된 Playwright 모듈 경로, CREATE DATABASE 가능한 루프백 전용 테스트 DB를 제공한다. 실행마다 고유 DB를 생성한다. 시딩을 일회성 자식 프로세스에서 실행해 풀이 반환되기 전에 실패해도 해당 연결을 회수한다. 정상 실행은 브라우저, 작업자, 서버 세 개, 풀, 생성한 DB, 관리자 풀의 정리 결과를 각각 확인한다. DROP이 거절되면 DB 이름과 사유를 실패 기록에 남긴다.
+
+캡처는 OS가 만든 전용 임시 경로에 모은다. 12단계와 8개 정리의 성공을 확인한 뒤 UUID별 파일을 복사하고 각각의 SHA-256을 검산한다. 마지막에 `latest.md`를 원자적으로 교체하며, 이전 실행 디렉터리는 보존한다. 실패 시 콘솔의 `FAILED_RECORD`가 해당 실행의 임시 진단 JSON을 가리킨다. [정리·게시 구현](capture-support.mjs)
 
 ```sh
 npm run build
@@ -26,6 +28,8 @@ AKH_C12_SYNTHETIC=1 TEST_DATABASE_URL="$LOOPBACK_TEST_DB_URL" \
   PLAYWRIGHT_MODULE="$LOCAL_PLAYWRIGHT_MODULE" \
   node_modules/.bin/tsx docs/ui-validation/2026-11-18-convenience-acceptance/capture.ts
 ```
+
+같은 환경 변수로 `node --test docs/ui-validation/2026-11-18-convenience-acceptance/capture-lifecycle.test.mjs`를 실행하면 실패 경로를 검사한다.
 
 </details>
 
@@ -66,6 +70,7 @@ AKH_C12_SYNTHETIC=1 TEST_DATABASE_URL="$LOOPBACK_TEST_DB_URL" \
 
 ## 검사와 미충족 기준
 
+- 최종 하네스의 실패 경로 시험 4개가 통과했다. 실제 마이그레이션 실패로 초기화 풀이 반환되지 않은 경우와 첫 PNG 저장 후 중단한 경우에 각 실행의 DB가 사라지고 공개 파일 해시가 유지됐다. 별도 연결을 잡아 둔 자기 DB는 DROP이 정직하게 실패했고 정확한 DB 이름이 보고됐다. 이후 다른 자원 정리가 실행됐으며 시험 종료 시 자기 연결을 닫고 DB를 정리했다. 불완전한 결과·정리, 세트 이름 충돌에서도 기존 인덱스와 세트가 보존됐다. [시험](capture-lifecycle.test.mjs) · [원출력 발췌](lifecycle-checks.txt)
 - 제품 소스가 같은 기준 커밋 `8952637`의 전체 실행 결과다. 이번 독립 리뷰 보강에서 새로 실행한 항목은 Chromium 연결 흐름, 두 환경의 overlay validator와 Compose HTTP/정리다.
 - `npm run check`에서 프런트엔드 572개, Node 48개, import 16개, 평가 도구 41개, 251개 요구사항의 로드맵·수용 문구·운영 상태 정합성, 서버 타입, 빌드, 정적 HTTP smoke를 통과했다. 번들 크기 경고가 남았다.
 - `npm run test:server`는 테스트 러너 13개와 UUID별 독립 PostgreSQL DB에서 서버 파일 **160/160, 시험 1,289개**를 통과했다. 각 파일 종료 후 생성한 DB를 정리했고 전체 명령 종료 코드는 0이다.

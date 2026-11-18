@@ -1,0 +1,167 @@
+{
+  "results": [
+    {
+      "step": "environment",
+      "observed": {
+        "browser": "158.0.8127.18",
+        "postgres": "17.11",
+        "viewport": "390x844",
+        "title": "통합검토 22e75e72",
+        "author": "editor",
+        "recipient": "reviewer",
+        "reader": "reader",
+        "workspace": "7ef7db4a-ead2-4f88-a4c1-a258727b3c18"
+      }
+    },
+    {
+      "step": "model provider outage",
+      "observed": {
+        "job": "4deeb660-6b86-4c7c-970c-e959f1cc0909",
+        "http": 503,
+        "calls": 1,
+        "status": "queued",
+        "error": "MODEL_UNAVAILABLE"
+      }
+    },
+    {
+      "step": "saved draft reopened",
+      "observed": {
+        "draft": "8ca86abf-e249-4599-8243-bc48a3f45a36",
+        "bodyRestored": true,
+        "keyboardTarget": "대상 위치"
+      }
+    },
+    {
+      "step": "unsent recovery",
+      "observed": {
+        "draft": "8ca86abf-e249-4599-8243-bc48a3f45a36",
+        "source": "blocked draft POST",
+        "userConfirmed": true
+      }
+    },
+    {
+      "step": "disclosure approval and knowledge proposal",
+      "observed": {
+        "draft": "8ca86abf-e249-4599-8243-bc48a3f45a36",
+        "disclosure": "5244c51a-793f-4ded-a62b-32060992f225",
+        "batch": "c2176e59-3bc6-47bb-9d1e-2ac37e8187e2",
+        "pageId": "document-5244c51a-793f-4ded-a62b-32060992f225"
+      }
+    },
+    {
+      "step": "published",
+      "observed": {
+        "batch": "c2176e59-3bc6-47bb-9d1e-2ac37e8187e2",
+        "pageId": "document-5244c51a-793f-4ded-a62b-32060992f225",
+        "version": 1,
+        "producer": "user-submission"
+      }
+    },
+    {
+      "step": "search and favorite revisit",
+      "observed": {
+        "pageId": "document-5244c51a-793f-4ded-a62b-32060992f225",
+        "syntheticComposition": true,
+        "earlyRequests": 0,
+        "confirmedQuery": "통합검토 22e75e72",
+        "httpStatus": 200,
+        "resultPage": "document-5244c51a-793f-4ded-a62b-32060992f225",
+        "searchOpened": "document-5244c51a-793f-4ded-a62b-32060992f225",
+        "favoriteOpened": "document-5244c51a-793f-4ded-a62b-32060992f225",
+        "keyboard": "Enter"
+      }
+    },
+    {
+      "step": "published backlink round-trip",
+      "observed": {
+        "from": "document-5244c51a-793f-4ded-a62b-32060992f225",
+        "to": "topic",
+        "back": "document-5244c51a-793f-4ded-a62b-32060992f225"
+      }
+    },
+    {
+      "step": "comment and recipient inbox",
+      "observed": {
+        "pageId": "document-5244c51a-793f-4ded-a62b-32060992f225",
+        "createdComment": "c24d69d2-724f-49a6-ac8d-8af18a00a2ca",
+        "recipientOpened": "document-5244c51a-793f-4ded-a62b-32060992f225",
+        "exactComment": "c24d69d2-724f-49a6-ac8d-8af18a00a2ca"
+      }
+    },
+    {
+      "step": "home and my tasks resume",
+      "observed": {
+        "draft": "8ca86abf-e249-4599-8243-bc48a3f45a36",
+        "keyboard": "Enter"
+      }
+    },
+    {
+      "step": "source withdrawal",
+      "observed": {
+        "pageId": "document-5244c51a-793f-4ded-a62b-32060992f225",
+        "documentReadStatus": 404,
+        "reader": "reader",
+        "target": "topic",
+        "sourceId": "manual-5244c51a-793f-4ded-a62b-32060992f225",
+        "removedAclRows": 1,
+        "beforeHttp": 200,
+        "beforeId": "document-5244c51a-793f-4ded-a62b-32060992f225",
+        "afterHttp": 200,
+        "afterIds": [],
+        "denialText": "자료가 없거나 현재 접근할 수 없습니다. (NOT_FOUND · 추적 61dae400-2c96-4636-abe7-4bed208e0dc2)",
+        "headingVisible": false,
+        "backlinkHidden": true
+      }
+    },
+    {
+      "step": "expired session and withdrawn identity",
+      "observed": {
+        "expired": 401,
+        "inactive": 401
+      }
+    }
+  ],
+  "lastPhase": "ordinary withdrawal and expiry",
+  "exitCode": 0,
+  "ownedDatabaseDropped": true,
+  "cleanup": [
+    {
+      "resource": "browser",
+      "ok": true
+    },
+    {
+      "resource": "jobs",
+      "ok": true
+    },
+    {
+      "resource": "app",
+      "ok": true
+    },
+    {
+      "resource": "issuer",
+      "ok": true
+    },
+    {
+      "resource": "model",
+      "ok": true
+    },
+    {
+      "resource": "pool",
+      "ok": true
+    },
+    {
+      "resource": "database",
+      "ok": true
+    },
+    {
+      "resource": "admin",
+      "ok": true
+    }
+  ],
+  "runId": "874fbcbd-1e51-4006-a7af-71e7d1b91bbe",
+  "artifacts": {
+    "390-recovery.png": "3a4e99dfe2364a6d08410176eecb6094fbe95d3fdbcff49a2d8760d7e3fa47ce",
+    "390-comment.png": "a0049ae4a5cfc4490e07c3cc610d366deb057b49a4b1b389b14c003d2f921c91",
+    "390-source-withdrawn.png": "20182b0f2c9575ad6c1c00778df42416fed4161817f5afced19a6098aec340a9"
+  }
+}
