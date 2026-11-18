@@ -155,7 +155,31 @@ try {
           await page.locator(":focus").textContent(),
           "개인 보기 저장",
         );
+        let serverSaved!: () => void, releaseSave!: () => void;
+        const committed = new Promise<void>((r) => (serverSaved = r)),
+          deliverSave = new Promise<void>((r) => (releaseSave = r));
+        await page.route(
+          "**/api/v1/convenience/views",
+          async (route: any) => {
+            const response = await route.fetch();
+            assert.equal(response.status(), 201);
+            serverSaved();
+            await deliverSave;
+            await route.fulfill({ response });
+          },
+          { times: 1 },
+        );
         await page.keyboard.press("Enter");
+        await committed;
+        assert.equal(await input.isDisabled(), true);
+        assert.equal(await page.getByLabel("보기 이름").isDisabled(), true);
+        assert.equal(
+          await page
+            .locator(".search-page [data-search-field]:enabled")
+            .count(),
+          0,
+        );
+        releaseSave();
         await page.waitForURL(/view=/);
         const exact = page.url();
         const saved = page.getByRole("region", { name: "개인 저장 보기" });
@@ -269,7 +293,46 @@ try {
           ]),
           [true, 1, 4],
         );
-        await saved.getByRole("link", { name: "목록으로" }).click();
+        const listLink = saved.getByRole("link", { name: "목록으로" });
+        const dialogs: string[] = [];
+        const cancel = (dialog: any) => {
+          dialogs.push(dialog.message());
+          return dialog.dismiss();
+        };
+        page.once("dialog", cancel);
+        await listLink.click();
+        assert.equal(page.url(), exact);
+        assert.equal(dialogs.length, 1);
+        const backPrompt = page.waitForEvent("dialog");
+        await page.evaluate(() => {
+          history.back();
+        });
+        const back = await backPrompt;
+        dialogs.push(back.message());
+        await back.dismiss();
+        await page.waitForURL(exact);
+        assert.equal(await draftField.inputValue(), "미저장 조건");
+        assert.equal(
+          await page.evaluate(() =>
+            window.dispatchEvent(
+              new Event("beforeunload", { cancelable: true }),
+            ),
+          ),
+          false,
+        );
+        const spacePrompts: string[] = [];
+        const changeSpace = async (dialog: any) => {
+          spacePrompts.push(dialog.message());
+          if (spacePrompts.length === 1) await dialog.accept();
+          else await dialog.dismiss();
+        };
+        page.on("dialog", changeSpace);
+        await page.getByLabel("지식 공간").selectOption(other.workspaceId);
+        page.off("dialog", changeSpace);
+        assert.equal(spacePrompts.length, 2);
+        assert.equal(page.url(), exact);
+        page.once("dialog", (dialog: any) => dialog.accept());
+        await listLink.click();
         const link = saved.getByRole("link", { name, exact: true });
         await link.waitFor();
         await link.focus();
@@ -531,10 +594,76 @@ try {
           await page.getByLabel("제목·본문 키워드").inputValue(),
           "",
         );
+        await context.addCookies([await session("reader", f.workspaceId)]);
+        await page.goto(exact);
+        await saved.getByLabel("보기 이름").fill("권한 회수 전 미저장 입력");
+        let fetched!: () => void, releaseAllowed!: () => void;
+        const gotAllowed = new Promise<void>((r) => (fetched = r)),
+          allowDelivery = new Promise<void>((r) => (releaseAllowed = r));
+        await page.route(
+          "**/api/v1/convenience/views/" + id,
+          async (route: any) => {
+            const response = await route.fetch();
+            assert.equal(response.status(), 200);
+            fetched();
+            await allowDelivery;
+            await route.fulfill({ response });
+          },
+          { times: 1 },
+        );
+        await saved.getByRole("button", { name: "다시 불러오기" }).click();
+        await gotAllowed;
+        const originalMe = await (
+          await context.request.get(origin + "/api/v1/me")
+        ).json();
+        await f.pool.query(
+          "UPDATE access_grants SET revoked=true WHERE workspace_id=$1 AND principal_id='reader'",
+          [f.workspaceId],
+        );
+        try {
+          const lastMe = page.waitForResponse(
+            (r: any) =>
+              r.url().endsWith("/me") &&
+              r.request().headers()["x-expected-principal"] &&
+              r.status() === 200,
+          );
+          releaseAllowed();
+          const withoutRead = await (await lastMe).json();
+          assert.equal(withoutRead.principalId, originalMe.principalId);
+          assert.equal(withoutRead.workspaceId, originalMe.workspaceId);
+          assert.equal(withoutRead.csrfToken, originalMe.csrfToken);
+          assert.equal(
+            withoutRead.capabilities.includes("knowledge.read"),
+            false,
+          );
+          await page
+            .getByText(
+              "현재 공간의 내용 열람 권한이 없어 보호 내용과 입력을 비웠습니다.",
+              { exact: true },
+            )
+            .waitFor();
+          assert.equal(await saved.count(), 0);
+          assert.equal(
+            await page.evaluate(() =>
+              window.dispatchEvent(
+                new Event("beforeunload", { cancelable: true }),
+              ),
+            ),
+            true,
+          );
+        } finally {
+          await f.pool.query(
+            "UPDATE access_grants SET revoked=false WHERE workspace_id=$1 AND principal_id='reader'",
+            [f.workspaceId],
+          );
+        }
         assert.deepEqual(errors, []);
         results.push({
           width,
           theme,
+          rolelessAfterAllowedResponse: true,
+          pendingInputsLocked: true,
+          voluntaryNavigationProtected: true,
           handoffDenialHeld: true,
           composingNameRestored: true,
           composingQueryConflict: true,

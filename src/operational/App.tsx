@@ -717,7 +717,17 @@ function OperationalWorkspace({
     clearProtected("로그인 세션이 변경되어 현재 사용자를 다시 확인합니다.");
     void load();
   },[clearProtected,load]);
-  useEffect(()=>{savedApi?.onExpired(recheckViewIdentity);return()=>savedApi?.onExpired(undefined);},[savedApi,recheckViewIdentity]);
+  useEffect(()=>{
+    savedApi?.onExpired(recheckViewIdentity);
+    savedApi?.onReadAccessLost(()=>{
+      clearProtected("현재 공간의 내용 열람 권한이 없어 보호 내용과 입력을 비웠습니다.");
+      void load();
+    });
+    return ()=>{
+      savedApi?.onExpired(undefined);
+      savedApi?.onReadAccessLost(undefined);
+    };
+  },[savedApi,recheckViewIdentity,clearProtected,load]);
   const perform = async (action: () => Promise<void>) => {
     const epoch = requestEpoch.current;
     setBusy(true);

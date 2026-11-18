@@ -787,4 +787,5 @@ test("clearing a denied quick-search handoff keeps the error and issues no empty
  await act(async()=>container.querySelector<HTMLButtonElement>('[data-view-retry]')!.click());
  expect(container.querySelector<HTMLInputElement>('[data-search-field=query]')?.value).toBe("");
  expect(container.querySelector<HTMLInputElement>('.saved-view-form input')?.value).toBe("");
+ expect(container.querySelector(".saved-view-form [role=alert]")).toBeNull();
 });

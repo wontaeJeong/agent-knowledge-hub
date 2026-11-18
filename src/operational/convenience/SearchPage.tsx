@@ -32,6 +32,7 @@ export type SearchHandoff = {
 };
 type ViewCheck = {
   checking: boolean;
+  saving: boolean;
   epoch: number;
   onFailure: (e: unknown) => void;
   pendingComposition: React.RefObject<(() => boolean) | null>;
@@ -183,11 +184,13 @@ function SearchSession({
     message: "검색 결과가 변경되어 현재 검색 입력으로 초점을 옮겼습니다.",
   });
   const change = (action: () => void) => {
+    if (verification?.saving) return;
     search.invalidate();
     action();
   };
   const composition: SearchComposition = {
     start(control, commit) {
+      if (verification?.saving) return;
       const initial = control.value;
       pendingComposition.current = () => {
         const value = control.value;
@@ -230,13 +233,15 @@ function SearchSession({
         onCompositionEnd={composition.end}
         onSubmit={(e) => {
           e.preventDefault();
-          if (!composing && !validation) void search.run();
+          if (!verification?.saving && !composing && !validation)
+            void search.run();
         }}
       >
         <span role="status">{focus.notice}</span>
         <label>
           제목·본문 키워드
           <input
+            disabled={verification?.saving}
             data-search-fallback
             data-search-field="query"
             maxLength={2000}
@@ -258,6 +263,7 @@ function SearchSession({
               <label key={key}>
                 {label}
                 <input
+                  disabled={verification?.saving}
                   data-search-field={key}
                   type={dateKeys.has(key) ? "datetime-local" : "text"}
                   step={dateKeys.has(key) ? "0.001" : undefined}
@@ -274,6 +280,7 @@ function SearchSession({
             <label>
               결과 정렬
               <select
+                disabled={verification?.saving}
                 data-search-field="sort"
                 value={sort}
                 onChange={(e) =>
@@ -287,6 +294,7 @@ function SearchSession({
             <label>
               보관 여부
               <select
+                disabled={verification?.saving}
                 data-search-field="archived"
                 value={archived}
                 onChange={(e) => change(() => setArchived(e.target.value))}
@@ -301,13 +309,18 @@ function SearchSession({
         <label>
           <input
             type="checkbox"
+            disabled={verification?.saving}
             data-search-field="historical"
             checked={historical}
             onChange={(e) => change(() => setHistorical(e.target.checked))}
           />
           과거 버전 포함 (현재 권고 아님)
         </label>
-        <button disabled={composing || !!validation || search.busy}>
+        <button
+          disabled={
+            verification?.saving || composing || !!validation || search.busy
+          }
+        >
           검색
         </button>
       </form>

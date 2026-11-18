@@ -17,6 +17,7 @@ import {
   type SearchFilters,
   type SearchItem,
 } from "./search-client";
+import { NavigationProtection } from "./Navigation";
 import { convenienceHref } from "./route";
 import { useCurrentListFocus } from "./list-focus";
 
@@ -51,6 +52,7 @@ function useViewMutation(
   api: OperationalApi,
   onFailure?: (e: unknown) => void,
   retained?: React.RefObject<RetryKey | null>,
+  accessEpoch?: React.RefObject<number>,
 ) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -71,6 +73,8 @@ function useViewMutation(
     done: (id: string) => void,
   ) {
     if (locked.current) return;
+    const epoch = accessEpoch?.current;
+    const isCurrent = () => active.current && epoch === accessEpoch?.current;
     const key = JSON.stringify([path, method, body]);
     if (retry.current?.key !== key)
       retry.current = { key, id: crypto.randomUUID() };
@@ -84,12 +88,12 @@ function useViewMutation(
         { ...body, mutationId: retry.current.id },
         retry.current.id,
       );
-      if (active.current) {
+      if (isCurrent()) {
         retry.current = null;
         done(result.id);
       }
     } catch (e) {
-      if (active.current) {
+      if (isCurrent()) {
         onFailure?.(e);
         setError(personalFailure(e));
       }
@@ -98,37 +102,48 @@ function useViewMutation(
       if (active.current) setBusy(false);
     }
   }
-  return { busy, error, submit };
+  const clearError = useCallback(() => setError(""), []);
+  return { busy, error, submit, clearError };
 }
 
+type SaveFormProps = {
+  composition?: SearchComposition;
+  draftName?: React.RefObject<string | undefined>;
+  filters: SearchFilters;
+  disabled: boolean;
+  view?: View;
+  onSaved: (id: string) => void;
+};
 export function SaveViewForm({
   api,
+  onFailure,
+  retainedRetry,
+  ...props
+}: SaveFormProps & {
+  api: OperationalApi;
+  onFailure?: (e: unknown) => void;
+  retainedRetry?: React.RefObject<RetryKey | null>;
+}) {
+  const mutation = useViewMutation(api, onFailure, retainedRetry);
+  return <ViewForm {...props} mutation={mutation} />;
+}
+function ViewForm({
   filters,
   disabled,
   view,
   onSaved,
   composition,
   draftName,
-  retainedRetry,
-  onFailure,
-}: {
-  composition?: SearchComposition;
-  draftName?: React.RefObject<string | undefined>;
-  retainedRetry?: React.RefObject<RetryKey | null>;
-  onFailure?: (e: unknown) => void;
-  api: OperationalApi;
-  filters: SearchFilters;
-  disabled: boolean;
-  view?: View;
-  onSaved: (id: string) => void;
-}) {
+  mutation,
+}: SaveFormProps & { mutation: ReturnType<typeof useViewMutation> }) {
   const [name, setName] = useState(draftName?.current ?? view?.name ?? "");
   const [composingName, setComposingName] = useState(false);
   const updateName = (value: string) => {
+    if (mutation.busy) return;
     if (draftName) draftName.current = value;
     setName(value);
   };
-  const mutation = useViewMutation(api, onFailure, retainedRetry);
+
   return (
     <form
       className="saved-view-form"
@@ -157,10 +172,12 @@ export function SaveViewForm({
       <label>
         보기 이름
         <input
+          disabled={mutation.busy}
           value={name}
           data-search-field="view-name"
           onChange={(event) => updateName(event.target.value)}
           onCompositionStart={(event) => {
+            if (mutation.busy) return;
             setComposingName(true);
             composition?.start(event.currentTarget, (value) => {
               updateName(value);
@@ -237,6 +254,9 @@ function ViewsSession({
     [epoch, setEpoch] = useState(0),
     [conflict, setConflict] = useState(false);
   const sequence = useRef(0),
+    accessEpoch = useRef(0),
+    pristineEditor = useRef<string | null>(null),
+    savedNavigation = useRef(false),
     entryHandoff = useRef(handoff),
     base = useRef<View | null>(null),
     draftName = useRef<string | undefined>(undefined),
@@ -263,6 +283,8 @@ function ViewsSession({
   const discard = useCallback((e: unknown) => {
     sequence.current++;
     denied.current = true;
+    accessEpoch.current++;
+    pristineEditor.current = null;
     pendingComposition.current = null;
     base.current = null;
     entryHandoff.current = undefined;
@@ -279,10 +301,38 @@ function ViewsSession({
     setConfirmId(null);
     setError(personalFailure(e));
   }, []);
+  const editorSignature = useCallback(() => {
+    const inputs = focus.container.current?.querySelectorAll<
+      HTMLInputElement | HTMLSelectElement
+    >("[data-search-field]");
+    if (!inputs?.length) return null;
+    return JSON.stringify(
+      Array.from(inputs, (control) => [
+        control.dataset.searchField,
+        control instanceof HTMLInputElement && control.type === "checkbox"
+          ? control.checked
+          : control.value,
+      ]),
+    );
+  }, [focus.container]);
+  const hasUnsaved = useCallback(() => {
+    if (denied.current || savedNavigation.current) return false;
+    if (!viewId) {
+      const name = focus.container.current?.querySelector<HTMLInputElement>(
+        '[data-search-field="view-name"]',
+      );
+      return !!(name?.value ?? draftName.current)?.trim();
+    }
+    const current = editorSignature();
+    return current !== null && pristineEditor.current !== null
+      ? current !== pristineEditor.current
+      : dirty.current;
+  }, [viewId, focus.container, editorSignature]);
   const suspend = useCallback(() => {
     // Read the native IME buffer before detaching either form and before a
     // fast server response can replace its base revision.
-    if (pendingComposition.current?.()) dirty.current = true;
+    dirty.current = hasUnsaved();
+    pendingComposition.current?.();
     const active = document.activeElement;
     if (
       active instanceof HTMLElement &&
@@ -309,7 +359,7 @@ function ViewsSession({
     setError("");
     setConfirmId(null);
     return ++sequence.current;
-  }, [focus.container]);
+  }, [focus.container, hasUnsaved]);
   const onVerificationError = useCallback(
     (e: unknown) => {
       if (
@@ -328,7 +378,13 @@ function ViewsSession({
     },
     [discard, suspend],
   );
-  const mutation = useViewMutation(api, onVerificationError);
+  const mutation = useViewMutation(
+    api,
+    onVerificationError,
+    retainedRetry,
+    accessEpoch,
+  );
+  const clearMutationError = mutation.clearError;
   const refresh = useCallback(
     async (replace = false) => {
       denied.current = false;
@@ -373,12 +429,14 @@ function ViewsSession({
           if (base.current && dirty.current && !replace) setConflict(true);
           else {
             base.current = data[0];
+            pristineEditor.current = null;
             draftName.current = undefined;
             retainedRetry.current = null;
             dirty.current = false;
             setConflict(false);
           }
         }
+        clearMutationError();
         setRows(data);
         setChecking(false);
       } catch (e) {
@@ -396,6 +454,7 @@ function ViewsSession({
       discard,
       suspend,
       onVerificationError,
+      clearMutationError,
     ],
   );
   useEffect(() => {
@@ -451,6 +510,24 @@ function ViewsSession({
     },
   });
   const selected = viewId ? base.current : null;
+  useLayoutEffect(() => {
+    if (selected && !checking && pristineEditor.current === null)
+      pristineEditor.current = editorSignature();
+  }, [selected, checking, editorSignature]);
+  const finishSave = (id: string) => {
+    pristineEditor.current = editorSignature();
+    dirty.current = false;
+    if (viewId) {
+      void refresh(true);
+      return;
+    }
+    savedNavigation.current = true;
+    try {
+      onView(id);
+    } finally {
+      savedNavigation.current = false;
+    }
+  };
   return (
     <section
       className={searchEntry ? undefined : "op-panel saved-views"}
@@ -458,9 +535,10 @@ function ViewsSession({
       ref={focus.container}
       onFocusCapture={focus.onFocusCapture}
       onChangeCapture={() => {
-        dirty.current = true;
+        if (!mutation.busy) dirty.current = hasUnsaved();
       }}
     >
+      <NavigationProtection dirty={hasUnsaved} />
       {!searchEntry && (
         <h2 data-view-fallback tabIndex={-1}>
           {viewId
@@ -483,7 +561,9 @@ function ViewsSession({
           다시 불러오기
         </button>
       )}
-      {mutation.error && <p role="alert">{mutation.error}</p>}
+      {mutation.error && !selected && !example && !searchEntry && !error && (
+        <p role="alert">{mutation.error}</p>
+      )}
       <span role="status">{focus.notice}</span>
       {rows && !checking && !viewId && !searchEntry && (
         <>
@@ -561,7 +641,15 @@ function ViewsSession({
               <button
                 type="button"
                 key={label}
+                disabled={mutation.busy}
                 onClick={() => {
+                  if (
+                    hasUnsaved() &&
+                    !window.dispatchEvent(
+                      new Event("akh:before-navigate", { cancelable: true }),
+                    )
+                  )
+                    return;
                   draftName.current = undefined;
                   retainedRetry.current = null;
                   dirty.current = false;
@@ -597,6 +685,7 @@ function ViewsSession({
           identityKey={spaceId + ":" + principalId}
           verification={{
             checking,
+            saving: mutation.busy,
             epoch,
             onFailure: onVerificationError,
             pendingComposition,
@@ -608,16 +697,14 @@ function ViewsSession({
           handoff={entryHandoff.current}
           onOpen={onOpen}
           renderSave={(filters, disabled, composition) => (
-            <SaveViewForm
-              api={api}
+            <ViewForm
+              mutation={mutation}
               filters={filters}
               disabled={disabled || conflict}
               composition={composition}
               draftName={draftName}
-              retainedRetry={retainedRetry}
-              onFailure={onVerificationError}
               view={selected ?? undefined}
-              onSaved={(id) => (viewId ? void refresh(true) : onView(id))}
+              onSaved={finishSave}
             />
           )}
         />

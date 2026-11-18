@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
 import { SavedViews, SaveViewForm } from "./SavedViews";
 import { normalizeSearchFilters } from "./search-client";
-import { ApiError, type OperationalApi } from "../api";
+import { ApiError, OperationalApi } from "../api";
 const roots: ReturnType<typeof createRoot>[] = [];
 afterEach(async () => {
   for (const r of roots.splice(0)) await act(async () => r.unmount());
@@ -513,3 +513,173 @@ test.each(["view-name", "query"])(
     );
   },
 );
+
+test("the last bound /me must still grant knowledge.read before releasing a protected response", async () => {
+  const { element, render } = mount();
+  const identity = {
+    principalId: "reader",
+    workspaceId: "space",
+    csrfToken: "fixed",
+    role: "reader",
+  };
+  let caps = ["knowledge.read", "draft.write"],
+    path = "";
+  vi.stubGlobal("fetch", async (url: string) => {
+    path = String(url).split("/api/v1")[1];
+    const data =
+      path === "/me"
+        ? { ...identity, capabilities: caps }
+        : path === "/convenience/views"
+          ? { items: [definition("space")] }
+          : result("protected search text");
+    return new Response(JSON.stringify(data), {
+      headers: { "X-Personal-Scope-Verified": "1" },
+    });
+  });
+  const api = new OperationalApi("", "space").forSavedViews(identity);
+  await render(<SavedViews {...props} api={api} />);
+  expect(element.textContent).toContain("보기 space");
+  caps = ["knowledge.read"];
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(element.textContent).toContain("보기 space");
+  caps = ["space.create"];
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(path).toBe("/me");
+  expect(element.textContent).not.toContain("보기 space");
+  expect(element.querySelector("[role=alert]")).toBeTruthy();
+  await expect(api.post("/questions/search", {})).rejects.toMatchObject({
+    status: 403,
+  });
+});
+test.each(["existing", "new"])(
+  "locks %s view values while a save is unresolved and guards voluntary navigation only for drafts",
+  async (mode) => {
+    const { element, render } = mount();
+    const v = definition("space");
+    let saved = v;
+    let resolve!: (r: { id: string; revision: number }) => void;
+    const request = vi.fn(async (_p: string, _m: string, data: any) => {
+      await new Promise<{ id: string; revision: number }>((r) => (resolve = r));
+      saved = { ...v, name: data.name, filters: data.filters, revision: 2 };
+      return { id: "v", revision: 2 };
+    });
+    const api = {
+      get: async (path: string) =>
+        path === "/me"
+          ? {
+              principalId: "reader",
+              workspaceId: "space",
+              capabilities: ["knowledge.read"],
+            }
+          : saved,
+      post: async () => result(),
+      request,
+    } as unknown as OperationalApi;
+    const allowed = () =>
+      window.dispatchEvent(
+        new Event("akh:before-navigate", { cancelable: true }),
+      );
+    const unload = () =>
+      window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
+    const onSaved = vi.fn(() => {
+      expect(allowed()).toBe(true);
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    await render(
+      <SavedViews
+        {...props}
+        api={api}
+        searchEntry={mode === "new"}
+        viewId={mode === "existing" ? "v" : undefined}
+        onView={onSaved}
+      />,
+    );
+    const input = (key: string) =>
+      element.querySelector<HTMLInputElement>(
+        '[data-search-field="' + key + '"]',
+      )!;
+    const change = async (key: string, value: string) =>
+      act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )!.set!.call(input(key), value);
+        input(key).dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    expect(allowed()).toBe(true);
+    await change("query", "submitted query");
+    expect(allowed()).toBe(mode === "new");
+    await change("view-name", "submitted name");
+    expect(allowed()).toBe(false);
+    expect(unload()).toBe(false);
+    await act(async () =>
+      element
+        .querySelector<HTMLButtonElement>(".saved-view-form button")!
+        .click(),
+    );
+    for (const control of element.querySelectorAll<
+      HTMLInputElement | HTMLSelectElement
+    >("[data-search-field]"))
+      expect(control.matches(":disabled")).toBe(true);
+    await change("query", "second query");
+    await change("view-name", "second name");
+    expect(input("query").value).toBe("submitted query");
+    expect(input("view-name").value).toBe("submitted name");
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(input("query").matches(":disabled")).toBe(true);
+    await act(async () => resolve({ id: "v", revision: 2 }));
+    if (mode === "existing") {
+      expect(input("view-name").value).toBe("submitted name");
+      expect(allowed()).toBe(true);
+    } else expect(onSaved).toHaveBeenCalledWith("v");
+    confirm.mockRestore();
+  },
+);
+
+test("a create result arriving after confirmed read denial cannot navigate or revive the draft", async () => {
+  const { element, render } = mount(),
+    onView = vi.fn(),
+    get = vi.fn().mockResolvedValue({ items: [] });
+  let accept!: (value: { id: string }) => void;
+  const request = vi.fn(() => new Promise((r) => (accept = r)));
+  const api = {
+    get,
+    request,
+    post: async () => result(),
+  } as unknown as OperationalApi;
+  await render(<SavedViews {...props} api={api} onView={onView} />);
+  await act(async () =>
+    Array.from(element.querySelectorAll("button"))
+      .find((b) => b.textContent === "최근 변경")!
+      .click(),
+  );
+  const name = element.querySelector<HTMLInputElement>(
+    ".saved-view-form input",
+  )!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!.call(name, "pending private create");
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () =>
+    element
+      .querySelector<HTMLButtonElement>(".saved-view-form button")!
+      .click(),
+  );
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  get.mockRejectedValueOnce(
+    new ApiError("현재 권한 없음", 403, "KNOWLEDGE_READ_REVOKED"),
+  );
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(element.querySelector(".saved-view-form")).toBeNull();
+  expect(
+    window.dispatchEvent(new Event("beforeunload", { cancelable: true })),
+  ).toBe(true);
+  await act(async () => accept({ id: "late" }));
+  expect(onView).not.toHaveBeenCalled();
+  expect(confirm).not.toHaveBeenCalled();
+  expect(element.textContent).toContain("현재 권한 없음");
+  confirm.mockRestore();
+});

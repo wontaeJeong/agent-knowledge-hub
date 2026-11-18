@@ -73,6 +73,10 @@ export class OperationalApi {
   private meSequence = 0;
   private sessionGeneration = 0;
   private expiredHandler?: () => void;
+  private readAccessLostHandler?: () => void;
+  onReadAccessLost(handler: (() => void) | undefined) {
+    this.readAccessLostHandler = handler;
+  }
   onExpired(handler: (() => void) | undefined) {
     this.expiredHandler = handler;
   }
@@ -262,6 +266,10 @@ export class OperationalApi {
           me.csrfToken !== this.personalBinding.csrfToken) {
         this.sessionExpired();
         throw new ApiError("현재 세션을 다시 확인하세요.", 409, "SESSION_CHANGED");
+      }
+      if (!me.capabilities?.includes("knowledge.read")) {
+        this.readAccessLostHandler?.();
+        throw new ApiError("현재 공간의 내용 열람 권한이 없습니다.",403,"KNOWLEDGE_READ_REVOKED");
       }
     }
     return data;
