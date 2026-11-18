@@ -126,7 +126,7 @@ export function useDocumentSearch(
     setResult({ ...bound, page: null, error: "", busy: true });
     try {
       const page = await searchDocuments(api, filters, {
-        limit: quick ? 10 : 25,
+        limit: quick ? 10 : filters.limit,
         cursor,
         signal: abort.signal,
       });

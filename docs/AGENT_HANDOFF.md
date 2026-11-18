@@ -1,5 +1,15 @@
 # 에이전트 인계
 
+## 2026-11-18 C11 개인 저장 검색과 보기
+
+UXC-10 / SRH-002·009, UX-001·004, ACL-008. 검색 조건을 사용자가 명시적으로 재사용할 수 있다. 지식 문서, 버전, 검토·발행 상태는 수정하지 않는다. PostgreSQL 146과 `server/convenience/views*`, runtime HTTP, OperationalApp·PersonalLibrary·SearchPage·SavedViews·route가 개인·공간별 정의를 연결한다. 서비스가 기존 SearchFilters로 정의를 검증하고, 보기를 열면 현재 ScopedSearch를 다시 실행한다. 사용자 입력을 포함할 수 있는 이름·조건은 서버에만 영속 저장한다.
+
+- 공간당 개인 100개, 이름 100자, 기준 revision과 변경 UUID를 검사한다. 순서 이전·다음 항목을 비교한 뒤 한 트랜잭션에서 두 revision을 올린다. 이름·검색어·문서 제목을 mutation receipt나 공개 로그에 넣지 않는다.
+- 보존/삭제 인벤토리와 법정 보류·복구 재적용에 새 저장소를 연결했다. 임의 입력과 원본 계보를 연결할 수 없을 때는 불완전한 삭제 상태를 기록한다. 조건의 의미 및 정확한 보류 동작은 [API 계약](API_CONTRACT.md)에 있다.
+- PostgreSQL 17.11에서 12파일 131개 통과. 여기에 저장 보기 관련 6개 시험이 포함된다. 전체 npm check, Chromium 4조합의 재로그인·권한 철회·다른 개인/공간·키보드·충돌/순서·삭제 확인 및 8 PNG를 검증했다. [검증 기록](ui-validation/2026-11-18-saved-views/README.md)
+- 세션 경계와 현재 자료 접근을 검사한 합성 실행이다. 사내 IdP, 운영 백업의 물리 삭제, OS별 IME·보조기기, 검색 품질과 후속 에이전트 업무 개선 효과는 미검증이다. 팀 공유는 별도 기능이다.
+
+
 ## 2026-11-18 C10 PostgreSQL CI 시간 한도
 
 제품 커밋 `ced71f8`의 GitHub Actions 실행에서 PostgreSQL 작업이 20분 한도에 도달했다. 전체 157개 파일 중 149개가 통과했고 150번째 실행 중 취소되어 종합 검사가 실패했다. 직전 브랜치 성공 실행은 12분 56초, main 성공 실행은 19분 56초였다. `.github/workflows/ci.yml`의 PostgreSQL 작업 한도를 30분으로 변경했다. 실제 PostgreSQL 17에서 UUID DB별 전체 파일을 순차 실행하는 계약과 집계 검사를 유지한다. UXC-09 관련 제품 근거는 아래 최종 리뷰 기록에 있다. 이 변경을 포함한 전체 원격 검사는 새 CI 실행에서 확인한다. [취소된 작업](https://github.com/wontaeJeong/agent-knowledge-hub/actions/runs/44207497816/job/134477108735)

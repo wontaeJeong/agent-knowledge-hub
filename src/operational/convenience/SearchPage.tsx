@@ -1,10 +1,12 @@
 import { useCurrentListFocus } from "./list-focus";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { OperationalApi } from "../api";
 import { usePersonalKey } from "./personal-client";
 import {
   normalizeSearchFilters,
   searchDateToIso,
+  searchDateToLocal,
+  type SearchFilters,
   useDocumentSearch,
   type SearchItem,
 } from "./search-client";
@@ -28,7 +30,16 @@ export type SearchHandoff = {
   revision: number;
   query: string;
 };
+type SaveControls = (filters: SearchFilters, disabled: boolean) => ReactNode;
+const dateKeys = new Set([
+  "periodFrom",
+  "periodTo",
+  "reviewDateFrom",
+  "reviewDateTo",
+]);
 export function SearchPage(props: {
+  initialFilters?: SearchFilters;
+  renderSave?: SaveControls;
   api: OperationalApi;
   identityKey: string;
   handoff?: SearchHandoff;
@@ -45,30 +56,47 @@ export function SearchPage(props: {
       key={`${key}:${handoff?.revision ?? "none"}`}
       api={props.api}
       onOpen={props.onOpen}
-      initialQuery={handoff?.query ?? ""}
+      initial={
+        props.initialFilters ??
+        normalizeSearchFilters({ query: handoff?.query ?? "" })
+      }
+      renderSave={props.renderSave}
     />
   );
 }
 function SearchSession({
   api,
   onOpen,
-  initialQuery,
+  initial,
+  renderSave,
 }: {
   api: OperationalApi;
   onOpen: (item: SearchItem) => boolean | void;
-  initialQuery: string;
+  initial: SearchFilters;
+  renderSave?: SaveControls;
 }) {
-  const [query, setQuery] = useState(initialQuery),
+  const [query, setQuery] = useState(initial.query),
     [composing, setComposing] = useState(false),
-    [raw, setRaw] = useState<Record<string, string>>({}),
-    [historical, setHistorical] = useState(false),
-    [archived, setArchived] = useState("");
-  const dateKeys = new Set([
-    "periodFrom",
-    "periodTo",
-    "reviewDateFrom",
-    "reviewDateTo",
-  ]);
+    [raw, setRaw] = useState<Record<string, string>>(() =>
+      Object.fromEntries(
+        fields.map(([key]) => {
+          const value = initial[key];
+          return [
+            key,
+            Array.isArray(value)
+              ? value.join(", ")
+              : dateKeys.has(key) && value
+                ? searchDateToLocal(value)
+                : (value ?? ""),
+          ];
+        }),
+      ),
+    ),
+    [historical, setHistorical] = useState(initial.historical),
+    [sort, setSort] = useState(initial.sort),
+    [archived, setArchived] = useState(
+      initial.archived === undefined ? "" : String(initial.archived),
+    );
   const candidate = {
     query,
     historical,
@@ -78,12 +106,15 @@ function SearchSession({
       ),
     ),
     tags:
-      raw.tags
-        ?.split(",")
-        .map((s) => s.trim())
-        .filter(Boolean) ?? [],
+      raw.tags === initial.tags.join(", ")
+        ? initial.tags
+        : (raw.tags
+            ?.split(",")
+            .map((s) => s.trim())
+            .filter(Boolean) ?? []),
     ...(archived ? { archived: archived === "true" } : {}),
-    limit: 25,
+    limit: initial.limit,
+    sort,
   };
   let validation = "";
   let filters = normalizeSearchFilters({ query, historical, limit: 25 });
@@ -93,7 +124,16 @@ function SearchSession({
       ...Object.fromEntries(
         Object.entries(raw)
           .filter(([key, value]) => dateKeys.has(key) && value)
-          .map(([key, value]) => [key, searchDateToIso(value)]),
+          .map(([key, value]) => {
+            const original = initial[key as keyof SearchFilters];
+            return [
+              key,
+              typeof original === "string" &&
+              searchDateToLocal(original) === value
+                ? original
+                : searchDateToIso(value),
+            ];
+          }),
       ),
     });
   } catch {
@@ -184,6 +224,18 @@ function SearchSession({
               </label>
             ))}
             <label>
+              결과 정렬
+              <select
+                value={sort}
+                onChange={(e) =>
+                  change(() => setSort(e.target.value as SearchFilters["sort"]))
+                }
+              >
+                <option value="recent">최근 변경순</option>
+                <option value="title">제목순</option>
+              </select>
+            </label>
+            <label>
               보관 여부
               <select
                 value={archived}
@@ -208,6 +260,7 @@ function SearchSession({
           검색
         </button>
       </form>
+      {renderSave?.(filters, composing || !!validation)}
       {(validation || search.error) && (
         <p role="alert">{validation || search.error}</p>
       )}
@@ -238,7 +291,7 @@ function SearchSession({
           type="button"
           onClick={() => void search.run(search.page!.nextCursor)}
         >
-          다음 결과 25건
+          다음 결과 {filters.limit}건
         </button>
       )}
       {search.error && (

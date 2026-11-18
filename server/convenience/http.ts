@@ -1,3 +1,4 @@
+import type { SavedViewService } from "./views";
 import type { HomeService } from "./home";
 import { homeWidgets } from "./home";
 import { z } from "zod";
@@ -148,4 +149,27 @@ export async function handleLinksRoute(input:{method:string;path:string;query:UR
   input.send(200,await service.backlinks(input.ctx,match[1],q));return true;
  }
  return false;
+}
+
+export async function handleSavedViewsRoute(
+  input: {method:string; path:string; query:URLSearchParams; body:unknown; ctx:Context; send:(status:number,data:unknown)=>void},
+  service: SavedViewService,
+) {
+  const {method,path,query,body,ctx,send}=input;
+  const root="/api/v1/convenience/views";
+  if(path!==root && !path.startsWith(root+"/")) return false;
+  if(query.size) throw Error("VALIDATION_FAILED");
+  if(ctx.agent || ctx.credentialId) throw Error("FORBIDDEN");
+  const id=path===root ? undefined : path.slice(root.length+1);
+  if(id!==undefined && !z.uuid().safeParse(id).success) throw Error("NOT_FOUND");
+  if(method==="GET") {
+    send(200,id ? await service.read(ctx,id) : await service.list(ctx));
+  } else if((method==="POST" && !id) || (method==="PATCH" && id)) {
+    const payload=z.record(z.string(),z.unknown()).parse(body);
+    if(Object.hasOwn(payload,"id")) throw Error("VALIDATION_FAILED");
+    send(id ? 200 : 201,await service.save(ctx,{...payload,id}));
+  } else if(method==="DELETE" && id) {
+    send(200,await service.remove(ctx,id,body));
+  } else throw Error("NOT_FOUND");
+  return true;
 }

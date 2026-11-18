@@ -93,3 +93,37 @@
     grid-template-columns: 1fr;
   }
 }
+
+.saved-view-form,
+.saved-view-list li,
+.saved-view-list li > div {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.saved-view-form {
+  margin-block: 1rem;
+}
+.saved-view-form label {
+  display: grid;
+  gap: 0.25rem;
+  max-width: 100%;
+}
+.saved-view-list {
+  padding: 0;
+  list-style: none;
+}
+.saved-view-list li {
+  align-items: center;
+  justify-content: space-between;
+  padding-block: 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+.saved-views a,
+.saved-views h2 {
+  overflow-wrap: anywhere;
+}
+.saved-views > button {
+  margin: 0.25rem;
+}

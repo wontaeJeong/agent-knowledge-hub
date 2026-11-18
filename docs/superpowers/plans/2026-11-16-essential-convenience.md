@@ -225,14 +225,16 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 
 ## Task 11: 저장 검색·개인 보기
 
-**Files:** Create `server/migrations/122-personal-saved-views.sql`, `server/convenience/views.ts`, `views.test.ts`, `src/operational/convenience/SavedViews.tsx`, `views.test.tsx`; Modify `server/convenience/http.ts`, `src/operational/convenience/SearchPage.tsx`, `PersonalLibrary.tsx`, `route.ts`.
+**Files:** Create `server/migrations/146-personal-saved-views.sql`, `server/convenience/views.ts`, `views.test.ts`, `src/operational/convenience/SavedViews.tsx`, `views.test.tsx`; Modify `server/convenience/http.ts`, `src/operational/convenience/SearchPage.tsx`, `PersonalLibrary.tsx`, `route.ts`.
 
 **Interfaces:** Consumes Task 5 `SearchFilters`, Task 3 personal lists and Task 1 private view links. Produces `SavedViewService.list(ctx)`, `save(ctx,{id?,name,filters,sort,expectedRevision,mutationId})`, `remove(ctx,id,expectedRevision)`; endpoints and DTO as UXC-10. View definitions are owner/space scoped, results always freshly authorized.
 
-- [ ] Add failures for re-login persistence, 100-character/100-view boundaries, unknown filters, unauthorized view ID, current permission revocation, concurrent edit/reorder/delete and search text absent from URL/localStorage.
-- [ ] Run saved-view DB/UI tests red and implement typed storage/CAS plus save/edit/delete/reorder/run UI. URL holds only view ID.
-- [ ] Run search/personal/route regressions and fresh-account/space-switch browser flows. A saved view never grants document access or becomes team-shared by default.
-- [ ] Capture keyboard/mobile evidence and commit `feat: add personal saved search views`.
+- [x] Add failures for re-login persistence, 100-character/100-view boundaries, unknown filters, unauthorized view ID, current permission revocation, concurrent edit/reorder/delete and search text absent from URL/localStorage.
+- [x] Run saved-view DB/UI tests red and implement typed storage/CAS plus save/edit/delete/reorder/run UI. URL holds only view ID.
+- [x] Run search/personal/route regressions and fresh-account/space-switch browser flows. A saved view never grants document access or becomes team-shared by default.
+- [x] Capture keyboard/mobile evidence and commit `feat: add personal saved search views`.
+
+실행 근거는 [C11 PostgreSQL·Chromium 검증](../../ui-validation/2026-11-18-saved-views/README.md)에 있다. 145 이후의 다음 번호 146을 사용했다. 사내 인증 및 운영 인수는 별도다.
 
 ## Task 12: 연결 인수·현재 현황 정리
 

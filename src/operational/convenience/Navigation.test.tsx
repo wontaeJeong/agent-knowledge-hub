@@ -208,11 +208,12 @@ test("access-request destination selects the exact authorized request beyond 25 
   expect(container.textContent).toContain("접근 이유 29");
   expect(container.textContent).not.toContain("접근 이유 0");
 });
-test("a new destination cannot silently present a future feature as connected", async () => {
+test("saved views opens the private list and offers examples only on selection", async () => {
   const container = await mount("/?app=1&space=team&section=saved-views", () => ({
     items: [],
   }));
-  expect(container.textContent).toContain("아직 연결되지 않았습니다");
+  expect(container.textContent).toContain("저장한 보기가 없습니다");
+  expect(container.textContent).toContain("예시 보기");
   expect(
     container.querySelector('a[aria-current="page"]')?.textContent,
   ).toContain("저장 보기");

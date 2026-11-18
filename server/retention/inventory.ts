@@ -1,3 +1,4 @@
+import {assertSavedViewsSchema,savedViewProjection} from "../convenience/views-schema";
 import {assertPublishedLinksSchema} from "../convenience/links";
 import {assertDocumentOrderSchema} from "../convenience/structure-schema";
 import type { PoolClient } from "pg";
@@ -6,6 +7,7 @@ import { releasedImportTables, releasedImportProjection } from "../operations/re
 // The same storage/product graph classes as operations erasure, including immutable
 // histories and released private imports. Unknown/new classes are never deleted.
 const productTables = new Set([
+  "personal_saved_views","personal_saved_view_mutations",
   "workflow_bulk_requests","workflow_bulk_items",
   "published_page_links","workflow_document_order","scheduled_publications","sources","pages","versions","batches","requests","publications","approvals",
   "workflow_access_requests","workflow_activity","workflow_comments","workflow_document_state","workflow_draft_disclosures","workflow_draft_recovery_grants","workflow_draft_revision_history","workflow_draft_save_mutations","workflow_drafts","workflow_events","workflow_notifications","workflow_preferences","workflow_source_state","workflow_subscriptions","workflow_templates",
@@ -33,6 +35,7 @@ export function contains(value: unknown, target: string): boolean {
 /** Keep private bodies/titles inside PostgreSQL. Hash changes into the preview
  * without materializing them in the service or exposing them in a receipt. */
 function privateProjection(table:string):string | undefined {
+  if(table === "personal_saved_views")return savedViewProjection;
   if(table === "workflow_bulk_requests" || table === "workflow_bulk_items") return `(to_jsonb(t)-'reason'-'patch'-'result'-'session_id'-'token_hash') || jsonb_build_object('private_payload_sha256',encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex'))`;
   if (table === "batches") return `(to_jsonb(t)-'data') || jsonb_build_object('sourceIds',(SELECT jsonb_agg(s->'id') FROM jsonb_array_elements(t.data->'snapshots') s),'pageIds',(SELECT jsonb_agg(u->'id') FROM jsonb_array_elements(t.data->'updates') u),'private_payload_sha256',encode(sha256(convert_to(t.data::text,'UTF8')),'hex'))`;
   if (table === "scheduled_publications") return `(to_jsonb(t)-'session_id'-'request_key'-'result') || jsonb_build_object('private_payload_sha256',encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex'))`;
@@ -59,6 +62,7 @@ function privateProjection(table:string):string | undefined {
   return undefined;
 }
 export function unknownPrivateReference(row: {table:string;data:Record<string,unknown>}) {
+  if (row.table === "personal_saved_views")return true;
   if (row.table === "durable_jobs") return row.data.kind !== "retention";
   if (row.table === "durable_job_outbox") return row.data.job_kind !== "retention";
   return ["runtime_answers","runtime_lints","batches","requests","publications","storage_imports","storage_import_effects","workflow_comments","workflow_notifications","workflow_preferences","workflow_templates","workflow_events","workflow_document_state","workflow_source_state","refinement_evidence","refinement_claims","refinement_outcomes","refinement_requests","refinement_reviews","version_metadata","version_metadata_events","version_restore_previews","version_restore_plans","versions_decisions","governance_events","governance_handoffs","collaboration_digest_plans","policy_events","policy_private_import_sources","model_source_policies","agent_api_keys","agent_device_clients","agent_device_grants","agent_key_audit","agent_key_requests","model_usage_events","workflow_access_requests","identity_emergencies"].includes(row.table);
@@ -67,6 +71,7 @@ export async function inventory(
   db: PoolClient,
   workspaceId: string,
 ): Promise<ProductRow[]> {
+  await assertSavedViewsSchema(db,"RETENTION_GRAPH_UNSUPPORTED");
   await assertPublishedLinksSchema(db,"RETENTION_GRAPH_UNSUPPORTED");
   await assertDocumentOrderSchema(db,"RETENTION_GRAPH_UNSUPPORTED");
   const columns = (

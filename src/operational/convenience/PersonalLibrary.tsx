@@ -9,6 +9,7 @@ import {
   type LibraryKind,
   type LibraryPage,
 } from "./personal-client";
+import { SavedViews, type SavedViewsProps } from "./SavedViews";
 import { useCurrentListFocus } from "./list-focus";
 import "./personal.css";
 interface Scope {
@@ -23,11 +24,12 @@ interface Props extends Scope {
   refreshKey?: string;
   compact?: boolean;
 }
-export function PersonalLibrary(props: Props) {
+export function PersonalLibrary(props: Props | (SavedViewsProps & {kind:"saved-views"; refreshKey?:string})) {
   const key = usePersonalKey(
     props.api,
     `${props.principalId}:${props.spaceId}:${props.kind}:${props.refreshKey ?? ""}`,
   );
+  if(props.kind==="saved-views")return <SavedViews key={key} {...props}/>;
   return <LibrarySession key={key} {...props} />;
 }
 function LibrarySession({

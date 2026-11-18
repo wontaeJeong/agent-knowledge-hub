@@ -1,0 +1,73 @@
+{
+  "productionFingerprint": "11159a5aadb52d1bf24088a0adbf152e13bfcda532c4c63cc9101ea25c1c45b9",
+  "browser": "158.0.8127.18",
+  "postgres": "17.11",
+  "results": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "keyboardSave": true,
+      "keyboardReopen": true,
+      "keyboardReorder": true,
+      "confirmedDelete": true,
+      "conflictRefreshAndEdit": true,
+      "relogin": true,
+      "sourceRevoked": true,
+      "otherOwnerDenied": true,
+      "otherSpaceDenied": true,
+      "privateStorageAndUrl": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "keyboardSave": true,
+      "keyboardReopen": true,
+      "keyboardReorder": true,
+      "confirmedDelete": true,
+      "conflictRefreshAndEdit": true,
+      "relogin": true,
+      "sourceRevoked": true,
+      "otherOwnerDenied": true,
+      "otherSpaceDenied": true,
+      "privateStorageAndUrl": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "keyboardSave": true,
+      "keyboardReopen": true,
+      "keyboardReorder": true,
+      "confirmedDelete": true,
+      "conflictRefreshAndEdit": true,
+      "relogin": true,
+      "sourceRevoked": true,
+      "otherOwnerDenied": true,
+      "otherSpaceDenied": true,
+      "privateStorageAndUrl": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "keyboardSave": true,
+      "keyboardReopen": true,
+      "keyboardReorder": true,
+      "confirmedDelete": true,
+      "conflictRefreshAndEdit": true,
+      "relogin": true,
+      "sourceRevoked": true,
+      "otherOwnerDenied": true,
+      "otherSpaceDenied": true,
+      "privateStorageAndUrl": true
+    }
+  ],
+  "artifacts": {
+    "1440-dark-list.png": "2f0031cfa48a6f2935f76b2c6c63a9bc5e75aff3a7514e26d9de273cf84f1282",
+    "1440-dark-view.png": "9b680ab4eb600d19077f1b1d1fe9d45ba2807b7978010576a815d63a6036321f",
+    "1440-light-list.png": "ef5245700f9bb75a97d67a14c6b07711d5cbb20c03924e18e00e6efb02035d86",
+    "1440-light-view.png": "dbde2f8dea774e470c7979a142329a4746150dc32067d9b3bb709d559bbd1a7a",
+    "390-dark-list.png": "27a677df65d2a704aa96b3e667c78c7d756817edb20ebabe46150c9e8c691403",
+    "390-dark-view.png": "e55ee1c19c3c9062f28132925a980f7f2abf24bdf489aacb1c474edb25d59eba",
+    "390-light-list.png": "f7bd81a0c601d1328c27a956638531790450a4b9f406635698b86e8e1ce2f21e",
+    "390-light-view.png": "72000acb8a6ad0af2cf7fcce2c7513021bd624255c7fb365906075778cb6d7d7"
+  }
+}

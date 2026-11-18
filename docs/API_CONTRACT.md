@@ -219,3 +219,21 @@ C9 Round1: 새 token capture는 standalone CR과 LF의 줄 경계를 renderer와
 기존 `{token}` 호출은 동기 move/archive 응답·멱등성을 유지한다. **태그만 승인된 계약 변경**으로 즉시 applied가 아니라 동일한 reviewed proposal의 needs-review와 batch/hash를 반환한다. 응답 유실·동시 재시도는 같은 proposal을 재생한다. 구형 태그 호출자는 승인/발행 완료로 해석하면 안 된다. 단일 `/workflows/pages/:id/state`의 tags 입력도 HTTP 409 METADATA_REVIEW_REQUIRED와 properties 경로 안내를 반환한다. 구조 이동, 보관, 보호, reviewDue 등 운영 설정과 기존 properties map 입력 계약은 유지한다. 발행 metadata의 속성 폼 경로는 검토되는 새 버전으로 반영한다.
 
 승인은 정확한 actor·원래 session·operation hash·mutation·job에 한정하며 machine key/일반 delegated job로 발급할 수 없다. 실행 grant는 기존 runtime timeout(기본 120초, 설정 상한 1시간)과 부모 세션 만료 중 빠른 시각에 끝난다. 10분 preview 만료 후 새 접수는 금지하고, 실제 영속 job가 존재하는 동일 입력 재생만 허용한다. 원래 session이 끝나거나 grant가 만료되면 자동으로 권한을 연장하지 않는다. 중단 사유와 미처리 항목을 표시하고 현재 권한으로 다시 미리보기/명시 접수해야 한다. 일부 원본/대상 ACL 철회는 그 항목 실행을 denied로 만들고 조회에서 숨기며 나머지 허가된 항목을 막지 않는다. 기존 HMAC preview 자체는 서버 프로세스 재시작 시 무효화될 수 있으며 새 durable receipt/작업 재시작 보장과 구별한다.
+
+## 개인 저장 보기 (UXC-10)
+
+로그인한 사람이 현재 공간에서 `knowledge.read`를 보유하면 `/api/v1/convenience/views`로 본인의 저장 보기를 관리할 수 있다. 사용자·공간은 요청 본문의 입력을 받지 않고 인증된 컨텍스트에서 결정한다. 변경은 같은 origin과 CSRF 토큰을 검사한다.
+
+| 메서드 | 경로 | 입력과 결과 |
+| --- | --- | --- |
+| GET | `/convenience/views` | 개인 정렬 순서의 `{items}` |
+| GET | `/convenience/views/:id` | 현재 소유자·공간의 정의. 다른 개인·공간의 ID는 404 |
+| POST | `/convenience/views` | `{name, filters, sort, expectedRevision: 0, mutationId}` → 201 |
+| PATCH | `/convenience/views/:id` | 같은 정의와 양수 기준 revision으로 수정. 순서 변경은 `{direction, neighborId, neighborRevision, expectedRevision, mutationId}` |
+| DELETE | `/convenience/views/:id` | `{expectedRevision, mutationId}` |
+
+변경 결과는 `{id, revision}`이다. 동일 요청의 UUID 재시도는 처음 발급한 영수증을 반환한다. 서로 다른 요청에 같은 UUID를 쓰거나 기준 revision이 바뀌면 409다. 양옆 항목의 순서를 바꾸면 둘의 revision을 함께 올린다. 정의에는 이름(1~100 유니코드 코드 포인트), 정규화된 검색 조건과 결과 정렬(`recent` 또는 `title`)을 보관한다. 개인·공간당 최대 100개이며 페이지 커서와 알 수 없는 검색 필드는 거부한다.
+
+저장 링크는 앱·공간·섹션 라우팅에 UUID만 추가한다. 열 때마다 세션과 `knowledge.read`로 정의를 조회한 후 `POST /questions/search`가 당시의 원본·상위 문서·이력 접근을 재검사한다. 보기 정의에 포함된 개인 입력은 보호된 서버 데이터다. API 응답은 `private, no-store`이며 URL과 브라우저 저장소에는 이름·검색어·결과를 기록하지 않는다.
+
+Retention과 법정 삭제 인벤토리에는 정의의 PostgreSQL 해시를 전달한다. 자유 입력의 원본 계보를 증명할 수 없어 보관 기간 점검에서 관련 후보에는 `UNKNOWN_REFERENCE` 또는 의존성 차단이 적용된다. 단일 원본 법정 삭제는 확인된 계보를 지운 뒤 남은 자유 입력이 있으면 `UNLINEAGED_CONTENT_REQUIRES_SEPARATE_PREVIEW`로 기록한다. 불완전한 복구 재적용은 롤백된다. 전체 공간 삭제·복구 재적용은 보류·승인·미리보기 경계를 확인하고 정의와 변경 영수증을 제거한다. 활성 법정 보류가 있으면 개인 보기를 덮어쓰거나 삭제할 수 없다. 자격 중지·공간 접근 해제는 정의 접근을 차단한다. 개인 입력의 물리적 백업 만료는 운영 보존 정책을 따른다.

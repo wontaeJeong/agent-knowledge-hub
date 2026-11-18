@@ -215,6 +215,7 @@ export class OperationalApi {
         APPROVAL_STALE: "승인 기준이 변경되었습니다. 다시 검토하세요.",
         STALE_VERSION:
           "다른 변경이 반영되었습니다. 최신 버전에서 다시 제안하세요.",
+        SAVED_VIEW_CAPACITY: "개인 보기는 공간당 100개까지 저장할 수 있습니다.",
         FAVORITE_BOUNDARY: "목록의 경계가 변경되었습니다. 현재 목록을 다시 확인하세요.",
         PERSONAL_LIBRARY_CAPACITY: "개인 목록 처리 한도를 초과했습니다. 공간 관리자에게 문의하세요.",
         DISCOVERY_CAPACITY:

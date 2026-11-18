@@ -3,6 +3,7 @@ import { MyTasks } from "./convenience/MyTasks";
 import { DocumentComposer } from "./convenience/DocumentComposer";
 import { DocumentSnapshot } from "./convenience/DocumentSnapshot";
 import { GlobalSearch } from "./convenience/QuickOpen";
+import { SaveViewForm, viewHref } from "./convenience/SavedViews";
 import { SearchPage, type SearchHandoff } from "./convenience/SearchPage";
 import type { SearchItem } from "./convenience/search-client";
 import { PersonalLibrary } from "./convenience/PersonalLibrary";
@@ -384,6 +385,13 @@ function OperationalWorkspace({
       window.removeEventListener("popstate", onLocation);
     };
   }, [location, spaceId, onRestoreSpace, preview]);
+  const openSavedView = (id?:string) => {
+    if(!identity || !window.dispatchEvent(new Event("akh:before-navigate",{cancelable:true}))) return;
+    window.history.pushState(null,"",viewHref(identity.workspaceId,id));
+    setLocation({kind:"section",section:"saved-views",spaceId:identity.workspaceId,view:id});
+    setTab("saved-views");
+    requestAnimationFrame(()=>document.getElementById("op-main")?.focus());
+  };
   const openSearchDocument = (item: SearchItem) => {
     if (
       !identity ||
@@ -411,7 +419,7 @@ function OperationalWorkspace({
       ? location
       : undefined;
   const pendingDestination =
-    (location.kind === "section" && !target && !["home","tasks","favorites","recent","subscriptions","search","compose"].includes(location.section));
+    (location.kind === "section" && !target && !["home","tasks","favorites","recent","subscriptions","search","compose","saved-views"].includes(location.section));
   const [pages, setPages] = useState<PublishedPage[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<ChangeSet[]>([]);
@@ -988,11 +996,17 @@ function OperationalWorkspace({
                   onNavigate={() => window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))}
                 />
               )}
+            {location.kind==="section" && location.section==="saved-views" && !preview && dataReady && (
+              <PersonalLibrary kind="saved-views" key={requestEpoch.current} api={api} spaceId={identity.workspaceId} principalId={identity.principalId}
+                viewId={location.view} onView={openSavedView} onOpen={openSearchDocument}/>
+            )}
             {location.kind === "section" && location.section === "search" && !preview && dataReady && (
               <SearchPage
+                key={requestEpoch.current}
                 api={api}
                 identityKey={`${identity.workspaceId}:${identity.principalId}`}
                 handoff={searchHandoff ?? undefined}
+                renderSave={(filters,disabled)=><SaveViewForm api={api} filters={filters} disabled={disabled} onSaved={openSavedView}/>}
                 onOpen={openSearchDocument}
               />
             )}
