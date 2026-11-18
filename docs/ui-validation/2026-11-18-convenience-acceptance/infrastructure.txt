@@ -1,0 +1,41 @@
+2026-11-18 · kubectl 및 prepare-site/validate-production · STG/PROD
+Client Version: v1.36.1
+Kustomize Version: v5.8.1
+Non-secret overlay created: /private/tmp/akh-c12-review-k8s.THuxZa/deploy/sites/stg
+Review NetworkPolicy selectors and CIDRs on the target CNI before deployment.
+정적 구성 검사 통과. 실제 SSO/TLS/CNI/복원/운영 인수는 별도 실행해야 합니다.
+validate-production deploy/sites/stg exit=0
+Non-secret overlay created: /private/tmp/akh-c12-review-k8s.THuxZa/deploy/sites/prod
+Review NetworkPolicy selectors and CIDRs on the target CNI before deployment.
+정적 구성 검사 통과. 실제 SSO/TLS/CNI/복원/운영 인수는 별도 실행해야 합니다.
+validate-production deploy/sites/prod exit=0
+배포 차단: unconfigured/development resource: ConfigMap/knowledge-config-9h4g9fthdf
+배포 차단: immutable image required: knowledge-hub:dev
+배포 차단: immutable image required: postgres:17.6-bookworm
+배포 차단: unconfigured/development resource: Ingress/knowledge-app
+배포 차단: production HTTPS authentication config required
+배포 차단: TLS ingress and APP_ORIGIN host mismatch
+배포 차단: reviewed ingress-controller NetworkPolicy missing
+배포 차단: reviewed OIDC HTTPS egress NetworkPolicy missing
+배포 차단: namespace ResourceQuota required
+validate-production deploy/overlays/stg exit=1
+배포 차단: unconfigured/development resource: ConfigMap/knowledge-config-gfm8tmgbk2
+배포 차단: immutable image required: knowledge-hub:dev
+배포 차단: immutable image required: postgres:17.6-bookworm
+배포 차단: unconfigured/development resource: Ingress/knowledge-app
+배포 차단: production HTTPS authentication config required
+배포 차단: TLS ingress and APP_ORIGIN host mismatch
+배포 차단: reviewed ingress-controller NetworkPolicy missing
+배포 차단: reviewed OIDC HTTPS egress NetworkPolicy missing
+배포 차단: namespace ResourceQuota required
+validate-production deploy/overlays/prod exit=1
+
+2026-11-18 · docker compose up --build --wait, HTTP smoke, down 및 정리 확인 · 원출력 발췌
+Compose project: akh-c12-bbf9f655-2cd9-49d4-80f3-2e5a927aea01
+ Container akh-c12-bbf9f655-2cd9-49d4-80f3-2e5a927aea01-agent-knowledge-hub-1 Healthy
+PASS static HTTP smoke: HTML, JS/CSS/brand assets, MIME types, 404
+ Container akh-c12-bbf9f655-2cd9-49d4-80f3-2e5a927aea01-agent-knowledge-hub-1 Stopped
+ Container akh-c12-bbf9f655-2cd9-49d4-80f3-2e5a927aea01-agent-knowledge-hub-1 Removed
+ Network akh-c12-bbf9f655-2cd9-49d4-80f3-2e5a927aea01_default Removed
+Project containers=0 networks=0
+Parent PostgreSQL running=true

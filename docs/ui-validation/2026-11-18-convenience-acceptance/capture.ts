@@ -50,14 +50,12 @@ const model = createServer(async (req, res) => {
 });
 const app = createServer(),
   issuer = createServer((req, res) => {
-    res
-      .writeHead(200, { "content-type": "application/json" })
-      .end(
-        JSON.stringify({
-          sub: req.headers.authorization?.slice(7),
-          groups: ["reviewers"],
-        }),
-      );
+    res.writeHead(200, { "content-type": "application/json" }).end(
+      JSON.stringify({
+        sub: req.headers.authorization?.slice(7),
+        groups: ["reviewers"],
+      }),
+    );
   });
 const url = (s: typeof app) =>
   "http://127.0.0.1:" + (s.address() as { port: number }).port;
@@ -222,6 +220,10 @@ try {
     browser: browser.version(),
     postgres: (await pool.query("SHOW server_version")).rows[0].server_version,
     viewport: "390x844",
+    title,
+    author: "editor",
+    recipient: "reviewer",
+    reader: "reader",
     workspace: f.workspaceId,
   });
   await goto(page, "section=home");
@@ -310,11 +312,9 @@ try {
     .filter({ hasText: "원본 공개 검토 대기" })
     .waitFor();
   await goto(review.p, "section=compose");
-  const article = review.p
-    .getByRole("article")
-    .filter({
-      has: review.p.getByRole("heading", { name: new RegExp(title) }),
-    });
+  const article = review.p.getByRole("article").filter({
+    has: review.p.getByRole("heading", { name: new RegExp(title) }),
+  });
   await label(article, "검토 사유 " + title).fill("본문과 고정 독자를 검토함");
   await button(article, "원본 공개 승인").click();
   await article.waitFor({ state: "hidden" });
@@ -349,6 +349,8 @@ try {
   );
   assert.equal(published.rowCount, 1);
   assert.equal(published.rows[0].data.content, body);
+  assert.equal(published.rows[0].data.number, 1);
+  assert.equal(published.rows[0].data.producer.kind, "user-submission");
   mark("published", {
     batch,
     pageId,
@@ -358,23 +360,45 @@ try {
   phase = "IME search and favorite";
   await goto(page, "section=search");
   const query = label(page, "제목·본문 키워드");
-  let composing = true,
-    earlyRequests = 0;
-  page.on("request", (r: any) => {
-    if (
-      composing &&
-      r.url().endsWith("/questions/search") &&
-      r.postData()?.includes(title)
-    )
-      earlyRequests++;
-  });
+  const isExactSearch = (r: any) =>
+    r.method() === "POST" &&
+    new URL(r.url()).pathname === "/api/v1/questions/search" &&
+    r.postDataJSON()?.query === title;
+  let earlyRequests = 0;
+  const countEarly = (r: any) => {
+    if (isExactSearch(r)) earlyRequests++;
+  };
+  page.on("request", countEarly);
   await query.focus();
   await query.dispatchEvent("compositionstart");
   await query.fill(title);
   await page.waitForTimeout(350);
-  await query.dispatchEvent("compositionend");
-  composing = false;
   assert.equal(earlyRequests, 0);
+  page.off("request", countEarly);
+  const [searchResponse] = await Promise.all([
+    page.waitForResponse((response: any) => isExactSearch(response.request())),
+    query.dispatchEvent("compositionend"),
+  ]);
+  assert.equal(searchResponse.status(), 200);
+  const searchHit = (await searchResponse.json()).items.find(
+    (item: any) => item.pageId === pageId && item.title === title,
+  );
+  assert(
+    searchHit,
+    "The exact committed search title must return the published page ID",
+  );
+  async function openedDocument(p: any, expected: string) {
+    const current = new URL(p.url());
+    assert.equal(current.searchParams.get("space"), f.workspaceId);
+    assert.equal(current.searchParams.get("document"), expected);
+    const href = await p
+      .getByRole("link", { name: "문서 고유 링크", exact: true })
+      .getAttribute("href");
+    const canonical = new URL(href, origin);
+    assert.equal(canonical.searchParams.get("space"), f.workspaceId);
+    assert.equal(canonical.searchParams.get("document"), expected);
+    return canonical.searchParams.get("document");
+  }
   const result = button(page, title);
   await result.focus();
   await page.keyboard.press("Enter");
@@ -382,6 +406,7 @@ try {
     .locator("[data-document-heading]")
     .filter({ hasText: title })
     .waitFor();
+  const searchOpened = await openedDocument(page, searchHit.pageId);
   await button(page, "즐겨찾기 추가").click();
   await button(page, "즐겨찾기 해제").waitFor();
   await goto(page, "section=favorites");
@@ -395,18 +420,24 @@ try {
   mark("search and favorite revisit", {
     pageId,
     syntheticComposition: true,
+    earlyRequests,
+    confirmedQuery: searchResponse.request().postDataJSON().query,
+    httpStatus: searchResponse.status(),
+    resultPage: searchHit.pageId,
+    searchOpened,
+    favoriteOpened: await openedDocument(page, pageId),
     keyboard: "Enter",
   });
   phase = "backlink navigation";
   const target = page
-    .locator('a[href*="document=topic"]')
-    .filter({ hasText: "주제" })
-    .first();
+    .getByRole("region", { name: "문서 읽기" })
+    .getByRole("link", { name: "주제", exact: true });
   await target.click();
   await page
     .locator("[data-document-heading]")
     .filter({ hasText: "주제" })
     .waitFor();
+  const linkedTarget = await openedDocument(page, "topic");
   await page.getByText("연결·백링크·관련 문서", { exact: true }).click();
   await page
     .getByRole("region", { name: "이 문서를 참조하는 문서" })
@@ -417,15 +448,29 @@ try {
     .filter({ hasText: title })
     .waitFor();
   mark("published backlink round-trip", {
-    from: pageId,
-    to: "topic",
-    back: pageId,
+    from: searchOpened,
+    to: linkedTarget,
+    back: await openedDocument(page, pageId),
   });
   phase = "comment and inbox";
   const note = "같은 문서 검토 댓글";
   await label(page, "댓글").fill(note);
   await label(page, "멘션할 사용자 ID (쉼표 구분)").fill("reviewer");
-  await button(page, "댓글 등록").click();
+  const [commentResponse] = await Promise.all([
+    page.waitForResponse(
+      (r: any) =>
+        r.request().method() === "POST" &&
+        new URL(r.url()).pathname ===
+          "/api/v1/workflows/pages/" + pageId + "/comments",
+    ),
+    button(page, "댓글 등록").click(),
+  ]);
+  assert.equal(commentResponse.status(), 201);
+  const comment = await commentResponse.json();
+  assert.equal(comment.content, note);
+  assert.deepEqual(comment.mentions, ["reviewer"]);
+  assert.equal(comment.version, 1);
+  assert.match(comment.id, /^[a-f0-9-]{36}$/);
   await page.getByText(note, { exact: true }).waitFor();
   await collaboration.service.scanEvents();
   await goto(review.p, "#notifications");
@@ -437,13 +482,16 @@ try {
   await notification.locator("a").first().click();
   await review.p.getByText(note, { exact: true }).waitFor();
   const fragment = new URL(review.p.url()).hash;
-  assert.match(fragment, /^#comment-[\w-]+$/);
+  assert.equal(fragment, "#comment-" + comment.id);
+  const recipientOpened = await openedDocument(review.p, pageId);
   assert((await review.p.locator(fragment).innerText()).includes(note));
   await review.p.screenshot({
     path: fileURLToPath(new URL("390-comment.png", out)),
   });
   mark("comment and recipient inbox", {
     pageId,
+    createdComment: comment.id,
+    recipientOpened,
     exactComment: fragment.slice("#comment-".length),
   });
   phase = "resume home";
@@ -476,6 +524,13 @@ try {
     .locator("[data-document-heading]")
     .filter({ hasText: title })
     .waitFor();
+  const sameBacklinks = () => reader.api("/convenience/pages/topic/backlinks");
+  const before = await sameBacklinks();
+  assert.equal(before.status, 200);
+  const beforeId = before.body.items.find(
+    (item: any) => item.id === pageId,
+  )?.id;
+  assert.equal(beforeId, pageId);
   const sourceId = published.rows[0].data.sourceIds[0];
   const revoked = await pool.query(
     "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND resource_id=$2 AND principal_id='reader'",
@@ -483,17 +538,38 @@ try {
   );
   assert.equal(revoked.rowCount, 1);
   await reader.p.reload();
-  const backlinks = await reader.api("/convenience/pages/topic/backlinks");
+  const backlinks = await sameBacklinks();
   assert.equal(backlinks.status, 200);
   assert(!backlinks.body.items.some((i: any) => i.id === pageId));
   const blocked = await reader.api(
     "/workflows/pages/" + pageId + "/navigation",
   );
   assert([403, 404].includes(blocked.status));
-  await reader.p.getByText(title, { exact: true }).waitFor({ state: "hidden" });
+  const heading = reader.p
+    .locator("[data-document-heading]")
+    .filter({ hasText: title });
+  const denial = reader.p
+    .getByRole("alert")
+    .filter({ hasText: "자료가 없거나 현재 접근할 수 없습니다." });
+  await denial.waitFor();
+  await denial.scrollIntoViewIfNeeded();
+  await heading.waitFor({ state: "hidden" });
+  await reader.p.screenshot({
+    path: fileURLToPath(new URL("390-source-withdrawn.png", out)),
+  });
   mark("source withdrawal", {
     pageId,
     documentReadStatus: blocked.status,
+    reader: "reader",
+    target: "topic",
+    sourceId,
+    removedAclRows: revoked.rowCount,
+    beforeHttp: before.status,
+    beforeId,
+    afterHttp: backlinks.status,
+    afterIds: backlinks.body.items.map((item: any) => item.id),
+    denialText: await denial.innerText(),
+    headingVisible: await heading.isVisible(),
     backlinkHidden: true,
   });
   await pool.query(

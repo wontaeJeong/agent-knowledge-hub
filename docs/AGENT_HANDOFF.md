@@ -6,6 +6,7 @@
 
 - 제품 커밋 `8952637`의 팀 공간에서 390px Chromium 키보드·합성 IME로 초안부터 발행, 검색, 댓글 알림, 홈·내 작업함 초안 복귀까지 연결했다. 모델의 503 응답을 작업 오류로 확인했고 원본 철회 후 문서 조회 404, 만료·비활성 신원에 각각 401을 확인했다. [재현 코드·행별 근거](ui-validation/2026-11-18-convenience-acceptance/README.md)
 - `npm run check`, Kubernetes 정적 시험 38개·합성 overlay와 Compose HTTP smoke를 통과했다. PostgreSQL 전수 실행의 파일·시험 수, 과거 실패, 마이그레이션 호환·롤백 범위는 [검사 기록](ui-validation/2026-11-18-convenience-acceptance/README.md#검사와-미충족-기준)을 따른다.
+- #79 독립 리뷰 이후 확정 검색 POST의 200·응답 ID와 열린 문서, 같은 독자의 백링크 철회 전후, 작성 댓글 UUID와 수신 hash를 한 번의 새 Chromium 실행에서 대조했다. DDL·제품 코드는 기준 커밋과 동일하며 인프라 재실행의 validator·Compose 출력은 [실행 발췌](ui-validation/2026-11-18-convenience-acceptance/infrastructure.txt)에 보존했다.
 - 실제 사내 인증·물리 IME·스크린리더, 대규모 부하, 운영 복구, 모델 품질·후속 에이전트 효과는 별도 검증이 필요하다. EDT-001·KNO-007·KNO-010은 연결된 개별 기능의 성공 후에도 수용이 열려 있다.
 
 ## 2026-11-18 C11 저장 보기 예시 재선택

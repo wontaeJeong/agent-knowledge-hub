@@ -6,13 +6,17 @@
         "browser": "158.0.8127.18",
         "postgres": "17.11",
         "viewport": "390x844",
-        "workspace": "d61f5a56-1c33-43f4-a76a-21fd54df6d0d"
+        "title": "통합검토 c9ead931",
+        "author": "editor",
+        "recipient": "reviewer",
+        "reader": "reader",
+        "workspace": "a212853b-c8a5-40cc-b8ca-59cbdd41cdc4"
       }
     },
     {
       "step": "model provider outage",
       "observed": {
-        "job": "35905107-7d72-4b99-b833-1ef98edefab1",
+        "job": "ad183e59-1a80-4cd3-a57e-671af70c239a",
         "http": 503,
         "calls": 1,
         "status": "queued",
@@ -22,7 +26,7 @@
     {
       "step": "saved draft reopened",
       "observed": {
-        "draft": "80a2d837-c63f-4f7c-b1f9-ebe4abc7f039",
+        "draft": "925f0327-b781-4af0-be05-c34092c9f920",
         "bodyRestored": true,
         "keyboardTarget": "대상 위치"
       }
@@ -30,7 +34,7 @@
     {
       "step": "unsent recovery",
       "observed": {
-        "draft": "80a2d837-c63f-4f7c-b1f9-ebe4abc7f039",
+        "draft": "925f0327-b781-4af0-be05-c34092c9f920",
         "source": "blocked draft POST",
         "userConfirmed": true
       }
@@ -38,17 +42,17 @@
     {
       "step": "disclosure approval and knowledge proposal",
       "observed": {
-        "draft": "80a2d837-c63f-4f7c-b1f9-ebe4abc7f039",
-        "disclosure": "ccefa576-a3d9-4194-859f-a2d0e9d4c6b8",
-        "batch": "d4996a3d-f304-4682-92d4-31f2a707016c",
-        "pageId": "document-ccefa576-a3d9-4194-859f-a2d0e9d4c6b8"
+        "draft": "925f0327-b781-4af0-be05-c34092c9f920",
+        "disclosure": "ee57e32f-2eb8-4d37-b359-16685e004270",
+        "batch": "e85bac44-33d6-41a8-b77a-697d6d406dae",
+        "pageId": "document-ee57e32f-2eb8-4d37-b359-16685e004270"
       }
     },
     {
       "step": "published",
       "observed": {
-        "batch": "d4996a3d-f304-4682-92d4-31f2a707016c",
-        "pageId": "document-ccefa576-a3d9-4194-859f-a2d0e9d4c6b8",
+        "batch": "e85bac44-33d6-41a8-b77a-697d6d406dae",
+        "pageId": "document-ee57e32f-2eb8-4d37-b359-16685e004270",
         "version": 1,
         "producer": "user-submission"
       }
@@ -56,38 +60,56 @@
     {
       "step": "search and favorite revisit",
       "observed": {
-        "pageId": "document-ccefa576-a3d9-4194-859f-a2d0e9d4c6b8",
+        "pageId": "document-ee57e32f-2eb8-4d37-b359-16685e004270",
         "syntheticComposition": true,
+        "earlyRequests": 0,
+        "confirmedQuery": "통합검토 c9ead931",
+        "httpStatus": 200,
+        "resultPage": "document-ee57e32f-2eb8-4d37-b359-16685e004270",
+        "searchOpened": "document-ee57e32f-2eb8-4d37-b359-16685e004270",
+        "favoriteOpened": "document-ee57e32f-2eb8-4d37-b359-16685e004270",
         "keyboard": "Enter"
       }
     },
     {
       "step": "published backlink round-trip",
       "observed": {
-        "from": "document-ccefa576-a3d9-4194-859f-a2d0e9d4c6b8",
+        "from": "document-ee57e32f-2eb8-4d37-b359-16685e004270",
         "to": "topic",
-        "back": "document-ccefa576-a3d9-4194-859f-a2d0e9d4c6b8"
+        "back": "document-ee57e32f-2eb8-4d37-b359-16685e004270"
       }
     },
     {
       "step": "comment and recipient inbox",
       "observed": {
-        "pageId": "document-ccefa576-a3d9-4194-859f-a2d0e9d4c6b8",
-        "exactComment": "a6262664-415d-46de-a407-22844cff7e75"
+        "pageId": "document-ee57e32f-2eb8-4d37-b359-16685e004270",
+        "createdComment": "87dd97ab-47c7-4b88-bd2f-37037a14034e",
+        "recipientOpened": "document-ee57e32f-2eb8-4d37-b359-16685e004270",
+        "exactComment": "87dd97ab-47c7-4b88-bd2f-37037a14034e"
       }
     },
     {
       "step": "home and my tasks resume",
       "observed": {
-        "draft": "80a2d837-c63f-4f7c-b1f9-ebe4abc7f039",
+        "draft": "925f0327-b781-4af0-be05-c34092c9f920",
         "keyboard": "Enter"
       }
     },
     {
       "step": "source withdrawal",
       "observed": {
-        "pageId": "document-ccefa576-a3d9-4194-859f-a2d0e9d4c6b8",
+        "pageId": "document-ee57e32f-2eb8-4d37-b359-16685e004270",
         "documentReadStatus": 404,
+        "reader": "reader",
+        "target": "topic",
+        "sourceId": "manual-ee57e32f-2eb8-4d37-b359-16685e004270",
+        "removedAclRows": 1,
+        "beforeHttp": 200,
+        "beforeId": "document-ee57e32f-2eb8-4d37-b359-16685e004270",
+        "afterHttp": 200,
+        "afterIds": [],
+        "denialText": "자료가 없거나 현재 접근할 수 없습니다. (NOT_FOUND · 추적 d8216aa8-ba48-467f-924f-12cdfab6cde1)",
+        "headingVisible": false,
         "backlinkHidden": true
       }
     },
