@@ -1,5 +1,9 @@
 # 현재 구현과 남은 연결
 
+## 2026-11-18 편의 기능 연결 인수
+
+C1~C11과 저장 보기 후속 수정이 main에 병합됐다. UXC-01~10의 구현·연결·자동 검사·기능별 화면과 남은 조건을 한 표에서 확인할 수 있다. C12에서는 실제 Chromium과 전용 PostgreSQL에서 팀 초안의 미전송 복구, 독립 원본 검토, 지식 검토·발행, 검색, 즐겨찾기, 백링크, 댓글 알림, 홈·내 작업함 복귀를 같은 문서로 실행했다. 모델 장애 때 수동 작성과 키워드 검색은 동작했고 의미 검색 작업에는 오류가 남았다. 운영 인수와 EDT-001 전체 왕복, KNO-007 권위, KNO-010 병합 안내는 열려 있다. [실행 결과와 기능별 근거](ui-validation/2026-11-18-convenience-acceptance/README.md)
+
 ## 2026-11-17 C1 최종 호환 검토 보완
 
 기존 access 화면이 생성하는 document 없는 share URL·로그인 복귀·현재 인가된 공유 조회를 복구했다. 비관리자의 개인 API 키/장치 메뉴와 자격 있는 검토자의 평가 메뉴를 canonical capability에 맞춰 복원했으며 관리자 전용 컨트롤은 유지했다. preview 메뉴와 취소된 history 복원의 URL도 preview로 재열린다. 실제 URL 생성 컴포넌트·인증 전후·거절 공유·capability·preview 재마운트 회귀를 포함한 최종 check는 frontend255/Node48/import16/evaluation41 및 251개 요구사항·타입/build/smoke를 통과했다. [화면 증거](pr-assets/convenience-navigation/README.md)는 15장이다. 운영 인수 승격은 아니다.

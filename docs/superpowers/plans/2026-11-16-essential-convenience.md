@@ -208,8 +208,10 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 - [ ] Add failures for repeated Korean headings, fenced code/tables, search next/previous, XSS-bearing text, removed/changed block, latest vs fixed-version link, current permission removal and denied Clipboard API.
 - [ ] Run reader/anchor tests red, then implement safe outline/search/token rendering, stable block matching/snapshots and copy fallback. Preserve DOMPurify.
 - [ ] Add explicit version/anchor URL and login-return regression tests. Do not reuse tab/comment hashes for document headings.
-- [ ] Run focused tests and old document/comment/share/version tests; verify keyboard position movement/code copy and 390px layout in both themes.
-- [ ] Commit `feat: improve wiki reading and precise document sharing`.
+- [x] Run focused tests and old document/comment/share/version tests; verify keyboard position movement/code copy and 390px layout in both themes.
+- [x] Commit `feat: improve wiki reading and precise document sharing`.
+
+병합 #75 `29a892b`. 구현, 검증 범위와 후속 리뷰는 [기능별 실행 기록](../../ui-validation/2026-11-18-document-reader/README.md) 및 [C12 인수표](../../ui-validation/2026-11-18-convenience-acceptance/README.md)에서 확인한다. 위 단계의 RED 선행 여부는 개별 작업 기록을 따른다.
 
 ## Task 10: 속성 폼·일괄 정리
 
@@ -219,9 +221,11 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 
 - [ ] Add failures for required fields, tag normalization, owner not granting access, stale property edit, 50/51 target boundary, expired preview, ACL or parent change after preview, mixed denied/stale/applied/needs-review results, worker crash/replay and delete/retention racing execution.
 - [ ] Run bulk/governance/version DB tests and UI tests red. Implement hash-bound preview and durable per-item idempotent receipts; tag/content metadata emits reviewed proposals.
-- [ ] Wire form-based metadata editing and multi-select preview/result/retry. Keep privileged JSON as optional advanced mode and destructive permanent deletion outside this menu.
-- [ ] Run jobs/publication/retention/access regressions, schema upgrade/restart and browser partial-result walkthroughs with screenshots.
-- [ ] Commit `feat: add document property forms and reviewed bulk actions`.
+- [x] Wire form-based metadata editing and multi-select preview/result/retry. Keep privileged JSON as optional advanced mode and destructive permanent deletion outside this menu.
+- [x] Run jobs/publication/retention/access regressions, schema upgrade/restart and browser partial-result walkthroughs with screenshots.
+- [x] Commit `feat: add document property forms and reviewed bulk actions`.
+
+병합 #76 `f7583ec`. 구현, 검증 범위와 후속 리뷰는 [기능별 실행 기록](../../ui-validation/2026-11-18-properties-bulk/README.md) 및 [C12 인수표](../../ui-validation/2026-11-18-convenience-acceptance/README.md)에서 확인한다. 위 단계의 RED 선행 여부는 개별 작업 기록을 따른다.
 
 ## Task 11: 저장 검색·개인 보기
 
@@ -242,14 +246,17 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 
 **Interfaces:** Consumes C1~C11 committed behavior. Produces a per-UXC evidence record: `{commit,implementation,connection,automatedChecks,browserEvidence,remaining,operationalAcceptance}`. Planned criteria and actual evidence stay separate.
 
-- [ ] Trace every UXC row and each Review Focus item to its implementation and test; keep unimplemented/failed items open and never mark them complete because their spec merged.
-- [ ] Run `npm run check`, `npm run test:server` with the dedicated disposable database, and applicable K8s/container checks from CI. Inspect every final-head required check and unresolved review thread before each merge.
-- [ ] In a real browser perform new document → save/recover → shared-source review if required → knowledge review → publish → search → favorite/revisit → backlink → comment/notification → home/task resume. Include revoked source/identity, model outage, expired session, IME and 390px keyboard use.
-- [ ] Record migration ordering/backfill, worker replay and rollback evidence. Preserve old URLs and old notification/authoring APIs. No production deployment is included in this plan.
-- [ ] Update feature status to the exact tested scope, commit `docs: record convenience feature acceptance evidence`, and report remaining operational/quality conditions.
+- [x] Trace every UXC row and each Review Focus item to its implementation and test; keep unimplemented/failed items open and never mark them complete because their spec merged.
+- [x] Run `npm run check`, `npm run test:server` with the dedicated disposable database, and applicable K8s/container checks from CI.
+- [ ] Inspect the C12 PR’s final required checks and unresolved review threads immediately before merge.
+- [x] In a real browser perform new document → save/recover → shared-source review if required → knowledge review → publish → search → favorite/revisit → backlink → comment/notification → home/task resume. Include revoked source/identity, model outage, expired session, IME and 390px keyboard use.
+- [x] Record migration ordering/backfill, worker replay and rollback evidence. Preserve old URLs and old notification/authoring APIs. No production deployment is included in this plan.
+- [x] Update feature status to the exact tested scope, commit `docs: record convenience feature acceptance evidence`, and report remaining operational/quality conditions.
+
+[통합 인수 실행 및 열린 운영 조건](../../ui-validation/2026-11-18-convenience-acceptance/README.md). 로컬 전체 검사와 원격 필수 CI를 구분한다. PR 최종 HEAD의 원격 검사와 미해결 리뷰는 병합 직전 확인 대상이다.
 
 ## 완성 판정과 후속 실행
 
-설계·플랜 문서를 작성하고 검토하는 현재 작업은 후속 C1~C12 실행과 별개다. 구현 시 체크박스는 해당 결과·최종 커밋 증거를 확보한 후에만 바꾼다. 실제 UI 변경 PR은 1440/390 화면 캡처, 라이트/다크·키보드 검증과 필요한 DB 회귀를 포함하고, 원본 정책·독자·발행 불변식을 통과해야 한다. 모든 C 단위를 한 대형 PR로 합치지 않는다.
+2026-11-16 설계·플랜 작성 이후 각 C 단위의 구현과 실행을 별도로 추적했다. 구현 시 체크박스는 해당 결과·최종 커밋 증거를 확보한 후에만 바꾼다. 실제 UI 변경 PR은 1440/390 화면 캡처, 라이트/다크·키보드 검증과 필요한 DB 회귀를 포함하고, 원본 정책·독자·발행 불변식을 통과해야 한다. 모든 C 단위를 한 대형 PR로 합치지 않는다.
 
 Final combined F1/F2 fix/evidence commit: `4a9e24c286fea3d1654bf904a7ebe4cbb03caa14`. This metadata-only follow-up records the verified commit; production/test/harness/artifact/log bytes remain unchanged. Controller scoped final re-review, exact-head CI and merge remain pending.

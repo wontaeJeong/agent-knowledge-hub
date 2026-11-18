@@ -1,5 +1,13 @@
 # 에이전트 인계
 
+## 2026-11-18 C12 연결 인수
+
+관련 범위는 UXC-01~10과 공통 탐색, [설계의 기존 요구사항 매핑](superpowers/specs/2026-11-16-essential-convenience-design.md)이다. C12는 사용자에게 노출되는 경로를 수정하지 않았다. 변경 파일은 현재 현황, 이 인계, 실수 기록, 요구사항 README, 편의 기능 계획·설계와 `ui-validation/2026-11-18-convenience-acceptance`의 하네스·결과·화면이다.
+
+- 제품 커밋 `8952637`의 팀 공간에서 390px Chromium 키보드·합성 IME로 초안부터 발행, 검색, 댓글 알림, 홈·내 작업함 초안 복귀까지 연결했다. 모델의 503 응답을 작업 오류로 확인했고 원본 철회 후 문서 조회 404, 만료·비활성 신원에 각각 401을 확인했다. [재현 코드·행별 근거](ui-validation/2026-11-18-convenience-acceptance/README.md)
+- `npm run check`, Kubernetes 정적 시험 38개·합성 overlay와 Compose HTTP smoke를 통과했다. PostgreSQL 전수 실행의 파일·시험 수, 과거 실패, 마이그레이션 호환·롤백 범위는 [검사 기록](ui-validation/2026-11-18-convenience-acceptance/README.md#검사와-미충족-기준)을 따른다.
+- 실제 사내 인증·물리 IME·스크린리더, 대규모 부하, 운영 복구, 모델 품질·후속 에이전트 효과는 별도 검증이 필요하다. EDT-001·KNO-007·KNO-010은 연결된 개별 기능의 성공 후에도 수용이 열려 있다.
+
 ## 2026-11-18 C11 저장 보기 예시 재선택
 
 UXC-10 / SRH-002·009, UX-001·004. `SavedViews.tsx`가 예시를 열 때마다 새 편집 세션을 만든다. 변경 폐기를 취소하면 현재 이름과 검색어가 남고, 수락하면 같은 예시의 기본 조건으로 다시 시작한다. 적용 범위는 개인 검색 조건을 고르는 Query 화면이다.
