@@ -1,3 +1,4 @@
+import {canonicalEnvironment, missingRequiredProperty} from "../../../src/domain/document-properties";
 import {assertProductWritesNotErased} from "../../operations/product-erasure";
 import {randomUUID} from "node:crypto";
 import type {PoolClient} from "pg";
@@ -27,7 +28,7 @@ export async function currentMetadata(db:PoolClient,ctx:Context,pageId:string,nu
   const dependency=(await db.query("SELECT max(number)::integer AS number FROM versions WHERE workspace_id=$1 AND page_id=$2",[ctx.workspaceId,id])).rows[0];
   if(!dependency?.number)throw Error("NOT_FOUND");versions[id]=dependency.number;
  }
- const environment=w?.data&&Object.hasOwn(w.data,"environment")?w.data.environment:w?.data?.properties?.environment??null;
+ const environment=canonicalEnvironment(w?.data ?? {});
  const snapshot:MetadataSnapshot={pageId,number:v.number,title:p.title??"",summary:p.summary??"",category:p.category??"연결된 지식",tags:p.tags??[],properties:w?.data?.properties??{},environment,parentId:w?.parent_id??null,lifecycle:w?.state??"active",settingsRevision:w?.revision??0,workflowData:w?.data??{},sources,versions,relations:p.links??[],bodyHash:fingerprint(v.data.content),attribution:Object.fromEntries(["author","proposedBy","responsibleUserId","publishedBy","producer","batchId","at"].map(k=>[k,v.data[k]??null]))};
  if(Buffer.byteLength(JSON.stringify(snapshot))>1048576)throw Error("VERSION_METADATA_LIMIT");
  return snapshot;
@@ -91,7 +92,7 @@ export async function validatePlannedMetadata(db:PoolClient,ctx:Context,plan:Res
   if(current.number!==plan.baseVersion||current.settingsRevision!==plan.settingsRevision||fingerprint(current)!==plan.currentHash)throw Error("STALE_VERSION");
  }
  const policy=(await db.query("SELECT policy_version FROM access_spaces WHERE workspace_id=$1 AND active",[ctx.workspaceId])).rows[0];if(!policy||policy.policy_version!==plan.policyVersion)throw Error("APPROVAL_STALE");
- if(plan.fields.some(f=>["properties","environment","lifecycle","parentId","category"].includes(f)))await authorizeActionDb(db,ctx,"knowledge.protect",plan.baseVersion?{kind:"page",id:plan.pageId}:undefined);
+ if(plan.fields.some(f=>["properties","environment","lifecycle","parentId","category","reviewDue"].includes(f)))await authorizeActionDb(db,ctx,"knowledge.protect",plan.baseVersion?{kind:"page",id:plan.pageId}:undefined);
  if(plan.fields.includes("parentId")){
   await authorizeActionDb(db,ctx,"space.admin",plan.baseVersion?{kind:"page",id:plan.pageId}:undefined);
   const seen=new Set([plan.pageId]);let parent=plan.next.parentId;
@@ -104,7 +105,11 @@ export async function validatePlannedMetadata(db:PoolClient,ctx:Context,plan:Res
  }
  const policies=(await db.query("SELECT * FROM governance_type_policies WHERE workspace_id=$1 ORDER BY document_type",[ctx.workspaceId])).rows;
  const required=policies.find(p=>p.document_type===plan.next.category)??policies.find(p=>p.document_type==="*");
- if(required?.mode==="block")for(const key of required.required_keys){const owner=(await db.query("SELECT owner_id FROM governance_business_owners WHERE workspace_id=$1 AND page_id=$2",[ctx.workspaceId,plan.pageId])).rows[0];const value=key==="summary"?plan.next.summary:key==="tags"?plan.next.tags:key==="reviewDue"?plan.next.workflowData.reviewDue:key==="businessOwner"?owner?.owner_id:plan.next.properties[key];if(value==null||value===""||(Array.isArray(value)&&!value.length))throw Error("PROPERTY_REQUIRED");}
+ if(required?.mode==="block"){
+  const owner=required.required_keys.includes("businessOwner")?(await db.query("SELECT owner_id FROM governance_business_owners WHERE workspace_id=$1 AND page_id=$2",[ctx.workspaceId,plan.pageId])).rows[0]:null;
+  const fields={...plan.next,reviewDue:plan.next.workflowData.reviewDue,businessOwner:owner?.owner_id};
+  if(required.required_keys.some((key:string)=>missingRequiredProperty(key,fields)))throw Error("PROPERTY_REQUIRED");
+ }
 }
 /** Trusted pre-proposal projection for C's required-property checks. Never parse this from a DTO. */
 export async function validateVersionMetadataPlans(db:PoolClient,ctx:Context,plans:RestorePlan[]) {
@@ -153,8 +158,8 @@ export async function applyApprovedVersionMetadataPlans(db:PoolClient,ctx:Contex
   await authorizeActionDb(db,ctx,"knowledge.protect",{kind:"page",id:p.pageId});
   const {readers}=await import("../../repository");const before=await readers(db,ctx.workspaceId,"page",p.pageId);
   const old=(await db.query("SELECT data FROM workflow_document_state WHERE workspace_id=$1 AND page_id=$2",[ctx.workspaceId,p.pageId])).rows[0]?.data??{};
-  const data={...old,properties:p.next.properties,environment:p.next.environment};
-  if(p.fields.some(f=>["properties","environment","parentId","lifecycle"].includes(f)))await db.query("INSERT INTO workflow_document_state(workspace_id,page_id,parent_id,state,revision,data) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(workspace_id,page_id) DO UPDATE SET parent_id=excluded.parent_id,state=excluded.state,revision=excluded.revision,data=excluded.data",[ctx.workspaceId,p.pageId,p.next.parentId,p.next.lifecycle,p.settingsRevision+1,data]);
+  const data={...old,properties:p.next.properties,environment:p.next.environment,...(p.fields.includes("reviewDue")?{reviewDue:p.next.workflowData.reviewDue}: {})};
+  if(p.fields.some(f=>["properties","environment","parentId","lifecycle","reviewDue"].includes(f)))await db.query("INSERT INTO workflow_document_state(workspace_id,page_id,parent_id,state,revision,data) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(workspace_id,page_id) DO UPDATE SET parent_id=excluded.parent_id,state=excluded.state,revision=excluded.revision,data=excluded.data",[ctx.workspaceId,p.pageId,p.next.parentId,p.next.lifecycle,p.settingsRevision+1,data]);
   const metadata=(await db.query("SELECT data FROM pages WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,p.pageId])).rows[0].data;
   await db.query("UPDATE pages SET data=$3 WHERE workspace_id=$1 AND id=$2",[ctx.workspaceId,p.pageId,{...metadata,title:p.next.title,summary:p.next.summary,category:p.next.category,tags:p.next.tags}]);
   const after=await readers(db,ctx.workspaceId,"page",p.pageId);if(after.some(id=>!before.includes(id)))throw Error("RESTORE_SCOPE_EXPANSION");

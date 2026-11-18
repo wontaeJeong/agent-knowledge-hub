@@ -1,0 +1,155 @@
+[1/1] server/convenience/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ server/convenience/bulk.test.ts (27 tests | 6 failed) 57721ms
+   × form preserves legacy absolute link semantics through independent publication 535ms
+   × legacy preserves legacy absolute link semantics through independent publication 240ms
+   × durable preserves legacy absolute link semantics through independent publication 615ms
+   × official refusal is fenced per document and accepted replay preserves its independent sibling 497ms
+   × receipt requires durable admission and recovers persisted state before the job pointer is saved 124ms
+   × workspace Owner list keeps an ordinary job and omits another human's private bulk job 327ms
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 21 passed (27)
+   Start at  09:08:19
+   Duration  58.03s (tests 100%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/bulk.test.ts > form preserves legacy absolute link semantics through independent publication
+Error: VALIDATION_FAILED
+ ❯ principalId server/publication.ts:366:17
+    364|           digest(draft.sourceIds) !== digest(plan.sourceIds)
+    365|         )
+    366|           throw Error("VALIDATION_FAILED");
+       |                 ^
+    367|       }
+    368|       const metadataProjections = await validateVersionMetadataPlans(
+ ❯ transaction server/database.ts:111:20
+ ❯ DocumentPropertiesService.propose server/convenience/properties.ts:159:20
+ ❯ server/convenience/bulk.test.ts:38:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  server/convenience/bulk.test.ts > legacy preserves legacy absolute link semantics through independent publication
+AssertionError: expected 'failed' to be 'needs-review' // Object.is equality
+
+Expected: "needs-review"
+Received: "failed"
+
+ ❯ server/convenience/bulk.test.ts:44:36
+     42|     const p=await bulkPreview(workflows,browser.ctx,tagRequest(["linke…
+     43|     const result=await bulkApply(workflows,browser.ctx,{token:p.token}…
+     44|     expect(result.items[0].status).toBe("needs-review");
+       |                                    ^
+     45|     batchId=result.items[0].batchId!;hash=result.items[0].hash!;
+     46|   }else{
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  server/convenience/bulk.test.ts > durable preserves legacy absolute link semantics through independent publication
+AssertionError: expected [] to deeply equal [ 'topic' ]
+
+- Expected
++ Received
+
+- [
+-   "topic",
+- ]
++ []
+
+ ❯ server/convenience/bulk.test.ts:55:31
+     53|   }
+     54|   const plan=(await f.pool.query("SELECT payload FROM version_restore_…
+     55|   expect(plan.next.relations).toEqual(["topic"]);
+       |                               ^
+     56|   expect(plan.dependencies).toContain("topic");
+     57|   expect(plan.next.versions.topic).toEqual(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  server/convenience/bulk.test.ts > official refusal is fenced per document and accepted replay preserves its independent sibling
+AssertionError: expected { …(4) } to match object { status: 'succeeded', …(1) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "items": [
+      {
+-       "code": "OFFICIAL_REVIEW_REQUIRED",
+        "id": "official",
+-       "status": "failed",
++       "status": "pending",
+      },
+      {
+        "id": "topic",
+-       "status": "needs-review",
++       "status": "pending",
+      },
+    ],
+-   "status": "succeeded",
++   "status": "dead",
+  }
+
+ ❯ server/convenience/bulk.test.ts:77:19
+     75|   await bridge.worker.tick();
+     76|   const receipt=await bulk.read(browser.ctx,a.id);
+     77|   expect(receipt).toMatchObject({status:"succeeded",items:[{id:"offici…
+       |                   ^
+     78|   await bulk.execute(browser.ctx,request);
+     79|   expect((await bulk.read(browser.ctx,a.id)).items).toEqual(receipt.it…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  server/convenience/bulk.test.ts > receipt requires durable admission and recovers persisted state before the job pointer is saved
+AssertionError: promise resolved "{ …(4) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "error": null,
++   "id": "332ea61e-99ad-4460-b63b-0e1b6f56228e",
++   "items": [
++     {
++       "id": "topic",
++       "status": "pending",
++     },
++   ],
++   "status": "queued",
+  }
+
+ ❯ server/convenience/bulk.test.ts:84:42
+     82| test("receipt requires durable admission and recovers persisted state …
+     83|   const p=await preview(),id=p.previewToken.split(".")[0],mutationId=r…
+     84|   await expect(bulk.read(browser.ctx,id)).rejects.toThrow("NOT_FOUND");
+       |                                          ^
+     85|   await f.pool.query("UPDATE workflow_bulk_requests SET mutation_id=$3…
+     86|   await expect(bulk.read(browser.ctx,id)).rejects.toThrow("NOT_FOUND");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  server/convenience/bulk.test.ts > workspace Owner list keeps an ordinary job and omits another human's private bulk job
+Error: EXECUTION_SCOPE_CONFLICT
+ ❯ Object.validateScope server/jobs/runtime.ts:419:113
+    417|         if(purpose === "schedule") throw Error("BULK_SESSION_REQUIRED"…
+    418|         const request=(await db.query("SELECT * FROM workflow_bulk_req…
+    419|         if(!request || request.input_hash!==payload.inputHash || input…
+       |                                                                                                                 ^
+    420|         // Only queue status is projected here; bulk outcomes require …
+    421|         if(purpose === "read") {
+ ❯ JobService.readable server/jobs/service.ts:405:5
+ ❯ server/jobs/service.ts:437:13
+ ❯ JobService.tx server/jobs/service.ts:143:21
+ ❯ JobService.request server/jobs/service.ts:167:20
+ ❯ list server/convenience/bulk.test.ts:101:24
+ ❯ server/convenience/bulk.test.ts:106:10
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+

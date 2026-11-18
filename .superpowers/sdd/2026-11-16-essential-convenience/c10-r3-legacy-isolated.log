@@ -1,0 +1,40 @@
+[1/1] server/convenience/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ↓ server/convenience/bulk.test.ts > form preserves legacy absolute link semantics through independent publication
+ ✓ server/convenience/bulk.test.ts > legacy preserves legacy absolute link semantics through independent publication 952ms
+ ↓ server/convenience/bulk.test.ts > durable preserves legacy absolute link semantics through independent publication
+ ↓ server/convenience/bulk.test.ts > losing read of legacy destination or ancestor topic fences consent and removes receipt item
+ ↓ server/convenience/bulk.test.ts > losing read of legacy destination or ancestor linked-parent fences consent and removes receipt item
+ ↓ server/convenience/bulk.test.ts > destination ACL revoked after independent approval prevents publication of the frozen property plan
+ ↓ server/convenience/bulk.test.ts > official refusal is fenced per document and accepted replay preserves its independent sibling
+ ↓ server/convenience/bulk.test.ts > receipt requires durable admission and recovers persisted state before the job pointer is saved
+ ↓ server/convenience/bulk.test.ts > workspace Owner list keeps an ordinary job and omits another human's private bulk job
+ ↓ server/convenience/bulk.test.ts > accepted archive is durable, replayable and applied once after worker restart
+ ↓ server/convenience/bulk.test.ts > tag changes produce one independently reviewed proposal without changing published tags
+ ↓ server/convenience/bulk.test.ts > 50/51 preview and current revision/ACL/session boundaries fail closed
+ ↓ server/convenience/bulk.test.ts > property edits validate canonical required fields, retain CAS and never grant owner access
+ ↓ server/convenience/bulk.test.ts > accepted input expires independently of preview and live parent-session revocation stops writes
+ ↓ server/convenience/bulk.test.ts > source revocation hides receipt entries and denies execution; grant has no lifecycle rights
+ ↓ server/convenience/bulk.test.ts > publication of metadata requires independent review and captures canonical values in the new version
+ ↓ server/convenience/bulk.test.ts > structured environment survives block policy, independent approval and publication without a duplicate property
+ ↓ server/convenience/bulk.test.ts > frozen patch tampering cannot reuse the accepted hash
+ ↓ server/convenience/bulk.test.ts > 50 authorized pages receive mixed results and only the stale page needs renewed consent
+ ↓ server/convenience/bulk.test.ts > mixed ready, stale and inaccessible items retain separate receipts and current visibility
+ ↓ server/convenience/bulk.test.ts > destination parent revision and ancestry changes invalidate the frozen move
+ ↓ server/convenience/bulk.test.ts > a new bulk request invalidates retention consent; a later legal hold preserves accepted rows until release
+ ↓ server/convenience/bulk.test.ts > persisted bulk execution blocks the 144 grant constraint and rollback preserves the queued receipt
+ ↓ server/convenience/bulk.test.ts > erasure selects and redacts accepted bulk payload and cancels its job through source lineage
+ ↓ server/convenience/bulk.test.ts > SIGKILL after real archive commit restarts without duplicate effect or proposal
+ ↓ server/convenience/bulk.test.ts > SIGKILL after real tags commit restarts without duplicate effect or proposal
+ ↓ server/convenience/bulk.test.ts > a failed queue admission cannot extend preview expiry
+ ↓ server/convenience/bulk.test.ts > expired preview replays only the admitted original job, actor, mutation and input hash
+ ↓ server/convenience/bulk.test.ts > bulk receipt cannot escape its original session through generic jobs or a replacement session
+ ↓ server/convenience/bulk.test.ts > an expired bulk execution grant fails explicitly without extending it or writing an item
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 29 skipped (30)
+   Start at  09:21:44
+   Duration  1.12s (tests 89%, import 8%, transform 3%)
+

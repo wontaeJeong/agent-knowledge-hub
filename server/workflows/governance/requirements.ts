@@ -1,3 +1,7 @@
+import {
+  canonicalEnvironment,
+  missingRequiredProperty,
+} from "../../../src/domain/document-properties";
 import type { PoolClient } from "pg";
 import type { Context } from "../../service";
 import type { MetadataSnapshot } from "../versions/metadata";
@@ -63,25 +67,22 @@ export async function publicationRequirements(
       type,
       workflow: workflow ?? null,
       owner: owner ?? null,
-      ...(planned ? {planned} : {}),
+      ...(planned ? { planned } : {}),
     });
     if (!policy) continue;
     const properties = planned?.properties ?? workflow?.data?.properties ?? {};
     for (const key of policy.required_keys as string[]) {
-      const value =
-        key === "businessOwner"
-          ? owner?.owner_id
-          : key === "reviewDue"
-            ? (planned ? planned.workflowData.reviewDue : workflow?.data?.reviewDue)
-            : key === "summary"
-              ? d.summary
-              : key === "tags"
-                ? (planned?.tags ?? p?.tags)
-                : properties[key];
       if (
-        value == null ||
-        (typeof value === "string" && !value.trim()) ||
-        (Array.isArray(value) && !value.length)
+        missingRequiredProperty(key, {
+          properties,
+          environment: canonicalEnvironment(planned ?? workflow?.data ?? {}),
+          businessOwner: owner?.owner_id,
+          reviewDue: planned
+            ? planned.workflowData.reviewDue
+            : workflow?.data?.reviewDue,
+          summary: d.summary,
+          tags: planned?.tags ?? p?.tags,
+        })
       ) {
         const item: PropertyWarning = {
           pageId: d.id,

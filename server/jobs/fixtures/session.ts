@@ -150,6 +150,7 @@ export async function browserIdentity(
   return {
     ctx,
     sessionId,
+    userInfoUrl:url,
     raw,
     csrf,
     accessToken,

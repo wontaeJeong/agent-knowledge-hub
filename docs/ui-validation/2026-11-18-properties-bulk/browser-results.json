@@ -1,0 +1,89 @@
+{
+  "startedAt": "2026-11-18T00:14:09.220Z",
+  "productionFingerprint": "2b7a92389a73fa2e4f6c34a9a08ec9b038688696fd6c35af8fdbd808df449758",
+  "browser": "158.0.8127.18",
+  "results": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "checks": [
+        "custom policy, advanced and guided properties, invalid JSON and exact accepted payload",
+        "synthetic 503 hides labels; real current receipt restores only authorized controls and clears error",
+        "keyboard Tab",
+        "reviewed metadata no direct publish",
+        "queued acceptance",
+        "partial applied/stale",
+        "denied target filtered",
+        "expired pending selected for new consent",
+        "new receipt applied",
+        "no horizontal overflow"
+      ],
+      "requests": 50,
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "checks": [
+        "custom policy, advanced and guided properties, invalid JSON and exact accepted payload",
+        "synthetic 503 hides labels; real current receipt restores only authorized controls and clears error",
+        "keyboard Tab",
+        "reviewed metadata no direct publish",
+        "queued acceptance",
+        "partial applied/stale",
+        "denied target filtered",
+        "expired pending selected for new consent",
+        "new receipt applied",
+        "no horizontal overflow"
+      ],
+      "requests": 50,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "checks": [
+        "custom policy, advanced and guided properties, invalid JSON and exact accepted payload",
+        "synthetic 503 hides labels; real current receipt restores only authorized controls and clears error",
+        "keyboard Tab",
+        "reviewed metadata no direct publish",
+        "queued acceptance",
+        "partial applied/stale",
+        "denied target filtered",
+        "expired pending selected for new consent",
+        "new receipt applied",
+        "no horizontal overflow"
+      ],
+      "requests": 50,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "checks": [
+        "custom policy, advanced and guided properties, invalid JSON and exact accepted payload",
+        "synthetic 503 hides labels; real current receipt restores only authorized controls and clears error",
+        "keyboard Tab",
+        "reviewed metadata no direct publish",
+        "queued acceptance",
+        "partial applied/stale",
+        "denied target filtered",
+        "expired pending selected for new consent",
+        "new receipt applied",
+        "no horizontal overflow"
+      ],
+      "requests": 159,
+      "errors": []
+    }
+  ],
+  "rollback": {
+    "currentTagLabel": "검토 필요",
+    "publishedTagsAfterProposal": [],
+    "source": "29a892b06b1edc089ffab678835a46a936241306",
+    "schema": 145,
+    "archive": "applied",
+    "tags": "needs-review",
+    "oldTagLabel": "실패",
+    "pendingJobAfterSwitch": "applied"
+  }
+}

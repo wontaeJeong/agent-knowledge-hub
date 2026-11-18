@@ -1,12 +1,17 @@
+import { randomUUID } from "node:crypto";
+import { DocumentPropertiesService } from "../convenience/properties";
+import { WorkflowService } from "../workflows/service";
+import { KnowledgeService } from "../service";
 import { afterEach, expect, test, vi } from "vitest";
 import { fixture, adoptFixture, page as seedPage } from "../test-support";
-import { authorizeActionDb } from "../access/index";
+import { authorizeActionDb, authorizeInTransaction } from "../access/index";
 import { RuntimeService } from "../runtime/knowledge";
 import { QuestionsService } from "./service";
 import { transaction } from "../database";
 import type { Pool, PoolClient } from "pg";
 import type { RuntimeExecution } from "../runtime/knowledge";
-import { capturePublishedVersionMetadata } from "../workflows/versions/metadata";
+import { fingerprint } from "../provenance";
+import { capturePublishedVersionMetadata, currentMetadata } from "../workflows/versions/metadata";
 const pools: Pool[] = [];
 afterEach(async () => {
   await Promise.all(pools.splice(0).map((p) => p.end()));
@@ -774,6 +779,205 @@ test("combined current filters use actual workflow/business metadata and literal
     (await f.service.search(f.reader, { historical: true, type: "runbook" }))
       .items,
   ).toEqual([]);
+});
+
+test.each([
+  {
+    label: "canonical string",
+    field: { environment: "Fedora" },
+    expected: "Fedora",
+  },
+  { label: "explicit null", field: { environment: null }, expected: undefined },
+  { label: "explicit empty string", field: { environment: "" }, expected: "" },
+  {
+    label: "structured map",
+    field: { environment: { os: "linux" } },
+    expected: undefined,
+  },
+])(
+  "current and historical environment prefer $label to an obsolete nested string",
+  async ({ field, expected }) => {
+    const f = await setup();
+    await f.pool.query(
+      "INSERT INTO workflow_document_state(workspace_id,page_id,data) VALUES($1,'topic',$2)",
+      [f.workspaceId, { ...field, properties: { environment: "obsolete" } }],
+    );
+    await transaction(f.pool, f.workspaceId, async (db) => {
+      await db.query(
+        "INSERT INTO versions SELECT workspace_id,page_id,2,data || $2::jsonb FROM versions WHERE workspace_id=$1 AND page_id='topic' AND number=1",
+        [f.workspaceId, { id: "captured-v2", number: 2 }],
+      );
+      await capturePublishedVersionMetadata(db, f.editor, "topic", 2);
+    });
+    for (const historical of [false, true]) {
+      const results = await f.service.search(f.reader, { historical });
+      const page = results.items.find(
+        (item) => item.pageId === "topic" && item.version === 2,
+      );
+      expect(page).toBeDefined();
+      expect(page!.metadata?.environment).toBe(expected);
+      expect(
+        (
+          await f.service.search(f.reader, {
+            historical,
+            environment: "obsolete",
+          })
+        ).items,
+      ).toEqual([]);
+      if (expected)
+        expect(
+          (
+            await f.service.search(f.reader, {
+              historical,
+              environment: expected,
+            })
+          ).items.map((item) => item.version),
+        ).toEqual([2]);
+    }
+  },
+);
+
+test("a summary-only publication keeps legacy string search, preserves version-bound history through a map edit and rechecks current lineage", async () => {
+  const f = await setup();
+  const { versions, ...parent } = {
+    ...seedPage,
+    id: "search-parent",
+    title: "상위 문서",
+  };
+  await f.pool.query(
+    "INSERT INTO resources VALUES($1,'page','search-parent')",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO pages(workspace_id,id,data) VALUES($1,'search-parent',$2)",
+    [f.workspaceId, parent],
+  );
+  await f.pool.query("INSERT INTO versions VALUES($1,'search-parent',1,$2)", [
+    f.workspaceId,
+    versions[0],
+  ]);
+  await f.pool.query(
+    "INSERT INTO resource_readers SELECT workspace_id,kind,'search-parent',principal_id FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='topic'",
+    [f.workspaceId],
+  );
+  const independent = {
+    workspaceId: f.workspaceId,
+    principalId: "fixture-owner",
+  };
+  await f.pool.query(
+    "INSERT INTO resource_readers SELECT workspace_id,kind,resource_id,'fixture-owner' FROM resource_readers WHERE workspace_id=$1 AND principal_id='reviewer' ON CONFLICT DO NOTHING",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO access_reviewers VALUES($1,'fixture-owner')",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO workflow_document_state(workspace_id,page_id,parent_id,data) VALUES($1,'topic','search-parent',$2)",
+    [f.workspaceId, { properties: { environment: "Ubuntu" } }],
+  );
+  // Older snapshots may contain only the nested string. Seed that format once for v1.
+  await transaction(f.pool, f.workspaceId, async (db) => {
+    const { environment: _unused, ...snapshot } = await currentMetadata(
+      db,
+      f.ctx,
+      "topic",
+    );
+    await db.query(
+      "INSERT INTO version_metadata(workspace_id,page_id,number,snapshot,snapshot_hash,anchors,actor_id) VALUES($1,'topic',1,$2,$3,$4,$5)",
+      [
+        f.workspaceId,
+        snapshot,
+        fingerprint(snapshot),
+        { anchors: [] },
+        f.ctx.principalId,
+      ],
+    );
+  });
+  const properties = new DocumentPropertiesService(
+    new WorkflowService(f.pool, f.runtime, authorizeInTransaction),
+  );
+  const knowledge = new KnowledgeService(f.pool);
+  const matches = async (historical = false, environment?: string) =>
+    (await f.service.search(f.reader, { historical, environment })).items
+      .filter((i) => i.pageId === "topic")
+      .map((i) => ({
+        version: i.version,
+        environment: i.metadata?.environment,
+      }));
+  async function approveEdit(
+    environment: string | Record<string, string>,
+    summary: string,
+  ) {
+    const { metadata: m } = await properties.read(f.ctx, "topic");
+    const proposal = await properties.propose(f.ctx, "topic", {
+      category: m.category,
+      summary,
+      tags: m.tags,
+      properties: m.properties,
+      environment,
+      reviewDue: null,
+      expectedVersion: m.number,
+      expectedRevision: m.settingsRevision,
+      reason: "속성 검토",
+      mutationId: randomUUID(),
+    });
+    await expect(
+      knowledge.approve(f.ctx, proposal.id, proposal.hash),
+    ).rejects.toThrow();
+    await knowledge.approve(independent, proposal.id, proposal.hash);
+    return proposal;
+  }
+  const previous = [{ version: 1, environment: "Ubuntu" }],
+    published = [{ version: 2, environment: "Ubuntu" }];
+  const historicalVersions = [...published, ...previous];
+  expect(await matches(true, "Ubuntu")).toEqual(previous);
+  expect(await matches(false, "Ubuntu")).toEqual(previous);
+  const summaryOnly = await approveEdit("Ubuntu", "요약 변경");
+  expect(await matches(false, "Ubuntu")).toEqual(previous);
+  await knowledge.publish(
+    independent,
+    summaryOnly.id,
+    summaryOnly.hash,
+    randomUUID(),
+  );
+  expect(await matches(false, "Ubuntu")).toEqual(published);
+  expect(await matches(true, "Ubuntu")).toEqual(historicalVersions);
+  const map = { os: "linux", version: "17" };
+  const structured = await approveEdit(map, "요약 변경");
+  expect(await matches(false, "Ubuntu")).toEqual(published);
+  await knowledge.publish(
+    independent,
+    structured.id,
+    structured.hash,
+    randomUUID(),
+  );
+  const { metadata } = await properties.read(f.reader, "topic");
+  expect(metadata.environment).toEqual(map);
+  expect(metadata.properties).not.toHaveProperty("environment");
+  expect(await matches(false, "Ubuntu")).toEqual([]);
+  expect(await matches()).toEqual([{ version: 3, environment: undefined }]);
+  expect(await matches(true, "Ubuntu")).toEqual(historicalVersions);
+  await expect(
+    f.service.search(f.reader, { environment: map }),
+  ).rejects.toThrow();
+  for (const [kind, id] of [
+    ["source", "source-a"],
+    ["page", "search-parent"],
+  ]) {
+    await f.pool.query(
+      "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind=$2 AND resource_id=$3 AND principal_id='reader'",
+      [f.workspaceId, kind, id],
+    );
+    expect(await matches()).toEqual([]);
+    expect(await matches(true, "Ubuntu")).toEqual([]);
+    await f.pool.query(
+      "INSERT INTO resource_readers VALUES($1,$2,$3,'reader')",
+      [f.workspaceId, kind, id],
+    );
+    expect(await matches()).toEqual([{ version: 3, environment: undefined }]);
+    expect(await matches(true, "Ubuntu")).toEqual(historicalVersions);
+  }
 });
 
 test("migration103 snapshots search actual historical title/type/tags/environment without copying current metadata or current business owner", async () => {

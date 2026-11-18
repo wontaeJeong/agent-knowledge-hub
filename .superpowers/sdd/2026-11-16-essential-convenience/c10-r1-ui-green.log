@@ -1,0 +1,9 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+   Start at  08:14:33
+   Duration  433ms (environment 59%, import 20%, tests 14%, transform 7%, worker 1%)
+

@@ -1,0 +1,20 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'failed'
+- 'needs-review'
+
+    at file:///Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub/docs/ui-validation/2026-11-18-properties-bulk/capture.mjs:66:170 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'failed',
+  expected: 'needs-review',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.22.2

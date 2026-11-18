@@ -1,3 +1,5 @@
+import { bulkPayload, executeBulk } from "../convenience/bulk";
+import { WorkflowService } from "../workflows/service";
 import { SearchIndexService } from "../search/service";
 import {
   SemanticSearchService,
@@ -33,6 +35,8 @@ import {
 } from "./identity";
 
 export interface RuntimeJobsOptions extends RuntimeIdentityOptions {
+  /** Trusted deployment origin shared with HTTP publication. */
+  referenceOrigin?: string;
   /** Trusted DB-only sealed conversation preparation; not caller-selected source scope. */
   questions?: {
     prepare: (
@@ -92,7 +96,7 @@ export function runtimeCapabilities(
   return [...result];
 }
 const actionFor = (kind: string): Action =>
-  kind === "retention" || kind === "monthly"
+  kind === "bulk" || kind === "retention" || kind === "monthly"
     ? "knowledge.read"
     : kind === "query"
       ? "knowledge.read"
@@ -115,6 +119,7 @@ function payloadFor(
   payload: unknown,
   internal = false,
 ): Record<string, unknown> {
+  if (kind === "bulk") return bulkPayload.parse(payload);
   if (kind === "index")
     return z
       .object({ action: z.literal("rebuild-search-index") })
@@ -355,6 +360,7 @@ export function createRuntimeJobs(
     },
     resolveIdentity: (db, identity) => authority.resolve(db, identity),
     policyFingerprint: async (db, ctx) => {
+      if ((await grant(db,ctx))?.operation === "bulk") return fingerprint("bulk-per-item-policy-v1");
       const access = (
         await db.query(
           "SELECT policy_version,active,namespace_id FROM access_spaces WHERE workspace_id=$1",
@@ -409,6 +415,22 @@ export function createRuntimeJobs(
       )
         throw Error("SEMANTIC_SCHEDULE_NOT_SUPPORTED");
       const payload = payloadFor(input.kind, input.payload, true);
+      if(input.kind === "bulk") {
+        if(purpose === "schedule") throw Error("BULK_SESSION_REQUIRED");
+        const request=(await db.query("SELECT * FROM workflow_bulk_requests WHERE workspace_id=$1 AND id=$2 AND principal_id=$3",[ctx.workspaceId,payload.requestId,ctx.principalId])).rows[0];
+        if (purpose === "read" && (!request || ctx.credentialId ||
+            !ctx.authorization?.sessionId || ctx.authorization.sessionId !== request.session_id))
+          throw Error("NOT_FOUND");
+        if (!request || request.input_hash !== payload.inputHash || input.key !== "bulk:" + request.mutation_id)
+          throw Error("EXECUTION_SCOPE_CONFLICT");
+        if (purpose === "read") {
+          await ctx.authorization!.assertSession(db);
+          return;
+        }
+        const g=await grant(db,ctx);
+        if(!g || g.operation!=="bulk" || !g.parent_session_id || g.parent_credential_id || g.parent_session_id!==request.session_id || g.request_key!==input.key || g.payload_hash!==grantPayloadHash(input) || input.pageIds.length || input.sourceIds.length || input.reservation.tokens || input.reservation.costMicros || input.model) throw Error("EXECUTION_SCOPE_CONFLICT");
+        return;
+      }
       if (input.kind === "index") {
         if (purpose === "schedule") throw Error("INDEX_SCHEDULE_NOT_SUPPORTED");
         await indexAdmin(db, ctx);
@@ -743,6 +765,7 @@ export function createRuntimeJobs(
         sourceIds: [...new Set(prepared.sourceIds)].sort(),
       };
     }
+    if (kind === "bulk") return settings(kind,payload,key,requested);
     if (kind === "index") {
       await indexAdmin(db, ctx);
       return settings(kind, payload, key, requested);
@@ -759,7 +782,7 @@ export function createRuntimeJobs(
   };
   const submitInteractive = async (
     ctx: Context,
-    kind: "ingest" | "query" | "lint" | "index",
+    kind: "ingest" | "query" | "lint" | "index" | "bulk",
     raw: unknown,
     key: string,
     requested?: JobInput,
@@ -767,6 +790,7 @@ export function createRuntimeJobs(
     Object.freeze(ctx);
     z.string().min(1).max(200).parse(key);
     const payload = payloadFor(kind, raw);
+    if(kind === "bulk" && (ctx.credentialId || ctx.agent || !ctx.authorization?.sessionId)) throw Error("BULK_SESSION_REQUIRED");
     if (
       kind === "index" &&
       (ctx.credentialId || ctx.agent || !ctx.authorization?.sessionId)
@@ -808,11 +832,15 @@ export function createRuntimeJobs(
       if (kind === "index") await indexAdmin(db, ctx);
       const existing = (
         await db.query(
-          "SELECT id,input FROM durable_jobs WHERE workspace_id=$1 AND principal_id=$2 AND idempotency_key=$3",
+          "SELECT id,input,credential_id FROM durable_jobs WHERE workspace_id=$1 AND principal_id=$2 AND idempotency_key=$3",
           [ctx.workspaceId, ctx.principalId, key],
         )
       ).rows[0];
       if (existing) {
+        if(kind === "bulk") {
+          const g=(await db.query("SELECT parent_session_id FROM runtime_execution_grants WHERE credential_id=$1",[existing.credential_id])).rows[0];
+          if(!g || g.parent_session_id!==parentSession?.sessionId)throw Error("IDEMPOTENCY_CONFLICT");
+        }
         if (existing.input.kind !== kind) throw Error("IDEMPOTENCY_CONFLICT");
         let semanticSnapshotHash: string | undefined;
         if (payload.semanticSearch) {
@@ -1103,6 +1131,7 @@ export function createRuntimeJobs(
   };
   const maintenance = new MaintenanceService(pool, service);
   const handler = async (run: JobRun) => {
+    if(run.lease.input.kind === "bulk") return executeBulk(new WorkflowService(pool,service,authorizeInTransaction,options.referenceOrigin),jobs,run);
     if (run.lease.input.kind === "retention") {
       const payload = payloadFor("retention", run.lease.input.payload, true);
       const result: Record<string, unknown> = {};
@@ -1320,6 +1349,7 @@ export function createRuntimeJobs(
           monthly: handler,
           retention: handler,
           index: handler,
+          bulk: handler,
         },
         {
           workerId: `runtime-${randomUUID()}`,
@@ -1343,8 +1373,10 @@ export function createRuntimeJobs(
       payload: unknown,
       key: string,
     ) => submitInteractive(ctx, kind, payload, key),
+    submitBulk: (ctx: Context,payload: unknown,key: string) => submitInteractive(ctx,"bulk",payload,key),
     submitDelegated: async (ctx: Context, raw: unknown) => {
       const input = parseJobInput(raw);
+      if(input.kind === "bulk") throw Error("BULK_SESSION_REQUIRED");
       if (["query", "ingest", "lint"].includes(input.kind))
         return submitInteractive(
           ctx,

@@ -1,0 +1,45 @@
+{
+  "browser": "158.0.8127.18",
+  "productionFingerprint": "15b61085b6725a050e0aa9f316a2b1f4316c1d50369a516fc9b2e32c5cbd0a01",
+  "checks": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "requests": 49,
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "requests": 49,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "requests": 49,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "requests": 118,
+      "errors": []
+    }
+  ],
+  "rollback": {
+    "source": "29a892b06b1edc089ffab678835a46a936241306",
+    "schema": 145,
+    "archive": "applied",
+    "tags": "needs-review",
+    "oldTagLabel": "실패",
+    "pendingJobAfterSwitch": "applied"
+  },
+  "portsListening": {
+    "4400": false,
+    "5200": false,
+    "5201": false
+  },
+  "remainingOwnedBrowserDatabases": 0,
+  "temporarySnapshotsRemoved": 2
+}

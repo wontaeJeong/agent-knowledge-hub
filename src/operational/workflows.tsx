@@ -1,3 +1,4 @@
+import { PropertiesForm } from "./convenience/PropertiesForm";
 import {DocumentReader, type ReadingSession} from "./convenience/DocumentReader";
 import type {BlockReference} from "./convenience/document-reader";
 import {LinkAutocomplete} from "./convenience/LinkAutocomplete";
@@ -464,7 +465,7 @@ export function WorkflowPanel({
   const [trashPage, setTrashPage] = useState(0);
   const [historyPage, setHistoryPage] = useState(0);
   const [parent, setParent] = useState("");
-  const [properties, setProperties] = useState("{}");
+
   const [expiry,setExpiry]=useState("");
   const [editingComment, setEditingComment] = useState<{
     id: string;
@@ -827,9 +828,7 @@ export function WorkflowPanel({
           }
           setParent(d.settings.parent_id ?? "");
           setExpiry(d.settings.data.effectiveUntil?.slice(0,16)??"");
-          setProperties(
-            JSON.stringify(d.settings.data.properties ?? {}, null, 2),
-          );
+
         })
         .catch((e) => {
           if (active && isCurrentRead(selectionNow, request)) { focusIntent.current = null; fail(e); }
@@ -1401,14 +1400,12 @@ export function WorkflowPanel({
                     ))}
                 </select>
               </label>
-              <label>
-                속성 (문자열 값의 JSON 객체)
-                <textarea
-                  value={properties}
-                  onChange={(e) => setProperties(e.target.value)}
-                  rows={4}
-                />
-              </label>
+              <PropertiesForm key={`${identityScope}:${selected}`} api={api} pageId={selected} scope={identityScope} canAssignOwner={can("space.admin")} onExpired={onExpired} onReadUnavailable={e => { if (mounted.current && selection.current === selectionNow) fail(e); }}
+                recheckDocument={e => {
+                  if (!mounted.current || selection.current !== selectionNow) return;
+                  setError(e.message);
+                  void refreshDocument(true);
+                }}/>
               <Button
                 disabled={busy || !reason.trim()}
                 onClick={() =>
@@ -1416,15 +1413,14 @@ export function WorkflowPanel({
                     await api.post(`${pagePath}/state`, {
                       expectedRevision: detail.settings.revision,
                       parentId: parent || null,
-                      properties: JSON.parse(properties),
                       reason,
                     });
                     await refreshDocument();
-                    setNotice("구조와 속성을 저장했습니다.");
+                    setNotice("문서 구조를 저장했습니다.");
                   })
                 }
               >
-                구조·속성 저장
+                구조 저장
               </Button>
               <Button
                 disabled={busy || !reason.trim()}

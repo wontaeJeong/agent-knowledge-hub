@@ -21,7 +21,7 @@ const identifier = z.string().min(1).max(200);
 const integer = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const jobSchema = z
   .object({
-    kind: z.enum(["ingest", "query", "lint", "daily", "weekly", "monthly", "index", "retention"]),
+    kind: z.enum(["ingest", "query", "lint", "daily", "weekly", "monthly", "index", "retention", "bulk"]),
     key: identifier,
     payload: z.record(z.string(), z.unknown()),
     pageIds: z.array(identifier).max(200),
@@ -383,8 +383,8 @@ export class JobService {
       updatedAt: row.updated_at,
       leaseUntil: row.lease_until,
       heartbeatAt: row.heartbeat_at,
-      result: row.result,
-      checkpoint: row.checkpoint,
+      result: row.kind === "bulk" ? null : row.result,
+      checkpoint: row.kind === "bulk" ? null : row.checkpoint,
       error: row.error_code,
     };
   }
@@ -427,7 +427,7 @@ export class JobService {
       async (db) => {
         const rows = (
           await db.query(
-            "SELECT * FROM durable_jobs WHERE workspace_id=$1 AND (principal_id=$2 OR $4::boolean) AND ($5::boolean=false OR status='dead' OR (status='queued' AND error_code IS NOT NULL)) ORDER BY created_at DESC,id LIMIT 25 OFFSET $3",
+            "SELECT * FROM durable_jobs WHERE workspace_id=$1 AND (principal_id=$2 OR ($4::boolean AND kind<>\'bulk\')) AND ($5::boolean=false OR status='dead' OR (status='queued' AND error_code IS NOT NULL)) ORDER BY created_at DESC,id LIMIT 25 OFFSET $3",
             [ctx.workspaceId, ctx.principalId, offset, scope === "workspace", failedOnly],
           )
         ).rows;

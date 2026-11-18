@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-11-18T00:18:13.738Z",
+  "ownedBrowserDatabasesChecked": 1,
+  "ownedDatabasesRemaining": 0,
+  "portsListening": {
+    "4400": false,
+    "5200": false,
+    "5201": false
+  },
+  "parentPostgreSQLPreserved": true,
+  "stoppedPids": [
+    30645,
+    30659,
+    30661
+  ],
+  "previousClientTemporaryArchiveRemoved": true,
+  "syntheticSessionFileRemoved": true
+}

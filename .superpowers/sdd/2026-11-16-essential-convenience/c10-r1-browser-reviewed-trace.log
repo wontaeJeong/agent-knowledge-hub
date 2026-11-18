@@ -1,0 +1,34 @@
+[
+  {
+    reason: '태그 검토',
+    page_id: 'rollback',
+    status: 'failed',
+    code: 'VALIDATION_FAILED',
+    job_status: 'succeeded',
+    error_code: null
+  },
+  {
+    reason: 'rollback fixture',
+    page_id: 'topic',
+    status: 'applied',
+    code: null,
+    job_status: 'succeeded',
+    error_code: null
+  },
+  {
+    reason: '합성 일괄 보관',
+    page_id: 'stale',
+    status: 'applied',
+    code: null,
+    job_status: 'succeeded',
+    error_code: null
+  },
+  {
+    reason: '합성 일괄 보관',
+    page_id: 'stale',
+    status: 'pending',
+    code: null,
+    job_status: 'dead',
+    error_code: 'CREDENTIAL_REVOKED'
+  }
+]

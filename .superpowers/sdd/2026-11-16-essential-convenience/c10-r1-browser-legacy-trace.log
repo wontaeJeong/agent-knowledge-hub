@@ -1,0 +1,7 @@
+{
+  status: 403,
+  code: 'FORBIDDEN',
+  keys: [ 'code', 'requestId' ],
+  item: undefined,
+  itemCode: undefined
+}

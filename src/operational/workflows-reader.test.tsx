@@ -46,13 +46,28 @@ async function click(host: HTMLElement, label: string) {
       .click(),
   );
 }
-async function setup(spaceId?: string) {
+async function setup(spaceId?: string, propertyPost?: () => Promise<unknown>) {
   let reads = 0,
     manual!: (v: any) => void,
     background!: (v: any) => void,
     deny!: (e: unknown) => void;
   const api = {
     get: async (path: string) => {
+      if (path === "/workflows/pages/topic/properties" && propertyPost)
+        return {
+          metadata: {
+            number: 1,
+            settingsRevision: 4,
+            category: "guide",
+            summary: "제한 요약",
+            tags: ["제한 태그"],
+            properties: {},
+            environment: null,
+            workflowData: {},
+          },
+          policies: [],
+          owner: null,
+        };
       if (path === "/workflows/pages/topic") {
         if (++reads === 1) return detail;
         return new Promise((r) => {
@@ -66,7 +81,8 @@ async function setup(spaceId?: string) {
         });
       return { items: [], revision: "r", nextCursor: null };
     },
-    post: async () => ({}),
+    post: async (path: string) =>
+      path.endsWith("/properties") && propertyPost ? propertyPost() : {},
   } as any;
   const props = {
     api,
@@ -92,6 +108,93 @@ async function setup(spaceId?: string) {
     deny: () => deny(new ApiError("revoked now", 404, "NOT_FOUND")),
   };
 }
+test.each([true, false])(
+  "property write denial rechecks current document and invalidates earlier sibling reads (readable %s)",
+  async (readable) => {
+    let rejectWrite!: (error: Error) => void;
+    const f = await setup(
+      undefined,
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectWrite = reject;
+        }),
+    );
+    const region = f.host.querySelector('[aria-label="문서 속성"]')!;
+    await fill(
+      [...region.querySelectorAll("label")]
+        .find((l) => l.textContent === "변경 이유")!
+        .querySelector("input")!,
+      "검토 요청",
+    );
+    await click(f.host, "속성 검토 요청");
+    // An earlier manual document read unmounts the form while the write is still pending.
+    await fill(
+      f.host.querySelector(
+        'input[placeholder="복원·보호·수명주기 변경 이유"]',
+      )!,
+      "기한",
+    );
+    await click(f.host, "유효기간 저장");
+    const early = f.manual;
+    await act(async () => rejectWrite(new ApiError("쓰기 권한 변경", 403)));
+    await act(async () => early(detail));
+    expect(f.host.textContent).not.toContain("Protected Korean");
+    if (readable) {
+      await act(async () => f.background(detail));
+      expect(f.host.textContent).toContain("Protected Korean");
+      expect(
+        f.host.querySelector<HTMLTextAreaElement>(
+          '[aria-label="문서 속성"] textarea',
+        )?.value,
+      ).toBe("제한 요약");
+    } else {
+      await act(async () => f.deny());
+      expect(f.host.textContent).toContain("revoked now");
+      expect(f.host.textContent).not.toContain("Protected Korean");
+      expect(
+        f.host.querySelector('[aria-label="문서 속성"] textarea'),
+      ).toBeNull();
+    }
+  },
+);
+test.each(["principal", "space"])(
+  "a delayed property write denial cannot refresh a replacement %s",
+  async (boundary) => {
+    let rejectWrite!: (reason: Error) => void;
+    const f = await setup(
+      "first",
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectWrite = reject;
+        }),
+    );
+    const form = f.host.querySelector('[aria-label="문서 속성"]')!;
+    await fill(
+      [...form.querySelectorAll("label")]
+        .find((l) => l.textContent === "변경 이유")!
+        .querySelector("input")!,
+      "검토",
+    );
+    await click(f.host, "속성 검토 요청");
+    const spy = vi.spyOn(f.props.api, "get");
+    await act(async () =>
+      root.render(
+        <WorkflowPanel
+          {...f.props}
+          {...(boundary === "principal"
+            ? { principalId: "other" }
+            : { spaceId: "other" })}
+        />,
+      ),
+    );
+    await act(async () => f.manual(detail));
+    const previous = spy.mock.calls.length;
+    await act(async () => rejectWrite(new ApiError("이전 작업", 404)));
+    expect(spy.mock.calls).toHaveLength(previous);
+    expect(f.host.textContent).toContain("Protected Korean");
+    expect(f.host.textContent).not.toContain("이전 작업");
+  },
+);
 for (const order of ["denial-first", "manual-first"] as const)
   test(`manual expiry refresh and newer denial share one authority (${order})`, async () => {
     const f = await setup();

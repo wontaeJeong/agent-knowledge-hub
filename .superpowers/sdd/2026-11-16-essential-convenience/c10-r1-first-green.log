@@ -1,0 +1,41 @@
+[1/2] server/convenience/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  08:14:34
+   Duration  9.74s (tests 99%, import 1%, transform 1%)
+
+[2/2] server/jobs/maintenance-runtime.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ server/jobs/maintenance-runtime.test.ts (20 tests | 1 failed) 35983ms
+   × weekly retry after proposal commit reuses the exact proposal and cached model response 2629ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed (20)
+   Start at  08:14:44
+   Duration  36.19s (tests 100%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/jobs/maintenance-runtime.test.ts > weekly retry after proposal commit reuses the exact proposal and cached model response
+AssertionError: {"status":"queued","result":null,"error_code":"DB_UNAVAILABLE"}: expected 'queued' to be 'succeeded' // Object.is equality
+
+Expected: "succeeded"
+Received: "queued"
+
+ ❯ server/jobs/maintenance-runtime.test.ts:466:43
+    464|     )
+    465|   ).rows[0];
+    466|   expect(row.status, JSON.stringify(row)).toBe("succeeded");
+       |                                           ^
+    467|   expect(m.calls()).toBe(1);
+    468|   expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

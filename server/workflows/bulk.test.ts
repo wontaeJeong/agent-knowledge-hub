@@ -19,7 +19,9 @@ beforeEach(async () => {
 afterEach(async () => {
   await f.pool.end();
 });
-test("bulk preview does not change document metadata; apply preserves other properties and enforces CAS", async () => {
+test("legacy tag token preserves properties and replays the same reviewed proposal without direct publication", async () => {
+  const { adoptFixture } = await import("../test-support");
+  await adoptFixture(f.pool, f.workspaceId);
   await service.setDocumentState(f.ctx, "topic", {
     expectedRevision: 0,
     properties: { environment: "prod", tags: "old" },
@@ -35,37 +37,27 @@ test("bulk preview does not change document metadata; apply preserves other prop
     status: "ready",
     expectedRevision: 1,
   });
-  expect(
-    (await service.document(f.ctx, "topic")).settings.data.properties.tags,
-  ).toBe("old");
-  const applied = await service.bulkApply(f.ctx, { token: preview.token });
-  expect(applied.items[0]).toMatchObject({
-    id: "topic",
-    status: "applied",
-    revision: 2,
-  });
-  expect(
-    (await service.document(f.ctx, "topic")).settings.data.properties,
-  ).toEqual({ environment: "prod", tags: "old" });
-  expect((await service.document(f.ctx, "topic")).page.tags).toEqual([
-    "guide",
-    "한글",
+  const [a, b] = await Promise.all([
+    service.bulkApply(f.ctx, { token: preview.token }),
+    service.bulkApply(f.ctx, { token: preview.token }),
   ]);
-  const { adoptFixture } = await import("../test-support");
-  await adoptFixture(f.pool, f.workspaceId);
-  const { ScopedSearch } = await import("../questions/search");
-  const search = new ScopedSearch(f.pool, {
-    runtime: service.runtime,
-    authorize: service.authorize,
+  expect(a.items[0]).toMatchObject({ id: "topic", status: "needs-review" });
+  expect(b).toEqual(a);
+  const doc = await service.document(f.ctx, "topic");
+  expect(doc.page.tags).toEqual([]);
+  expect(doc.settings.revision).toBe(1);
+  expect(doc.settings.data.properties).toEqual({
+    environment: "prod",
+    tags: "old",
   });
   expect(
-    (await search.search(f.ctx, { tags: ["guide"] })).items.map(
-      (i) => i.pageId,
-    ),
-  ).toContain("topic");
-  expect(
-    (await service.bulkApply(f.ctx, { token: preview.token })).items[0],
-  ).toMatchObject({ status: "applied", revision: 2 });
+    (
+      await f.pool.query(
+        "SELECT count(*)::int AS n FROM version_restore_plans WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows[0].n,
+  ).toBe(1);
 });
 test("bulk operations keep per-target failures and reject forged or cross-user previews", async () => {
   const preview = await service.bulkPreview(f.ctx, {
@@ -133,7 +125,7 @@ test("native runtime bulk routes require authenticated current roles and CSRF", 
   for (const user of ["reviewer", "reader"])
     await f.pool.query(
       "INSERT INTO runtime_sessions(id,workspace_id,principal_id,csrf,expires_at,subject,access_token) VALUES($1,$2,$3,'csrf',now()+interval '1 hour',$3,$3)",
-      [sessionHash("bulk-" + user), f.workspaceId, user],
+      [sessionHash("bulk-" + user + "-" + f.workspaceId), f.workspaceId, user],
     );
   const host = createServer(
     createRuntimeHandler({
@@ -155,7 +147,7 @@ test("native runtime bulk routes require authenticated current roles and CSRF", 
     const r = await fetch(base + "/api/v1/workflows/bulk/" + path, {
       method: "POST",
       headers: {
-        Cookie: "akh_session=bulk-" + user,
+        Cookie: "akh_session=bulk-" + user + "-" + f.workspaceId,
         Origin: "http://localhost",
         "Content-Type": "application/json",
         "X-CSRF-Token": csrf,
@@ -165,6 +157,27 @@ test("native runtime bulk routes require authenticated current roles and CSRF", 
     return { status: r.status, body: await r.json() };
   };
   try {
+    const stateResponse = await fetch(
+      base + "/api/v1/workflows/pages/topic/state",
+      {
+        method: "POST",
+        headers: {
+          Cookie: "akh_session=bulk-reviewer-" + f.workspaceId,
+          Origin: "http://localhost",
+          "Content-Type": "application/json",
+          "X-CSRF-Token": "csrf",
+        },
+        body: JSON.stringify({
+          expectedRevision: 0,
+          tags: ["unreviewed"],
+          reason: "attempt",
+        }),
+      },
+    );
+    expect(stateResponse.status).toBe(409);
+    expect(await stateResponse.json()).toMatchObject({
+      code: "METADATA_REVIEW_REQUIRED",
+    });
     const raw = {
       pageIds: ["topic"],
       operation: { kind: "archive" },
@@ -173,6 +186,8 @@ test("native runtime bulk routes require authenticated current roles and CSRF", 
     expect((await request("preview", raw, "reviewer", "wrong")).status).toBe(
       403,
     );
+    const missingWorker = await request("apply",{previewToken:"opaque",mutationId:"11111111-1111-4111-8111-111111111111"});
+    expect(missingWorker).toMatchObject({status:503,body:{code:"BULK_WORKER_NOT_CONFIGURED"}});
     const preview = await request("preview", raw);
     expect(preview.status).toBe(200);
     expect(preview.body.items[0].status).toBe("ready");
@@ -267,7 +282,8 @@ test("partial commit receipts survive a later target failure and remaining targe
 });
 
 test("terminal identity revocation withholds accumulated receipts until authorized reconciliation", async () => {
-  const {adoptFixture}=await import("../test-support");await adoptFixture(f.pool,f.workspaceId);
+  const { adoptFixture } = await import("../test-support");
+  await adoptFixture(f.pool, f.workspaceId);
   const preview = await service.bulkPreview(f.ctx, {
     pageIds: ["topic"],
     operation: { kind: "archive" },
@@ -301,4 +317,57 @@ test("terminal identity revocation withholds accumulated receipts until authoriz
   expect(
     (await service.bulkApply(ctx, { token: preview.token })).items[0],
   ).toMatchObject({ status: "applied", revision: 1 });
+});
+test("legacy reviewed tag receipt survives response loss but stale base and revoked source cannot publish or disclose it", async () => {
+  const { adoptFixture } = await import("../test-support");
+  await adoptFixture(f.pool, f.workspaceId);
+  const raw = {
+    pageIds: ["topic"],
+    operation: { kind: "tags", tags: ["reviewed"] },
+    reason: "legacy retry",
+  };
+  const stale = await service.bulkPreview(f.ctx, raw);
+  await service.setDocumentState(f.ctx, "topic", {
+    expectedRevision: 0,
+    properties: { environment: "changed" },
+    reason: "race",
+  });
+  expect(
+    (await service.bulkApply(f.ctx, { token: stale.token })).items[0],
+  ).toMatchObject({ status: "failed", code: "STALE_VERSION" });
+  const p = await service.bulkPreview(f.ctx, raw);
+  await service.bulkApply(f.ctx, { token: p.token }); // deliberately discard committed response
+  const retry = await service.bulkApply(f.ctx, { token: p.token });
+  expect(retry.items[0].status).toBe("needs-review");
+  expect(
+    (
+      await f.pool.query(
+        "SELECT count(*)::int n FROM version_restore_plans WHERE workspace_id=$1",
+        [f.workspaceId],
+      )
+    ).rows[0].n,
+  ).toBe(1);
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='source' AND principal_id='reviewer'",
+    [f.workspaceId],
+  );
+  const denied = await service
+    .bulkApply(f.ctx, { token: p.token })
+    .catch(() => null);
+  expect(denied?.items.some((i) => i.status === "needs-review") ?? false).toBe(
+    false,
+  );
+  const { KnowledgeService } = await import("../service");
+  const outcome = retry.items[0] as { batchId: string; hash: string };
+  await expect(
+    new KnowledgeService(f.pool).approve(f.ctx, outcome.batchId, outcome.hash),
+  ).rejects.toThrow();
+  expect(
+    (
+      await f.pool.query(
+        "SELECT max(number)::int n FROM versions WHERE workspace_id=$1 AND page_id=$2",
+        [f.workspaceId, "topic"],
+      )
+    ).rows[0].n,
+  ).toBe(1);
 });

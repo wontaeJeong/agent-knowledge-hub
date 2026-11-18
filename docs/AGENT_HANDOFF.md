@@ -1,5 +1,46 @@
 # 에이전트 인계
 
+## 2026-11-18 C10 PostgreSQL CI 시간 한도
+
+제품 커밋 `ced71f8`의 GitHub Actions 실행에서 PostgreSQL 작업이 20분 한도에 도달했다. 전체 157개 파일 중 149개가 통과했고 150번째 실행 중 취소되어 종합 검사가 실패했다. 직전 브랜치 성공 실행은 12분 56초, main 성공 실행은 19분 56초였다. `.github/workflows/ci.yml`의 PostgreSQL 작업 한도를 30분으로 변경했다. 실제 PostgreSQL 17에서 UUID DB별 전체 파일을 순차 실행하는 계약과 집계 검사를 유지한다. UXC-09 관련 제품 근거는 아래 최종 리뷰 기록에 있다. 이 변경을 포함한 전체 원격 검사는 새 CI 실행에서 확인한다. [취소된 작업](https://github.com/wontaeJeong/agent-knowledge-hub/actions/runs/44207497816/job/134477108735)
+
+## 2026-11-18 C10 전체 브랜치 최종 리뷰
+
+- UXC-09 / EDT-005·012, LIF-001~004, VER-004, REV-004·005. 속성 폼·이전 token 태그·작업자 태그가 같은 배포 origin과 검토 관계를 사용한다. 세 경로에서 이전 형식 본문을 독립 승인·발행한 뒤에도 내용, 표시 이름과 백링크가 보존됐다. 원본·대상·상위 문서 접근과 발행 시점 권한을 확인한다.
+- 공식 기준의 정책 거부는 해당 항목에서 종료하고 독립 문서는 검토를 요청한다. 원래 사용자·세션·입력·영속 작업을 확인해야 영수증이 존재한다. 다른 사용자의 작업은 관리자 목록에서 제외한다. 임시 읽기 실패 뒤 현재 권한으로 확인한 체크박스를 복구하고, 일반 속성과 고급 JSON은 같은 사용자 입력 값을 검증·전송한다.
+- 수정 경로는 server/convenience/{properties,bulk}, server/workflows/bulk, server/jobs/{runtime,service}, server/runtime/main, BulkEditor와 PropertiesForm이다. 실제 PostgreSQL 33파일 403건, 추가 격리 bulk 파일 30건과 전체 프로젝트 검사를 실행했다. 1440×1000·390×844 및 light/dark에서 최종 제품 지문으로 다시 촬영했다. 앞선 두 단계 검증은 이력으로 남는다. [실행 기록](../.superpowers/sdd/2026-11-16-essential-convenience/task-10-report.md) · [18장과 실제 브라우저 조건](ui-validation/2026-11-18-properties-bulk/README.md)
+- 구버전 화면은 실제 needs-review를 ‘실패’로 표시한다. 새 자산을 준비하고 새 서버와 함께 활성화한다. 스키마 145 및 접수된 작업·검토 상태를 유지한다. 새 검증 범위에 비해 오래된 미리보기의 연결 의존성이 달라지면 해당 문서에 새 동의가 필요하다. 운영 인수·지속 데이터 스키마 다운그레이드·지식 품질 효과는 미검증이다.
+
+## 2026-11-18 C10 리뷰 수정 2차
+
+- PR #76. EDT-005, SRH-002/003/004. `server/questions/search.ts`가 현재 workflow 또는 해당 버전의 스냅샷에서 정식 환경 값을 우선 읽는다. 중첩 문자열은 정식 키가 없는 기존 자료에서만 사용한다.
+- `server/questions/service.test.ts`에서 요약만 바꾼 독립 승인·발행 후에도 동일 사용자의 환경 검색이 유지됐다. 다음 버전에서 환경이 객체로 바뀌면 이력에서만 앞선 문자열 버전이 일치했다. 원본과 상위 문서 권한을 각각 철회·복구해 재조회 결과를 검증했다. 실제 PG 5건 RED 후 서비스 25건과 관련 11파일 80건 GREEN. `npm run check` 통과.
+- 이번 실행은 실제 PostgreSQL 12파일 105건이다. 이전 23파일 297건 및 Chromium 18장은 1차 근거이며 브라우저 재실행은 생략했다. 현재 제품 지문과 이전 캡처 지문은 [검증 문서](ui-validation/2026-11-18-properties-bulk/README.md)에 별도로 기록했다. 변경한 요구사항의 운영 인수와 지식 품질 효과는 미검증이다.
+
+## 2026-11-18 C10 리뷰 수정 1차
+
+- PR #76, 검증 대상 커밋 `e474468c118906cd4cac7de36a3c08e0496142da`. 요구사항 UXC-09, EDT-005/012, LIF-001~004, VER-004, REV-004/005. 기본 브랜치 29a892b, 수정 기준 4220645.
+- BulkEditor는 미리보기별 mutationId를 보존한다. 같은 동의의 응답 유실은 재생하고 종료 작업의 pending을 새 미리보기에 포함한다. applied·needs-review 항목은 선택에서 해제한다.
+- PropertiesForm과 WorkflowPanel은 저장 거부 시 현재 선택의 서버 읽기를 다시 요청한다. 읽기 권한이 유지되면 새 값을 표시하고, 철회되면 본문·댓글·폼을 닫는다. 문서·API·계정·공간 경계와 응답 순서를 검사한다.
+- document-properties, 속성 제안, 버전/발행 정책이 같은 환경 필수 판정을 사용한다. 기존 구조화 값과 사용자 정의 속성을 보존하며 환경 값 하나를 발행한다. 원래 정책 및 독립 승인 규칙을 유지한다.
+- 현재 `npm run check` 성공. 브라우저 단위 546, Node 48, import 16, evaluation 41, 원본 요구사항 251, 서버 타입·빌드·HTTP smoke. 실제 PG17은 23파일 297건 성공. 50개 허가된 문서 승인 후 49건 보관·1건 기준 변경, 새 동의로 1건 보관을 확인했다. 보존·법적 보류·삭제 경합과 영속 bulk grant의 구 스키마 제약 거부가 포함된다.
+- 주간 재시도 검사는 운영 큐가 기록한 예정 시각을 그대로 두고 해당 테스트에만 주입한 시계로 경계 전후를 확인한다. 원본 main과 수정 전 코드 양쪽의 실패, 수정 후 실제 PG 결과는 task-10-report.md에 있다.
+- main 29a892b UI는 현행 서버의 태그 제안을 실제로 만들고도 ‘실패’로 표시한다. 새 자산을 준비한 뒤 UI·서버를 함께 활성화한다. 구 서버에는 신규 속성 경로와 태그 검토 계약이 없다. UI 단독 롤백 동안 현행 영수증·검토 목록에서 실제 상태를 확인한다. 스키마 145를 유지하며 영속 데이터가 있는 SQL 하향 배포는 지원하지 않는다.
+- UI 캡처와 실제 이전 main 클라이언트 전환 결과는 [브라우저 검증](ui-validation/2026-11-18-properties-bulk/README.md)에 있다. 운영 배포·사내 IdP·부하·OS 한글 IME·보조기기·지식 품질 효과는 미검증이다. 독립 검토와 정확한 최종 커밋 CI 확인은 컨트롤러 인계 범위다.
+
+## 2026-11-18 C10 속성 폼·검토되는 일괄 정리
+
+Draft PR [#76](https://github.com/wontaeJeong/agent-knowledge-hub/pull/76), 기능 커밋 `cd81c7d`. 독립 검토/CI 대기; 병합하지 않음.
+
+UXC-09 / EDT-005·012, LIF-001~004, VER-004, REV-004·005. 기존 PR45의 50건/10분 preview/apply와 BulkEditor를 확장했다. canonical 속성 폼·담당자/대체자 attribution·필수 정책·선택 JSON, reviewed metadata 계획, 원래 사람 세션의 exact bulk grant와 durable per-item receipt, SIGKILL/restart 멱등성, source/ancestor/erasure/current-ACL 조회를 연결했다. Migration145만 추가한다. 임시 무자격 Context는 trusted bulk executor 트랜잭션 안에서만 사용하고 일반 credential ceiling은 확대하지 않는다.
+
+승인된 호환 변경: 기존 `{token}` 이동/보관은 동기 계약 유지, 태그만 즉시 applied 대신 reviewed needs-review/batch/hash를 반환한다. 단일 `/state` tags는409 METADATA_REVIEW_REQUIRED로 안내한다. 기타 운영 properties/구조/보호/수명주기 계약은 보존한다. 일반 jobs 결과/checkpoint는 bulk에 null이며 원래 session queue 상태만 제공한다. 교체/철회 세션·다른 actor/hash/mutation으로 실행/조회할 수 없다. 일부 대상 철회는 그 항목을 숨기고 denied로 처리하며 다른 인가 항목은 진행한다. 상세 입력/응답과 만료 경계는 API_CONTRACT 참조.
+
+최종 `npm run check` exit0: frontend539/Node48/import16/evaluation41/251 요구사항/server types/build/static smoke. 최종 native3파일26(새 bulk17+legacy8+공개 오류1) 통과. 직전 실행의 migration1/jobs48/runtime52 및 기존 broad16파일146은 별도 carried coverage이며 하나의 최종 전체 실행으로 합산하지 않는다. 광범위 실행1건 runtime timeout, generic jobs 완전차단 중간 replay 실패2건, expired-grant fixture CHECK 실패1건은 로그와 MISTAKE_LOG에 그대로 남겼다. 최종 소스 actual1440/390 light/dark HTTP+PG/keyboard 캡처와 cleanup/source manifest는 `docs/ui-validation/2026-11-18-properties-bulk/` 참조.
+
+North Star/원본251 수용 기준은 변경하지 않았다. 실제 모델·회사 IdP·운영 배포/부하/OS IME·종합 접근성은 검증하지 않았다. 기존 번들 크기 경고 유지. grant 기본120초/부모 session 경계 때문에 worker 지연·재시작 후 명시 재승인이 필요할 수 있고 legacy HMAC preview는 프로세스 재시작 시 만료된다. 독립 task/whole review와 최종 CI/병합은 controller 소유다. 상세 현재/이전 로그, 보안 판단·실수와 정리 근거: `.superpowers/sdd/2026-11-16-essential-convenience/task-10-report.md`.
+
+
 ## C8 post-final CI fix: scoped erasure dependencies (authoritative)
 
 CI44161579437/job134316519258 at44d73b97 failed all four physical storage-graph tests. This was a C8 regression: globally treating targetPageId as provenance followed a Source routing hint into an independent source, erased its readers/import references and released retained shared bytes. Clean3b8f310 passed4/4; C8 failed4/4; an actual-PG differential probe isolated the hint. Prior local green did not cover this suite and is not CI acceptance.

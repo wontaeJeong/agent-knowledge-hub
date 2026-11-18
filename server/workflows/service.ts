@@ -1165,6 +1165,15 @@ export class WorkflowService {
       (db) => this.setDocumentStateInTransaction(db, ctx, pageId, d, bulkReceiptId),
     );
   }
+  /** Trusted transaction composition. Still performs canonical current authorization and domain CAS. */
+  async applyBulkState(db: PoolClient, ctx: Context, pageId: string, input: unknown, receiptId: string) {
+    const d = docSchema.parse(input);
+    if (d.state !== "archived" && d.parentId === undefined) throw Error("VALIDATION_FAILED");
+    await membership(db, ctx);
+    await ctx.authorization?.assertSession(db);
+    await this.authorize(db, ctx, d.state ? "lifecycle.manage" : "knowledge.protect", {kind:"page",id:pageId});
+    return this.setDocumentStateInTransaction(db,ctx,pageId,d,receiptId,true);
+  }
   private async setDocumentStateInTransaction(db: PoolClient, ctx: Context, pageId: string, d: z.infer<typeof docSchema>, bulkReceiptId?: string, rejectBroadening = false) {
         if (
           d.state &&

@@ -23,7 +23,7 @@ afterEach(async () => {
   vi.unstubAllEnvs();
   await Promise.all(pools.splice(0).map((p) => p.end()));
 });
-async function setup() {
+async function setup(clock?: () => Date) {
   const f = await fixture();
   pools.push(f.pool);
   await adoptFixture(f.pool, f.workspaceId);
@@ -53,6 +53,7 @@ async function setup() {
   const runtime = new RuntimeService(f.pool);
   const bridge = createRuntimeJobs(f.pool, runtime, {
     workerCount: 1,
+    queue: { clock },
     directoryProviderId: "fixture-roster",
     directoryStatus: async (subject) => ({
       ...subject,
@@ -425,7 +426,8 @@ it("monthly and weekly windows use local calendar periods across DST rather than
 });
 
 it("weekly retry after proposal commit reuses the exact proposal and cached model response", async () => {
-  const f = await setup();
+  let now = Date.now();
+  const f = await setup(() => new Date(now));
   const m = await model(f);
   const original = f.bridge.jobs.commitEffect.bind(f.bridge.jobs);
   let interrupted = false;
@@ -453,10 +455,17 @@ it("weekly retry after proposal commit reuses the exact proposal and cached mode
       )
     ).rows[0].n,
   ).toBe(1);
-  await f.pool.query("UPDATE durable_jobs SET available_at=now() WHERE id=$1", [
-    j.id,
-  ]);
-  await f.bridge.worker.tick();
+  // Keep the actual backoff written by finalizeFailure; claim uses this same queue clock.
+  const retry = (await f.pool.query(
+    "SELECT status,attempts,error_code,available_at FROM durable_jobs WHERE id=$1", [j.id],
+  )).rows[0];
+  expect(retry).toMatchObject({status:"queued",attempts:1,error_code:"DB_UNAVAILABLE"});
+  const due = retry.available_at.getTime();
+  expect(due).toBeGreaterThan(now);
+  now = due - 1;
+  expect(await f.bridge.worker.tick()).toBe(false);
+  now = due;
+  expect(await f.bridge.worker.tick()).toBe(true);
   const row = (
     await f.pool.query(
       "SELECT status,result,error_code FROM durable_jobs WHERE id=$1",
