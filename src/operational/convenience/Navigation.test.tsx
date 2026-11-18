@@ -66,7 +66,7 @@ test("capabilities determine navigation without promoting a reviewer role", () =
 });
 async function mount(
   href: string,
-  data: (path: string) => unknown,
+  data: (path: string, options?: RequestInit) => unknown,
   authenticated = true,
   currentIdentity: () => Identity = () => person,
   preview = false,
@@ -77,7 +77,7 @@ async function mount(
     setTimeout(() => fn(0), 0),
   );
   vi.stubGlobal("cancelAnimationFrame", clearTimeout);
-  vi.stubGlobal("fetch", async (url: string) => {
+  vi.stubGlobal("fetch", async (url: string, options?: RequestInit) => {
     const path = String(url).split("/api/v1")[1];
     if (path === "/me" && !authenticated)
       return new Response(JSON.stringify({ code: "UNAUTHENTICATED" }), {
@@ -92,10 +92,10 @@ async function mount(
             ? new Response(JSON.stringify({ code: "NOT_FOUND" }), {
                 status: 404,
               })
-            : data(path);
+            : data(path, options);
     return result instanceof Response
       ? result
-      : new Response(JSON.stringify(result));
+      : new Response(JSON.stringify(result),{headers:{"X-Personal-Scope-Verified":"1"}});
   });
   const container = document.createElement("div");
   document.body.append(container);
@@ -208,11 +208,12 @@ test("access-request destination selects the exact authorized request beyond 25 
   expect(container.textContent).toContain("접근 이유 29");
   expect(container.textContent).not.toContain("접근 이유 0");
 });
-test("a new destination cannot silently present a future feature as connected", async () => {
+test("saved views opens the private list and offers examples only on selection", async () => {
   const container = await mount("/?app=1&space=team&section=saved-views", () => ({
     items: [],
   }));
-  expect(container.textContent).toContain("아직 연결되지 않았습니다");
+  expect(container.textContent).toContain("저장한 보기가 없습니다");
+  expect(container.textContent).toContain("예시 보기");
   expect(
     container.querySelector('a[aria-current="page"]')?.textContent,
   ).toContain("저장 보기");
@@ -741,4 +742,50 @@ test("actual space selection preserves the implicit personal Home rather than dr
 test("bare preview renders its supported Overview body without calling authenticated Home",async()=>{
  const container=await mount("/?preview=1",()=>{throw Error("preview must not call native API");},true,()=>person,true);
  expect(container.querySelector("h1")?.textContent).toBe("운영 개요");expect(container.querySelector(".console-overview")).not.toBeNull();expect(container.querySelector('[data-home-widget]')).toBeNull();
+});
+
+test.each(["search","save"])("personal search entry binds requests and clears both drafts after %s denial",async(operation)=>{
+ let blocked=false;
+ const calls:Headers[]=[];
+ const container=await mount("/?app=1&space=team&section=search",(path,options)=>{
+   if (path==="/questions/search"||path==="/convenience/views") {
+     calls.push(new Headers(options?.headers));
+     if(blocked) return new Response(JSON.stringify({code:"FORBIDDEN"}),{status:403});
+   }
+   return {items:[],nextCursor:null};
+ });
+ await writeSearchInput(container.querySelector(".saved-view-form input")!,"private entry name");
+ await writeSearchInput(container.querySelector("[data-search-field=query]")!,"private entry term");
+ blocked=true;
+ await act(async()=>{
+   container.querySelector<HTMLFormElement>(operation==="save"?".saved-view-form":".search-page form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));
+ });
+ expect(calls.at(-1)?.get("x-expected-principal")).toBe("person");
+ expect(container.querySelector(".saved-view-form input")).toBeNull();
+ expect(container.querySelector("[data-search-field=query]")).toBeNull();
+});
+
+test("clearing a denied quick-search handoff keeps the error and issues no empty query until explicit retry",async()=>{
+ vi.spyOn(window,"scrollTo").mockImplementation(()=>{});
+ const searches:string[]=[];
+ const container=await mount("/?app=1&space=team&section=saved-views",(path,options)=>{
+   if(path==="/questions/search")searches.push(JSON.parse(String(options?.body)).query);
+   if(path==="/convenience/views" && options?.method==="POST")return new Response(JSON.stringify({code:"FORBIDDEN"}),{status:403});
+   return {items:[],nextCursor:null};
+ });
+ await act(async()=>container.querySelector<HTMLButtonElement>('.global-search > button')!.click());
+ await writeSearchInput(container.querySelector('.quick-open input')!,"handoff private");
+ await act(async()=>Array.from(container.querySelectorAll<HTMLButtonElement>('.quick-open button')).find(b=>b.textContent==="상세 검색")!.click());
+ await act(async()=>new Promise(r=>setTimeout(r,220)));
+ await writeSearchInput(container.querySelector('.saved-view-form input')!,"unsaved private name");
+ await act(async()=>container.querySelector<HTMLButtonElement>('.saved-view-form button')!.click());
+ await act(async()=>window.dispatchEvent(new Event("focus")));
+ await act(async()=>document.dispatchEvent(new Event("visibilitychange")));
+ await act(async()=>new Promise(r=>setTimeout(r,220)));
+ expect(container.textContent).toContain("FORBIDDEN");expect(container.querySelector('.saved-view-form')).toBeNull();
+ expect(searches).toEqual(["handoff private"]);
+ await act(async()=>container.querySelector<HTMLButtonElement>('[data-view-retry]')!.click());
+ expect(container.querySelector<HTMLInputElement>('[data-search-field=query]')?.value).toBe("");
+ expect(container.querySelector<HTMLInputElement>('.saved-view-form input')?.value).toBe("");
+ expect(container.querySelector(".saved-view-form [role=alert]")).toBeNull();
 });

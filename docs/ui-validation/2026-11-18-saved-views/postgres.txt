@@ -1,0 +1,149 @@
+[1/15] server/access/access.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  13:07:27
+   Duration  1.94s (tests 95%, import 3%, transform 1%)
+
+[2/15] server/convenience/personal-http.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  13:07:29
+   Duration  1.65s (tests 88%, import 8%, transform 4%)
+
+[3/15] server/convenience/personal.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  13:07:31
+   Duration  4.46s (tests 98%, import 2%, transform 1%)
+
+[4/15] server/convenience/views-erasure.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  13:07:36
+   Duration  2.13s (tests 97%, import 2%, transform 1%)
+
+[5/15] server/convenience/views-migration.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  13:07:38
+   Duration  522ms (tests 97%, import 2%, transform 1%)
+
+[6/15] server/convenience/views.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  13:07:39
+   Duration  1.93s (tests 90%, import 7%, transform 3%)
+
+[7/15] server/operations/audit-security.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  13:07:41
+   Duration  2.51s (tests 98%, import 1%)
+
+[8/15] server/operations/erasure-agent-boundary-db.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  13:07:43
+   Duration  1.51s (tests 96%, import 3%, transform 1%)
+
+[9/15] server/operations/erasure-db.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  28 passed (28)
+   Start at  13:07:45
+   Duration  6.28s (tests 98%, import 1%)
+
+[10/15] server/questions/runtime-http.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  13:07:52
+   Duration  15.18s (tests 99%, import 1%)
+
+[11/15] server/questions/scope.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  13:08:07
+   Duration  7.99s (tests 99%, import 1%)
+
+[12/15] server/retention/compat-controls.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  13:08:15
+   Duration  1.48s (tests 96%, import 3%, transform 1%)
+
+[13/15] server/retention/recovery.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  13:08:17
+   Duration  1.61s (tests 92%, import 6%, transform 3%)
+
+[14/15] server/retention/retention.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  30 passed (30)
+   Start at  13:08:19
+   Duration  6.55s (tests 98%, import 1%, transform 1%)
+
+[15/15] server/search/index.test.ts
+
+ RUN  v5.0.5 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  16 passed (16)
+   Start at  13:08:26
+   Duration  11.64s (tests 99%, import 1%)

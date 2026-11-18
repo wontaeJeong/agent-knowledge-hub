@@ -1,3 +1,4 @@
+import {assertSavedViewsSchema,isPersonalViewTable,savedViewProjection} from "../convenience/views-schema";
 import {assertPublishedLinksSchema} from "../convenience/links";
 import {assertDocumentOrderSchema} from "../convenience/structure-schema";
 import { createHash, randomUUID } from "node:crypto";
@@ -26,7 +27,7 @@ export interface ProductRow {
   data: Record<string, unknown>;
 }
 const tablePattern =
-  /^(published_page_links|scheduled_publications|sources|pages|versions|batches|requests|publications|approvals|workflow_[a-z_]+|runtime_(answers|lints|jobs)|agent_[a-z_]+|refinement_[a-z_]+|durable_(jobs|job_outbox|model_calls)|storage_(imports|import_sources|import_effects|snapshots|attachment_links)|question_(threads|turns|feedback|feedback_work)|version_(metadata|metadata_events|restore_previews|restore_plans|restore_applications)|versions_decisions|model_usage_events|collaboration_[a-z_]+|governance_[a-z_]+)$/;
+  /^(personal_saved_views|personal_saved_view_mutations|published_page_links|scheduled_publications|sources|pages|versions|batches|requests|publications|approvals|workflow_[a-z_]+|runtime_(answers|lints|jobs)|agent_[a-z_]+|refinement_[a-z_]+|durable_(jobs|job_outbox|model_calls)|storage_(imports|import_sources|import_effects|snapshots|attachment_links)|question_(threads|turns|feedback|feedback_work)|version_(metadata|metadata_events|restore_previews|restore_plans|restore_applications)|versions_decisions|model_usage_events|collaboration_[a-z_]+|governance_[a-z_]+)$/;
 const identityColumns =
   /^(id|workspace_id|principal_id|owner_id|created_by|recorded_by|reviewed_by|approved_by|actor_id|kind|state|status|operation|role|scope|parent_kind|[a-z_]+_id|[a-z_]+_hash|sha256|mime|provider|model|key|token_hash|mode|policy_mode|category|decision|action|requested_scope|cadence|backend|user_code|document_type|due_cycle|updated_by|applied_by|decision_by|resource_type)$/;
 const referenceKeys: Record<string, string> = {
@@ -402,9 +403,13 @@ export function scrubProductValue(
 }
 /** A private question may contain short copied text even if its own ID and
  * thread ID are known. Those identifiers do not establish resource lineage. */
+// An operator may need a generic incomplete outcome, but private definitions
+// must never contribute a disclosed table name, identifier or count.
+const unresolvedPersonalInput=(rows:ProductRow[],selected:ProductRow[])=>rows.some(row=>row.table==="personal_saved_views"&&!selected.includes(row));
 function unresolvedProductRows(rows: ProductRow[], selected: ProductRow[]) {
   return rows.filter((row) => {
     if (selected.includes(row)) return false;
+    if (isPersonalViewTable(row.table)) return false;
     if (row.table.startsWith("agent_")) {
       const hasContent = Object.entries(row.data).some(([key, value]) =>
         !identityColumns.test(key) && !(row.table === "agent_outcomes" && key === "result") &&
@@ -498,6 +503,7 @@ export async function hasVersionWorkflowData(db: PoolClient, workspaceId: string
   return result.rows[0].present as boolean;
 }
 async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
+  await assertSavedViewsSchema(db,"ERASURE_GRAPH_UNSUPPORTED");
   await assertPublishedLinksSchema(db,"ERASURE_GRAPH_UNSUPPORTED");
   await assertDocumentOrderSchema(db,"ERASURE_GRAPH_UNSUPPORTED");
   const metadata = (
@@ -526,7 +532,7 @@ async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
     let offset = 0;
     for (;;) {
       const result = await db.query(
-        `SELECT t.ctid::text AS locator,${releasedImportProjection(table) ?? "to_jsonb(t)"} AS data FROM "${table}" t WHERE ${scoped ? "t.workspace_id=$1" : jobScoped ? "t.job_id IN(SELECT id FROM durable_jobs WHERE workspace_id=$1)" : keyScoped ? "t.key_id IN(SELECT id FROM agent_api_keys WHERE workspace_id=$1)" : "t.delivery_id IN(SELECT id FROM collaboration_digest_outbox WHERE workspace_id=$1)"} ORDER BY t.ctid LIMIT 1000 OFFSET $2 FOR UPDATE OF t`,
+        `SELECT t.ctid::text AS locator,${(isPersonalViewTable(table) ? savedViewProjection : releasedImportProjection(table)) ?? "to_jsonb(t)"} AS data FROM "${table}" t WHERE ${scoped ? "t.workspace_id=$1" : jobScoped ? "t.job_id IN(SELECT id FROM durable_jobs WHERE workspace_id=$1)" : keyScoped ? "t.key_id IN(SELECT id FROM agent_api_keys WHERE workspace_id=$1)" : "t.delivery_id IN(SELECT id FROM collaboration_digest_outbox WHERE workspace_id=$1)"} ORDER BY t.ctid LIMIT 1000 OFFSET $2 FOR UPDATE OF t`,
         [ctx.workspaceId, offset],
       );
       for (const r of result.rows)
@@ -540,9 +546,9 @@ async function inventory(db: PoolClient, ctx: Context): Promise<Inventory> {
 }
 /** Subscription targets can be private category names and form a composite key.
  * Remove configuration rather than inventing an invalid or colliding target. */
-/** Rank is disposable page metadata; erase it in the same approved gated transaction. */
-async function eraseDocumentOrder(db:PoolClient,row:ProductRow){
- if(!["workflow_document_order","published_page_links"].includes(row.table))return false;
+/** Delete these derived rows or private definitions only inside approved erasure. */
+async function eraseSelectedMetadata(db:PoolClient,row:ProductRow){
+ if(!["workflow_document_order","published_page_links","personal_saved_views","personal_saved_view_mutations"].includes(row.table))return false;
  await db.query(`DELETE FROM ${row.table} WHERE ctid=$1::tid`,[row.locator]);
  return true;
 }
@@ -607,8 +613,8 @@ export async function replayProductErasure(
     fingerprint(resources),
   );
   for (const row of selected) {
-    if (await eraseDocumentOrder(db,row) || await eraseScheduledPublication(db,row) || await eraseCollaborationSubscription(db,row) || await redactReleasedImportRow(db, row)) {
-      counts[row.table] = (counts[row.table] ?? 0) + 1;
+    if (await eraseSelectedMetadata(db,row) || await eraseScheduledPublication(db,row) || await eraseCollaborationSubscription(db,row) || await redactReleasedImportRow(db, row)) {
+      if(!isPersonalViewTable(row.table))counts[row.table] = (counts[row.table] ?? 0) + 1;
       continue;
     }
     const replacements: Record<string, unknown> = {};
@@ -633,7 +639,7 @@ export async function replayProductErasure(
   }
   if (entireWorkspace) await retireErasedCredentials(db, workspaceId);
   const opaque = entireWorkspace ? 0 : unresolvedProductRows(all.rows, selected);
-  if (opaque || storage.shared) throw Error("RECOVERY_ERASURE_INCOMPLETE");
+  if (opaque || (!entireWorkspace && unresolvedPersonalInput(all.rows,selected)) || storage.shared) throw Error("RECOVERY_ERASURE_INCOMPLETE");
   counts.unresolved_unlineaged_rows = opaque;
   counts.shared_live_blob_hashes = storage.shared;
   await db.query(
@@ -661,7 +667,7 @@ async function calculate(db: PoolClient, ctx: Context, input: unknown) {
     all = await inventory(db, ctx),
     selected = selectErasureRows(all.rows, d.resource),
     counts: Record<string, number> = {};
-  for (const r of selected) counts[r.table] = (counts[r.table] ?? 0) + 1;
+  for (const r of selected) if(!isPersonalViewTable(r.table))counts[r.table] = (counts[r.table] ?? 0) + 1;
   const held = (
     await db.query(
       "SELECT resource_kind,resource_id FROM operations_legal_holds WHERE workspace_id=$1 AND active",
@@ -708,10 +714,16 @@ async function calculate(db: PoolClient, ctx: Context, input: unknown) {
     scope: d.scope,
     resource: d.resource,
     rows: selected,
+    // Unlineaged private input can block this resource's execution, so its
+    // approval must also bind the private state that was present at preview.
+    ...(d.scope === "resource" ? {
+      privateSnapshot: all.rows.filter(row => isPersonalViewTable(row.table))
+        .map(row => String(row.data.private_payload_sha256)).sort(),
+    } : {}),
     held,
     storageReferences: graph.filter((r) => ownHashes.has(r.sha256)),
   });
-  return { d, all, selected, counts, blocked, opaque, previewHash };
+  return { d, all, selected, counts, blocked, opaque, incomplete:!!opaque || (d.scope==="resource" && unresolvedPersonalInput(all.rows,selected)), previewHash };
 }
 export async function previewErasure(
   service: OperationsService,
@@ -733,7 +745,7 @@ export async function previewErasure(
       resource: p.d.resource,
       previewHash: p.previewHash,
       counts: p.counts,
-      total: p.selected.length,
+      total: p.selected.filter(row=>!isPersonalViewTable(row.table)).length,
       legalHold: p.blocked,
       unresolvedUnlineagedRows: p.opaque,
       agentDataUnsupported: d.scope !== "workspace" && await hasAgentData(db, ctx.workspaceId),
@@ -819,7 +831,7 @@ export async function executeErasure(
         );
         // Privileged append-only refinement redaction happens only inside this explicit, preview-bound operation.
         for (const row of p.selected) {
-          if (await eraseDocumentOrder(db,row) || await eraseScheduledPublication(db,row) || await eraseCollaborationSubscription(db,row) || await redactReleasedImportRow(db, row)) continue;
+          if (await eraseSelectedMetadata(db,row) || await eraseScheduledPublication(db,row) || await eraseCollaborationSubscription(db,row) || await redactReleasedImportRow(db, row)) continue;
           const replacements: Record<string, unknown> = {};
           for (const c of p.all.columns.get(row.table) ?? []) {
             if ((identityColumns.test(c.name) && !(row.table === "model_usage_events" && ["model", "deployment_id"].includes(c.name))) || (row.table === "agent_outcomes" && c.name === "result") || (row.table === "version_restore_previews" && c.name === "hash")) continue;
@@ -866,12 +878,12 @@ export async function executeErasure(
         counts.pending_blob_hashes = storage.hashes.length;
         counts.unresolved_unlineaged_rows = p.opaque;
         status =
-          (p.opaque && d.scope === "resource") || storage.hashes.length
+          (p.incomplete && d.scope === "resource") || storage.hashes.length
             ? "blocked"
             : "completed";
         code =
           status === "blocked"
-            ? p.opaque && d.scope === "resource"
+            ? p.incomplete && d.scope === "resource"
               ? "UNLINEAGED_CONTENT_REQUIRES_SEPARATE_PREVIEW"
               : storage.shared
                 ? "SHARED_LIVE_BLOB_RETAINED"

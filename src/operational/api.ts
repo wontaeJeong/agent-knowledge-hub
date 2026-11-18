@@ -73,6 +73,10 @@ export class OperationalApi {
   private meSequence = 0;
   private sessionGeneration = 0;
   private expiredHandler?: () => void;
+  private readAccessLostHandler?: () => void;
+  onReadAccessLost(handler: (() => void) | undefined) {
+    this.readAccessLostHandler = handler;
+  }
   onExpired(handler: (() => void) | undefined) {
     this.expiredHandler = handler;
   }
@@ -89,7 +93,16 @@ export class OperationalApi {
   constructor(
     private readonly origin = "",
     private readonly spaceId = "",
-  ) {}
+    private readonly personalBinding?: Readonly<Pick<Identity, "principalId" | "csrfToken">>,
+  ) {
+    if (personalBinding) this.csrf = personalBinding.csrfToken;
+  }
+  forSavedViews(identity: Pick<Identity, "workspaceId" | "principalId" | "csrfToken">) {
+    return new OperationalApi(this.origin, identity.workspaceId, {
+      principalId: identity.principalId,
+      csrfToken: identity.csrfToken,
+    });
+  }
   private async fetchResponse(
     path: string,
     init: RequestInit,
@@ -127,6 +140,10 @@ export class OperationalApi {
       redirect: "error",
       headers: {
         ...extraHeaders,
+        ...(this.personalBinding ? {
+          "X-Expected-Principal": encodeURIComponent(this.personalBinding.principalId),
+          "X-CSRF-Token": this.personalBinding.csrfToken,
+        } : {}),
         ...(this.spaceId ? { "X-Space-Id": this.spaceId } : {}),
         ...(body !== undefined
           ? { "Content-Type": "application/json", "X-CSRF-Token": this.csrf }
@@ -142,8 +159,14 @@ export class OperationalApi {
         ? AbortSignal.any([signal, AbortSignal.timeout(120_000)])
         : AbortSignal.timeout(120_000),
     });
+    if (this.personalBinding && res.ok && res.headers.get("X-Personal-Scope-Verified") !== "1") {
+      await res.body?.cancel();
+      this.sessionExpired();
+      throw new ApiError("현재 세션을 다시 확인하세요.",409,"SESSION_CHANGED");
+    }
     const data = await res.json();
     if (!res.ok) {
+      if (this.personalBinding && data.code === "SESSION_CHANGED") this.sessionExpired();
       if (res.status === 401) this.sessionExpired();
       const code =
         typeof data.code === "string" && /^[A-Z_]{1,80}$/.test(data.code)
@@ -215,6 +238,7 @@ export class OperationalApi {
         APPROVAL_STALE: "승인 기준이 변경되었습니다. 다시 검토하세요.",
         STALE_VERSION:
           "다른 변경이 반영되었습니다. 최신 버전에서 다시 제안하세요.",
+        SAVED_VIEW_CAPACITY: "개인 보기는 공간당 100개까지 저장할 수 있습니다.",
         FAVORITE_BOUNDARY: "목록의 경계가 변경되었습니다. 현재 목록을 다시 확인하세요.",
         PERSONAL_LIBRARY_CAPACITY: "개인 목록 처리 한도를 초과했습니다. 공간 관리자에게 문의하세요.",
         DISCOVERY_CAPACITY:
@@ -233,6 +257,20 @@ export class OperationalApi {
         code,
         requestId,
       );
+    }
+    if (this.personalBinding) {
+      // A different tab can replace the cookie while this response is in flight.
+      // Validate again with the current cookie before releasing private data.
+      const me = path === "/me" ? data as Identity : await this.get<Identity>("/me");
+      if (me.workspaceId !== this.spaceId || me.principalId !== this.personalBinding.principalId ||
+          me.csrfToken !== this.personalBinding.csrfToken) {
+        this.sessionExpired();
+        throw new ApiError("현재 세션을 다시 확인하세요.", 409, "SESSION_CHANGED");
+      }
+      if (!me.capabilities?.includes("knowledge.read")) {
+        this.readAccessLostHandler?.();
+        throw new ApiError("현재 공간의 내용 열람 권한이 없습니다.",403,"KNOWLEDGE_READ_REVOKED");
+      }
     }
     return data;
   }

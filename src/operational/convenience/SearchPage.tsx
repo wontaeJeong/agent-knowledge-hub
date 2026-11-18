@@ -1,10 +1,12 @@
 import { useCurrentListFocus } from "./list-focus";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { OperationalApi } from "../api";
 import { usePersonalKey } from "./personal-client";
 import {
   normalizeSearchFilters,
   searchDateToIso,
+  searchDateToLocal,
+  type SearchFilters,
   useDocumentSearch,
   type SearchItem,
 } from "./search-client";
@@ -28,7 +30,33 @@ export type SearchHandoff = {
   revision: number;
   query: string;
 };
+type ViewCheck = {
+  checking: boolean;
+  saving: boolean;
+  epoch: number;
+  onFailure: (e: unknown) => void;
+  pendingComposition: React.RefObject<(() => boolean) | null>;
+  onDraftChanged: () => void;
+};
+export type SearchComposition = {
+  start: (control: HTMLInputElement, commit: (value: string) => void) => void;
+  end: () => void;
+};
+type SaveControls = (
+  filters: SearchFilters,
+  disabled: boolean,
+  composition: SearchComposition,
+) => ReactNode;
+const dateKeys = new Set([
+  "periodFrom",
+  "periodTo",
+  "reviewDateFrom",
+  "reviewDateTo",
+]);
 export function SearchPage(props: {
+  verification?: ViewCheck;
+  initialFilters?: SearchFilters;
+  renderSave?: SaveControls;
   api: OperationalApi;
   identityKey: string;
   handoff?: SearchHandoff;
@@ -45,30 +73,50 @@ export function SearchPage(props: {
       key={`${key}:${handoff?.revision ?? "none"}`}
       api={props.api}
       onOpen={props.onOpen}
-      initialQuery={handoff?.query ?? ""}
+      initial={
+        props.initialFilters ??
+        normalizeSearchFilters({ query: handoff?.query ?? "" })
+      }
+      verification={props.verification}
+      renderSave={props.renderSave}
     />
   );
 }
 function SearchSession({
   api,
   onOpen,
-  initialQuery,
+  initial,
+  verification,
+  renderSave,
 }: {
   api: OperationalApi;
   onOpen: (item: SearchItem) => boolean | void;
-  initialQuery: string;
+  initial: SearchFilters;
+  verification?: ViewCheck;
+  renderSave?: SaveControls;
 }) {
-  const [query, setQuery] = useState(initialQuery),
+  const [query, setQuery] = useState(initial.query),
     [composing, setComposing] = useState(false),
-    [raw, setRaw] = useState<Record<string, string>>({}),
-    [historical, setHistorical] = useState(false),
-    [archived, setArchived] = useState("");
-  const dateKeys = new Set([
-    "periodFrom",
-    "periodTo",
-    "reviewDateFrom",
-    "reviewDateTo",
-  ]);
+    [raw, setRaw] = useState<Record<string, string>>(() =>
+      Object.fromEntries(
+        fields.map(([key]) => {
+          const value = initial[key];
+          return [
+            key,
+            Array.isArray(value)
+              ? value.join(", ")
+              : dateKeys.has(key) && value
+                ? searchDateToLocal(value)
+                : (value ?? ""),
+          ];
+        }),
+      ),
+    ),
+    [historical, setHistorical] = useState(initial.historical),
+    [sort, setSort] = useState(initial.sort),
+    [archived, setArchived] = useState(
+      initial.archived === undefined ? "" : String(initial.archived),
+    );
   const candidate = {
     query,
     historical,
@@ -78,12 +126,15 @@ function SearchSession({
       ),
     ),
     tags:
-      raw.tags
-        ?.split(",")
-        .map((s) => s.trim())
-        .filter(Boolean) ?? [],
+      raw.tags === initial.tags.join(", ")
+        ? initial.tags
+        : (raw.tags
+            ?.split(",")
+            .map((s) => s.trim())
+            .filter(Boolean) ?? []),
     ...(archived ? { archived: archived === "true" } : {}),
-    limit: 25,
+    limit: initial.limit,
+    sort,
   };
   let validation = "";
   let filters = normalizeSearchFilters({ query, historical, limit: 25 });
@@ -93,23 +144,68 @@ function SearchSession({
       ...Object.fromEntries(
         Object.entries(raw)
           .filter(([key, value]) => dateKeys.has(key) && value)
-          .map(([key, value]) => [key, searchDateToIso(value)]),
+          .map(([key, value]) => {
+            const original = initial[key as keyof SearchFilters];
+            return [
+              key,
+              typeof original === "string" &&
+              searchDateToLocal(original) === value
+                ? original
+                : searchDateToIso(value),
+            ];
+          }),
       ),
     });
   } catch {
     validation =
       "조건 형식이나 기간 순서를 확인하세요. 날짜와 시각은 이 기기의 현지 시각을 사용합니다.";
   }
-  const search = useDocumentSearch(api, filters, composing || !!validation);
+  const localComposition = useRef<(() => boolean) | null>(null);
+  const pendingComposition =
+    verification?.pendingComposition ?? localComposition;
+  useLayoutEffect(
+    () => () => {
+      pendingComposition.current = null;
+    },
+    [pendingComposition],
+  );
+  const [expanded, setExpanded] = useState(false);
+  const search = useDocumentSearch(
+    api,
+    filters,
+    composing || !!validation || !!verification?.checking,
+    false,
+    verification,
+  );
   const focus = useCurrentListFocus<HTMLElement>({
+    enabled: !verification?.checking,
     rowSelector: ".search-results li",
     fallbackSelector: "[data-search-fallback]",
     message: "검색 결과가 변경되어 현재 검색 입력으로 초점을 옮겼습니다.",
   });
   const change = (action: () => void) => {
+    if (verification?.saving) return;
     search.invalidate();
     action();
   };
+  const composition: SearchComposition = {
+    start(control, commit) {
+      if (verification?.saving) return;
+      const initial = control.value;
+      pendingComposition.current = () => {
+        const value = control.value;
+        pendingComposition.current = null;
+        commit(value);
+        setComposing(false);
+        return value !== initial;
+      };
+      change(() => setComposing(true));
+    },
+    end() {
+      if (pendingComposition.current?.()) verification?.onDraftChanged();
+    },
+  };
+  if (verification?.checking) return null;
   return (
     <section
       ref={focus.container}
@@ -124,34 +220,28 @@ function SearchSession({
       </p>
       <form
         onCompositionStart={(event) => {
-          if (
-            event.target instanceof HTMLInputElement &&
-            event.target.type === "text"
-          )
-            change(() => setComposing(true));
-        }}
-        onCompositionEnd={(event) => {
           const control = event.target;
           if (!(control instanceof HTMLInputElement) || control.type !== "text")
             return;
           const field = control.dataset.searchField;
-          const value = control.value;
-          change(() => {
-            if (field === "query") setQuery(value);
-            else if (field && fields.some(([key]) => key === field))
-              setRaw((values) => ({ ...values, [field]: value }));
-            setComposing(false);
-          });
+          if (field === "query") composition.start(control, setQuery);
+          else if (field && fields.some(([key]) => key === field))
+            composition.start(control, (value) =>
+              setRaw((values) => ({ ...values, [field]: value })),
+            );
         }}
+        onCompositionEnd={composition.end}
         onSubmit={(e) => {
           e.preventDefault();
-          if (!composing && !validation) void search.run();
+          if (!verification?.saving && !composing && !validation)
+            void search.run();
         }}
       >
         <span role="status">{focus.notice}</span>
         <label>
           제목·본문 키워드
           <input
+            disabled={verification?.saving}
             data-search-fallback
             data-search-field="query"
             maxLength={2000}
@@ -159,7 +249,10 @@ function SearchSession({
             onChange={(e) => change(() => setQuery(e.target.value))}
           />
         </label>
-        <details>
+        <details
+          open={expanded}
+          onToggle={(e) => setExpanded(e.currentTarget.open)}
+        >
           <summary>유형·태그·담당자·환경·상태·기간 조건</summary>
           <p>
             기간은 이 기기의 현지 시각(
@@ -170,6 +263,7 @@ function SearchSession({
               <label key={key}>
                 {label}
                 <input
+                  disabled={verification?.saving}
                   data-search-field={key}
                   type={dateKeys.has(key) ? "datetime-local" : "text"}
                   step={dateKeys.has(key) ? "0.001" : undefined}
@@ -184,8 +278,24 @@ function SearchSession({
               </label>
             ))}
             <label>
+              결과 정렬
+              <select
+                disabled={verification?.saving}
+                data-search-field="sort"
+                value={sort}
+                onChange={(e) =>
+                  change(() => setSort(e.target.value as SearchFilters["sort"]))
+                }
+              >
+                <option value="recent">최근 변경순</option>
+                <option value="title">제목순</option>
+              </select>
+            </label>
+            <label>
               보관 여부
               <select
+                disabled={verification?.saving}
+                data-search-field="archived"
                 value={archived}
                 onChange={(e) => change(() => setArchived(e.target.value))}
               >
@@ -199,15 +309,22 @@ function SearchSession({
         <label>
           <input
             type="checkbox"
+            disabled={verification?.saving}
+            data-search-field="historical"
             checked={historical}
             onChange={(e) => change(() => setHistorical(e.target.checked))}
           />
           과거 버전 포함 (현재 권고 아님)
         </label>
-        <button disabled={composing || !!validation || search.busy}>
+        <button
+          disabled={
+            verification?.saving || composing || !!validation || search.busy
+          }
+        >
           검색
         </button>
       </form>
+      {renderSave?.(filters, composing || !!validation, composition)}
       {(validation || search.error) && (
         <p role="alert">{validation || search.error}</p>
       )}
@@ -238,7 +355,7 @@ function SearchSession({
           type="button"
           onClick={() => void search.run(search.page!.nextCursor)}
         >
-          다음 결과 25건
+          다음 결과 {filters.limit}건
         </button>
       )}
       {search.error && (

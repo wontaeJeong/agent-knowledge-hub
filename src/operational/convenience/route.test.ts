@@ -198,3 +198,9 @@ test("serializer refuses a workspace-only implicit Home in preview rather than g
     ),
   ).toThrow();
 });
+
+test("private view URLs reject inline queries and definitions",()=>{
+ for(const key of ["query","filters","name","token"]){
+   expect(parse("?app=1&space=team&section=saved-views&view=v1&"+key+"=sensitive").kind).toBe("invalid");
+ }
+});

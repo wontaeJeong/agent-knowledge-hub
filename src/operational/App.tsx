@@ -3,7 +3,8 @@ import { MyTasks } from "./convenience/MyTasks";
 import { DocumentComposer } from "./convenience/DocumentComposer";
 import { DocumentSnapshot } from "./convenience/DocumentSnapshot";
 import { GlobalSearch } from "./convenience/QuickOpen";
-import { SearchPage, type SearchHandoff } from "./convenience/SearchPage";
+import { SavedViews, viewHref } from "./convenience/SavedViews";
+import { type SearchHandoff } from "./convenience/SearchPage";
 import type { SearchItem } from "./convenience/search-client";
 import { PersonalLibrary } from "./convenience/PersonalLibrary";
 import { NotificationBell } from "./convenience/NotificationBell";
@@ -290,6 +291,8 @@ function OperationalWorkspace({
     }[]
   >([]);
   const [identity, setIdentity] = useState<Identity | null>(null);
+  const savedApi=useMemo(()=>identity && !preview ? api.forSavedViews(identity) : null,
+    [api,preview,identity?.workspaceId,identity?.principalId,identity?.csrfToken]);
   const [searchHandoff, setSearchHandoff] = useState<SearchHandoff | null>(null);
   const searchHandoffRevision = useRef(0);
   const [loading, setLoading] = useState(true);
@@ -384,6 +387,13 @@ function OperationalWorkspace({
       window.removeEventListener("popstate", onLocation);
     };
   }, [location, spaceId, onRestoreSpace, preview]);
+  const openSavedView = (id?:string) => {
+    if(!identity || !window.dispatchEvent(new Event("akh:before-navigate",{cancelable:true}))) return;
+    window.history.pushState(null,"",viewHref(identity.workspaceId,id));
+    setLocation({kind:"section",section:"saved-views",spaceId:identity.workspaceId,view:id});
+    setTab("saved-views");
+    requestAnimationFrame(()=>document.getElementById("op-main")?.focus());
+  };
   const openSearchDocument = (item: SearchItem) => {
     if (
       !identity ||
@@ -411,7 +421,7 @@ function OperationalWorkspace({
       ? location
       : undefined;
   const pendingDestination =
-    (location.kind === "section" && !target && !["home","tasks","favorites","recent","subscriptions","search","compose"].includes(location.section));
+    (location.kind === "section" && !target && !["home","tasks","favorites","recent","subscriptions","search","compose","saved-views"].includes(location.section));
   const [pages, setPages] = useState<PublishedPage[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<ChangeSet[]>([]);
@@ -703,6 +713,21 @@ function OperationalWorkspace({
       active = false;
     };
   }, [api, load, clearProtected]);
+  const recheckViewIdentity=useCallback(()=>{
+    clearProtected("로그인 세션이 변경되어 현재 사용자를 다시 확인합니다.");
+    void load();
+  },[clearProtected,load]);
+  useEffect(()=>{
+    savedApi?.onExpired(recheckViewIdentity);
+    savedApi?.onReadAccessLost(()=>{
+      clearProtected("현재 공간의 내용 열람 권한이 없어 보호 내용과 입력을 비웠습니다.");
+      void load();
+    });
+    return ()=>{
+      savedApi?.onExpired(undefined);
+      savedApi?.onReadAccessLost(undefined);
+    };
+  },[savedApi,recheckViewIdentity,clearProtected,load]);
   const perform = async (action: () => Promise<void>) => {
     const epoch = requestEpoch.current;
     setBusy(true);
@@ -838,15 +863,15 @@ function OperationalWorkspace({
       navigate={navigate}
       identity={identity}
       globalSearch={
-        identity && !preview && dataReady ? (
+        identity && savedApi && !preview && dataReady ? (
           <GlobalSearch
-            api={api}
+            api={savedApi}
             identityKey={`${identity.workspaceId}:${identity.principalId}`}
             onOpen={openSearchDocument}
             onSearch={(query) => {
               if (!identity || navigate("search") === false) return false;
               setSearchHandoff({
-                api,
+                api:savedApi,
                 identityKey: `${identity.workspaceId}:${identity.principalId}`,
                 revision: ++searchHandoffRevision.current,
                 query,
@@ -988,13 +1013,16 @@ function OperationalWorkspace({
                   onNavigate={() => window.dispatchEvent(new Event("akh:before-navigate", { cancelable: true }))}
                 />
               )}
-            {location.kind === "section" && location.section === "search" && !preview && dataReady && (
-              <SearchPage
-                api={api}
-                identityKey={`${identity.workspaceId}:${identity.principalId}`}
-                handoff={searchHandoff ?? undefined}
-                onOpen={openSearchDocument}
-              />
+            {location.kind==="section" && location.section==="saved-views" && savedApi && dataReady && (
+              <PersonalLibrary kind="saved-views" key={requestEpoch.current} api={savedApi} onIdentityChanged={recheckViewIdentity} spaceId={identity.workspaceId} principalId={identity.principalId}
+                viewId={location.view} onView={openSavedView} onOpen={openSearchDocument}/>
+            )}
+            {location.kind === "section" && location.section === "search" && savedApi && dataReady && (
+              <SavedViews searchEntry key={requestEpoch.current} api={savedApi}
+                spaceId={identity.workspaceId} principalId={identity.principalId}
+                handoff={searchHandoff ?? undefined} onIdentityChanged={recheckViewIdentity}
+                onDiscardHandoff={()=>setSearchHandoff(null)}
+                onView={openSavedView} onOpen={openSearchDocument} />
             )}
             {location.kind === "document" && (location.version !== undefined || !!location.anchor) && !preview && dataReady && (
               <DocumentSnapshot

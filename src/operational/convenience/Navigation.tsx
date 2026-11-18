@@ -126,14 +126,15 @@ export function Navigation({
 }
 
 /** Reuses the editor's unsaved-content predicate; never stores draft content. */
-export function NavigationProtection({ dirty }: { dirty: boolean }) {
+export function NavigationProtection({ dirty }: { dirty: boolean | (() => boolean) }) {
   useEffect(() => {
+    const hasChanges = () => typeof dirty === "function" ? dirty() : dirty;
     const beforeNavigate = (event: Event) => {
-      if (dirty && !window.confirm("저장하지 않은 입력을 닫을까요?"))
+      if (hasChanges() && !window.confirm("저장하지 않은 입력을 닫을까요?"))
         event.preventDefault();
     };
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (dirty) {
+      if (hasChanges()) {
         event.preventDefault();
         event.returnValue = "";
       }

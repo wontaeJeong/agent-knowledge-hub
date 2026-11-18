@@ -1,5 +1,6 @@
 import {DocumentStructureService,structureCredentialOperation} from "../convenience/structure";
-import {handleStructureRoute,handleLinksRoute} from "../convenience/http";
+import { SavedViewService } from "../convenience/views";
+import {handleSavedViewsRoute,handleStructureRoute,handleLinksRoute} from "../convenience/http";
 import { HomeService } from "../convenience/home";
 import { handleHomeRoute } from "../convenience/http";
 import { ScheduledPublicationService } from "../jobs/scheduled-publication";
@@ -121,6 +122,7 @@ export function createRuntimeHandler(options: {
     : undefined;
   const legacyAccess = new LegacyAccessService(options.pool);
   const versions = new VersionService(options.pool, authorizeInTransaction, options.origin);
+  const savedViews = new SavedViewService(options.pool);
   const questions =
     options.questions ??
     new QuestionsService(options.pool, {
@@ -280,6 +282,16 @@ export function createRuntimeHandler(options: {
           : await (options.auth?.authenticate(req) ?? Promise.resolve(null));
       if (!session && !agent)
         return send(401, { code: "UNAUTHENTICATED", requestId });
+      // Optional UI precondition pinned to the /me that rendered the tab. It
+      // narrows the authenticated cookie, including for empty GET responses.
+      if (req.headers["x-expected-principal"] !== undefined) {
+        if (!session || agent || credential ||
+            req.headers["x-expected-principal"] !== encodeURIComponent(session.principalId) ||
+            req.headers["x-space-id"] !== session.workspaceId ||
+            !session.csrfToken || req.headers["x-csrf-token"] !== session.csrfToken)
+          return send(409,{code:"SESSION_CHANGED",requestId});
+        res.setHeader("X-Personal-Scope-Verified","1");
+      }
       const actor = agent ?? session!;
       const ctx: Context = {
         requestId,
@@ -582,6 +594,7 @@ export function createRuntimeHandler(options: {
         )
       )
         return;
+      if(await handleSavedViewsRoute({method:req.method??"GET",path,query:url.searchParams,body,ctx,send},savedViews))return;
       if(await handleLinksRoute({method:req.method??"GET",path,query:url.searchParams,body,ctx,send},new WorkflowService(options.pool,service,authorizeInTransaction,options.origin)))return;
       if(await handleStructureRoute({method:req.method??"GET",path,query:url.searchParams,body,ctx,send},new DocumentStructureService(new WorkflowService(options.pool,service,authorizeInTransaction,options.origin),options.auth)))return;
       if (await handleHomeRoute({method:req.method??"GET",path,query:url.searchParams,ctx,send},new HomeService(options.pool,new WorkflowService(options.pool,service,authorizeInTransaction,options.origin),new GovernanceService(options.pool,authorizeInTransaction),options.jobs?.jobs))) return;

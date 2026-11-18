@@ -98,6 +98,7 @@ export function parseConvenienceLocation(
   if (version !== null || anchor || /^#(?:comment|share)-/.test(hash))
     return invalid();
   if (section !== null) {
+    if (section === "saved-views" && [...params.keys()].some(key=>!["app","preview","space","section","view"].includes(key)))return invalid();
     if (!convenienceSections.some((value) => value === section) || hash)
       return invalid();
     if (
