@@ -23,9 +23,10 @@ assert.deepEqual(
     [390, "dark"],
   ],
 );
-assert.equal(Object.keys(evidence.artifacts).length, 8);
+assert.equal(Object.keys(evidence.artifacts).length, 16);
 for (const row of evidence.results) {
   for (const key of [
+    "keyboardExampleCancelAndDiscard",
     "keyboardSave",
     "keyboardReopen",
     "keyboardReorder",
@@ -50,7 +51,7 @@ for (const row of evidence.results) {
     "ownerDelete404",
   ])
     assert.equal(row[key], true, key);
-  for (const screen of ["list", "view"]) {
+  for (const screen of ["list", "view", "cancel", "discard"]) {
     const file = row.width + "-" + row.theme + "-" + screen + ".png";
     const bytes = await readFile(new URL(file, dir));
     assert.equal(bytes.readUInt32BE(16), row.width);
@@ -62,5 +63,5 @@ for (const row of evidence.results) {
   }
 }
 console.log(
-  "Verified production fingerprint, 4 browser sessions and 8 PNG hashes and dimensions.",
+  "Verified production fingerprint, 4 browser sessions and 16 PNG hashes and dimensions.",
 );

@@ -62,6 +62,55 @@ const tick = async () =>
   act(async () => {
     await vi.advanceTimersByTimeAsync(205);
   });
+test("reselecting an example preserves cancelled edits and restores defaults on discard", async () => {
+  const { element, render } = mount();
+  const api = {
+    get: async () => ({ items: [] }),
+    post: async () => result(),
+  } as unknown as OperationalApi;
+  await render(<SavedViews {...props} api={api} />);
+  const selectExample = (label: string) =>
+    act(async () => {
+      [...element.querySelectorAll("button")]
+        .find((button) => button.textContent === label)!
+        .click();
+    });
+  const field = (key: string) =>
+    element.querySelector<HTMLInputElement>(`[data-search-field="${key}"]`)!;
+  const edit = (key: string, value: string) =>
+    act(async () => {
+      const input = field(key);
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+  await selectExample("최근 변경");
+  await edit("view-name", "수정 중");
+  await edit("query", "수정 조건");
+  const confirm = vi
+    .spyOn(window, "confirm")
+    .mockReturnValueOnce(false)
+    .mockReturnValueOnce(true);
+  try {
+    await selectExample("최근 변경");
+    expect([field("view-name").value, field("query").value]).toEqual([
+      "수정 중",
+      "수정 조건",
+    ]);
+    await selectExample("최근 변경");
+    expect([field("view-name").value, field("query").value]).toEqual(["", ""]);
+    expect(field("sort").value).toBe("recent");
+    await selectExample("내 담당 문서");
+    expect(field("businessOwner").value).toBe("reader");
+    expect(confirm).toHaveBeenCalledTimes(2);
+  } finally {
+    confirm.mockRestore();
+  }
+});
+
 test("samples require selection and obsolete saved searches cannot repopulate a refreshed or changed identity", async () => {
   const { element, render } = mount();
   let releaseOld!: (result: unknown) => void,
