@@ -8,7 +8,9 @@
 
 **Tech Stack:** TypeScript, React 19.3.1, Vite 8.3.5, Node `^22.12.0 || ^24.0.0`, npm `>=10`, PostgreSQL, existing marked/DOMPurify/Vitest. 기존 package-lock을 유지하고 의존성을 추가하기 전에 필요성을 확인한다.
 
-**Spec:** [필수 편의기능 설계안](../specs/2026-11-16-essential-convenience-design.md). 이 플랜은 **일부 실행** 상태다. C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 [PR #69](https://github.com/wontaeJeong/agent-knowledge-hub/pull/69), main `d4048bd`에 병합됐고 최종 소스 `d4bb97f`의 CI `44019161055` 필수 8개 검사와 독립 리뷰를 통과했다. C5 / Task 5는 [PR #70](https://github.com/wontaeJeong/agent-knowledge-hub/pull/70), main `83b00f4`에 병합됐고 최종 소스 `629c9c6`의 CI `44036706074` 필수 8개 검사와 독립 리뷰를 통과했다. C6 / Task 6은 [PR #71](https://github.com/wontaeJeong/agent-knowledge-hub/pull/71), main `0def475457b54d50b38c2b61655e1987234da8f3`에 병합됐고 최종 소스 `1bd418a580fa1edac1098291afd8b76490f033f0`의 CI `44068230799` 필수8개 검사와 controller 독립 리뷰를 통과했다. C4 / Task 4는 [PR #72](https://github.com/wontaeJeong/agent-knowledge-hub/pull/72), main `de4e150b7a37003ec23a885fb32205b49d107a7f`에 병합됐고 최종 소스 `5f4d593`의 CI `44115841741` 필수8개 검사와 controller 독립 리뷰를 통과했다. C7 / Task 7 is merged in PR73 at main 3b8f310c4ecc2b8966471c3fe99e3ef8bd461e15; final 85f241c passed CI44146448457 all8 checks and controller final review. The historical pending C7 notes below are superseded by this completion record. C8 local implementation is verified; controller review/CI/merge and later tasks remain pending. 전체 제품 운영 인수를 뜻하지 않는다.
+**실행 현황 (2026-11-18).** C1~C11 및 저장 보기 후속 #78이 main에 병합됐다. C7 이후의 병합 순서는 #74 C8 `79a90cc`, #75 C9 `29a892b`, #76 C10 `f7583ec`, #77 C11 `da638cc`, #78 `8952637`이다. C12 #79는 로컬 연결 인수를 마쳤고 최종 HEAD의 독립 리뷰·원격 필수 검사·병합 직전 미해결 스레드 확인이 남아 있다. [설계](../specs/2026-11-16-essential-convenience-design.md) · [UXC별 병합·인수 근거](../../ui-validation/2026-11-18-convenience-acceptance/README.md)
+
+**C1~C7 병합 이력.** C1 / Task 1은 [PR #63](https://github.com/wontaeJeong/agent-knowledge-hub/pull/63), main `a1dba1f`에 병합되었고 최종 CI `43905028788`의 8개 필수 검사 및 task/final 리뷰를 통과했다. C2 / Task 2는 [PR #67](https://github.com/wontaeJeong/agent-knowledge-hub/pull/67), main `d4c5282`에 병합됐고 최종 CI `44007365405`의 필수8검사 및 최종 독립 리뷰를 통과했다. C3 / Task 3는 [PR #69](https://github.com/wontaeJeong/agent-knowledge-hub/pull/69), main `d4048bd`에 병합됐고 최종 소스 `d4bb97f`의 CI `44019161055` 필수 8개 검사와 독립 리뷰를 통과했다. C5 / Task 5는 [PR #70](https://github.com/wontaeJeong/agent-knowledge-hub/pull/70), main `83b00f4`에 병합됐고 최종 소스 `629c9c6`의 CI `44036706074` 필수 8개 검사와 독립 리뷰를 통과했다. C6 / Task 6은 [PR #71](https://github.com/wontaeJeong/agent-knowledge-hub/pull/71), main `0def475457b54d50b38c2b61655e1987234da8f3`에 병합됐고 최종 소스 `1bd418a580fa1edac1098291afd8b76490f033f0`의 CI `44068230799` 필수8개 검사와 controller 독립 리뷰를 통과했다. C4 / Task 4는 [PR #72](https://github.com/wontaeJeong/agent-knowledge-hub/pull/72), main `de4e150b7a37003ec23a885fb32205b49d107a7f`에 병합됐고 최종 소스 `5f4d593`의 CI `44115841741` 필수8개 검사와 controller 독립 리뷰를 통과했다. C7 / Task 7 is merged in PR73 at main 3b8f310c4ecc2b8966471c3fe99e3ef8bd461e15; final 85f241c passed CI44146448457 all8 checks and controller final review.
 
 ## Global Constraints
 
@@ -53,6 +55,8 @@
 ## 기존·진행 중 코드 재사용
 
 [설계안의 PR 재사용 표](../specs/2026-11-16-essential-convenience-design.md#동시에-진행된-pr의-재사용-경계)를 먼저 확인한다. #45의 `bulkPreview/bulkApply`·`BulkEditor`, #46의 공통 ScopedSearch, #47의 `DocumentBody/PersonalDocuments/RelatedDocuments/LinkCompletion`, #48의 scoped subscription/outbox/recipient 처리 경로를 기준으로 **남은 계약만 구현**한다. 각 Task의 새 파일은 필요한 확장 책임만 맡거나 기존 컴포넌트에 위임한다. 같은 역할의 화면·서버를 나란히 유지하지 않는다. 병합이 아직 안 됐으면 해당 PR을 선행으로 삼고 cherry-pick으로 다른 PR의 소유 변경을 중복 게시하지 않는다.
+
+아래 개별 작업의 검토·CI 대기 메모는 각 제출 당시의 기록이다. 현재 병합 상태는 첫머리의 실행 현황을 따른다.
 
 ## Task 1: 사용자 메뉴와 호환 경로
 
@@ -177,6 +181,8 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 - 전체 리뷰 원문·정확 명령·실패/현재vs이월·판단비용은 task-7-report finalwave, SHA/cleanup는 UI evidence를 따른다. North Star/251 불변식을 유지하며 실제IdP·운영/품질·대규모성능 및 기존chunk 한계는 남는다. controller의 단1회 scoped final re-review/정확headCI/merge 대기다.
 
 
+C7 결합 수정의 검증 커밋은 `4a9e24c286fea3d1654bf904a7ebe4cbb03caa14`이다. 당시 대기하던 검토와 CI를 거쳐 PR #73, main `3b8f310`에 반영됐다.
+
 ## Task 8: 내부 연결·백링크
 
 **Files:** Create `server/migrations/144-published-page-links.sql`, `server/convenience/links.ts`, `links.test.ts`, `src/operational/convenience/LinkAutocomplete.tsx`, `Backlinks.tsx`, `links.test.tsx`; Modify `server/publication.ts`, `server/operations/product-erasure.ts`, `server/convenience/http.ts`, `src/operational/convenience/DocumentComposer.tsx`.
@@ -197,7 +203,7 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 
 **C8 authoritative final:** preview now uses pure initial projection and one final authorized receipt write; changed-data-between-refresh RED1 is GREEN. Current native6files50/fullcheck494 pass; prior8files134 carried. Current single-write browser/manifest supersede intermediate round1 evidence.
 
-**C8 post-final CI correction (authoritative):** CI44161579437/head44d73b97 exposed four real physical-retention failures from generic targetPageId routing-hint authority. Scoped canonical version/index refs replace that mapping; historical retention projects target IDs only. Baseline/head actual-PG differential and meaningful RED retained. Current native8files101/fullcheck494 and fresh4config20PNG pass; prior native counts are historical/carried. Controller scoped review, fresh CI and integration pending; failed CI remains failed.
+**C8 post-final CI correction (authoritative):** CI44161579437/head44d73b97 exposed four real physical-retention failures from generic targetPageId routing-hint authority. Scoped canonical version/index refs replace that mapping; historical retention projects target IDs only. Baseline/head actual-PG differential and meaningful RED retained. Current native8files101/fullcheck494 and fresh4config20PNG pass; prior native counts are historical/carried. 해당 수정은 독립 리뷰 및 후속 CI를 거쳐 PR #74, main `79a90cc`에 반영됐다. 앞서 실패한 CI 44161579437은 실패 이력으로 보존한다.
 
 ## Task 9: 읽기·목차·부분 공유
 
@@ -208,8 +214,10 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 - [ ] Add failures for repeated Korean headings, fenced code/tables, search next/previous, XSS-bearing text, removed/changed block, latest vs fixed-version link, current permission removal and denied Clipboard API.
 - [ ] Run reader/anchor tests red, then implement safe outline/search/token rendering, stable block matching/snapshots and copy fallback. Preserve DOMPurify.
 - [ ] Add explicit version/anchor URL and login-return regression tests. Do not reuse tab/comment hashes for document headings.
-- [ ] Run focused tests and old document/comment/share/version tests; verify keyboard position movement/code copy and 390px layout in both themes.
-- [ ] Commit `feat: improve wiki reading and precise document sharing`.
+- [x] Run focused tests and old document/comment/share/version tests; verify keyboard position movement/code copy and 390px layout in both themes.
+- [x] Commit `feat: improve wiki reading and precise document sharing`.
+
+병합 #75 `29a892b`. 구현, 검증 범위와 후속 리뷰는 [기능별 실행 기록](../../ui-validation/2026-11-18-document-reader/README.md) 및 [C12 인수표](../../ui-validation/2026-11-18-convenience-acceptance/README.md)에서 확인한다. 위 단계의 RED 선행 여부는 개별 작업 기록을 따른다.
 
 ## Task 10: 속성 폼·일괄 정리
 
@@ -219,9 +227,11 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 
 - [ ] Add failures for required fields, tag normalization, owner not granting access, stale property edit, 50/51 target boundary, expired preview, ACL or parent change after preview, mixed denied/stale/applied/needs-review results, worker crash/replay and delete/retention racing execution.
 - [ ] Run bulk/governance/version DB tests and UI tests red. Implement hash-bound preview and durable per-item idempotent receipts; tag/content metadata emits reviewed proposals.
-- [ ] Wire form-based metadata editing and multi-select preview/result/retry. Keep privileged JSON as optional advanced mode and destructive permanent deletion outside this menu.
-- [ ] Run jobs/publication/retention/access regressions, schema upgrade/restart and browser partial-result walkthroughs with screenshots.
-- [ ] Commit `feat: add document property forms and reviewed bulk actions`.
+- [x] Wire form-based metadata editing and multi-select preview/result/retry. Keep privileged JSON as optional advanced mode and destructive permanent deletion outside this menu.
+- [x] Run jobs/publication/retention/access regressions, schema upgrade/restart and browser partial-result walkthroughs with screenshots.
+- [x] Commit `feat: add document property forms and reviewed bulk actions`.
+
+병합 #76 `f7583ec`. 구현, 검증 범위와 후속 리뷰는 [기능별 실행 기록](../../ui-validation/2026-11-18-properties-bulk/README.md) 및 [C12 인수표](../../ui-validation/2026-11-18-convenience-acceptance/README.md)에서 확인한다. 위 단계의 RED 선행 여부는 개별 작업 기록을 따른다.
 
 ## Task 11: 저장 검색·개인 보기
 
@@ -242,14 +252,17 @@ Round2 local fix/evidence commit: `17c522e23dca7a7cdc6948e2c4ff6e16ccd2e395`; sc
 
 **Interfaces:** Consumes C1~C11 committed behavior. Produces a per-UXC evidence record: `{commit,implementation,connection,automatedChecks,browserEvidence,remaining,operationalAcceptance}`. Planned criteria and actual evidence stay separate.
 
-- [ ] Trace every UXC row and each Review Focus item to its implementation and test; keep unimplemented/failed items open and never mark them complete because their spec merged.
-- [ ] Run `npm run check`, `npm run test:server` with the dedicated disposable database, and applicable K8s/container checks from CI. Inspect every final-head required check and unresolved review thread before each merge.
-- [ ] In a real browser perform new document → save/recover → shared-source review if required → knowledge review → publish → search → favorite/revisit → backlink → comment/notification → home/task resume. Include revoked source/identity, model outage, expired session, IME and 390px keyboard use.
-- [ ] Record migration ordering/backfill, worker replay and rollback evidence. Preserve old URLs and old notification/authoring APIs. No production deployment is included in this plan.
-- [ ] Update feature status to the exact tested scope, commit `docs: record convenience feature acceptance evidence`, and report remaining operational/quality conditions.
+- [x] Trace every UXC row and each Review Focus item to its implementation and test; keep unimplemented/failed items open and never mark them complete because their spec merged.
+- [x] Run `npm run check`, `npm run test:server` with the dedicated disposable database, and applicable K8s/container checks from CI.
+- [ ] Inspect the C12 PR’s final required checks and unresolved review threads immediately before merge.
+- [x] In a real browser perform new document → save/recover → shared-source review if required → knowledge review → publish → search → favorite/revisit → backlink → comment/notification → home/task resume. Include revoked source/identity, model outage, expired session, IME and 390px keyboard use.
+- [x] Record migration ordering/backfill, worker replay and rollback evidence. Preserve old URLs and old notification/authoring APIs. No production deployment is included in this plan.
+- [x] Update feature status to the exact tested scope, commit `docs: record convenience feature acceptance evidence`, and report remaining operational/quality conditions.
+
+[통합 인수 실행 및 열린 운영 조건](../../ui-validation/2026-11-18-convenience-acceptance/README.md). 로컬 전체 검사와 원격 필수 CI를 구분한다. PR 최종 HEAD의 원격 검사와 미해결 리뷰는 병합 직전 확인 대상이다.
 
 ## 완성 판정과 후속 실행
 
-설계·플랜 문서를 작성하고 검토하는 현재 작업은 후속 C1~C12 실행과 별개다. 구현 시 체크박스는 해당 결과·최종 커밋 증거를 확보한 후에만 바꾼다. 실제 UI 변경 PR은 1440/390 화면 캡처, 라이트/다크·키보드 검증과 필요한 DB 회귀를 포함하고, 원본 정책·독자·발행 불변식을 통과해야 한다. 모든 C 단위를 한 대형 PR로 합치지 않는다.
+2026-11-16 설계·플랜 작성 이후 각 C 단위의 구현과 실행을 별도로 추적했다. 구현 시 체크박스는 해당 결과·최종 커밋 증거를 확보한 후에만 바꾼다. 실제 UI 변경 PR은 1440/390 화면 캡처, 라이트/다크·키보드 검증과 필요한 DB 회귀를 포함하고, 원본 정책·독자·발행 불변식을 통과해야 한다. 모든 C 단위를 한 대형 PR로 합치지 않는다.
 
-Final combined F1/F2 fix/evidence commit: `4a9e24c286fea3d1654bf904a7ebe4cbb03caa14`. This metadata-only follow-up records the verified commit; production/test/harness/artifact/log bytes remain unchanged. Controller scoped final re-review, exact-head CI and merge remain pending.
+C12 #79는 [연결 인수 기준](../../ui-validation/2026-11-18-convenience-acceptance/README.md)을 기준으로 검토한다. 최종 HEAD의 필수 CI와 미해결 스레드를 확인한 뒤 병합한다.
