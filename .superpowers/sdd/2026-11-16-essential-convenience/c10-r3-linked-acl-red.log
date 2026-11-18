@@ -1,0 +1,42 @@
+[1/1] server/convenience/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ server/convenience/bulk.test.ts (30 tests | 2 failed) 56882ms
+   × losing read of legacy destination or ancestor topic fences consent and removes receipt item 463ms
+   × losing read of legacy destination or ancestor linked-parent fences consent and removes receipt item 452ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 28 passed (30)
+   Start at  09:11:08
+   Duration  57.27s (tests 99%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/bulk.test.ts > losing read of legacy destination or ancestor topic fences consent and removes receipt item
+ FAIL  server/convenience/bulk.test.ts > losing read of legacy destination or ancestor linked-parent fences consent and removes receipt item
+AssertionError: expected [ { id: 'linked', …(2) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "code": "UNAVAILABLE",
++     "id": "linked",
++     "status": "denied",
++   },
++ ]
+
+ ❯ server/convenience/bulk.test.ts:78:60
+     76|   await f.pool.query("DELETE FROM resource_readers WHERE workspace_id=…
+     77|   await bridge.worker.tick();
+     78|   expect((await bulk.read(browser.ctx,accepted.id)).items).toEqual([]);
+       |                                                            ^
+     79|   expect((await f.pool.query("SELECT status FROM workflow_bulk_items W…
+     80|   expect((await f.pool.query("SELECT 1 FROM batches WHERE workspace_id…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+

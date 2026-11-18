@@ -1,10 +1,10 @@
 # C10 브라우저 검증
 
-## 서버 검색 수정 이후의 증거 범위
+## 최종 리뷰 수정 후의 실제 캡처
 
-아래 18장은 검토 1차 커밋 `e474468`에서 촬영했다. 당시 제품 소스 지문은 `15b61085b6725a050e0aa9f316a2b1f4316c1d50369a516fc9b2e32c5cbd0a01`이다. 2차 수정에서는 `server/questions/search.ts`의 환경 검색 투영만 변경했고 브라우저를 다시 실행하지 않았다. 현재 제품 지문은 `0a54e6c4629e3b56c42140de9d7fe49b983cf20860fcb301d27930befd161cb5`이며 이 변경의 동작 근거는 실제 PostgreSQL 회귀 테스트다.
+2026-11-18 최종 제품 지문 `2b7a92389a73fa2e4f6c34a9a08ec9b038688696fd6c35af8fdbd808df449758`에서 아래 18장을 새로 촬영했다. `source-manifest.json`은 캡처 실행 당시와 현재 제품 파일 지문, 각 PNG와 실행 기록의 해시를 확인한다. 1차 제품 지문 `15b61085…`의 캡처와 이를 이월한 2차 `67820cb`의 이력은 각 커밋에 남아 있다.
 
-`source-manifest.json`의 `productionFingerprint`는 현재 코드, `browserCapture.productionFingerprint`는 촬영 시점의 코드를 가리킨다. `manifest.mjs --verify`는 원래 커밋의 이미지·캡처 코드·브라우저 결과·정리 기록과 현재 보존된 파일이 같은지, 제품 파일 차이가 지정한 서버 파일 하나인지 확인한다. 기존 캡처의 검증 환경과 결과는 아래와 같다.
+이번 실행에서 필수 사용자 정의 키 platform을 고급 JSON으로 입력하고 일반 입력에서 변경했다. extra 값이 유지된 실제 API 요청 본문을 확인했다. 불완전한 JSON 입력 중에는 제출과 일반 키 입력이 비활성화됐다. 일괄 작업에서는 브라우저 프록시로 영수증 GET 한 건에만 합성 503을 주입했다. 다음 실제 서버 조회에서 선택 가능한 문서가 복구됐고 그사이 읽기 권한이 철회된 문서와 예전 오류는 사라졌다. 나머지 요청은 루프백 PostgreSQL·실제 API 및 큐 작업자를 사용했다.
 
 Chromium 158.0.8127.18에서 현행 빌드와 합성 OIDC·PostgreSQL 17·실제 API·큐 작업자를 사용했다. 뷰포트는 1440×1000, 390×844이며 각 PNG는 해당 요소를 촬영했다. 문서 속성의 Tab 이동, 필수 값 경고, 검토 요청 뒤 기존 발행본 유지, 일괄 접수, 실제 부분 처리와 만료 후 새 동의·완료를 확인했다.
 
@@ -25,4 +25,4 @@ Chromium 158.0.8127.18에서 현행 빌드와 합성 OIDC·PostgreSQL 17·실제
 
 Node 24와 루프백 합성 TEST_DATABASE_URL을 준비하고 현행 빌드를 `vite preview --host 127.0.0.1 --port 5200 --strictPort`로 제공한다. `git archive 29a892b`로 만든 기준 스냅샷의 Vite를 5201에서 실행한다. `AKH_C10_SYNTHETIC_CAPTURE=1 node_modules/.bin/tsx docs/ui-validation/2026-11-18-properties-bulk/runtime.ts`를 시작하고, PLAYWRIGHT_MODULE과 C10_ROLLBACK_ORIGIN=http://127.0.0.1:5201, C10_ROLLBACK_COMMIT=29a892b06b1edc089ffab678835a46a936241306을 설정한 뒤 `node docs/ui-validation/2026-11-18-properties-bulk/capture.mjs`를 실행한다. 캡처는 루프백 HTTP 응답을 전달한다. 작업자 실행 시점 및 합성 자료의 권한·기준 변경을 제어한다.
 
-해당 프로세스와 데이터베이스를 정리한 뒤 `node docs/ui-validation/2026-11-18-properties-bulk/manifest.mjs`와 `node docs/ui-validation/2026-11-18-properties-bulk/manifest.mjs --verify`를 실행한다. 최종 검증 로그는 c10-r1-current-check, c10-r1-current-native, c10-r1-browser다. 사내 IdP, 운영 배포, 한글 OS IME, 보조기기 인수 및 대규모 부하는 검증 범위 밖이다. 각 검증용 DB와 포트의 종료 결과는 [정리 기록](cleanup.json)에 있다.
+해당 프로세스와 데이터베이스를 정리한 뒤 `node docs/ui-validation/2026-11-18-properties-bulk/manifest.mjs`와 `node docs/ui-validation/2026-11-18-properties-bulk/manifest.mjs --verify`를 실행한다. 최종 검증 로그는 c10-r3-current-check, c10-r3-current-native, c10-r3-bulk-final, c10-r3-browser다. 사내 IdP, 운영 배포, 한글 OS IME, 보조기기 인수 및 대규모 부하는 검증 범위 밖이다. 각 검증용 DB와 포트의 종료 결과는 [정리 기록](cleanup.json)에 있다.

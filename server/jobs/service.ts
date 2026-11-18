@@ -427,7 +427,7 @@ export class JobService {
       async (db) => {
         const rows = (
           await db.query(
-            "SELECT * FROM durable_jobs WHERE workspace_id=$1 AND (principal_id=$2 OR $4::boolean) AND ($5::boolean=false OR status='dead' OR (status='queued' AND error_code IS NOT NULL)) ORDER BY created_at DESC,id LIMIT 25 OFFSET $3",
+            "SELECT * FROM durable_jobs WHERE workspace_id=$1 AND (principal_id=$2 OR ($4::boolean AND kind<>\'bulk\')) AND ($5::boolean=false OR status='dead' OR (status='queued' AND error_code IS NOT NULL)) ORDER BY created_at DESC,id LIMIT 25 OFFSET $3",
             [ctx.workspaceId, ctx.principalId, offset, scope === "workspace", failedOnly],
           )
         ).rows;

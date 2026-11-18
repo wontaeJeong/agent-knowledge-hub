@@ -35,6 +35,8 @@ import {
 } from "./identity";
 
 export interface RuntimeJobsOptions extends RuntimeIdentityOptions {
+  /** Trusted deployment origin shared with HTTP publication. */
+  referenceOrigin?: string;
   /** Trusted DB-only sealed conversation preparation; not caller-selected source scope. */
   questions?: {
     prepare: (
@@ -416,11 +418,14 @@ export function createRuntimeJobs(
       if(input.kind === "bulk") {
         if(purpose === "schedule") throw Error("BULK_SESSION_REQUIRED");
         const request=(await db.query("SELECT * FROM workflow_bulk_requests WHERE workspace_id=$1 AND id=$2 AND principal_id=$3",[ctx.workspaceId,payload.requestId,ctx.principalId])).rows[0];
-        if(!request || request.input_hash!==payload.inputHash || input.key!=="bulk:"+request.mutation_id) throw Error("EXECUTION_SCOPE_CONFLICT");
-        // Only queue status is projected here; bulk outcomes require the current-item receipt route.
-        if(purpose === "read") {
-          if(ctx.credentialId || !ctx.authorization?.sessionId || ctx.authorization.sessionId!==request.session_id) throw Error("NOT_FOUND");
-          await ctx.authorization.assertSession(db);return;
+        if (purpose === "read" && (!request || ctx.credentialId ||
+            !ctx.authorization?.sessionId || ctx.authorization.sessionId !== request.session_id))
+          throw Error("NOT_FOUND");
+        if (!request || request.input_hash !== payload.inputHash || input.key !== "bulk:" + request.mutation_id)
+          throw Error("EXECUTION_SCOPE_CONFLICT");
+        if (purpose === "read") {
+          await ctx.authorization!.assertSession(db);
+          return;
         }
         const g=await grant(db,ctx);
         if(!g || g.operation!=="bulk" || !g.parent_session_id || g.parent_credential_id || g.parent_session_id!==request.session_id || g.request_key!==input.key || g.payload_hash!==grantPayloadHash(input) || input.pageIds.length || input.sourceIds.length || input.reservation.tokens || input.reservation.costMicros || input.model) throw Error("EXECUTION_SCOPE_CONFLICT");
@@ -1126,7 +1131,7 @@ export function createRuntimeJobs(
   };
   const maintenance = new MaintenanceService(pool, service);
   const handler = async (run: JobRun) => {
-    if(run.lease.input.kind === "bulk") return executeBulk(new WorkflowService(pool,service,authorizeInTransaction),jobs,run);
+    if(run.lease.input.kind === "bulk") return executeBulk(new WorkflowService(pool,service,authorizeInTransaction,options.referenceOrigin),jobs,run);
     if (run.lease.input.kind === "retention") {
       const payload = payloadFor("retention", run.lease.input.payload, true);
       const result: Record<string, unknown> = {};

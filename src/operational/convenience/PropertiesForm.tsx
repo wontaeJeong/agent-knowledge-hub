@@ -55,6 +55,7 @@ export function PropertiesForm({
     [value, setValue] = useState(empty),
     [tags, setTags] = useState(""),
     [advanced, setAdvanced] = useState("{}"),
+    [advancedError, setAdvancedError] = useState(""),
     [reason, setReason] = useState(""),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -67,6 +68,7 @@ export function PropertiesForm({
     setValue(empty);
     setTags("");
     setAdvanced("{}");
+    setAdvancedError("");
     setOwner("");
     setBackup("");
     setOwners([]);
@@ -205,7 +207,6 @@ export function PropertiesForm({
             .split(",")
             .map((s) => s.trim())
             .filter(Boolean),
-          properties: JSON.parse(advanced),
         });
         await api.post(`/workflows/pages/${pageId}/properties`, {
           ...parsed,
@@ -323,6 +324,7 @@ export function PropertiesForm({
               {k}
               <input
                 value={value.properties[k] ?? ""}
+                disabled={!!advancedError}
                 onChange={(e) => {
                   const properties = {
                     ...value.properties,
@@ -342,11 +344,32 @@ export function PropertiesForm({
               rows={4}
               value={advanced}
               onChange={(e) => {
-                setAdvanced(e.target.value);
-                edit({});
+                const raw = e.target.value;
+                setAdvanced(raw);
+                try {
+                  const properties =
+                    documentPropertiesSchema.shape.properties.parse(
+                      JSON.parse(raw),
+                    );
+                  if (Object.hasOwn(properties, "environment")) {
+                    setAdvancedError(
+                      "적용 환경은 적용 환경 입력란에서 변경하세요.",
+                    );
+                    edit({});
+                    return;
+                  }
+                  setAdvancedError("");
+                  edit({ properties });
+                } catch {
+                  setAdvancedError(
+                    "속성 이름과 값을 문자열로 입력한 JSON 객체가 필요합니다.",
+                  );
+                  edit({});
+                }
               }}
             />
           </label>
+          {advancedError && <p role="alert">{advancedError}</p>}
         </details>
         <label>
           변경 이유
@@ -371,6 +394,7 @@ export function PropertiesForm({
           busy ||
           !reason.trim() ||
           !value.category.trim() ||
+          !!advancedError ||
           warnings.some((w) => w.mode === "block")
         }
         onClick={() => void save()}

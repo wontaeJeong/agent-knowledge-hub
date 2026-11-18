@@ -1,3 +1,5 @@
+import type { PoolClient } from "pg";
+import { effectiveReferenceIds } from "../workflows/references";
 import { z } from "zod";
 import type { Context } from "../service";
 import type { WorkflowService } from "../workflows/service";
@@ -20,6 +22,77 @@ const input = documentPropertiesSchema
     mutationId: z.string().uuid(),
   })
   .strict();
+/** Reconstruct the same relation set that publication will review, including legacy Markdown. */
+export async function propertyReferenceContext(
+  db: PoolClient,
+  ctx: Context,
+  pageId: string,
+  origin?: string,
+) {
+  const state = await loadState(db, ctx.workspaceId);
+  const metadata = await currentMetadata(db, ctx, pageId);
+  const page = state.pages.find((p) => p.id === pageId)!;
+  const version = current(page);
+  const relations = effectiveReferenceIds(
+    version.content,
+    ctx.workspaceId,
+    metadata.relations,
+    origin,
+  );
+  const versions = new Map(Object.entries(metadata.versions));
+  const parents = new Map<string, string | null>();
+  for (const target of new Set([pageId, ...relations])) {
+    let id: string | null = target;
+    const chain = new Set<string>();
+    while (id) {
+      if (chain.has(id)) throw Error("VALIDATION_FAILED");
+      chain.add(id);
+      if (!parents.has(id)) {
+        await authorizeActionDb(db, ctx, "knowledge.read", {
+          kind: "page",
+          id,
+        });
+        const parent =
+          (
+            await db.query(
+              "SELECT parent_id FROM workflow_document_state WHERE workspace_id=$1 AND page_id=$2",
+              [ctx.workspaceId, id],
+            )
+          ).rows[0]?.parent_id ?? null;
+        parents.set(id, parent);
+      }
+      id = parents.get(id)!;
+    }
+    if (relations.includes(target))
+      versions.set(
+        target,
+        current(state.pages.find((p) => p.id === target)!).number,
+      );
+  }
+  const envelope = await captureEnvelope(db, ctx, state, [...parents.keys()]);
+  const parentIds = Object.fromEntries(parents);
+  const induced = relations.filter((id) => !metadata.relations.includes(id));
+  const relationChanges = induced.length
+    ? {
+        before: metadata.relations,
+        selected: metadata.relations,
+        effective: relations,
+        induced,
+      }
+    : undefined;
+  return {
+    state,
+    metadata,
+    page,
+    version,
+    relations,
+    relationChanges,
+    versions: Object.fromEntries(versions),
+    envelope,
+    parentIds,
+    consentHash: fingerprint({ metadata, envelope, parentIds }),
+  };
+}
 export class DocumentPropertiesService {
   constructor(readonly workflows: WorkflowService) {}
   async read(ctx: Context, pageId: string) {
@@ -80,6 +153,12 @@ export class DocumentPropertiesService {
           id: pageId,
         });
         await authorizeActionDb(db, ctx, "changeset.propose");
+        const context = await propertyReferenceContext(
+          db,
+          ctx,
+          pageId,
+          this.workflows.origin,
+        );
         const previous = (
           await db.query(
             "SELECT data FROM workflow_events WHERE workspace_id=$1 AND id=$2 AND principal_id=$3 AND kind='properties.propose'",
@@ -91,10 +170,10 @@ export class DocumentPropertiesService {
             throw Error("IDEMPOTENCY_CONFLICT");
           return { previous };
         }
-        const metadata = await currentMetadata(db, ctx, pageId);
+        const { metadata, page, version: v, envelope } = context;
         if (
           expectedMetadataHash &&
-          fingerprint(metadata) !== expectedMetadataHash
+          context.consentHash !== expectedMetadataHash
         )
           throw Error("STALE_VERSION");
         if (
@@ -102,10 +181,6 @@ export class DocumentPropertiesService {
           metadata.settingsRevision !== d.expectedRevision
         )
           throw Error("STALE_VERSION");
-        const state = await loadState(db, ctx.workspaceId),
-          page = state.pages.find((p) => p.id === pageId)!,
-          v = current(page),
-          envelope = await captureEnvelope(db, ctx, state, [pageId]);
         const policy = (
           await db.query(
             "SELECT policy_version FROM access_spaces WHERE workspace_id=$1",
@@ -116,6 +191,8 @@ export class DocumentPropertiesService {
         const { environment: _legacyEnvironment, ...properties } = d.properties;
         const next = {
           ...metadata,
+          relations: context.relations,
+          versions: context.versions,
           category: d.category,
           summary: d.summary,
           tags: d.tags,
@@ -138,6 +215,9 @@ export class DocumentPropertiesService {
             "reviewDue",
           ],
           next,
+          ...(context.relationChanges && {
+            relationChanges: context.relationChanges,
+          }),
           currentHash: fingerprint(metadata),
           content: v.content,
           sourceIds: v.sourceIds,
@@ -146,7 +226,12 @@ export class DocumentPropertiesService {
         return {
           plan,
           envelope,
-          update: { ...draftOf(page), summary: d.summary },
+          consentHash: context.consentHash,
+          update: {
+            ...draftOf(page),
+            links: context.relations,
+            summary: d.summary,
+          },
         };
       },
     );
@@ -168,6 +253,12 @@ export class DocumentPropertiesService {
         dependencyIds: prepared.plan!.dependencies,
         evolutionReason: d.reason,
         onBeforeCreate: async (db) => {
+          const current = await propertyReferenceContext(
+            db,
+            ctx,
+            pageId,
+            this.workflows.origin,
+          );
           await authorizeActionDb(db, ctx, "knowledge.protect", {
             kind: "page",
             id: pageId,
@@ -183,6 +274,8 @@ export class DocumentPropertiesService {
               throw Error("IDEMPOTENCY_CONFLICT");
             return { id: previous.id, hash: previous.hash };
           }
+          if (current.consentHash !== prepared.consentHash)
+            throw Error("STALE_VERSION");
         },
         onCreated: async (db, result) => {
           await db.query(

@@ -14,15 +14,376 @@ let f: Awaited<ReturnType<typeof fixture>>,
   bulk: BulkDocumentService;
 let bridge: ReturnType<typeof createRuntimeJobs>,
   browser: Awaited<ReturnType<typeof browserIdentity>>;
+
+const origin = "https://knowledge.example";
+async function linkedLegacyPage() {
+  await clone("linked");
+  const body =
+    "[Reference A](" +
+    origin +
+    "/?app=1&space=" +
+    f.workspaceId +
+    "&document=topic)";
+  await f.pool.query(
+    "UPDATE versions SET data=(data-'linkReferences')||jsonb_build_object('content',$2::text) WHERE workspace_id=$1 AND page_id='linked'",
+    [f.workspaceId, body],
+  );
+  const { rebuildPublishedLinks } = await import("./links");
+  await rebuildPublishedLinks(f.pool, f.workspaceId, { origin });
+  return body;
+}
+const tagRequest = (pageIds: string[]) => ({
+  pageIds,
+  operation: { kind: "tags", tags: ["keep"] },
+  reason: "정리",
+});
+test.each(["form", "legacy", "durable"])(
+  "%s preserves legacy absolute link semantics through independent publication",
+  async (mode) => {
+    const body = await linkedLegacyPage();
+    await f.pool.query(
+      "INSERT INTO resource_readers SELECT workspace_id,kind,resource_id,'fixture-owner' FROM resource_readers WHERE workspace_id=$1 AND principal_id='reviewer' ON CONFLICT DO NOTHING",
+      [f.workspaceId],
+    );
+    await f.pool.query(
+      "INSERT INTO access_reviewers VALUES($1,'fixture-owner')",
+      [f.workspaceId],
+    );
+    const edges = async () =>
+      (
+        await f.pool.query(
+          "SELECT target_page_id FROM published_page_links WHERE workspace_id=$1 AND page_id='linked'",
+          [f.workspaceId],
+        )
+      ).rows;
+    expect(await edges()).toEqual([{ target_page_id: "topic" }]);
+    const props = new DocumentPropertiesService(workflows);
+    const { metadata: m } = await props.read(browser.ctx, "linked");
+    let batchId: string, hash: string;
+    if (mode === "form") {
+      const result = await props.propose(browser.ctx, "linked", {
+        category: m.category,
+        summary: "edited",
+        tags: m.tags,
+        properties: m.properties,
+        environment: m.environment,
+        reviewDue: null,
+        expectedVersion: m.number,
+        expectedRevision: m.settingsRevision,
+        reason: "review",
+        mutationId: randomUUID(),
+      });
+      batchId = result.id;
+      hash = result.hash;
+    } else if (mode === "legacy") {
+      const { bulkPreview, bulkApply } = await import("../workflows/bulk");
+      const p = await bulkPreview(
+        workflows,
+        browser.ctx,
+        tagRequest(["linked"]),
+      );
+      const result = await bulkApply(workflows, browser.ctx, {
+        token: p.token,
+      });
+      expect(result.items[0].status).toBe("needs-review");
+      batchId = result.items[0].batchId!;
+      hash = result.items[0].hash!;
+    } else {
+      const p = await bulk.preview(browser.ctx, tagRequest(["linked"]));
+      const a = await bulk.execute(browser.ctx, {
+        previewToken: p.previewToken,
+        mutationId: randomUUID(),
+      });
+      await bridge.worker.tick();
+      const item = (await bulk.read(browser.ctx, a.id)).items[0] as unknown as {
+        status: string;
+        batchId: string;
+        hash: string;
+      };
+      expect(item.status).toBe("needs-review");
+      batchId = item.batchId;
+      hash = item.hash;
+    }
+    const plan = (
+      await f.pool.query(
+        "SELECT payload FROM version_restore_plans WHERE workspace_id=$1 AND batch_id=$2",
+        [f.workspaceId, batchId],
+      )
+    ).rows[0].payload;
+    expect(plan.relationChanges).toEqual({
+      before: [],
+      selected: [],
+      effective: ["topic"],
+      induced: ["topic"],
+    });
+    const batch = (
+      await f.pool.query(
+        "SELECT data FROM batches WHERE workspace_id=$1 AND id=$2",
+        [f.workspaceId, batchId],
+      )
+    ).rows[0].data;
+    expect(batch.referenceOrigin).toBe(origin);
+    expect(batch.updates[0].links).toEqual(plan.next.relations);
+    expect(batch.updates[0].content).toBe(body);
+    expect(plan.next.relations).toEqual(["topic"]);
+    expect(plan.dependencies).toContain("topic");
+    expect(plan.next.versions.topic).toEqual(1);
+    const { KnowledgeService } = await import("../service");
+    const ks = new KnowledgeService(f.pool),
+      owner = { workspaceId: f.workspaceId, principalId: "fixture-owner" };
+    await expect(ks.approve(browser.ctx, batchId, hash)).rejects.toThrow();
+    await ks.approve(owner, batchId, hash);
+    await ks.publish(owner, batchId, hash, randomUUID());
+    expect(await edges()).toEqual([{ target_page_id: "topic" }]);
+    const versions = (
+      await f.pool.query(
+        "SELECT data FROM versions WHERE workspace_id=$1 AND page_id='linked' ORDER BY number",
+        [f.workspaceId],
+      )
+    ).rows.map((r) => r.data);
+    expect(versions.map((v) => v.content)).toEqual([body, body]);
+    expect(versions[0].linkReferences).toBeUndefined();
+    expect(versions[1].linkReferences).toEqual([
+      { targetPageId: "topic", label: "Reference A", sourceBlockId: null },
+    ]);
+  },
+);
+
+test.each(["topic", "linked-parent"])(
+  "losing read of legacy destination or ancestor %s fences consent and removes receipt item",
+  async (hidden) => {
+    await linkedLegacyPage();
+    await clone("linked-parent");
+    await f.pool.query(
+      "INSERT INTO workflow_document_state(workspace_id,page_id,parent_id) VALUES($1,'topic','linked-parent')",
+      [f.workspaceId],
+    );
+    const p = await bulk.preview(browser.ctx, tagRequest(["linked"]));
+    const accepted = await bulk.execute(browser.ctx, {
+      previewToken: p.previewToken,
+      mutationId: randomUUID(),
+    });
+    await f.pool.query(
+      "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id=$2 AND principal_id=$3",
+      [f.workspaceId, hidden, browser.ctx.principalId],
+    );
+    await bridge.worker.tick();
+    expect((await bulk.read(browser.ctx, accepted.id)).items).toEqual([]);
+    expect(
+      (
+        await f.pool.query(
+          "SELECT status FROM workflow_bulk_items WHERE workspace_id=$1 AND request_id=$2",
+          [f.workspaceId, accepted.id],
+        )
+      ).rows,
+    ).toEqual([{ status: "denied" }]);
+    expect(
+      (
+        await f.pool.query("SELECT 1 FROM batches WHERE workspace_id=$1", [
+          f.workspaceId,
+        ])
+      ).rowCount,
+    ).toBe(0);
+    const denied = await bulk.preview(browser.ctx, tagRequest(["linked"]));
+    expect(denied.items[0].status).toBe("unavailable");
+  },
+);
+test("destination ACL revoked after independent approval prevents publication of the frozen property plan", async () => {
+  await linkedLegacyPage();
+  await f.pool.query(
+    "INSERT INTO resource_readers SELECT workspace_id,kind,resource_id,'fixture-owner' FROM resource_readers WHERE workspace_id=$1 AND principal_id='reviewer' ON CONFLICT DO NOTHING",
+    [f.workspaceId],
+  );
+  await f.pool.query(
+    "INSERT INTO access_reviewers VALUES($1,'fixture-owner')",
+    [f.workspaceId],
+  );
+  const service = new DocumentPropertiesService(workflows),
+    { metadata: m } = await service.read(browser.ctx, "linked");
+  const r = await service.propose(browser.ctx, "linked", {
+    category: m.category,
+    summary: "edited",
+    tags: [],
+    properties: {},
+    environment: m.environment,
+    reviewDue: null,
+    expectedVersion: 1,
+    expectedRevision: 0,
+    reason: "review",
+    mutationId: randomUUID(),
+  });
+  const { KnowledgeService } = await import("../service"),
+    ks = new KnowledgeService(f.pool),
+    owner = { workspaceId: f.workspaceId, principalId: "fixture-owner" };
+  await ks.approve(owner, r.id, r.hash);
+  await f.pool.query(
+    "DELETE FROM resource_readers WHERE workspace_id=$1 AND kind='page' AND resource_id='topic' AND principal_id=$2",
+    [f.workspaceId, owner.principalId],
+  );
+  await expect(ks.publish(owner, r.id, r.hash, randomUUID())).rejects.toThrow();
+  expect(
+    (
+      await f.pool.query(
+        "SELECT number FROM versions WHERE workspace_id=$1 AND page_id='linked'",
+        [f.workspaceId],
+      )
+    ).rows,
+  ).toEqual([{ number: 1 }]);
+});
+
+test("official refusal is fenced per document and accepted replay preserves its independent sibling", async () => {
+  await clone("official");
+  await f.pool.query(
+    "UPDATE pages SET data=data||$2::jsonb WHERE workspace_id=$1 AND id='official'",
+    [f.workspaceId, { status: "공식 기준" }],
+  );
+  const p = await bulk.preview(browser.ctx, tagRequest(["official", "topic"])),
+    request = { previewToken: p.previewToken, mutationId: randomUUID() };
+  expect(p.items.map((i) => i.status)).toEqual(["ready", "ready"]);
+  const a = await bulk.execute(browser.ctx, request);
+  await bridge.worker.tick();
+  const receipt = await bulk.read(browser.ctx, a.id);
+  expect(receipt).toMatchObject({
+    status: "succeeded",
+    items: [
+      { id: "official", status: "failed", code: "OFFICIAL_REVIEW_REQUIRED" },
+      { id: "topic", status: "needs-review" },
+    ],
+  });
+  expect((await bulk.execute(browser.ctx, request)).status).toBe("succeeded");
+  expect((await bulk.read(browser.ctx, a.id)).items).toEqual(receipt.items);
+  expect(
+    (
+      await f.pool.query("SELECT 1 FROM batches WHERE workspace_id=$1", [
+        f.workspaceId,
+      ])
+    ).rowCount,
+  ).toBe(1);
+});
+test("receipt requires durable admission and recovers persisted state before the job pointer is saved", async () => {
+  const p = await preview(),
+    id = p.previewToken.split(".")[0],
+    mutationId = randomUUID();
+  await expect(bulk.read(browser.ctx, id)).rejects.toThrow("NOT_FOUND");
+  await f.pool.query(
+    "INSERT INTO durable_job_stops VALUES ('workspace',$1,true,$2,now())",
+    [f.workspaceId, browser.ctx.principalId],
+  );
+  await expect(
+    bulk.execute(browser.ctx, { previewToken: p.previewToken, mutationId }),
+  ).rejects.toThrow("EMERGENCY_STOP");
+  expect(
+    (
+      await f.pool.query(
+        "SELECT mutation_id,job_id FROM workflow_bulk_requests WHERE workspace_id=$1 AND id=$2",
+        [f.workspaceId, id],
+      )
+    ).rows[0],
+  ).toEqual({ mutation_id: mutationId, job_id: null });
+  expect(
+    (
+      await f.pool.query("SELECT 1 FROM durable_jobs WHERE workspace_id=$1", [
+        f.workspaceId,
+      ])
+    ).rowCount,
+  ).toBe(0);
+  await expect(bulk.read(browser.ctx, id)).rejects.toThrow("NOT_FOUND");
+  await f.pool.query(
+    "DELETE FROM durable_job_stops WHERE scope='workspace' AND key=$1",
+    [f.workspaceId],
+  );
+  await bulk.execute(browser.ctx, { previewToken: p.previewToken, mutationId });
+  await bridge.worker.tick();
+  const job = (
+    await f.pool.query(
+      "SELECT job_id FROM workflow_bulk_requests WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, id],
+    )
+  ).rows[0].job_id;
+  await f.pool.query(
+    "UPDATE workflow_bulk_requests SET job_id=NULL,expires_at=now()-interval '1 minute' WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, id],
+  );
+  expect(await bulk.read(browser.ctx, id)).toMatchObject({
+    status: "succeeded",
+    items: [{ status: "applied" }],
+  });
+  const replacement = await browserIdentity(f.pool, f.ctx, servers);
+  await expect(bulk.read(replacement.ctx, id)).rejects.toThrow("NOT_FOUND");
+  await f.pool.query(
+    "UPDATE workflow_bulk_requests SET input_hash=repeat('0',64) WHERE workspace_id=$1 AND id=$2",
+    [f.workspaceId, id],
+  );
+  await expect(bridge.jobs.get(browser.ctx, job)).rejects.toThrow(
+    "EXECUTION_SCOPE_CONFLICT",
+  );
+  await expect(bridge.jobs.list(browser.ctx, 0, "own")).rejects.toThrow(
+    "EXECUTION_SCOPE_CONFLICT",
+  );
+  await expect(bulk.read(browser.ctx, id)).rejects.toThrow("NOT_FOUND");
+});
+test("workspace Owner list keeps an ordinary job and omits another human's private bulk job", async () => {
+  const admin = await browserIdentity(
+    f.pool,
+    { workspaceId: f.workspaceId, principalId: "fixture-owner" },
+    servers,
+  );
+  const adminBridge = createRuntimeJobs(
+    f.pool,
+    new RuntimeService(f.pool),
+    admin.options,
+  );
+  let ordinary;
+  try {
+    ordinary = await adminBridge.submitInteractive(
+      admin.ctx,
+      "lint",
+      {},
+      "ordinary",
+    );
+  } finally {
+    await adminBridge.stop();
+  }
+  const list = async () =>
+    (await bridge.jobs.list(admin.ctx, 0, "workspace")).items.map((j) => j.id);
+  expect(await list()).toContain(ordinary.id);
+  const p = await preview(),
+    a = await bulk.execute(browser.ctx, {
+      previewToken: p.previewToken,
+      mutationId: randomUUID(),
+    });
+  const id = (
+    await f.pool.query(
+      "SELECT job_id FROM workflow_bulk_requests WHERE workspace_id=$1 AND id=$2",
+      [f.workspaceId, a.id],
+    )
+  ).rows[0].job_id;
+  expect(
+    (await bridge.jobs.list(browser.ctx, 0, "own")).items.map((j) => j.id),
+  ).toContain(id);
+  expect(await list()).toEqual([ordinary.id]);
+  await expect(bridge.jobs.get(admin.ctx, id)).rejects.toThrow("NOT_FOUND");
+  const replacement = await browserIdentity(f.pool, f.ctx, servers);
+  expect(
+    (await bridge.jobs.list(replacement.ctx, 0, "own")).items.map((j) => j.id),
+  ).not.toContain(id);
+});
+
 const servers: Server[] = [];
 beforeEach(async () => {
   f = await fixture();
   await adoptFixture(f.pool, f.workspaceId);
   const runtime = new RuntimeService(f.pool);
-  workflows = new WorkflowService(f.pool, runtime, authorizeInTransaction);
+  workflows = new WorkflowService(
+    f.pool,
+    runtime,
+    authorizeInTransaction,
+    origin,
+  );
   browser = await browserIdentity(f.pool, f.ctx, servers);
   bridge = createRuntimeJobs(f.pool, runtime, {
     ...browser.options,
+    referenceOrigin: origin,
     workerCount: 1,
   });
   bulk = new BulkDocumentService(workflows, bridge);

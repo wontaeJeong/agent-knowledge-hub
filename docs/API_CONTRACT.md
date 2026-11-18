@@ -200,6 +200,12 @@ C9 Round1: 새 token capture는 standalone CR과 LF의 줄 경계를 renderer와
 
 ## C10 문서 속성과 일괄 작업 (2026-11-18)
 
+단일 속성 제안, 기존 token 태그 변경 및 작업자 태그 변경은 서버에 설정된 배포 origin으로 기존 본문의 내부 링크를 해석한다. 본문에서 유도한 대상, 현재 대상 버전과 상위 문서를 검토 계획 및 입력 의존성에 고정한다. 독립 승인·발행 때 원본과 대상의 권한을 재확인한다. 기존 버전에 linkReferences가 없더라도 발행본의 Markdown, 링크 표시 이름과 백링크가 유지된다.
+
+고급 문자열 속성 JSON과 일반 속성 입력은 같은 값을 사용한다. JSON이 유효해지면 사용자 정의 필수 키의 경고와 일반 입력이 함께 갱신된다. 잘못된 JSON은 수정할 때까지 제출과 일반 사용자 정의 속성 변경을 막는다. 정식 환경은 적용 환경 입력에서 관리한다.
+
+미리보기만 발급했거나 실제 큐 접수가 실패한 요청의 영수증 조회는 404다. 큐 접수 이후 요청의 job_id 기록 전에 프로세스가 중단되면 같은 공간·사용자·원래 세션·mutation·request ID·입력 해시에 일치하는 작업의 저장된 상태를 반환한다. 공식 기준의 필수 검토 정책 거부는 해당 항목의 failed/OFFICIAL_REVIEW_REQUIRED로 기록한다. 별도 문서는 계속 처리한다. 세션·실행 승인·임대·무결성 오류와 알 수 없는 인프라 오류는 작업 수준에 남는다. 공간 관리자 작업 목록에서도 다른 사람의 일괄 작업은 제외한다.
+
 문서 환경 검색의 입력은 문자열이다. 현재 검색은 현재 발행 문서의 workflow 환경을, 이력 검색은 해당 버전 스냅샷의 환경을 읽는다. 두 경로 모두 정식 environment 필드가 없을 때만 이전 properties.environment를 사용한다. 정식 필드가 null·빈 문자열·구조화 값인 문서는 예전 중첩 문자열로 검색되지 않는다. 과거 버전 조회에도 현재 원본·상위 문서 접근 권한을 적용한다.
 
 각 미리보기는 고유 mutationId를 사용한다. 접수 응답을 받지 못한 경우 원래 previewToken·mutationId로 재생한다. 종료된 영수증에 남은 pending과 재시도 가능한 실패를 새 미리보기로 다시 확인한다. 적용 또는 검토 요청이 끝난 문서는 자동으로 재선택하지 않는다.
@@ -208,7 +214,7 @@ C9 Round1: 새 token capture는 standalone CR과 LF의 줄 경계를 renderer와
 
 `GET /api/v1/workflows/pages/:id/properties`는 현재 canonical metadata, 문서 유형별 required-key 정책, 업무 담당자/대체자 attribution을 반환한다. `POST`는 `{category,summary,tags,properties,environment,reviewDue,expectedVersion,expectedRevision,reason,mutationId}`를 받아 독립 검토할 변경안 `{id,hash,status:'needs-review'}`를 생성한다. environment는 기존 문자열/문자열 맵을 보존한다. owner 변경은 기존 governance owner API/권한을 사용하며 접근 권한을 부여하지 않는다. 새 저장소에 metadata를 복제하지 않는다.
 
-기존 `POST /api/v1/workflows/bulk/preview`의 최대 50개·10분 계약을 유지한다. 작업자가 연결된 사람 세션에는 기존 HMAC `token`과 추가 opaque `previewToken`을 함께 반환한다. 현재 허가된 항목에만 정규화한 `before`/`patch`를 제공한다. `POST /workflows/bulk/apply`의 `{previewToken,mutationId}` (또는 `{token:previewToken,mutationId}`)는 durable job를 접수하고 HTTP 202 `{id,status:'queued'}`를 반환한다. `GET /workflows/bulk/:id`는 원래 사람 세션과 현재 항목 권한으로 재검사한 receipt다. 항목 상태는 pending/applied/needs-review/denied/stale/failed이고 queued는 완료를 뜻하지 않는다. 숨겨진 항목은 ID/제목/총수/숨겨진 수 없이 제외한다. generic jobs API는 동일 원래 세션의 queue 상태만 제공하며 bulk result/checkpoint는 null이다.
+기존 `POST /api/v1/workflows/bulk/preview`의 최대 50개·10분 계약을 유지한다. 작업자가 연결된 사람 세션에는 기존 HMAC `token`과 추가 opaque `previewToken`을 함께 반환한다. 현재 허가된 항목에만 정규화한 `before`/`patch`를 제공한다. `POST /workflows/bulk/apply`의 `{previewToken,mutationId}` (또는 `{token:previewToken,mutationId}`)는 durable job를 접수하고 HTTP 202 `{id,status}`를 반환한다. `GET /workflows/bulk/:id`는 원래 사람 세션과 현재 항목 권한으로 재검사한 receipt다. 신규 접수의 status는 queued이고 멱등 재생은 기존 작업 상태를 반환한다. 항목 상태는 pending/applied/needs-review/denied/stale/failed이고 queued는 완료를 뜻하지 않는다. 숨겨진 항목은 ID/제목/총수/숨겨진 수 없이 제외한다. generic jobs API는 동일 원래 세션의 queue 상태만 제공하며 bulk result/checkpoint는 null이다.
 
 기존 `{token}` 호출은 동기 move/archive 응답·멱등성을 유지한다. **태그만 승인된 계약 변경**으로 즉시 applied가 아니라 동일한 reviewed proposal의 needs-review와 batch/hash를 반환한다. 응답 유실·동시 재시도는 같은 proposal을 재생한다. 구형 태그 호출자는 승인/발행 완료로 해석하면 안 된다. 단일 `/workflows/pages/:id/state`의 tags 입력도 HTTP 409 METADATA_REVIEW_REQUIRED와 properties 경로 안내를 반환한다. 구조 이동, 보관, 보호, reviewDue 등 운영 설정과 기존 properties map 입력 계약은 유지한다. 발행 metadata의 속성 폼 경로는 검토되는 새 버전으로 반영한다.
 

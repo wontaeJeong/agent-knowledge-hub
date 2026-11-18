@@ -1,6 +1,6 @@
 {
-  "checkedAt": "2026-11-17T23:37:25.636Z",
-  "ownedBrowserDatabasesChecked": 6,
+  "checkedAt": "2026-11-18T00:18:13.738Z",
+  "ownedBrowserDatabasesChecked": 1,
   "ownedDatabasesRemaining": 0,
   "portsListening": {
     "4400": false,
@@ -9,13 +9,10 @@
   },
   "parentPostgreSQLPreserved": true,
   "stoppedPids": [
-    11607,
-    11645,
-    13727,
-    15062,
-    15107,
-    15142,
-    16130
+    30645,
+    30659,
+    30661
   ],
-  "nativeSuiteDatabases": "23 suite-owned databases dropped by the native wrapper on exit 0"
+  "previousClientTemporaryArchiveRemoved": true,
+  "syntheticSessionFileRemoved": true
 }

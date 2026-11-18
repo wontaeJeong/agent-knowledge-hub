@@ -85,10 +85,164 @@ test("property responses from an old identity are discarded", async () => {
   );
   expect(document.body.textContent).not.toContain("PRIVATE");
 });
-async function fill(input: HTMLInputElement, value: string) {
+
+test("receipt recovery restores only currently visible controls and clears transient errors", async () => {
+  const pages = ["visible", "omitted"].map((id) => ({
+    id,
+    title: id + " title",
+  }));
+  let read = 0;
+  const api = {
+    post: async (path: string) =>
+      path.endsWith("/preview")
+        ? {
+            previewToken: "preview",
+            expiresAt: "later",
+            items: pages.map((p) => ({ id: p.id, status: "ready" })),
+          }
+        : { id: "receipt", status: "queued" },
+    get: async () => {
+      read++;
+      if (read === 2) throw new ApiError("temporary", 503);
+      return read === 1
+        ? {
+            status: "queued",
+            items: pages.map((p) => ({ id: p.id, status: "pending" })),
+          }
+        : { status: "succeeded", items: [{ id: "visible", status: "stale" }] };
+    },
+  } as unknown as OperationalApi;
+  const host = await mount(
+    <BulkEditor
+      api={api}
+      scope="s:u"
+      pages={pages}
+      onExpired={() => {}}
+      onChanged={async () => {}}
+    />,
+  );
+  for (const b of host.querySelectorAll<HTMLInputElement>("[type=checkbox]"))
+    await act(async () => b.click());
+  await fill(
+    host.querySelector<HTMLInputElement>('input[maxlength="2000"]')!,
+    "reason",
+  );
+  const click = async (name: string) =>
+    act(async () => button(host, name).click());
+  await click("변경 미리보기");
+  await click("미리보기 내용 적용");
+  await click("처리 결과 새로고침");
+  expect(host.textContent).not.toContain("visible title");
+  expect(host.textContent).not.toContain("omitted title");
+  expect(host.querySelector("[role=alert]")).toBeTruthy();
+  await click("처리 결과 새로고침");
+  expect(host.querySelector("[role=alert]")).toBeNull();
+  await click("실패 대상 다시 미리보기");
+  const box = host.querySelector<HTMLInputElement>("[type=checkbox]")!;
+  expect(box.closest("label")?.textContent).toContain("visible title");
+  expect(box.checked).toBe(true);
+  expect(host.textContent).not.toContain("omitted title");
+  await act(async () => box.click());
+  expect(button(host, "변경 미리보기").disabled).toBe(true);
+});
+test.each([401, 403, 404])(
+  "receipt read %i hides protected controls and expires only an unauthenticated session",
+  async (status) => {
+    const onExpired = vi.fn(),
+      api = {
+        post: async (path: string) =>
+          path.endsWith("/preview")
+            ? {
+                previewToken: "p",
+                expiresAt: "later",
+                items: [{ id: "topic", status: "ready" }],
+              }
+            : { id: "receipt", status: "queued" },
+        get: async () => {
+          throw new ApiError("unavailable", status);
+        },
+      } as unknown as OperationalApi;
+    const host = await mount(
+      <BulkEditor
+        api={api}
+        scope="s:u"
+        pages={[{ id: "topic", title: "Previously visible" }]}
+        onChanged={async () => {}}
+        onExpired={onExpired}
+      />,
+    );
+    await act(async () =>
+      host.querySelector<HTMLInputElement>("[type=checkbox]")!.click(),
+    );
+    await fill(
+      host.querySelector<HTMLInputElement>('input[maxlength="2000"]')!,
+      "reason",
+    );
+    await act(async () => button(host, "변경 미리보기").click());
+    await act(async () => button(host, "미리보기 내용 적용").click());
+    expect(host.textContent).not.toContain("Previously visible");
+    expect(host.querySelector('[aria-label="일괄 작업 상태"]')).toBeNull();
+    expect(onExpired).toHaveBeenCalledTimes(status === 401 ? 1 : 0);
+  },
+);
+test("advanced and guided properties share policy, preserve unrelated keys and block invalid edits", async () => {
+  const post = vi.fn(),
+    api = {
+      get: async () => ({
+        metadata: { ...metadata, environment: { os: "Linux" } },
+        owner: null,
+        policies: [
+          {
+            document_type: metadata.category,
+            required_keys: ["platform"],
+            mode: "block",
+          },
+        ],
+      }),
+      post,
+    } as unknown as OperationalApi;
+  const host = await mount(<PropertiesForm api={api} {...props} />);
+  const field = (key: string) =>
+    [...host.querySelectorAll("label")]
+      .find((l) => l.textContent?.trim().startsWith(key))!
+      .querySelector<HTMLInputElement | HTMLTextAreaElement>("input,textarea")!;
+  const advanced = field("문자열 속성 객체"),
+    platform = () => field("platform");
+  await fill(field("변경 이유"), "reason");
+  await fill(advanced, '{"platform":"Linux","extra":"keep"}');
+  expect(platform().value).toBe("Linux");
+  expect(button(host, "속성 검토 요청").disabled).toBe(false);
+  await fill(platform(), "Mac");
+  expect(JSON.parse(advanced.value)).toEqual({
+    platform: "Mac",
+    extra: "keep",
+  });
+  await fill(advanced, '{"extra":"keep"}');
+  expect(button(host, "속성 검토 요청").disabled).toBe(true);
+  await fill(advanced, '{"extra":');
+  expect(platform().disabled).toBe(true);
+  expect(advanced.value).toBe('{"extra":');
+  expect(button(host, "속성 검토 요청").disabled).toBe(true);
+  await fill(advanced, '{"platform":"BSD","extra":"keep"}');
+  await act(async () => button(host, "속성 검토 요청").click());
+  expect(post).toHaveBeenCalledWith(
+    expect.any(String),
+    expect.objectContaining({
+      properties: { platform: "BSD", extra: "keep" },
+      environment: { os: "Linux" },
+    }),
+  );
+});
+
+async function fill(
+  input: HTMLInputElement | HTMLTextAreaElement,
+  value: string,
+) {
   await act(async () => {
     Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
+      input instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype,
       "value",
     )!.set!.call(input, value);
     input.dispatchEvent(new Event("input", { bubbles: true }));

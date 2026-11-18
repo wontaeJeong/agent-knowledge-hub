@@ -30,6 +30,7 @@ export function BulkEditor({
 }) {
   const [ids, setIds] = useState<string[]>([]),
     [hiddenIds, setHiddenIds] = useState<string[]>([]),
+    [uncertainIds, setUncertainIds] = useState<string[]>([]),
     [kind, setKind] = useState("tags"),
     [value, setValue] = useState(""),
     [reason, setReason] = useState(""),
@@ -42,26 +43,51 @@ export function BulkEditor({
   const [receipt, setReceipt] = useState<string | null>(null),
     [jobStatus, setJobStatus] = useState("");
   async function readReceipt(id: string, request: number) {
-    const r = await api.get<{
-      status: string;
-      error?: string;
-      items: Outcome[];
-    }>(`/workflows/bulk/${id}`);
+    const affected = [
+      ...new Set([...ids, ...results.map((item) => item.id), ...uncertainIds]),
+    ];
+    let r;
+    try {
+      r = await api.get<{
+        status: string;
+        error?: string;
+        items: Outcome[];
+      }>(`/workflows/bulk/${id}`);
+    } catch (e) {
+      if (request !== epoch.current) return;
+      const status =
+        e && typeof e === "object" && "status" in e
+          ? Number(e.status)
+          : undefined;
+      setResults([]);
+      setIds([]);
+      setError(e instanceof Error ? e.message : "결과 조회 실패");
+      if (status === 401 || status === 403 || status === 404) {
+        setHiddenIds((old) => [...new Set([...old, ...affected])]);
+        setUncertainIds([]);
+        setReceipt(null);
+        if (status === 401) onExpired();
+      } else {
+        setUncertainIds(affected);
+      }
+      return;
+    }
     if (request !== epoch.current) return;
     const visible = new Set(r.items.map((i) => i.id));
-    const omitted = [...ids, ...results.map((i) => i.id)].filter(
-      (id) => !visible.has(id),
-    );
-    setHiddenIds((old) => [...new Set([...old, ...omitted])]);
+    const omitted = affected.filter((id) => !visible.has(id));
+    setHiddenIds((old) => [
+      ...new Set([...old.filter((id) => !visible.has(id)), ...omitted]),
+    ]);
+    setUncertainIds([]);
     const unfinished = new Set(
       r.items
         .filter((i) => i.status !== "applied" && i.status !== "needs-review")
         .map((i) => i.id),
     );
-    setIds((old) => old.filter((id) => unfinished.has(id)));
+    setIds(affected.filter((id) => unfinished.has(id)));
     setResults(r.items);
     setJobStatus(r.status);
-    if (r.error) setError(r.error);
+    setError(r.error ?? "");
   }
 
   useLayoutEffect(() => {
@@ -70,6 +96,7 @@ export function BulkEditor({
     setJobStatus("");
     setIds([]);
     setHiddenIds([]);
+    setUncertainIds([]);
     setPreview(null);
     setRecovery(null);
     setResults([]);
@@ -189,6 +216,7 @@ export function BulkEditor({
       if (request === epoch.current) setBusy(false);
     }
   }
+  const editingDisabled = busy || uncertainIds.length > 0;
   const terminal = ["dead", "cancelled", "succeeded"].includes(jobStatus);
   const retryIds = results
     .filter(
@@ -206,16 +234,21 @@ export function BulkEditor({
         권한이나 기준이 달라진 대상은 별도 표시합니다. 태그 변경은 검토 요청으로
         접수합니다.
       </p>
+      {uncertainIds.length > 0 && (
+        <p role="status">작업 결과를 다시 조회하면 확인된 문서를 표시합니다.</p>
+      )}
       {hiddenIds.length > 0 && (
         <p role="status">
           현재 접근하거나 변경할 수 없는 선택을 제거했습니다. 필요한 문서는
           권한을 확인한 뒤 다시 선택하세요.
         </p>
       )}
-      <fieldset disabled={busy}>
+      <fieldset disabled={editingDisabled}>
         <legend>대상 문서</legend>
         {pages
-          .filter((p) => !hiddenIds.includes(p.id))
+          .filter(
+            (p) => !hiddenIds.includes(p.id) && !uncertainIds.includes(p.id),
+          )
           .slice(0, 1000)
           .map((p) => (
             <label key={p.id} style={{ display: "block" }}>
@@ -240,7 +273,7 @@ export function BulkEditor({
         변경 종류
         <select
           value={kind}
-          disabled={busy}
+          disabled={editingDisabled}
           onChange={(e) => {
             change();
             setKind(e.target.value);
@@ -257,7 +290,7 @@ export function BulkEditor({
           새 태그 (쉼표 구분)
           <input
             value={value}
-            disabled={busy}
+            disabled={editingDisabled}
             maxLength={3000}
             onChange={(e) => {
               change();
@@ -271,7 +304,7 @@ export function BulkEditor({
           상위 문서
           <select
             value={value}
-            disabled={busy}
+            disabled={editingDisabled}
             onChange={(e) => {
               change();
               setValue(e.target.value);
@@ -279,7 +312,10 @@ export function BulkEditor({
           >
             <option value="">최상위</option>
             {pages
-              .filter((p) => !hiddenIds.includes(p.id))
+              .filter(
+                (p) =>
+                  !hiddenIds.includes(p.id) && !uncertainIds.includes(p.id),
+              )
               .filter((p) => !ids.includes(p.id))
               .map((p) => (
                 <option key={p.id} value={p.id}>
@@ -294,7 +330,7 @@ export function BulkEditor({
         <input
           value={reason}
           maxLength={2000}
-          disabled={busy}
+          disabled={editingDisabled}
           onChange={(e) => {
             change();
             setReason(e.target.value);
@@ -365,21 +401,9 @@ export function BulkEditor({
             onClick={() => {
               const request = ++epoch.current;
               setBusy(true);
-              void readReceipt(receipt, request)
-                .catch((e) => {
-                  if (request === epoch.current) {
-                    setHiddenIds((old) => [
-                      ...new Set([...old, ...ids, ...results.map((i) => i.id)]),
-                    ]);
-                    setIds([]);
-                    setResults([]);
-                    setError(e instanceof Error ? e.message : "결과 조회 실패");
-                    if (e?.status === 401) onExpired();
-                  }
-                })
-                .finally(() => {
-                  if (request === epoch.current) setBusy(false);
-                });
+              void readReceipt(receipt, request).finally(() => {
+                if (request === epoch.current) setBusy(false);
+              });
             }}
           >
             처리 결과 새로고침

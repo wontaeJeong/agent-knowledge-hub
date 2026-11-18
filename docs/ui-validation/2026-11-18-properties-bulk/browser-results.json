@@ -1,13 +1,14 @@
 {
-  "startedAt": "2026-11-17T23:35:48.728Z",
-  "productionFingerprint": "15b61085b6725a050e0aa9f316a2b1f4316c1d50369a516fc9b2e32c5cbd0a01",
+  "startedAt": "2026-11-18T00:14:09.220Z",
+  "productionFingerprint": "2b7a92389a73fa2e4f6c34a9a08ec9b038688696fd6c35af8fdbd808df449758",
   "browser": "158.0.8127.18",
   "results": [
     {
       "width": 1440,
       "theme": "light",
       "checks": [
-        "canonical property policy",
+        "custom policy, advanced and guided properties, invalid JSON and exact accepted payload",
+        "synthetic 503 hides labels; real current receipt restores only authorized controls and clears error",
         "keyboard Tab",
         "reviewed metadata no direct publish",
         "queued acceptance",
@@ -17,14 +18,15 @@
         "new receipt applied",
         "no horizontal overflow"
       ],
-      "requests": 49,
+      "requests": 50,
       "errors": []
     },
     {
       "width": 1440,
       "theme": "dark",
       "checks": [
-        "canonical property policy",
+        "custom policy, advanced and guided properties, invalid JSON and exact accepted payload",
+        "synthetic 503 hides labels; real current receipt restores only authorized controls and clears error",
         "keyboard Tab",
         "reviewed metadata no direct publish",
         "queued acceptance",
@@ -34,14 +36,15 @@
         "new receipt applied",
         "no horizontal overflow"
       ],
-      "requests": 49,
+      "requests": 50,
       "errors": []
     },
     {
       "width": 390,
       "theme": "light",
       "checks": [
-        "canonical property policy",
+        "custom policy, advanced and guided properties, invalid JSON and exact accepted payload",
+        "synthetic 503 hides labels; real current receipt restores only authorized controls and clears error",
         "keyboard Tab",
         "reviewed metadata no direct publish",
         "queued acceptance",
@@ -51,14 +54,15 @@
         "new receipt applied",
         "no horizontal overflow"
       ],
-      "requests": 49,
+      "requests": 50,
       "errors": []
     },
     {
       "width": 390,
       "theme": "dark",
       "checks": [
-        "canonical property policy",
+        "custom policy, advanced and guided properties, invalid JSON and exact accepted payload",
+        "synthetic 503 hides labels; real current receipt restores only authorized controls and clears error",
         "keyboard Tab",
         "reviewed metadata no direct publish",
         "queued acceptance",
@@ -68,7 +72,7 @@
         "new receipt applied",
         "no horizontal overflow"
       ],
-      "requests": 158,
+      "requests": 159,
       "errors": []
     }
   ],

@@ -1,0 +1,28 @@
+[1/1] server/convenience/bulk.test.ts
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ server/convenience/bulk.test.ts (30 tests | 1 failed) 63184ms
+   × legacy preserves legacy absolute link semantics through independent publication 5222ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 29 passed (30)
+   Start at  09:19:56
+   Duration  63.38s (tests 100%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  server/convenience/bulk.test.ts > legacy preserves legacy absolute link semantics through independent publication
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ server/convenience/bulk.test.ts:40:41
+     38|   reason: "정리",
+     39| });
+     40| test.each(["form", "legacy", "durable"])(
+       |                                         ^
+     41|   "%s preserves legacy absolute link semantics through independent pub…
+     42|   async (mode) => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

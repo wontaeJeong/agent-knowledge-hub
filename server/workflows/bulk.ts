@@ -1,4 +1,7 @@
-import { DocumentPropertiesService } from "../convenience/properties";
+import {
+  DocumentPropertiesService,
+  propertyReferenceContext,
+} from "../convenience/properties";
 import { fingerprint } from "../provenance";
 import { currentMetadata } from "./versions/metadata";
 import {
@@ -121,7 +124,7 @@ export async function bulkPreview(
         }
         patch = { parentId: d.operation.parentId };
       } else patch = { tags: [...new Set(d.operation.tags)] };
-      const metadata = await transaction(
+      const { metadata, metadataHash } = await transaction(
         service.pool,
         ctx.workspaceId,
         async (db) => {
@@ -130,11 +133,24 @@ export async function bulkPreview(
             kind: "page",
             id: pageId,
           });
-          return currentMetadata(db, ctx, pageId);
+          if (d.operation.kind === "tags") {
+            const context = await propertyReferenceContext(
+              db,
+              ctx,
+              pageId,
+              service.origin,
+            );
+            return {
+              metadata: context.metadata,
+              metadataHash: context.consentHash,
+            };
+          }
+          const metadata = await currentMetadata(db, ctx, pageId);
+          return { metadata, metadataHash: fingerprint(metadata) };
         },
       );
       items.push({
-        metadataHash: fingerprint(metadata),
+        metadataHash,
         expectedVersion: metadata.number,
         id: pageId,
         status: "ready",
@@ -144,7 +160,12 @@ export async function bulkPreview(
     } catch (e) {
       if (
         e instanceof Error &&
-        ["NOT_FOUND", "FORBIDDEN", "VALIDATION_FAILED"].includes(e.message)
+        [
+          "NOT_FOUND",
+          "FORBIDDEN",
+          "VALIDATION_FAILED",
+          "STALE_VERSION",
+        ].includes(e.message)
       )
         items.push({ id: pageId, status: "unavailable" });
       else throw e;
@@ -283,7 +304,12 @@ export async function bulkApply(
         { kind: "page", id: outcome.id },
       );
     });
-    await service.document(ctx, outcome.id);
+    if (original.patch?.tags) {
+      await transaction(service.pool, ctx.workspaceId, async (db) => {
+        await ctx.authorization?.assertSession(db);
+        await propertyReferenceContext(db, ctx, outcome.id, service.origin);
+      });
+    } else await service.document(ctx, outcome.id);
   }
   await ctx.authorization?.revalidate();
   return { items };

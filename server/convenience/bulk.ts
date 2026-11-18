@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { propertyReferenceContext } from "./properties";
 import { z } from "zod";
 import type { PoolClient } from "pg";
 import type { Context } from "../service";
@@ -72,6 +73,7 @@ async function baseline(
   ctx: Context,
   pageId: string,
   patch: Record<string, unknown>,
+  origin?: string,
 ) {
   await assertProductWritesNotErased(db, ctx.workspaceId, pageId);
   await authorizeActionDb(
@@ -84,7 +86,11 @@ async function baseline(
         : "knowledge.protect",
     { kind: "page", id: pageId },
   );
-  const metadata = await currentMetadata(db, ctx, pageId);
+  const references = patch.tags
+    ? await propertyReferenceContext(db, ctx, pageId, origin)
+    : null;
+  const metadata =
+    references?.metadata ?? (await currentMetadata(db, ctx, pageId));
   const parents: string[] = [];
   const seen = new Set([pageId]);
   for (const initial of [
@@ -105,8 +111,10 @@ async function baseline(
       next = (await currentMetadata(db, ctx, next)).parentId;
     }
   }
-  const state = await loadState(db, ctx.workspaceId),
-    envelope = await captureEnvelope(db, ctx, state, [...seen]);
+  const state = references?.state ?? (await loadState(db, ctx.workspaceId)),
+    envelope =
+      references?.envelope ??
+      (await captureEnvelope(db, ctx, state, [...seen]));
   const policy = (
     await db.query(
       "SELECT policy_version FROM access_spaces WHERE workspace_id=$1 AND active",
@@ -117,7 +125,16 @@ async function baseline(
     [...new Set(parents)].map((p) => currentMetadata(db, ctx, p)),
   );
   return {
-    hash: fingerprint({ metadata, envelope, policy, parentMetadata }),
+    hash: fingerprint({
+      metadata,
+      envelope,
+      policy,
+      parentMetadata,
+      ...(references?.relations.length
+        ? { parentIds: references.parentIds }
+        : {}),
+    }),
+    references,
     metadata,
     envelope,
     state,
@@ -131,6 +148,8 @@ type Item = {
   status: string;
   result: Record<string, unknown>;
   ordinal: number;
+  page_ids: string[];
+  source_ids: string[];
 };
 export class BulkDocumentService {
   constructor(
@@ -158,7 +177,13 @@ export class BulkDocumentService {
         const rows = [];
         for (const pageId of d.pageIds) {
           try {
-            const b = await baseline(db, ctx, pageId, patch);
+            const b = await baseline(
+              db,
+              ctx,
+              pageId,
+              patch,
+              this.workflows.origin,
+            );
             rows.push({
               id: pageId,
               status: "ready",
@@ -177,7 +202,10 @@ export class BulkDocumentService {
           } catch (e) {
             if (
               !denied(e) &&
-              !(e instanceof Error && e.message === "VALIDATION_FAILED")
+              !(
+                e instanceof Error &&
+                ["VALIDATION_FAILED", "STALE_VERSION"].includes(e.message)
+              )
             )
               throw e;
             rows.push({
@@ -248,9 +276,21 @@ export class BulkDocumentService {
             kind: "page",
             id: item.id,
           });
+          if (item.status === "ready" && d.operation.kind === "tags") {
+            await propertyReferenceContext(
+              db,
+              ctx,
+              item.id,
+              this.workflows.origin,
+            );
+          }
           items.push(item);
         } catch (e) {
-          if (!denied(e)) throw e;
+          if (
+            !denied(e) &&
+            !(e instanceof Error && e.message === "STALE_VERSION")
+          )
+            throw e;
           items.push({ id: item.id, status: "unavailable" });
         }
       }
@@ -338,7 +378,7 @@ export class BulkDocumentService {
         [ctx.workspaceId, requestId, job.id],
       );
     });
-    return { id: requestId, status: "queued" as const };
+    return { id: requestId, status: job.status };
   }
   async read(ctx: Context, requestId: string) {
     id.parse(requestId);
@@ -348,8 +388,22 @@ export class BulkDocumentService {
         await human(db, ctx);
         const r = (
           await db.query(
-            "SELECT r.*,j.status AS job_status,j.error_code FROM workflow_bulk_requests r LEFT JOIN durable_jobs j ON j.id=r.job_id WHERE r.workspace_id=$1 AND r.id=$2 AND r.principal_id=$3",
-            [ctx.workspaceId, requestId, ctx.principalId],
+            `SELECT r.session_id,j.status AS job_status,j.error_code
+               FROM workflow_bulk_requests r
+               JOIN durable_jobs j ON j.workspace_id=r.workspace_id AND j.principal_id=r.principal_id
+                 AND j.kind='bulk' AND j.idempotency_key='bulk:'||r.mutation_id
+                 AND j.input->'payload'->>'requestId'=r.id AND j.input->'payload'->>'inputHash'=r.input_hash
+                 AND (r.job_id IS NULL OR r.job_id=j.id)
+               JOIN runtime_execution_grants g ON g.credential_id=j.credential_id
+                 AND g.workspace_id=r.workspace_id AND g.principal_id=r.principal_id
+                 AND g.parent_session_id=r.session_id AND g.operation='bulk' AND g.request_key=j.idempotency_key
+               WHERE r.workspace_id=$1 AND r.id=$2 AND r.principal_id=$3 AND r.session_id=$4`,
+            [
+              ctx.workspaceId,
+              requestId,
+              ctx.principalId,
+              ctx.authorization!.sessionId,
+            ],
           )
         ).rows[0];
         if (!r || r.session_id !== ctx.authorization!.sessionId)
@@ -370,7 +424,8 @@ export class BulkDocumentService {
               db,
               ctx,
               await loadState(db, ctx.workspaceId),
-              [item.page_id],
+              [...new Set([item.page_id, ...item.page_ids])],
+              item.source_ids,
             );
             items.push({
               id: item.page_id,
@@ -378,13 +433,16 @@ export class BulkDocumentService {
               ...item.result,
             });
           } catch (e) {
-            if (!denied(e))
+            if (
+              !denied(e) &&
+              !(e instanceof Error && e.message === "STALE_VERSION")
+            )
               throw e; /* No IDs, titles or counts of currently hidden targets. */
           }
         }
         return {
           id: requestId,
-          status: r.job_status ?? "queued",
+          status: r.job_status,
           error: r.error_code ?? null,
           items,
         };
@@ -481,7 +539,13 @@ export async function executeBulk(
           scoped.workspaceId,
           async (db) => {
             const r = await check(db);
-            const b = await baseline(db, scoped, item.page_id, item.patch);
+            const b = await baseline(
+              db,
+              scoped,
+              item.page_id,
+              item.patch,
+              workflows.origin,
+            );
             if (b.hash !== item.baseline_hash) throw Error("STALE_VERSION");
             return { r, b };
           },
@@ -496,43 +560,65 @@ export async function executeBulk(
           settingsRevision: b.metadata.settingsRevision,
           policyVersion: b.policy,
           fields: ["tags"],
-          next: { ...b.metadata, tags: item.patch.tags as string[] },
+          ...(b.references!.relationChanges && {
+            relationChanges: b.references!.relationChanges,
+          }),
+          next: {
+            ...b.metadata,
+            relations: b.references!.relations,
+            versions: b.references!.versions,
+            tags: item.patch.tags as string[],
+          },
           currentHash: fingerprint(b.metadata),
           content: v.content,
           sourceIds: v.sourceIds,
           dependencies: b.envelope.pageIds,
         };
-        await propose(workflows.pool, scoped, [draftOf(p)], v.sourceIds, {
-          evolutionReason: r.reason,
-          inputEnvelope: b.envelope,
-          versionMetadataPlans: [plan],
-          dependencyIds: b.envelope.pageIds,
-          onBeforeCreate: async (db) => {
-            await check(db);
-            const existing = (
-              await db.query(
-                "SELECT status,result FROM workflow_bulk_items WHERE workspace_id=$1 AND request_id=$2 AND page_id=$3",
-                [scoped.workspaceId, payload.requestId, item.page_id],
+        await propose(
+          workflows.pool,
+          scoped,
+          [{ ...draftOf(p), links: plan.next.relations }],
+          v.sourceIds,
+          {
+            referenceOrigin: workflows.origin,
+            evolutionReason: r.reason,
+            inputEnvelope: b.envelope,
+            versionMetadataPlans: [plan],
+            dependencyIds: b.envelope.pageIds,
+            onBeforeCreate: async (db) => {
+              await check(db);
+              const existing = (
+                await db.query(
+                  "SELECT status,result FROM workflow_bulk_items WHERE workspace_id=$1 AND request_id=$2 AND page_id=$3",
+                  [scoped.workspaceId, payload.requestId, item.page_id],
+                )
+              ).rows[0];
+              if (existing?.status === "needs-review")
+                return {
+                  id: existing.result.batchId,
+                  hash: existing.result.hash,
+                };
+              if (
+                (
+                  await baseline(
+                    db,
+                    scoped,
+                    item.page_id,
+                    item.patch,
+                    workflows.origin,
+                  )
+                ).hash !== item.baseline_hash
               )
-            ).rows[0];
-            if (existing?.status === "needs-review")
-              return {
-                id: existing.result.batchId,
-                hash: existing.result.hash,
-              };
-            if (
-              (await baseline(db, scoped, item.page_id, item.patch)).hash !==
-              item.baseline_hash
-            )
-              throw Error("STALE_VERSION");
+                throw Error("STALE_VERSION");
+            },
+            onCreated: async (db, result) => {
+              await save(db, "needs-review", {
+                batchId: result.id,
+                hash: result.hash,
+              });
+            },
           },
-          onCreated: async (db, result) => {
-            await save(db, "needs-review", {
-              batchId: result.id,
-              hash: result.hash,
-            });
-          },
-        });
+        );
       } else
         await transaction(workflows.pool, scoped.workspaceId, async (db) =>
           jobs.commitEffect(db, run.lease, stage, async () => {
@@ -566,9 +652,12 @@ export async function executeBulk(
       const code = e instanceof Error ? e.message : "EXECUTION_FAILED";
       if (
         !denied(e) &&
-        !["STALE_VERSION", "VALIDATION_FAILED", "PROPERTY_REQUIRED"].includes(
-          code,
-        )
+        ![
+          "STALE_VERSION",
+          "VALIDATION_FAILED",
+          "PROPERTY_REQUIRED",
+          "OFFICIAL_REVIEW_REQUIRED",
+        ].includes(code)
       )
         throw e;
       await transaction(workflows.pool, scoped.workspaceId, (db) =>

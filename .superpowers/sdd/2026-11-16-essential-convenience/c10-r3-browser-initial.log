@@ -1,0 +1,16 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.fill: Timeout 15000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('region', { name: '문서 속성', exact: true }).getByLabel('문자열 속성 객체', { exact: true })[22m
+
+    at /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub/docs/ui-validation/2026-11-18-properties-bulk/capture.mjs:25:17 {
+  log: [
+    "  - waiting for getByRole('region', { name: '문서 속성', exact: true }).getByLabel('문자열 속성 객체', { exact: true })"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.22.2

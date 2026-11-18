@@ -1,0 +1,56 @@
+
+ RUN  v5.0.5 /Users/wt.jeong/.codex/worktrees/8e71/agent-knowledge-hub
+
+ ❯ src/operational/convenience/bulk.test.tsx (10 tests | 2 failed) 62ms
+   × receipt recovery restores only currently visible controls and clears transient errors 19ms
+   × advanced and guided properties share policy, preserve unrelated keys and block invalid edits 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/operational/convenience/bulk.test.tsx > receipt recovery restores only currently visible controls and clears transient errors
+AssertionError: expected <p role="alert"></p> to be null
+
+- Expected:
+null
+
++ Received:
+<p
+  role="alert"
+>
+  temporary
+</p>
+
+ ❯ src/operational/convenience/bulk.test.tsx:106:46
+    104|   expect(host.querySelector('[role=alert]')).toBeTruthy();
+    105|   await click("처리 결과 새로고침");
+    106|   expect(host.querySelector('[role=alert]')).toBeNull();
+       |                                              ^
+    107|   await click("실패 대상 다시 미리보기");
+    108|   const box=host.querySelector<HTMLInputElement>("[type=checkbox]")!;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/operational/convenience/bulk.test.tsx > advanced and guided properties share policy, preserve unrelated keys and block invalid edits
+AssertionError: expected '' to be 'Linux' // Object.is equality
+
+- Expected
++ Received
+
+- Linux
+
+ ❯ src/operational/convenience/bulk.test.tsx:122:27
+    120|  await fill(field("변경 이유"),"reason");
+    121|  await fill(advanced,'{"platform":"Linux","extra":"keep"}');
+    122|  expect(platform().value).toBe("Linux");
+       |                           ^
+    123|  expect(button(host,"속성 검토 요청").disabled).toBe(false);
+    124|  await fill(platform(),"Mac");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 8 passed (10)
+   Start at  09:07:34
+   Duration  402ms (environment 54%, import 21%, tests 18%, transform 6%)
+

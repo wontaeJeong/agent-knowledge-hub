@@ -192,6 +192,7 @@ if (process.argv.includes("--migrate")) {
       service.query(ctx, question, mode, execution, context),
   });
   const jobs = createRuntimeJobs(pool, service, {
+    referenceOrigin: auth.origin,
     questions: questions.questionJobAdapter(),
     ...directory,
     platformOperatorIds,
