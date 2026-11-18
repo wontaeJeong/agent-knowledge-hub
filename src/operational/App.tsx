@@ -3,8 +3,8 @@ import { MyTasks } from "./convenience/MyTasks";
 import { DocumentComposer } from "./convenience/DocumentComposer";
 import { DocumentSnapshot } from "./convenience/DocumentSnapshot";
 import { GlobalSearch } from "./convenience/QuickOpen";
-import { SaveViewForm, viewHref } from "./convenience/SavedViews";
-import { SearchPage, type SearchHandoff } from "./convenience/SearchPage";
+import { SavedViews, viewHref } from "./convenience/SavedViews";
+import { type SearchHandoff } from "./convenience/SearchPage";
 import type { SearchItem } from "./convenience/search-client";
 import { PersonalLibrary } from "./convenience/PersonalLibrary";
 import { NotificationBell } from "./convenience/NotificationBell";
@@ -853,15 +853,15 @@ function OperationalWorkspace({
       navigate={navigate}
       identity={identity}
       globalSearch={
-        identity && !preview && dataReady ? (
+        identity && savedApi && !preview && dataReady ? (
           <GlobalSearch
-            api={api}
+            api={savedApi}
             identityKey={`${identity.workspaceId}:${identity.principalId}`}
             onOpen={openSearchDocument}
             onSearch={(query) => {
               if (!identity || navigate("search") === false) return false;
               setSearchHandoff({
-                api,
+                api:savedApi,
                 identityKey: `${identity.workspaceId}:${identity.principalId}`,
                 revision: ++searchHandoffRevision.current,
                 query,
@@ -1007,15 +1007,12 @@ function OperationalWorkspace({
               <PersonalLibrary kind="saved-views" key={requestEpoch.current} api={savedApi} onIdentityChanged={recheckViewIdentity} spaceId={identity.workspaceId} principalId={identity.principalId}
                 viewId={location.view} onView={openSavedView} onOpen={openSearchDocument}/>
             )}
-            {location.kind === "section" && location.section === "search" && !preview && dataReady && (
-              <SearchPage
-                key={requestEpoch.current}
-                api={api}
-                identityKey={`${identity.workspaceId}:${identity.principalId}`}
-                handoff={searchHandoff ?? undefined}
-                renderSave={(filters,disabled)=>savedApi&&<SaveViewForm api={savedApi} filters={filters} disabled={disabled} onSaved={openSavedView}/>}
-                onOpen={openSearchDocument}
-              />
+            {location.kind === "section" && location.section === "search" && savedApi && dataReady && (
+              <SavedViews searchEntry key={requestEpoch.current} api={savedApi}
+                spaceId={identity.workspaceId} principalId={identity.principalId}
+                handoff={searchHandoff ?? undefined} onIdentityChanged={recheckViewIdentity}
+                onDiscardHandoff={()=>setSearchHandoff(null)}
+                onView={openSavedView} onOpen={openSearchDocument} />
             )}
             {location.kind === "document" && (location.version !== undefined || !!location.anchor) && !preview && dataReady && (
               <DocumentSnapshot

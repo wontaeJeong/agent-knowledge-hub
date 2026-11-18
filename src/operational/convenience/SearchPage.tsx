@@ -1,5 +1,5 @@
 import { useCurrentListFocus } from "./list-focus";
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { OperationalApi } from "../api";
 import { usePersonalKey } from "./personal-client";
 import {
@@ -33,7 +33,7 @@ export type SearchHandoff = {
 type ViewCheck = {
   checking: boolean;
   epoch: number;
-  onDenied: (e: unknown) => void;
+  onFailure: (e: unknown) => void;
 };
 type SaveControls = (filters: SearchFilters, disabled: boolean) => ReactNode;
 const dateKeys = new Set([
@@ -149,6 +149,18 @@ function SearchSession({
     validation =
       "조건 형식이나 기간 순서를 확인하세요. 날짜와 시각은 이 기기의 현지 시각을 사용합니다.";
   }
+  const compositionControl = useRef<HTMLInputElement | null>(null);
+  useLayoutEffect(() => {
+    const control = compositionControl.current;
+    if (!verification?.checking || !control) return;
+    const field = control.dataset.searchField,
+      value = control.value;
+    if (field === "query") setQuery(value);
+    else if (field && fields.some(([key]) => key === field))
+      setRaw((values) => ({ ...values, [field]: value }));
+    compositionControl.current = null;
+    setComposing(false);
+  }, [verification?.checking]);
   const [expanded, setExpanded] = useState(false);
   const search = useDocumentSearch(
     api,
@@ -185,13 +197,16 @@ function SearchSession({
           if (
             event.target instanceof HTMLInputElement &&
             event.target.type === "text"
-          )
+          ) {
+            compositionControl.current = event.target;
             change(() => setComposing(true));
+          }
         }}
         onCompositionEnd={(event) => {
           const control = event.target;
           if (!(control instanceof HTMLInputElement) || control.type !== "text")
             return;
+          compositionControl.current = null;
           const field = control.dataset.searchField;
           const value = control.value;
           change(() => {

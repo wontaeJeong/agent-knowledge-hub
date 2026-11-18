@@ -5,8 +5,8 @@
 
  Test Files  1 passed (1)
       Tests  10 passed (10)
-   Start at  11:38:27
-   Duration  1.89s (tests 95%, import 3%, transform 1%)
+   Start at  12:07:33
+   Duration  2.34s (tests 96%, import 3%, transform 1%)
 
 [2/15] server/convenience/personal-http.test.ts
 
@@ -15,8 +15,8 @@
 
  Test Files  1 passed (1)
       Tests  4 passed (4)
-   Start at  11:38:29
-   Duration  1.61s (tests 88%, import 8%, transform 4%)
+   Start at  12:07:35
+   Duration  1.78s (tests 88%, import 8%, transform 4%)
 
 [3/15] server/convenience/personal.test.ts
 
@@ -25,8 +25,8 @@
 
  Test Files  1 passed (1)
       Tests  7 passed (7)
-   Start at  11:38:31
-   Duration  4.47s (tests 98%, import 2%, transform 1%)
+   Start at  12:07:37
+   Duration  5.17s (tests 98%, import 2%, transform 1%)
 
 [4/15] server/convenience/views-erasure.test.ts
 
@@ -34,9 +34,9 @@
 
 
  Test Files  1 passed (1)
-      Tests  2 passed (2)
-   Start at  11:38:35
-   Duration  1.55s (tests 96%, import 3%, transform 1%)
+      Tests  3 passed (3)
+   Start at  12:07:43
+   Duration  2.24s (tests 96%, import 3%, transform 1%)
 
 [5/15] server/convenience/views-migration.test.ts
 
@@ -45,8 +45,8 @@
 
  Test Files  1 passed (1)
       Tests  1 passed (1)
-   Start at  11:38:37
-   Duration  619ms (tests 97%, import 2%, transform 1%)
+   Start at  12:07:45
+   Duration  523ms (tests 97%, import 2%, transform 1%)
 
 [6/15] server/convenience/views.test.ts
 
@@ -55,8 +55,8 @@
 
  Test Files  1 passed (1)
       Tests  4 passed (4)
-   Start at  11:38:38
-   Duration  1.99s (tests 90%, import 7%, transform 3%)
+   Start at  12:07:46
+   Duration  2.10s (tests 90%, import 7%, transform 3%)
 
 [7/15] server/operations/audit-security.test.ts
 
@@ -65,8 +65,8 @@
 
  Test Files  1 passed (1)
       Tests  4 passed (4)
-   Start at  11:38:40
-   Duration  2.48s (tests 98%, import 1%)
+   Start at  12:07:48
+   Duration  2.59s (tests 98%, import 1%)
 
 [8/15] server/operations/erasure-agent-boundary-db.test.ts
 
@@ -75,8 +75,8 @@
 
  Test Files  1 passed (1)
       Tests  4 passed (4)
-   Start at  11:38:43
-   Duration  1.49s (tests 96%, import 3%, transform 1%)
+   Start at  12:07:51
+   Duration  1.56s (tests 96%, import 3%, transform 1%)
 
 [9/15] server/operations/erasure-db.test.ts
 
@@ -85,8 +85,8 @@
 
  Test Files  1 passed (1)
       Tests  28 passed (28)
-   Start at  11:38:44
-   Duration  6.28s (tests 98%, import 1%)
+   Start at  12:07:53
+   Duration  6.21s (tests 98%, import 1%)
 
 [10/15] server/questions/runtime-http.test.ts
 
@@ -95,8 +95,8 @@
 
  Test Files  1 passed (1)
       Tests  9 passed (9)
-   Start at  11:38:51
-   Duration  15.09s (tests 99%, import 1%)
+   Start at  12:07:59
+   Duration  15.25s (tests 98%, import 1%)
 
 [11/15] server/questions/scope.test.ts
 
@@ -105,8 +105,8 @@
 
  Test Files  1 passed (1)
       Tests  13 passed (13)
-   Start at  11:39:06
-   Duration  7.32s (tests 99%, import 1%)
+   Start at  12:08:14
+   Duration  7.46s (tests 99%, import 1%)
 
 [12/15] server/retention/compat-controls.test.ts
 
@@ -115,8 +115,8 @@
 
  Test Files  1 passed (1)
       Tests  9 passed (9)
-   Start at  11:39:14
-   Duration  1.54s (tests 96%, import 3%, transform 1%)
+   Start at  12:08:22
+   Duration  1.45s (tests 96%, import 3%, transform 1%)
 
 [13/15] server/retention/recovery.test.ts
 
@@ -125,8 +125,8 @@
 
  Test Files  1 passed (1)
       Tests  8 passed (8)
-   Start at  11:39:15
-   Duration  1.46s (tests 93%, import 5%, transform 2%)
+   Start at  12:08:24
+   Duration  1.44s (tests 93%, import 5%, transform 2%)
 
 [14/15] server/retention/retention.test.ts
 
@@ -135,8 +135,8 @@
 
  Test Files  1 passed (1)
       Tests  30 passed (30)
-   Start at  11:39:17
-   Duration  6.48s (tests 98%, import 1%, transform 1%)
+   Start at  12:08:25
+   Duration  6.53s (tests 98%, import 1%, transform 1%)
 
 [15/15] server/search/index.test.ts
 
@@ -145,5 +145,5 @@
 
  Test Files  1 passed (1)
       Tests  16 passed (16)
-   Start at  11:39:24
-   Duration  11.11s (tests 99%, import 1%)
+   Start at  12:08:32
+   Duration  11.33s (tests 99%, import 1%)

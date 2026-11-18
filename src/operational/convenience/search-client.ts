@@ -96,7 +96,7 @@ export function useDocumentSearch(
   filters: SearchFilters,
   composing: boolean,
   quick = false,
-  verification?: { epoch: number; onDenied: (e: unknown) => void },
+  verification?: { epoch: number; onFailure: (e: unknown) => void },
 ) {
   const signature = JSON.stringify([filters, verification?.epoch]);
   const [inputRevision, setInputRevision] = useState(0);
@@ -145,8 +145,7 @@ export function useDocumentSearch(
         current.current.api === api &&
         current.current.signature === signature
       ) {
-        if (e instanceof ApiError && [401, 403, 404].includes(e.status))
-          verification?.onDenied(e);
+        verification?.onFailure(e);
         setResult({
           ...bound,
           page: null,

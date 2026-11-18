@@ -107,8 +107,7 @@ test("private definitions participate in held, resource, workspace and recovery 
         const { previewHash: priorHash, ...priorDisclosed } = prior;
         expect(disclosed).toEqual(priorDisclosed);
         expect(JSON.stringify(disclosed)).not.toContain(first.id);
-        if (query.scope === "workspace")
-          expect(currentHash).not.toBe(priorHash);
+        expect(currentHash).not.toBe(priorHash);
       }
     }
     const rows = await transaction(f.pool, f.workspaceId, (db) =>
@@ -244,5 +243,79 @@ test("approved full-workspace recovery erases only the restored space's private 
     });
   } finally {
     await Promise.all([a.pool.end(), b.pool.end()]);
+  }
+});
+
+test("resource approval expires on another person's first definition and on removal leaving only receipts", async () => {
+  const f = await fixture();
+  try {
+    await adoptFixture(f.pool, f.workspaceId);
+    await f.pool.query(
+      "INSERT INTO resource_readers SELECT workspace_id,kind,id,'fixture-owner' FROM resources WHERE workspace_id=$1 ON CONFLICT DO NOTHING",
+      [f.workspaceId],
+    );
+    const owner = { workspaceId: f.workspaceId, principalId: "fixture-owner" };
+    const ops = new OperationsService(
+      f.pool,
+      operationsAuthorizer(authorizeInTransaction, {
+        adminAuditMetadataExport: true,
+      }),
+    );
+    const views = new SavedViewService(f.pool);
+    const targeted = {
+      scope: "resource",
+      resource: { kind: "source" as const, id: "source-a" },
+    };
+    const draft = {
+      name: "another person's view",
+      filters: { query: "synthetic private terms" },
+      sort: "recent",
+      expectedRevision: 0,
+    };
+    const beforeCreation = await previewErasure(ops, owner, targeted);
+    const obsolete = await views.save(f.reader, {
+      ...draft,
+      mutationId: randomUUID(),
+    });
+    const execute = (hash: string) =>
+      executeErasure(ops, owner, {
+        ...targeted,
+        previewHash: hash,
+        confirm: "ERASE_PREVIEWED_RESOURCE_LINEAGE",
+      });
+    await expect(execute(beforeCreation.previewHash)).rejects.toThrow(
+      "ERASURE_PREVIEW_STALE",
+    );
+    const beforeDelete = await previewErasure(ops, owner, targeted);
+    await views.remove(f.reader, obsolete.id, {
+      expectedRevision: 1,
+      mutationId: randomUUID(),
+    });
+    await expect(execute(beforeDelete.previewHash)).rejects.toThrow(
+      "ERASURE_PREVIEW_STALE",
+    );
+
+    const afterRemoval = await previewErasure(ops, owner, targeted);
+    const { previewHash: oldHash, ...oldPublic } = beforeCreation;
+    const { previewHash: newHash, ...newPublic } = afterRemoval;
+    expect(oldPublic).toEqual(newPublic);
+    expect(oldHash).not.toBe(newHash);
+    await expect(execute(oldHash)).rejects.toThrow("ERASURE_PREVIEW_STALE");
+    expect(
+      (
+        await f.pool.query(
+          "SELECT data->>'content' AS content FROM sources WHERE workspace_id=$1 AND id='source-a'",
+          [f.workspaceId],
+        )
+      ).rows[0].content,
+    ).toContain("재시도");
+    await views.save(f.reader, { ...draft, mutationId: randomUUID() });
+    const fresh = await previewErasure(ops, owner, targeted);
+    expect(await execute(fresh.previewHash)).toMatchObject({
+      status: "blocked",
+      errorCode: "UNLINEAGED_CONTENT_REQUIRES_SEPARATE_PREVIEW",
+    });
+  } finally {
+    await f.pool.end();
   }
 });

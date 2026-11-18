@@ -194,6 +194,26 @@ try {
         await draftField.evaluate((el: HTMLInputElement) =>
           el.setSelectionRange(1, 4),
         );
+        // The browser's composition target is detached while read access is
+        // unresolved. Deliver a single synthetic outage, then use the real API.
+        const verifyUrl =
+          "**/api/v1/convenience/views/" +
+          new URL(exact).searchParams.get("view");
+        await draftField.dispatchEvent("compositionstart", { data: "조" });
+        await page.route(
+          verifyUrl,
+          (route: any) =>
+            route.fulfill({
+              status: 503,
+              contentType: "application/json",
+              body: JSON.stringify({ code: "SERVICE_UNAVAILABLE" }),
+            }),
+          { times: 1 },
+        );
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await saved.getByRole("alert").waitFor();
+        assert.equal(await draftField.count(), 0);
+        assert.equal(await saved.getByLabel("보기 이름").count(), 0);
         const rechecked = page.waitForResponse(
           (response: any) =>
             response.url().endsWith("/api/v1/me") &&
@@ -207,6 +227,12 @@ try {
           name + " 임시",
         );
         assert.equal(await draftField.inputValue(), "미저장 조건");
+        assert.equal(
+          await saved
+            .getByRole("button", { name: "보기 변경 저장", exact: true })
+            .isEnabled(),
+          true,
+        );
         assert.deepEqual(
           await draftField.evaluate((el: HTMLInputElement) => [
             document.activeElement === el,
@@ -373,10 +399,39 @@ try {
         await page.goto(switched.href);
         await saved.getByRole("alert").waitFor();
         assert.equal(await saved.getByLabel("보기 이름").count(), 0);
+        // Repeat the cross-tab cookie change at the main search/save entry.
+        await context.addCookies([await session("reader", f.workspaceId)]);
+        await page.goto(
+          origin + "/?app=1&space=" + f.workspaceId + "&section=search",
+        );
+        const entryName = page.getByLabel("보기 이름");
+        await entryName.fill("이전 사용자의 미저장 이름");
+        const searched = page.waitForResponse(
+          (r: any) =>
+            r.url().endsWith("/questions/search") &&
+            r.request().headers()["x-expected-principal"] &&
+            r.status() === 200,
+        );
+        await page.getByLabel("제목·본문 키워드").fill("이전 사용자의 조건");
+        await searched;
+        const entryDenied = page.waitForResponse(
+          (r: any) => r.url().endsWith("/me") && r.status() === 409,
+        );
+        await context.addCookies([await session("editor", f.workspaceId)]);
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await entryDenied;
+        await page.waitForFunction(
+          () => !location.search.includes("section=search"),
+        );
+        assert.equal(await entryName.count(), 0);
+        assert.equal(await page.getByLabel("제목·본문 키워드").count(), 0);
         assert.deepEqual(errors, []);
         results.push({
           width,
           theme,
+          entrySessionChecked: true,
+          transientDraftRestored: true,
+          compositionReleased: true,
           preservedDraftFocus: true,
           cookieChangedBeforeRelease: true,
           ownerDelete404: true,

@@ -197,6 +197,12 @@ test("revalidating the same revision hides private DOM, then restores unfinished
   await act(async () => window.dispatchEvent(new Event("focus")));
   expect(element.querySelector(".saved-view-form input")).toBeNull();
   await act(async () => finish(v));
+  get.mockRejectedValueOnce(
+    new ApiError("temporary outage", 503, "TEMPORARY_FAILURE"),
+  );
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(element.querySelector(".saved-view-form input")).toBeNull();
+  await act(async () => window.dispatchEvent(new Event("focus")));
   expect(field(".saved-view-form input").value).toBe("미저장 이름");
   expect(field("[data-search-field=query]").value).toBe("미저장 조건");
   expect(document.activeElement).toBe(field("[data-search-field=query]"));
@@ -306,8 +312,9 @@ test("a returned definition must match the independently rendered actor/space", 
 test("an example create whose response was lost keeps its mutation ID across window revalidation", async () => {
   const { element, render } = mount(),
     request = vi.fn().mockRejectedValue(Error("연결 중단"));
+  const get = vi.fn().mockResolvedValue({ items: [] });
   const api = {
-    get: async () => ({ items: [] }),
+    get,
     post: async () => result(),
     request,
   } as unknown as OperationalApi;
@@ -336,10 +343,56 @@ test("an example create whose response was lost keeps its mutation ID across win
         .click(),
     );
   await save();
+  get.mockRejectedValueOnce(
+    new ApiError("temporary outage", 503, "TEMPORARY_FAILURE"),
+  );
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(element.querySelector(".saved-view-form input")).toBeNull();
   await act(async () => window.dispatchEvent(new Event("focus")));
   await tick();
   await save();
   expect(request.mock.calls[1][2].mutationId).toBe(
     request.mock.calls[0][2].mutationId,
   );
+});
+
+test("a recheck detaching the active composition control releases IME and preserves its pending text", async () => {
+  const { element, render } = mount(),
+    v = definition("space");
+  const get = vi.fn().mockResolvedValue(v);
+  await render(
+    <SavedViews
+      {...props}
+      viewId="v"
+      api={{ get, post: async () => result() } as unknown as OperationalApi}
+    />,
+  );
+  const query = () =>
+    element.querySelector<HTMLInputElement>("[data-search-field=query]")!;
+  await act(async () => {
+    query().focus();
+    query().dispatchEvent(
+      new CompositionEvent("compositionstart", { bubbles: true }),
+    );
+  });
+  // The native IME can update its displayed text after compositionstart and
+  // before React has received the next input/compositionend event.
+  Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )!.set!.call(query(), "한글 조합");
+  expect(
+    element.querySelector<HTMLButtonElement>(".saved-view-form button")!
+      .disabled,
+  ).toBe(true);
+  let release!: (data: typeof v) => void;
+  get.mockImplementationOnce(() => new Promise((r) => (release = r)));
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(query()).toBeNull();
+  await act(async () => release(v));
+  expect(query().value).toBe("한글 조합");
+  expect(
+    element.querySelector<HTMLButtonElement>(".saved-view-form button")!
+      .disabled,
+  ).toBe(false);
 });

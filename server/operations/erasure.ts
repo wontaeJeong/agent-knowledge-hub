@@ -714,6 +714,12 @@ async function calculate(db: PoolClient, ctx: Context, input: unknown) {
     scope: d.scope,
     resource: d.resource,
     rows: selected,
+    // Unlineaged private input can block this resource's execution, so its
+    // approval must also bind the private state that was present at preview.
+    ...(d.scope === "resource" ? {
+      privateSnapshot: all.rows.filter(row => isPersonalViewTable(row.table))
+        .map(row => String(row.data.private_payload_sha256)).sort(),
+    } : {}),
     held,
     storageReferences: graph.filter((r) => ownHashes.has(r.sha256)),
   });

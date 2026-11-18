@@ -66,7 +66,7 @@ test("capabilities determine navigation without promoting a reviewer role", () =
 });
 async function mount(
   href: string,
-  data: (path: string) => unknown,
+  data: (path: string, options?: RequestInit) => unknown,
   authenticated = true,
   currentIdentity: () => Identity = () => person,
   preview = false,
@@ -77,7 +77,7 @@ async function mount(
     setTimeout(() => fn(0), 0),
   );
   vi.stubGlobal("cancelAnimationFrame", clearTimeout);
-  vi.stubGlobal("fetch", async (url: string) => {
+  vi.stubGlobal("fetch", async (url: string, options?: RequestInit) => {
     const path = String(url).split("/api/v1")[1];
     if (path === "/me" && !authenticated)
       return new Response(JSON.stringify({ code: "UNAUTHENTICATED" }), {
@@ -92,7 +92,7 @@ async function mount(
             ? new Response(JSON.stringify({ code: "NOT_FOUND" }), {
                 status: 404,
               })
-            : data(path);
+            : data(path, options);
     return result instanceof Response
       ? result
       : new Response(JSON.stringify(result),{headers:{"X-Personal-Scope-Verified":"1"}});
@@ -742,4 +742,25 @@ test("actual space selection preserves the implicit personal Home rather than dr
 test("bare preview renders its supported Overview body without calling authenticated Home",async()=>{
  const container=await mount("/?preview=1",()=>{throw Error("preview must not call native API");},true,()=>person,true);
  expect(container.querySelector("h1")?.textContent).toBe("운영 개요");expect(container.querySelector(".console-overview")).not.toBeNull();expect(container.querySelector('[data-home-widget]')).toBeNull();
+});
+
+test.each(["search","save"])("personal search entry binds requests and clears both drafts after %s denial",async(operation)=>{
+ let blocked=false;
+ const calls:Headers[]=[];
+ const container=await mount("/?app=1&space=team&section=search",(path,options)=>{
+   if (path==="/questions/search"||path==="/convenience/views") {
+     calls.push(new Headers(options?.headers));
+     if(blocked) return new Response(JSON.stringify({code:"FORBIDDEN"}),{status:403});
+   }
+   return {items:[],nextCursor:null};
+ });
+ await writeSearchInput(container.querySelector(".saved-view-form input")!,"private entry name");
+ await writeSearchInput(container.querySelector("[data-search-field=query]")!,"private entry term");
+ blocked=true;
+ await act(async()=>{
+   container.querySelector<HTMLFormElement>(operation==="save"?".saved-view-form":".search-page form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));
+ });
+ expect(calls.at(-1)?.get("x-expected-principal")).toBe("person");
+ expect(container.querySelector(".saved-view-form input")).toBeNull();
+ expect(container.querySelector("[data-search-field=query]")).toBeNull();
 });

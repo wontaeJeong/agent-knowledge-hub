@@ -5,9 +5,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { ApiError, type OperationalApi } from "../api";
+import { ApiError, type Identity, type OperationalApi } from "../api";
 import { usePersonalKey, personalFailure } from "./personal-client";
-import { SearchPage } from "./SearchPage";
+import { SearchPage, type SearchHandoff } from "./SearchPage";
 import {
   normalizeSearchFilters,
   type SearchFilters,
@@ -30,7 +30,10 @@ export type SavedViewsProps = {
   spaceId: string;
   principalId: string;
   viewId?: string;
+  searchEntry?: boolean;
+  handoff?: SearchHandoff;
   onIdentityChanged?: () => void;
+  onDiscardHandoff?: () => void;
   onOpen: (item: SearchItem) => boolean | void;
   onView: (id?: string) => void;
 };
@@ -42,7 +45,7 @@ export const viewHref = (spaceId: string, view?: string) =>
 type RetryKey = { key: string; id: string };
 function useViewMutation(
   api: OperationalApi,
-  onDenied?: (e: unknown) => void,
+  onFailure?: (e: unknown) => void,
   retained?: React.RefObject<RetryKey | null>,
 ) {
   const [busy, setBusy] = useState(false),
@@ -83,8 +86,7 @@ function useViewMutation(
       }
     } catch (e) {
       if (active.current) {
-        if (e instanceof ApiError && [401, 403, 404].includes(e.status))
-          onDenied?.(e);
+        onFailure?.(e);
         setError(personalFailure(e));
       }
     } finally {
@@ -103,11 +105,11 @@ export function SaveViewForm({
   onSaved,
   draftName,
   retainedRetry,
-  onDenied,
+  onFailure,
 }: {
   draftName?: React.RefObject<string | undefined>;
   retainedRetry?: React.RefObject<RetryKey | null>;
-  onDenied?: (e: unknown) => void;
+  onFailure?: (e: unknown) => void;
   api: OperationalApi;
   filters: SearchFilters;
   disabled: boolean;
@@ -115,7 +117,7 @@ export function SaveViewForm({
   onSaved: (id: string) => void;
 }) {
   const [name, setName] = useState(draftName?.current ?? view?.name ?? "");
-  const mutation = useViewMutation(api, onDenied, retainedRetry);
+  const mutation = useViewMutation(api, onFailure, retainedRetry);
   return (
     <form
       className="saved-view-form"
@@ -168,7 +170,13 @@ export function SaveViewForm({
 export function SavedViews(props: SavedViewsProps) {
   const generation = usePersonalKey(
     props.api,
-    JSON.stringify([props.spaceId, props.principalId, props.viewId]),
+    JSON.stringify([
+      props.spaceId,
+      props.principalId,
+      props.viewId,
+      props.searchEntry,
+      props.handoff?.revision,
+    ]),
   );
   return <ViewsSession key={generation} {...props} />;
 }
@@ -180,6 +188,9 @@ function ViewsSession({
   onOpen,
   onView,
   onIdentityChanged,
+  onDiscardHandoff,
+  searchEntry,
+  handoff,
 }: SavedViewsProps) {
   const [rows, setRows] = useState<View[] | null>(null),
     [error, setError] = useState(""),
@@ -189,6 +200,7 @@ function ViewsSession({
     [epoch, setEpoch] = useState(0),
     [conflict, setConflict] = useState(false);
   const sequence = useRef(0),
+    entryHandoff = useRef(handoff),
     base = useRef<View | null>(null),
     draftName = useRef<string | undefined>(undefined),
     retainedRetry = useRef<RetryKey | null>(null),
@@ -200,16 +212,20 @@ function ViewsSession({
       direction: "forward" | "backward" | "none" | null;
     } | null>(null);
   const focus = useCurrentListFocus<HTMLElement>({
-    enabled: !viewId && !example,
+    enabled: !searchEntry && !viewId && !example,
     rowSelector: "[data-view-row]",
     fallbackSelector: "[data-view-fallback]",
     message: "보기 목록이 변경되었습니다.",
   });
   const mismatch = useRef(onIdentityChanged);
   mismatch.current = onIdentityChanged;
+  const clearHandoff = useRef(onDiscardHandoff);
+  clearHandoff.current = onDiscardHandoff;
   const discard = useCallback((e: unknown) => {
     sequence.current++;
     base.current = null;
+    entryHandoff.current = undefined;
+    clearHandoff.current?.();
     draftName.current = undefined;
     retainedRetry.current = null;
     dirty.current = false;
@@ -222,12 +238,12 @@ function ViewsSession({
     setConfirmId(null);
     setError(personalFailure(e));
   }, []);
-  const mutation = useViewMutation(api, discard);
   const suspend = useCallback(() => {
     const active = document.activeElement;
     if (
       active instanceof HTMLElement &&
-      focus.container.current?.contains(active)
+      focus.container.current?.contains(active) &&
+      !active.hasAttribute("data-view-retry")
     ) {
       const key = active.dataset.searchField;
       focusRestore.current = key
@@ -250,13 +266,51 @@ function ViewsSession({
     setConfirmId(null);
     return ++sequence.current;
   }, [focus.container]);
+  const onVerificationError = useCallback(
+    (e: unknown) => {
+      if (
+        e instanceof ApiError &&
+        ([401, 403, 404].includes(e.status) || e.code === "SESSION_CHANGED")
+      ) {
+        discard(e);
+      } else if (
+        !(e instanceof ApiError) ||
+        e.status >= 500 ||
+        [408, 429].includes(e.status)
+      ) {
+        suspend();
+        setError(personalFailure(e));
+      }
+    },
+    [discard, suspend],
+  );
+  const mutation = useViewMutation(api, onVerificationError);
   const refresh = useCallback(
     async (replace = false) => {
       const seq = suspend();
       try {
-        const data = viewId
-          ? [await api.get<View>(root + "/" + viewId)]
-          : (await api.get<{ items: View[] }>(root)).items;
+        let data: View[];
+        if (searchEntry) {
+          const identity = await api.get<Identity>("/me");
+          if (seq !== sequence.current) return;
+          if (
+            identity.principalId !== principalId ||
+            identity.workspaceId !== spaceId
+          ) {
+            discard(new Error("사용자 또는 공간이 변경되었습니다."));
+            mismatch.current?.();
+            return;
+          }
+          if (
+            identity.capabilities &&
+            !identity.capabilities.includes("knowledge.read")
+          )
+            throw new ApiError("검색 권한이 없습니다.", 403, "FORBIDDEN");
+          data = [];
+        } else
+          data = viewId
+            ? [await api.get<View>(root + "/" + viewId)]
+            : (await api.get<{ items: View[] }>(root)).items;
         if (seq !== sequence.current) return;
         if (
           data.some(
@@ -284,10 +338,20 @@ function ViewsSession({
         setChecking(false);
       } catch (e) {
         if (seq !== sequence.current) return;
-        discard(e);
+        setError(personalFailure(e));
+        onVerificationError(e);
       }
     },
-    [api, principalId, spaceId, viewId, discard, suspend],
+    [
+      api,
+      principalId,
+      spaceId,
+      viewId,
+      searchEntry,
+      discard,
+      suspend,
+      onVerificationError,
+    ],
   );
   useEffect(() => {
     void refresh();
@@ -310,7 +374,11 @@ function ViewsSession({
     if (checking || !rows || !focusRestore.current) return;
     const { key, start, end, direction } = focusRestore.current;
     focusRestore.current = null;
-    if (document.activeElement !== document.body) return;
+    if (
+      document.activeElement !== document.body &&
+      !document.activeElement?.hasAttribute("data-view-retry")
+    )
+      return;
     const control = Array.from(
       focus.container.current?.querySelectorAll<HTMLElement>(
         "[data-search-field]",
@@ -338,34 +406,39 @@ function ViewsSession({
   const selected = viewId ? base.current : null;
   return (
     <section
-      className="op-panel saved-views"
-      aria-label="개인 저장 보기"
+      className={searchEntry ? undefined : "op-panel saved-views"}
+      aria-label={searchEntry ? undefined : "개인 저장 보기"}
       ref={focus.container}
       onFocusCapture={focus.onFocusCapture}
       onChangeCapture={() => {
         dirty.current = true;
       }}
     >
-      <h2 data-view-fallback tabIndex={-1}>
-        {viewId
-          ? !checking && selected
-            ? selected.name
-            : "저장 보기"
-          : "내 저장 보기"}
-      </h2>
+      {!searchEntry && (
+        <h2 data-view-fallback tabIndex={-1}>
+          {viewId
+            ? !checking && selected
+              ? selected.name
+              : "저장 보기"
+            : "내 저장 보기"}
+        </h2>
+      )}
       {viewId && <a {...link()}>목록으로</a>}
       {error && <p role="alert">{error}</p>}
       {checking && !error && <p role="status">불러오는 중…</p>}
-      <button
-        type="button"
-        onClick={() => void refresh()}
-        disabled={mutation.busy}
-      >
-        다시 불러오기
-      </button>
+      {(!searchEntry || error) && (
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          data-view-retry
+          disabled={mutation.busy}
+        >
+          다시 불러오기
+        </button>
+      )}
       {mutation.error && <p role="alert">{mutation.error}</p>}
       <span role="status">{focus.notice}</span>
-      {rows && !checking && !viewId && (
+      {rows && !checking && !viewId && !searchEntry && (
         <>
           {!rows.length && (
             <p>
@@ -470,13 +543,14 @@ function ViewsSession({
           </button>
         </div>
       )}
-      {(selected || (rows && !viewId && example)) && (
+      {(selected || (rows && (searchEntry || (!viewId && example)))) && (
         <SearchPage
           key={selected?.revision ?? JSON.stringify(example)}
           api={api}
           identityKey={spaceId + ":" + principalId}
-          verification={{ checking, epoch, onDenied: discard }}
-          initialFilters={selected?.filters ?? example!}
+          verification={{ checking, epoch, onFailure: onVerificationError }}
+          initialFilters={selected?.filters ?? example ?? undefined}
+          handoff={entryHandoff.current}
           onOpen={onOpen}
           renderSave={(filters, disabled) => (
             <SaveViewForm
@@ -485,7 +559,7 @@ function ViewsSession({
               disabled={disabled || conflict}
               draftName={draftName}
               retainedRetry={retainedRetry}
-              onDenied={discard}
+              onFailure={onVerificationError}
               view={selected ?? undefined}
               onSaved={(id) => (viewId ? void refresh(true) : onView(id))}
             />

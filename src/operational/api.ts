@@ -254,10 +254,10 @@ export class OperationalApi {
         requestId,
       );
     }
-    if (this.personalBinding && path !== "/me") {
+    if (this.personalBinding) {
       // A different tab can replace the cookie while this response is in flight.
       // Validate again with the current cookie before releasing private data.
-      const me = await this.get<Identity>("/me");
+      const me = path === "/me" ? data as Identity : await this.get<Identity>("/me");
       if (me.workspaceId !== this.spaceId || me.principalId !== this.personalBinding.principalId ||
           me.csrfToken !== this.personalBinding.csrfToken) {
         this.sessionExpired();
